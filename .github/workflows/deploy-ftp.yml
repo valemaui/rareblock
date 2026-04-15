@@ -1,0 +1,32 @@
+name: Deploy to FTP
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'pokemon-db.html'
+      - 'rareblock-cardmarket.user.js'
+      - 'cm-price.ts'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ secrets.FTP_PATH }}/
+          local-dir: ./
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            .github/**
+            README.md
+            .env.example
+            cm-price.ts
