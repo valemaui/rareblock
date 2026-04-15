@@ -116,15 +116,20 @@ label{font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;fon
 .col-stats{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
 .stat-cell{padding:10px 20px;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:2px}
 .stat-val{font-size:18px;font-weight:600;font-family:var(--mono)}.stat-lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px}
-.col-grid{flex:1;overflow-y:auto;padding:16px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.col-grid{display:none}/* legacy — replaced by col-grid-area */
 .ccard{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);overflow:hidden;cursor:pointer;transition:border-color .12s}
 .ccard:hover{border-color:var(--border-focus)}
 .ccard img{width:100%;display:block}
 .ccard-ph{height:130px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-subtle)}
 .ccard-body{padding:7px}
+.ccard-info{padding:7px}
 .ccard-name{font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ccard-set{font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ccard-meta{font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ccard-price{font-size:12px;font-weight:600;font-family:var(--mono);margin-top:3px}
+.ccard-footer{display:flex;align-items:center;justify-content:space-between;margin-top:4px}
+.ccard-price{font-size:12px;font-weight:600;font-family:var(--mono);margin-top:3px;color:var(--accent)}
+.ccard-cm{font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:1px}
+.badge-manual{background:rgba(210,153,34,.1);color:var(--warning);border-color:rgba(210,153,34,.25)}
 
 /* ── TAB PREVENTIVI ── */
 .prev-layout{display:flex;height:100%;overflow:hidden}
@@ -221,17 +226,19 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
 .prev-card-price{font-size:15px;font-weight:600;font-family:var(--mono);white-space:nowrap;color:var(--text);margin-top:4px}
 .panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 
-/* ── TAB CALIBRAZIONE ── */
-.cal-layout{display:grid;grid-template-columns:1fr 320px;height:100%;overflow:hidden}
-.cal-left{overflow-y:auto;padding:20px;border-right:1px solid var(--border)}
-.cal-right{overflow-y:auto;padding:20px;background:var(--surface)}
-.cal-card-row{display:flex;gap:10px;align-items:center;padding:10px;background:var(--surface2);border-radius:var(--r);border:1px solid var(--border);margin-bottom:12px}
-.cal-obs-table{width:100%;border-collapse:collapse;font-size:12px}
-.cal-obs-table th{padding:5px 8px;text-align:left;font-size:10px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border)}
-.cal-obs-table td{padding:6px 8px;border-bottom:1px solid var(--border)}
-.cal-factor-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)}
-.cal-factor-lbl{font-size:12px;color:var(--text-muted)}
-.cal-factor-val{font-size:14px;font-weight:600;font-family:var(--mono)}
+/* ── COL ADD PANEL ── */
+.col-body{flex:1;display:flex;overflow:hidden;min-height:0}
+.col-grid-area{flex:1;overflow-y:auto;padding:16px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;align-content:start}
+.col-add-panel{width:680px;flex-shrink:0;border-left:1px solid var(--border);display:none;flex-direction:column;overflow:hidden;background:var(--surface)}
+.col-add-panel.open{display:flex}
+.col-add-header{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface)}
+.col-add-header h4{font-size:13px;font-weight:600}
+/* panel mode: stack add-layout vertically, compact results */
+.col-add-panel .add-layout{display:flex;flex-direction:column;flex:1;overflow:hidden}
+.col-add-panel .add-left{border-right:none;border-bottom:1px solid var(--border);max-height:260px;overflow-y:auto;flex-shrink:0}
+.col-add-panel .results-grid{grid-template-columns:repeat(4,1fr)}
+.col-add-panel .add-right{flex:1;overflow-y:auto}
+.col-status{font-size:11px;font-family:var(--mono);color:var(--text-muted);padding:4px 20px;min-height:20px;flex-shrink:0;border-bottom:1px solid var(--border)}
 
 /* ── IMPORT CSV ── */
 .imp-layout{overflow-y:auto;padding:24px;max-width:700px}
@@ -671,14 +678,12 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
     <button class="mode-btn active">Collector</button>
   </div>
   <nav class="nav">
-    <button class="nav-btn active" onclick="showTab('add')">+ Aggiungi</button>
-    <button class="nav-btn" onclick="showTab('col')">Collezione</button>
+    <button class="nav-btn active" onclick="showTab('col')">Collezione</button>
     <button class="nav-btn" onclick="showTab('prev')">Preventivi</button>
-    <button class="nav-btn" onclick="showTab('cal')">Calibrazione</button>
     <button class="nav-btn" onclick="showTab('imp')">Import CSV</button>
-    <button class="nav-btn" onclick="showTab('ms')">★ Masterset</button>
-    <button class="nav-btn" onclick="showTab('auth')">&#9741; Autentica</button>
-    <button class="nav-btn" onclick="showTab('scan')">📷 Scan</button>
+    <button class="nav-btn" onclick="showTab('ms')">Masterset</button>
+    <button class="nav-btn" onclick="showTab('auth')">Autentica</button>
+    <button class="nav-btn" onclick="showTab('scan')">Scan</button>
   </nav>
   <div class="led-wrap">
     <div class="led checking" id="apiLed"></div>
@@ -686,139 +691,150 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
   </div>
 </header>
 
-<!-- TAB AGGIUNGI -->
-<div class="tab active" id="tab-add">
-  <div class="add-layout">
-    <div class="add-left">
-      <div class="search-bar">
-        <input id="q" type="text" placeholder="Nome carta + numero (es. Charizard 4)" onkeydown="if(event.key==='Enter')doSearch()"/>
-        <button class="btn btn-primary" onclick="doSearch()">Cerca</button>
-      </div>
-      <div class="status info" id="st" style="padding:4px 16px"></div>
-      <div id="addEmpty" class="empty-state"><div class="empty-icon">⚡</div><div style="font-size:13px">Cerca una carta per aggiungerla</div></div>
-      <!-- Quick match -->
-      <div id="quickMatch" style="display:none;padding:8px 16px 0;flex-shrink:0">
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:14px;display:flex;gap:14px;align-items:flex-start">
-          <div id="qmImgWrap" style="flex-shrink:0"></div>
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
-              <div style="font-size:15px;font-weight:600" id="qmName"></div>
-              <div style="font-size:12px;color:var(--text-muted);font-family:var(--mono)" id="qmNumber"></div>
-            </div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:3px" id="qmSet"></div>
-            <div style="font-size:11px;color:var(--text-subtle);margin-top:2px" id="qmRarity"></div>
-            <div id="qmPriceRow" style="display:none;margin-top:8px">
-              <div style="font-size:22px;font-weight:600;font-family:var(--mono);line-height:1" id="qmPriceVal"></div>
-              <div style="font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:3px">CM avg30 · <span id="qmPriceFactor"></span></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <!-- Multi results -->
-      <div id="multiWrap" style="display:none;flex-shrink:0;padding:8px 16px 0">
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px" id="multiHeader"></div>
-        <div id="rg" class="results-grid"></div>
-      </div>
-      <!-- Sel header -->
-      <div id="selForm" style="display:none;padding:8px 16px 0;flex-shrink:0">
-        <div id="selHeader" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px;display:flex;gap:10px;align-items:center"></div>
-      </div>
-      <div style="flex:1"></div>
-    </div>
-    <div class="add-right">
-      <div class="empty-state" id="formEmpty"><div class="empty-icon">←</div><div style="font-size:13px">Seleziona una carta dalla ricerca</div></div>
-      <!-- Quick add -->
-      <div id="quickAddForm" style="display:none" class="form-card">
-        <div class="form-grid" style="margin-bottom:10px">
-          <div class="field"><label>Condizione</label><select id="qCond" onchange="updateQuickPrice()"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select></div>
-          <div class="field"><label>Lingua</label><select id="qLang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select></div>
-          <div class="field"><label>Variante</label><select id="qVar" onchange="updateQuickPrice()"><option>Normal</option><option>Holo</option><option>Reverse Holo</option><option>Full Art</option><option>Secret Rare</option><option>Rainbow Rare</option><option>Gold</option><option>Promo</option><option>Shadowless</option></select></div>
-          <div class="field"><label>Quantità</label><input id="qQty" type="number" value="1" min="1"/></div>
-          <div class="field"><label>Acquisto (€)</label><input id="qBuy" type="number" placeholder="0.00" step="0.01"/></div>
-          <div class="field">
-            <label>Vendita (€)</label>
-            <div style="display:flex;gap:6px;align-items:center">
-              <input id="qSell" type="number" placeholder="0.00" step="0.01" style="flex:1"/>
-              <label style="display:flex;align-items:center;gap:4px;white-space:nowrap;text-transform:none;letter-spacing:0;font-size:12px;font-weight:400;color:var(--text-muted)">
-                <input type="checkbox" id="q1st" onchange="updateQuickPrice()" style="width:13px;height:13px"/> 1ª ed.
-              </label>
-            </div>
-          </div>
-          <div class="field full"><label>Note</label><input id="qNotes" type="text" placeholder="PSA 10, signed..."/></div>
-        </div>
-        <div class="form-actions">
-          <button class="btn" onclick="cancelQuick()">Annulla</button>
-          <button class="btn" onclick="openCardmarketAdd()" title="Apri su Cardmarket">↗ CM</button>
-          <button class="btn-verify" id="qVerifyBtn" onclick="verifyPriceAdd('q')" title="Verifica prezzo live su Cardmarket">€</button>
-          <button class="btn btn-primary" id="qAddBtn" onclick="addQuickCard()">Aggiungi alla collezione</button>
-        </div>
-      </div>
-      <!-- Sel add -->
-      <div id="selAddForm" style="display:none" class="form-card">
-        <div class="form-grid" style="margin-bottom:10px">
-          <div class="field"><label>Condizione</label><select id="sCond" onchange="updateSelPrice()"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select></div>
-          <div class="field"><label>Lingua</label><select id="sLang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select></div>
-          <div class="field"><label>Variante</label><select id="sVar" onchange="updateSelPrice()"><option>Normal</option><option>Holo</option><option>Reverse Holo</option><option>Full Art</option><option>Secret Rare</option><option>Rainbow Rare</option><option>Gold</option><option>Promo</option><option>Shadowless</option></select></div>
-          <div class="field"><label>Quantità</label><input id="sQty" type="number" value="1" min="1"/></div>
-          <div class="field"><label>Acquisto (€)</label><input id="sBuy" type="number" placeholder="0.00" step="0.01"/></div>
-          <div class="field">
-            <label>Vendita (€)</label>
-            <div style="display:flex;gap:6px;align-items:center">
-              <input id="sSell" type="number" placeholder="0.00" step="0.01" style="flex:1"/>
-              <label style="display:flex;align-items:center;gap:4px;white-space:nowrap;text-transform:none;letter-spacing:0;font-size:12px;font-weight:400;color:var(--text-muted)">
-                <input type="checkbox" id="s1st" onchange="updateSelPrice()" style="width:13px;height:13px"/> 1ª ed.
-              </label>
-            </div>
-          </div>
-          <div class="field full"><label>Note</label><input id="sNotes" type="text" placeholder="PSA 10, signed..."/></div>
-        </div>
-        <div class="form-actions">
-          <button class="btn" onclick="cancelSel()">Annulla</button>
-          <button class="btn" onclick="openCardmarketAdd()" title="Apri su Cardmarket">↗ CM</button>
-          <button class="btn-verify" id="sVerifyBtn" onclick="verifyPriceAdd('s')" title="Verifica prezzo live su Cardmarket">€</button>
-          <button class="btn btn-primary" id="sAddBtn" onclick="addSelCard()">Aggiungi alla collezione</button>
-        </div>
-      </div>
-      <!-- Manual form -->
-      <div id="mform" style="display:none" class="form-card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <div style="font-size:13px;font-weight:600">Inserimento manuale</div>
-          <a id="cmLink" href="https://www.cardmarket.com/it/Pokemon" target="_blank" style="font-size:11px;color:var(--accent)">Cerca su Cardmarket →</a>
-        </div>
-        <div class="form-grid" style="margin-bottom:10px">
-          <div class="field full"><label>Nome carta *</label><input id="mname" type="text"/></div>
-          <div class="field"><label>Set</label><input id="mset" type="text"/></div>
-          <div class="field"><label>Numero</label><input id="mnum" type="text"/></div>
-          <div class="field"><label>Rarità</label><select id="mrar"><option value="">—</option><option>Common</option><option>Uncommon</option><option>Rare</option><option>Rare Holo</option><option>Double Rare</option><option>Ultra Rare</option><option>Illustration Rare</option><option>Special Illustration Rare</option><option>Hyper Rare</option><option>Promo</option></select></div>
-          <div class="field"><label>Condizione</label><select id="mcond"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select></div>
-          <div class="field"><label>Lingua</label><select id="mlang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select></div>
-          <div class="field"><label>Variante</label><select id="mvar"><option>Normal</option><option>Holo</option><option>Reverse Holo</option><option>Full Art</option><option>Secret Rare</option><option>Rainbow Rare</option><option>Gold</option><option>Promo</option><option>Shadowless</option></select></div>
-          <div class="field"><label>Quantità</label><input id="mqty" type="number" value="1" min="1"/></div>
-          <div class="field"><label>Acquisto (€)</label><input id="mbuy" type="number" placeholder="0.00" step="0.01"/></div>
-          <div class="field"><label>Vendita (€)</label><input id="msell" type="number" placeholder="0.00" step="0.01"/></div>
-          <div class="field"><label>CM avg30 (€)</label><div style="display:flex;gap:5px"><input id="mcm" type="number" placeholder="0.00" step="0.01" style="flex:1"/><button class="btn-verify" id="mVerifyBtn" onclick="verifyPriceAdd('m')" title="Verifica prezzo live su Cardmarket" style="flex-shrink:0">€</button></div></div>
-          <div class="field"><label>URL immagine</label><input id="mimg" type="text" placeholder="https://..."/></div>
-          <div class="field full"><label>Note</label><input id="mnotes" type="text"/></div>
-        </div>
-        <div class="check-row" style="margin-bottom:10px"><input type="checkbox" id="m1st"/><span>Prima edizione</span></div>
-        <div class="form-actions"><button class="btn" onclick="cancelManual()">Annulla</button><button class="btn btn-primary" id="maddBtn" onclick="addManualCard()">Aggiungi</button></div>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- TAB COLLEZIONE -->
-<div class="tab" id="tab-col">
+<div class="tab active" id="tab-col">
   <div class="col-layout">
     <div class="col-toolbar">
-      <input type="text" placeholder="Cerca per nome..." id="searchCol" oninput="loadCollection()" style="max-width:200px"/>
-      <select id="filterSet" onchange="loadCollection()" style="max-width:160px"><option value="">Tutti i set</option></select>
-      <select id="filterCond" onchange="loadCollection()" style="max-width:120px"><option value="">Condizione</option><option>MINT</option><option>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select>
-      <select id="filterLang" onchange="loadCollection()" style="max-width:90px"><option value="">Lingua</option><option>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select>
-      <div style="margin-left:auto"><button class="btn" onclick="exportCSV()">Esporta CSV</button></div>
+      <input type="text" placeholder="Cerca per nome..." id="searchCol" oninput="loadCollection()" style="max-width:180px"/>
+      <select id="filterSet" onchange="loadCollection()" style="max-width:150px"><option value="">Tutti i set</option></select>
+      <select id="filterCond" onchange="loadCollection()" style="max-width:110px"><option value="">Condizione</option><option>MINT</option><option>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select>
+      <select id="filterLang" onchange="loadCollection()" style="max-width:85px"><option value="">Lingua</option><option>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button class="btn btn-primary" id="colAddBtn" onclick="toggleColAdd()">+ Aggiungi carta</button>
+        <button class="btn" onclick="exportCSV()">Esporta CSV</button>
+      </div>
     </div>
     <div class="col-stats" id="colStats"></div>
-    <div class="col-grid" id="colGrid"></div>
+    <div class="col-body">
+      <div class="col-main">
+        <div class="status info" id="colst" style="padding:4px 20px;font-size:12px;min-height:0"></div>
+        <div class="col-grid" id="colGrid"></div>
+      </div>
+      <!-- Pannello aggiungi carta -->
+      <div class="col-add-panel" id="colAddPanel">
+        <div class="col-add-header">
+          <span>Aggiungi carta alla collezione</span>
+          <button class="btn-icon" onclick="closeColAdd()">✕</button>
+        </div>
+        <div class="add-layout" style="flex:1;overflow:hidden">
+          <div class="add-left">
+            <div class="search-bar">
+              <input id="q" type="text" placeholder="Nome carta + numero (es. Charizard 4)" onkeydown="if(event.key==='Enter')doSearch()"/>
+              <button class="btn btn-primary" onclick="doSearch()">Cerca</button>
+            </div>
+            <div class="status info" id="st" style="padding:4px 16px"></div>
+            <div id="addEmpty" class="empty-state"><div class="empty-icon">⚡</div><div style="font-size:13px">Cerca una carta per aggiungerla</div></div>
+            <!-- Quick match -->
+            <div id="quickMatch" style="display:none;padding:8px 16px 0;flex-shrink:0">
+              <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:14px;display:flex;gap:14px;align-items:flex-start">
+                <div id="qmImgWrap" style="flex-shrink:0"></div>
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+                    <div style="font-size:15px;font-weight:600" id="qmName"></div>
+                    <div style="font-size:12px;color:var(--text-muted);font-family:var(--mono)" id="qmNumber"></div>
+                  </div>
+                  <div style="font-size:12px;color:var(--text-muted);margin-top:3px" id="qmSet"></div>
+                  <div style="font-size:11px;color:var(--text-subtle);margin-top:2px" id="qmRarity"></div>
+                  <div id="qmPriceRow" style="display:none;margin-top:8px">
+                    <div style="font-size:22px;font-weight:600;font-family:var(--mono);line-height:1" id="qmPriceVal"></div>
+                    <div style="font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:3px">CM avg30 · <span id="qmPriceFactor"></span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Multi results -->
+            <div id="multiWrap" style="display:none;flex-shrink:0;padding:8px 16px 0">
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px" id="multiHeader"></div>
+              <div id="rg" class="results-grid"></div>
+            </div>
+            <!-- Sel header -->
+            <div id="selForm" style="display:none;padding:8px 16px 0;flex-shrink:0">
+              <div id="selHeader" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px;display:flex;gap:10px;align-items:center"></div>
+            </div>
+            <div style="flex:1"></div>
+          </div>
+          <div class="add-right">
+            <div class="empty-state" id="formEmpty"><div class="empty-icon">←</div><div style="font-size:13px">Seleziona una carta dalla ricerca</div></div>
+            <!-- Quick add -->
+            <div id="quickAddForm" style="display:none" class="form-card">
+              <div class="form-grid" style="margin-bottom:10px">
+                <div class="field"><label>Condizione</label><select id="qCond" onchange="updateQuickPrice()"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select></div>
+                <div class="field"><label>Lingua</label><select id="qLang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select></div>
+                <div class="field"><label>Variante</label><select id="qVar" onchange="updateQuickPrice()"><option>Normal</option><option>Holo</option><option>Reverse Holo</option><option>Full Art</option><option>Secret Rare</option><option>Rainbow Rare</option><option>Gold</option><option>Promo</option><option>Shadowless</option></select></div>
+                <div class="field"><label>Quantità</label><input id="qQty" type="number" value="1" min="1"/></div>
+                <div class="field"><label>Acquisto (€)</label><input id="qBuy" type="number" placeholder="0.00" step="0.01"/></div>
+                <div class="field">
+                  <label>Vendita (€)</label>
+                  <div style="display:flex;gap:6px;align-items:center">
+                    <input id="qSell" type="number" placeholder="0.00" step="0.01" style="flex:1"/>
+                    <label style="display:flex;align-items:center;gap:4px;white-space:nowrap;text-transform:none;letter-spacing:0;font-size:12px;font-weight:400;color:var(--text-muted)">
+                      <input type="checkbox" id="q1st" onchange="updateQuickPrice()" style="width:13px;height:13px"/> 1ª ed.
+                    </label>
+                  </div>
+                </div>
+                <div class="field full"><label>Note</label><input id="qNotes" type="text" placeholder="PSA 10, signed..."/></div>
+              </div>
+              <div class="form-actions">
+                <button class="btn" onclick="cancelQuick()">Annulla</button>
+                <button class="btn" onclick="openCardmarketAdd()" title="Apri su Cardmarket">↗ CM</button>
+                <button class="btn-verify" id="qVerifyBtn" onclick="verifyPriceAdd('q')" title="Verifica prezzo live su Cardmarket">€</button>
+                <button class="btn btn-primary" id="qAddBtn" onclick="addQuickCard()">Aggiungi</button>
+              </div>
+            </div>
+            <!-- Sel add -->
+            <div id="selAddForm" style="display:none" class="form-card">
+              <div class="form-grid" style="margin-bottom:10px">
+                <div class="field"><label>Condizione</label><select id="sCond" onchange="updateSelPrice()"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select></div>
+                <div class="field"><label>Lingua</label><select id="sLang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select></div>
+                <div class="field"><label>Variante</label><select id="sVar" onchange="updateSelPrice()"><option>Normal</option><option>Holo</option><option>Reverse Holo</option><option>Full Art</option><option>Secret Rare</option><option>Rainbow Rare</option><option>Gold</option><option>Promo</option><option>Shadowless</option></select></div>
+                <div class="field"><label>Quantità</label><input id="sQty" type="number" value="1" min="1"/></div>
+                <div class="field"><label>Acquisto (€)</label><input id="sBuy" type="number" placeholder="0.00" step="0.01"/></div>
+                <div class="field">
+                  <label>Vendita (€)</label>
+                  <div style="display:flex;gap:6px;align-items:center">
+                    <input id="sSell" type="number" placeholder="0.00" step="0.01" style="flex:1"/>
+                    <label style="display:flex;align-items:center;gap:4px;white-space:nowrap;text-transform:none;letter-spacing:0;font-size:12px;font-weight:400;color:var(--text-muted)">
+                      <input type="checkbox" id="s1st" onchange="updateSelPrice()" style="width:13px;height:13px"/> 1ª ed.
+                    </label>
+                  </div>
+                </div>
+                <div class="field full"><label>Note</label><input id="sNotes" type="text" placeholder="PSA 10, signed..."/></div>
+              </div>
+              <div class="form-actions">
+                <button class="btn" onclick="cancelSel()">Annulla</button>
+                <button class="btn" onclick="openCardmarketAdd()" title="Apri su Cardmarket">↗ CM</button>
+                <button class="btn-verify" id="sVerifyBtn" onclick="verifyPriceAdd('s')" title="Verifica prezzo live su Cardmarket">€</button>
+                <button class="btn btn-primary" id="sAddBtn" onclick="addSelCard()">Aggiungi</button>
+              </div>
+            </div>
+            <!-- Manual form -->
+            <div id="mform" style="display:none" class="form-card">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <div style="font-size:13px;font-weight:600">Inserimento manuale</div>
+                <a id="cmLink" href="https://www.cardmarket.com/it/Pokemon" target="_blank" style="font-size:11px;color:var(--accent)">Cerca su Cardmarket →</a>
+              </div>
+              <div class="form-grid" style="margin-bottom:10px">
+                <div class="field full"><label>Nome carta *</label><input id="mname" type="text"/></div>
+                <div class="field"><label>Set</label><input id="mset" type="text"/></div>
+                <div class="field"><label>Numero</label><input id="mnum" type="text"/></div>
+                <div class="field"><label>Rarità</label><select id="mrar"><option value="">—</option><option>Common</option><option>Uncommon</option><option>Rare</option><option>Rare Holo</option><option>Double Rare</option><option>Ultra Rare</option><option>Illustration Rare</option><option>Special Illustration Rare</option><option>Hyper Rare</option><option>Promo</option></select></div>
+                <div class="field"><label>Condizione</label><select id="mcond"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select></div>
+                <div class="field"><label>Lingua</label><select id="mlang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select></div>
+                <div class="field"><label>Variante</label><select id="mvar"><option>Normal</option><option>Holo</option><option>Reverse Holo</option><option>Full Art</option><option>Secret Rare</option><option>Rainbow Rare</option><option>Gold</option><option>Promo</option><option>Shadowless</option></select></div>
+                <div class="field"><label>Quantità</label><input id="mqty" type="number" value="1" min="1"/></div>
+                <div class="field"><label>Acquisto (€)</label><input id="mbuy" type="number" placeholder="0.00" step="0.01"/></div>
+                <div class="field"><label>Vendita (€)</label><input id="msell" type="number" placeholder="0.00" step="0.01"/></div>
+                <div class="field"><label>CM avg30 (€)</label><div style="display:flex;gap:5px"><input id="mcm" type="number" placeholder="0.00" step="0.01" style="flex:1"/><button class="btn-verify" id="mVerifyBtn" onclick="verifyPriceAdd('m')" title="Verifica prezzo live su Cardmarket" style="flex-shrink:0">€</button></div></div>
+                <div class="field"><label>URL immagine</label><input id="mimg" type="text" placeholder="https://..."/></div>
+                <div class="field full"><label>Note</label><input id="mnotes" type="text"/></div>
+              </div>
+              <div class="check-row" style="margin-bottom:10px"><input type="checkbox" id="m1st"/><span>Prima edizione</span></div>
+              <div class="form-actions"><button class="btn" onclick="cancelManual()">Annulla</button><button class="btn btn-primary" id="maddBtn" onclick="addManualCard()">Aggiungi</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -911,53 +927,12 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
                 </div>
                 <div style="display:flex;gap:6px">
                   <button class="btn btn-primary" onclick="addToPrev()" style="flex:1">Aggiungi</button>
-                  <button class="btn" onclick="calibraFromPrev()" style="padding:5px 10px" title="Calibra">⚖</button>
                 </div>
               </div>
             </div>
           </div>
         </div>
         <div class="prev-summary"><div id="prevTotals"></div></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- TAB CALIBRAZIONE -->
-<div class="tab" id="tab-cal">
-  <div class="cal-layout">
-    <div class="cal-left">
-      <div class="section-title">Nuova osservazione</div>
-      <div style="display:flex;gap:8px;margin-bottom:8px">
-        <input id="calQ" type="text" placeholder="Nome + numero carta..." onkeydown="if(event.key==='Enter')calSearch()"/>
-        <button class="btn btn-primary" onclick="calSearch()" style="flex-shrink:0">Cerca</button>
-      </div>
-      <div class="status info" id="calSt" style="padding:0;margin-bottom:10px"></div>
-      <div id="calCardWrap" style="display:none">
-        <div class="cal-card-row">
-          <img id="calImg" style="width:44px;border-radius:3px;flex-shrink:0"/>
-          <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500" id="calName"></div><div style="font-size:11px;color:var(--text-muted);font-family:var(--mono)" id="calMeta"></div></div>
-          <div style="text-align:right;flex-shrink:0"><div style="font-size:10px;color:var(--text-muted);font-family:var(--mono)">NM avg30</div><div style="font-size:18px;font-weight:600;font-family:var(--mono)" id="calNmPrice">—</div></div>
-        </div>
-        <div class="form-grid" style="margin-bottom:10px">
-          <div class="field"><label>Condizione osservata</label><select id="calCond"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select></div>
-          <div class="field"><label>Prezzo reale CM (€)</label><input id="calPrice" type="number" placeholder="es. 38.50" step="0.01" min="0.01"/></div>
-        </div>
-        <div style="font-size:11px;font-family:var(--mono);color:var(--text-muted);margin-bottom:10px;min-height:14px" id="calRatioPreview"></div>
-        <button class="btn btn-primary" onclick="addCalibration()" style="width:100%">Registra osservazione</button>
-      </div>
-      <hr class="divider"/>
-      <div class="section-title">Osservazioni registrate</div>
-      <div id="calObsList"></div>
-    </div>
-    <div class="cal-right">
-      <div class="section-title">Fattori calibrati</div>
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Minimo 3 osservazioni per condizione per risultati affidabili.</div>
-      <div id="calFactors"></div>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
-        <button class="btn btn-primary" onclick="applyCalibFactors()">Applica fattori all'app</button>
-        <button class="btn" onclick="resetToDefault()">Ripristina default CM</button>
-        <button class="btn btn-danger" onclick="clearCalib()">Azzera osservazioni</button>
       </div>
     </div>
   </div>
@@ -1120,7 +1095,6 @@ function showTab(t){
   document.querySelectorAll('.tab').forEach(p=>{
     p.classList.toggle('active',p.id==='tab-'+t);
   });
-  if(t==='cal')renderCalib();
   if(t==='col')loadCollection();
   if(t==='prev')renderPrevList();
   if(t==='ms')msInit();
@@ -1330,6 +1304,7 @@ async function addQuickCard(){
     ['qBuy','qSell','qNotes'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('qQty').value='1';document.getElementById('q1st').checked=false;
     quickCard=null;
+    loadCollection();
   }catch(e){document.getElementById('st').className='status err';document.getElementById('st').textContent='Errore: '+e.message}
   btn.disabled=false;btn.textContent='Aggiungi';
 }
@@ -1400,6 +1375,7 @@ async function addSelCard(){
     ['sBuy','sSell','sNotes'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('sQty').value='1';document.getElementById('s1st').checked=false;
     selCard=null;
+    loadCollection();
   }catch(e){document.getElementById('st').className='status err';document.getElementById('st').textContent='Errore: '+e.message}
   btn.disabled=false;btn.textContent='Aggiungi';
 }
@@ -1431,18 +1407,48 @@ async function addManualCard(){
     });
     document.getElementById('st').className='status ok';document.getElementById('st').textContent='✓ "'+name+'" aggiunta manualmente!';
     cancelManual();document.getElementById('q').value='';
+    loadCollection();
   }catch(e){document.getElementById('st').className='status err';document.getElementById('st').textContent='Errore: '+e.message}
-  btn.disabled=false;btn.textContent='Aggiungi alla collezione';
+  btn.disabled=false;btn.textContent='Aggiungi';
+}
+
+// ── TOGGLE PANNELLO AGGIUNGI ──
+function toggleColAdd(){
+  const panel=document.getElementById('colAddPanel');
+  const isOpen=panel.classList.toggle('open');
+  const btn=document.getElementById('colAddBtn');
+  if(btn)btn.textContent=isOpen?'✕ Chiudi':'+ Aggiungi carta';
+  if(isOpen){
+    document.getElementById('q').value='';
+    document.getElementById('st').textContent='';
+    document.getElementById('quickMatch').style.display='none';
+    document.getElementById('quickAddForm').style.display='none';
+    document.getElementById('multiWrap').style.display='none';
+    document.getElementById('selForm').style.display='none';
+    document.getElementById('selAddForm').style.display='none';
+    document.getElementById('mform').style.display='none';
+    document.getElementById('addEmpty').style.display='flex';
+    document.getElementById('formEmpty').style.display='flex';
+    quickCard=null;selCard=null;
+    setTimeout(()=>document.getElementById('q').focus(),150);
+  }
+}
+function closeColAdd(){
+  const panel=document.getElementById('colAddPanel');
+  panel.classList.remove('open');
+  const btn=document.getElementById('colAddBtn');
+  if(btn)btn.textContent='+ Aggiungi carta';
 }
 
 // ── COLLECTION ──
 async function loadCollection(){
-  const cg=document.getElementById('cg'),colst=document.getElementById('colst');
-  colst.className='status info';colst.textContent='Caricamento...';
-  const fn=document.getElementById('fname').value.toLowerCase();
-  const fc=document.getElementById('fcond').value;
-  const fl=document.getElementById('flang').value;
-  const fs=document.getElementById('fset').value;
+  const cg=document.getElementById('colGrid');
+  const colst=document.getElementById('colst');
+  if(colst){colst.className='status info';colst.textContent='Caricamento...';}
+  const fn=(document.getElementById('searchCol')?.value||'').toLowerCase();
+  const fc=document.getElementById('filterCond')?.value||'';
+  const fl=document.getElementById('filterLang')?.value||'';
+  const fs=document.getElementById('filterSet')?.value||'';
   let q='cards?order=created_at.desc&limit=500';
   if(fc)q+='&condition=eq.'+encodeURIComponent(fc);
   if(fl)q+='&language=eq.'+encodeURIComponent(fl);
@@ -1450,28 +1456,27 @@ async function loadCollection(){
   try{
     let data=await supa('GET',q);
     if(fn)data=data.filter(c=>c.name.toLowerCase().includes(fn));
-    renderStats(data);updateSetFilter(data,fs);colst.textContent='';
-    if(!data.length){cg.innerHTML='<div class="empty">Nessuna carta trovata.</div>';return}
+    renderStats(data);updateSetFilter(data,fs);
+    if(colst)colst.textContent='';
+    if(!data.length){cg.innerHTML='<div class="empty-state"><div class="empty-icon">🃏</div><div style="font-size:13px">Nessuna carta trovata.</div></div>';return}
     cg.innerHTML=data.map(c=>`
-      <div class="ccard${c.is_manual?' manual-card':''}">
-        ${(c.image_url&&c.image_url.startsWith('http'))?`<img src="${c.image_url}" loading="lazy"/>`:'<div class="ccard-ph">No image</div>'}
+      <div class="ccard${c.is_manual?' manual-card':''}" onclick="openEditModal('${c.id}')">
+        ${(c.image_url&&c.image_url.startsWith('http'))?`<img src="${c.image_url}" loading="lazy"/>`:'<div class="ccard-ph">🃏</div>'}
         <div class="ccard-info">
-          <div class="ccard-name" title="${c.name}">${c.name}${c.first_edition?'<span class="badge-1st">1ª</span>':''}</div>
+          <div class="ccard-name" title="${c.name}">${c.name}${c.first_edition?'<span class="badge-1st" style="margin-left:4px">1ª</span>':''}</div>
           <div class="ccard-set">${c.set_name||'—'}${c.card_number?' #'+c.card_number:''}</div>
           <div class="ccard-meta">${c.variant||'Normal'} · ${c.language} · ×${c.qty}</div>
           <div class="ccard-footer">
-            <div style="display:flex;gap:4px;flex-wrap:wrap">
-              <span class="badge b-${c.condition.toLowerCase().replace('/','')}">${c.condition}</span>
-              ${c.is_manual?'<span class="badge badge-manual">manuale</span>':''}
-            </div>
-            <button class="btn-ghost" onclick="delCard('${c.id}','${c.name.replace(/'/g,"\\'")}')">✕</button>
+            <span class="badge b-${c.condition.toLowerCase().replace('/','')}">${c.condition}${c.is_manual?' <span style="color:var(--warning);font-size:9px">M</span>':''}</span>
+            <button class="btn-ghost" style="padding:1px 5px" onclick="event.stopPropagation();delCard('${c.id}','${c.name.replace(/'/g,"\'")}')">✕</button>
           </div>
           ${c.sell_price>0?`<div class="ccard-price">€${parseFloat(c.sell_price).toFixed(2)}</div>`:''}
           ${c.cm_avg30>0?`<div class="ccard-cm">CM avg30: €${parseFloat(c.cm_avg30).toFixed(2)}</div>`:''}
         </div>
       </div>`).join('');
-  }catch(e){colst.className='status err';colst.textContent='Errore: '+e.message}
+  }catch(e){if(colst){colst.className='status err';colst.textContent='Errore: '+e.message}}
 }
+
 
 function renderStats(data){
   const tot=data.reduce((a,c)=>a+(c.qty||1),0);
@@ -1485,7 +1490,8 @@ function renderStats(data){
     <div class="stat-cell"><div class="stat-val">${sets}</div><div class="stat-lbl">Set diversi</div></div>`;
 }
 function updateSetFilter(data,current){
-  const sel=document.getElementById('fset');
+  const sel=document.getElementById('filterSet');
+  if(!sel)return;
   const sets=[...new Set(data.map(c=>c.set_name).filter(Boolean))].sort();
   sel.innerHTML='<option value="">Tutti i set</option>'+sets.map(s=>`<option${s===current?' selected':''}>${s}</option>`).join('');
 }
@@ -2116,9 +2122,6 @@ function updatePrevPrice(){
   }
 }
 
-// Stato per il ritorno dal preventivo alla calibrazione
-let calibFromPrev=null; // {card, cond, variant, first1st}
-
 // Mappa lingue app → codice lingua Cardmarket
 const CM_LANG={'ITA':'it','ENG':'en','JPN':'ja','DEU':'de','FRA':'fr','ESP':'es','KOR':'ko','POR':'pt'};
 const CM_COND={'MINT':'MT','NM':'NM','EX':'EX','GD':'GD','LP':'LP','PL':'PL','PO':'PO'};
@@ -2745,92 +2748,8 @@ function applyAddPrice(prefix, price, el){
   }
 }
 
-function calibraFromPrev(){
-  if(!prevCard)return;
-  // Salva lo stato corrente del form preventivo
-  calibFromPrev={
-    card:prevCard,
-    cond:document.getElementById('pCond').value,
-    variant:document.getElementById('pVar').value,
-    first1st:document.getElementById('p1st').checked,
-    lang:document.getElementById('pLang').value,
-    qty:document.getElementById('pQty').value
-  };
-  // Pre-carica la carta nella calibrazione
-  calCard=prevCard;
-  const nm=prevCard.cardmarket?.prices?.avg30||null;
-  document.getElementById('calQ').value=prevCard.name+(prevCard.number?' '+prevCard.number:'');
-  if(prevCard.images?.small)document.getElementById('calImg').src=prevCard.images.small;
-  document.getElementById('calName').textContent=prevCard.name;
-  document.getElementById('calMeta').textContent=(prevCard.set?.name||'')+(prevCard.number?' · #'+prevCard.number:'')+(prevCard.rarity?' · '+prevCard.rarity:'');
-  document.getElementById('calNmPrice').textContent=nm?'€'+nm.toFixed(2):'N/D';
-  document.getElementById('calCardWrap').style.display='block';
-  // Pre-imposta la condizione uguale a quella del form preventivo
-  document.getElementById('calCond').value=calibFromPrev.cond;
-  document.getElementById('calPrice').value='';
-  document.getElementById('calSt').style.color='var(--blue)';
-  document.getElementById('calSt').textContent='Carta precaricata da preventivo — inserisci il prezzo reale e clicca Registra';
-  // Vai alla tab calibrazione
-  showTab('cal');
-  // Mostra banner di ritorno
-  showCalibReturnBanner();
-}
 
-function showCalibReturnBanner(){
-  let banner=document.getElementById('calibReturnBanner');
-  if(!banner){
-    banner=document.createElement('div');
-    banner.id='calibReturnBanner';
-    banner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:500;background:#185FA5;color:#fff;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-family:var(--font)';
-    banner.innerHTML='<span>⚖ Calibrazione da preventivo — dopo aver registrato clicca "Torna al preventivo"</span>'
-      +'<button onclick="returnToPrevFromCalib()" style="background:var(--accent);color:#000;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;font-weight:500;font-family:var(--font)">↩ Torna al preventivo</button>';
-    document.body.appendChild(banner);
-  }
-  banner.style.display='flex';
-  // Shift content down
-  document.querySelector('.header').style.marginTop='44px';
-}
-
-function hideCalibReturnBanner(){
-  const banner=document.getElementById('calibReturnBanner');
-  if(banner)banner.style.display='none';
-  document.querySelector('.header').style.marginTop='';
-}
-
-function returnToPrevFromCalib(){
-  hideCalibReturnBanner();
-  showTab('prev');
-  // Ripristina il form con la carta e i parametri originali
-  if(calibFromPrev){
-    prevCard=calibFromPrev.card;
-    // Riapri il preventivo corretto
-    if(activePrev){
-      document.getElementById('prevEmpty').style.display='none';
-      document.getElementById('prevContent').style.display='block';
-    }
-    // Ripristina form
-    document.getElementById('pCond').value=calibFromPrev.cond;
-    document.getElementById('pVar').value=calibFromPrev.variant;
-    document.getElementById('p1st').checked=calibFromPrev.first1st;
-    document.getElementById('pLang').value=calibFromPrev.lang;
-    document.getElementById('pQty').value=calibFromPrev.qty;
-    // Riapri il quick add con i prezzi aggiornati (ora con fattori ricalibrati)
-    showPrevQuickAdd(prevCard);
-    // Evidenzia il prezzo aggiornato
-    setTimeout(()=>{
-      const priceEl=document.querySelector('.prev-card-price');
-      if(priceEl){
-        priceEl.style.transition='color 0.3s';
-        priceEl.style.color='var(--green)';
-        setTimeout(()=>priceEl.style.color='var(--accent)',1500);
-      }
-    },100);
-    calibFromPrev=null;
-  }
-}
-
-
-async function addToPrev(){
+function addToPrev(){
   if(!prevCard||!activePrev)return;
   const cond=document.getElementById('pCond').value;
   const variant=document.getElementById('pVar').value;
@@ -2922,214 +2841,6 @@ dz.addEventListener('drop',e=>{
 });
 
 
-// ── CALIBRAZIONE ──
-const DEFAULT_FACTORS={MINT:1.15,NM:1.0,EX:0.85,GD:0.70,LP:0.60,PL:0.40,PO:0.20,'INK/ALT':0.10};
-const CONDITIONS=['MINT','NM','EX','GD','LP','PL','PO','INK/ALT'];
-
-function loadCalibData(){
-  try{return JSON.parse(localStorage.getItem('pkm_calib')||'{"obs":[],"factors":{}}');}
-  catch{return{obs:[],factors:{}};}
-}
-function saveCalibData(d){localStorage.setItem('pkm_calib',JSON.stringify(d));}
-
-// Sovrascrive COND_FACTOR con i fattori salvati (se esistono)
-function initCalibFactors(){
-  const d=loadCalibData();
-  if(d.factors&&Object.keys(d.factors).length){
-    CONDITIONS.forEach(c=>{if(d.factors[c]!==undefined)COND_FACTOR[c]=d.factors[c];});
-  }
-}
-initCalibFactors();
-
-let calCard=null;
-
-async function calSearch(){
-  const raw=document.getElementById('calQ').value.trim();
-  if(!raw)return;
-  const{name,number}=parseQuery(raw);
-  const st=document.getElementById('calSt');
-  st.style.color='var(--text-muted)';st.textContent='Ricerca...';
-  document.getElementById('calCardWrap').style.display='none';
-  calCard=null;
-  try{
-    const cards=await fetchCards(name);
-    if(!cards.length){st.style.color='var(--red)';st.textContent='Nessuna carta trovata.';return;}
-    let filtered=cards;
-    if(number){
-      const exact=cards.filter(c=>c.number===number);
-      const partial=cards.filter(c=>c.number&&c.number.startsWith(number+'/'));
-      filtered=exact.length?exact:(partial.length?partial:cards);
-    }
-    // Prendi la prima corrispondenza
-    calCard=filtered[0];
-    const prices=calCard.cardmarket?.prices;
-    const nmPrice=prices?.avg30||null;
-    document.getElementById('calImg').src=calCard.images?.small||'';
-    document.getElementById('calName').textContent=calCard.name;
-    document.getElementById('calMeta').textContent=(calCard.set?.name||'')+(calCard.number?' · #'+calCard.number:'')+(calCard.rarity?' · '+calCard.rarity:'');
-    document.getElementById('calNmPrice').textContent=nmPrice?'€'+nmPrice.toFixed(2):'N/D';
-    document.getElementById('calCardWrap').style.display='block';
-    document.getElementById('calRatioPreview').textContent='';
-    document.getElementById('calPrice').value='';
-    if(filtered.length>1)st.style.color='var(--orange)',st.textContent=filtered.length+' versioni trovate — mostro la prima ('+calCard.set?.name+' #'+calCard.number+')';
-    else st.style.color='var(--green)',st.textContent='Trovata: '+calCard.name+' — '+calCard.set?.name;
-  }catch(e){st.style.color='var(--red)';st.textContent='Errore: '+e.message+' — riprova';}
-}
-
-// Aggiorna il preview del rapporto mentre l'utente digita il prezzo
-document.addEventListener('input',function(e){
-  // Marca il campo prezzo preventivo come modificato manualmente
-  if(e.target.id==='pCmPrice') e.target.dataset.manual='1';
-  if(e.target.id!=='calPrice'||!calCard)return;
-  const nm=calCard.cardmarket?.prices?.avg30;
-  const entered=parseFloat(e.target.value);
-  if(!nm||!entered||entered<=0){document.getElementById('calRatioPreview').textContent='';return;}
-  const ratio=Math.round((entered/nm)*1000)/10;
-  const cond=document.getElementById('calCond').value;
-  const def=Math.round((DEFAULT_FACTORS[cond]||1)*100);
-  document.getElementById('calRatioPreview').textContent=
-    'Rapporto calcolato: '+ratio+'% del NM (default CM: '+def+'%)';
-});
-
-function addCalibration(){
-  if(!calCard)return;
-  const nm=calCard.cardmarket?.prices?.avg30;
-  if(!nm){alert('Questa carta non ha un prezzo NM su Cardmarket');return;}
-  const entered=parseFloat(document.getElementById('calPrice').value);
-  if(!entered||entered<=0){alert('Inserisci un prezzo valido');return;}
-  const cond=document.getElementById('calCond').value;
-  const ratio=Math.round((entered/nm)*1000)/10;
-  const d=loadCalibData();
-  d.obs.push({
-    name:calCard.name,set:calCard.set?.name||'',number:calCard.number||'',
-    image:calCard.images?.small||'',
-    cond,nmPrice:nm,obsPrice:entered,ratio,
-    date:new Date().toISOString()
-  });
-  d.factors=recalcFactors(d.obs);
-  saveCalibData(d);
-  CONDITIONS.forEach(c=>{if(d.factors[c]!==undefined)COND_FACTOR[c]=d.factors[c];});
-  document.getElementById('calCardWrap').style.display='none';
-  document.getElementById('calQ').value='';
-  calCard=null;
-  renderCalib();
-  // Se arrivato dal preventivo: feedback + ritorno automatico
-  if(calibFromPrev){
-    document.getElementById('calSt').style.color='var(--green)';
-    document.getElementById('calSt').textContent='✓ Registrato! Torno al preventivo con il prezzo aggiornato...';
-    setTimeout(returnToPrevFromCalib, 1000);
-  } else {
-    document.getElementById('calSt').textContent='';
-  }
-}
-
-function recalcFactors(obs){
-  const groups={};
-  obs.forEach(o=>{
-    if(!groups[o.cond])groups[o.cond]=[];
-    groups[o.cond].push(o.ratio/100);
-  });
-  const factors={};
-  Object.keys(groups).forEach(c=>{
-    const vals=groups[c];
-    // Media troncata: scarta il valore più alto e più basso se ci sono 4+
-    let arr=[...vals].sort((a,b)=>a-b);
-    if(arr.length>=4){arr=arr.slice(1,-1);}
-    const avg=arr.reduce((a,v)=>a+v,0)/arr.length;
-    factors[c]=Math.round(avg*1000)/1000;
-  });
-  // Per le condizioni senza osservazioni mantieni il default
-  CONDITIONS.forEach(c=>{if(factors[c]===undefined)factors[c]=DEFAULT_FACTORS[c];});
-  return factors;
-}
-
-function applyCalibFactors(){
-  const d=loadCalibData();
-  if(!d.obs.length){alert('Nessuna osservazione registrata');return;}
-  CONDITIONS.forEach(c=>{if(d.factors[c]!==undefined)COND_FACTOR[c]=d.factors[c];});
-  saveCalibData(d);
-  alert('Fattori applicati! Ora tutte le stime useranno i tuoi dati reali.');
-  renderCalib();
-}
-
-function resetToDefault(){
-  if(!confirm('Ripristinare i fattori default Cardmarket?'))return;
-  const d=loadCalibData();
-  d.factors={...DEFAULT_FACTORS};
-  saveCalibData(d);
-  CONDITIONS.forEach(c=>COND_FACTOR[c]=DEFAULT_FACTORS[c]);
-  renderCalib();
-}
-
-function clearCalib(){
-  if(!confirm('Eliminare tutte le osservazioni?'))return;
-  saveCalibData({obs:[],factors:{...DEFAULT_FACTORS}});
-  CONDITIONS.forEach(c=>COND_FACTOR[c]=DEFAULT_FACTORS[c]);
-  renderCalib();
-}
-
-function renderCalib(){
-  const d=loadCalibData();
-  const obs=d.obs||[];
-
-  // Render fattori
-  const factorsEl=document.getElementById('calFactors');
-  const counts={};
-  obs.forEach(o=>{counts[o.cond]=(counts[o.cond]||0)+1;});
-  factorsEl.innerHTML=CONDITIONS.map(c=>{
-    const n=counts[c]||0;
-    const factor=d.factors[c]||DEFAULT_FACTORS[c];
-    const pct=Math.round(factor*100);
-    const defPct=Math.round((DEFAULT_FACTORS[c]||1)*100);
-    const isCalib=n>=1;
-    const reliable=n>=3;
-    const diff=pct-defPct;
-    const diffStr=diff===0?'':(diff>0?'+'+diff+'%':diff+'%');
-    const color=reliable?'var(--green)':(isCalib?'var(--orange)':'var(--text-muted)');
-    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">'
-      +'<div style="display:flex;align-items:center;gap:8px">'
-      +'<span class="badge b-'+c.toLowerCase().replace('/','')+'">'+c+'</span>'
-      +'<span style="font-size:11px;color:var(--text-muted);font-family:var(--mono)">'+n+' obs'+( reliable?'':' '+(n===0?'(default)':(n===1?'(1 → non affidabile)':'(2 → quasi affidabile)')))+'</span>'
-      +'</div>'
-      +'<div style="text-align:right">'
-      +'<span style="font-size:15px;font-weight:600;font-family:var(--mono);color:'+color+'">'+pct+'%</span>'
-      +(diffStr?'<span style="font-size:10px;font-family:var(--mono);color:'+(diff>0?'var(--green)':'var(--red)')+ ';margin-left:4px">'+diffStr+'</span>':'')
-      +'</div>'
-      +'</div>';
-  }).join('');
-
-  // Render lista osservazioni
-  const listEl=document.getElementById('calObsList');
-  if(!obs.length){listEl.innerHTML='<div style="padding:16px;text-align:center;color:var(--text-subtle)">Nessuna osservazione ancora — cerca una carta e inserisci il prezzo reale</div>';return;}
-  listEl.innerHTML='<table style="width:100%;border-collapse:collapse">'
-    +'<tr style="border-bottom:1px solid var(--border)">'
-    +'<th style="text-align:left;padding:6px 8px;font-size:10px;color:var(--text-muted);font-weight:400">Carta</th>'
-    +'<th style="text-align:center;padding:6px 8px;font-size:10px;color:var(--text-muted);font-weight:400">Cond.</th>'
-    +'<th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--text-muted);font-weight:400">NM</th>'
-    +'<th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--text-muted);font-weight:400">Reale</th>'
-    +'<th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--text-muted);font-weight:400">Rapporto</th>'
-    +'<th></th>'
-    +'</tr>'
-    +obs.map((o,i)=>'<tr style="border-bottom:1px solid var(--border)">'
-      +'<td style="padding:7px 8px"><div style="font-weight:500">'+o.name+'</div><div style="font-size:10px;color:var(--text-muted)">'+o.set+(o.number?' #'+o.number:'')+'</div></td>'
-      +'<td style="text-align:center;padding:7px 8px"><span class="badge b-'+o.cond.toLowerCase().replace('/','')+'">'+o.cond+'</span></td>'
-      +'<td style="text-align:right;padding:7px 8px;font-family:var(--mono);font-size:12px">€'+o.nmPrice.toFixed(2)+'</td>'
-      +'<td style="text-align:right;padding:7px 8px;font-family:var(--mono);font-size:12px;color:var(--accent)">€'+o.obsPrice.toFixed(2)+'</td>'
-      +'<td style="text-align:right;padding:7px 8px;font-family:var(--mono);font-size:12px">'+o.ratio+'%</td>'
-      +'<td style="padding:7px 4px"><button class="btn-ghost" onclick="deleteCalibObs('+i+')">✕</button></td>'
-      +'</tr>').join('')
-    +'</table>';
-}
-
-function deleteCalibObs(idx){
-  const d=loadCalibData();
-  d.obs.splice(idx,1);
-  d.factors=recalcFactors(d.obs);
-  saveCalibData(d);
-  CONDITIONS.forEach(c=>{if(d.factors[c]!==undefined)COND_FACTOR[c]=d.factors[c];});
-  renderCalib();
-}
-
 // ── API STATUS MONITOR ──
 const API_CHECK_INTERVAL = 30000; // check LED ogni 30s
 const API_WARN_MS = 1500;
@@ -3203,6 +2914,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const vb=document.getElementById('versionBadge');
   if(vb)vb.textContent='v'+APP_VERSION;
   setTimeout(checkApiStatus, 800);
+  loadCollection();
 });
 
 // Ri-controlla subito quando torna online
