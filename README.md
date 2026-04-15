@@ -32,3 +32,5 @@ supabase functions deploy smooth-endpoint --no-verify-jwt
 - `set_id` salvato in ogni item preventivo per URL CM precisi
 - CM_SET_ABBREV contiene solo codici verificati navigando CM reale
 - Set DP/Platinum/XY+ usano livello 2 (browse set + searchString)
+
+<!-- deploy test: 2026-04-15 10:08:57 UTC -->
