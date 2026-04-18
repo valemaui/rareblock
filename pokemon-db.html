@@ -5394,523 +5394,446 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
 
 <script>
 // ═══════════════════════════════════════════════════════════
-//  TAB ANALIZZA — globale (no IIFE: accede a const degli altri script)
+//  TAB ANALIZZA  v2 — robusta, no hook chain
 // ═══════════════════════════════════════════════════════════
 
-// ─── COSTANTI GRADING (locali a questo script) ──────────────────────────────
+// ─── COSTANTI ────────────────────────────────────────────────────────────────
 var ANL_GRADE_MULT = {
-  PSA:  { 10: 7.0, 9: 2.8, 8: 1.4, 7: 1.0 },
-  BGS:  { 10: 9.5, 9.5: 5.0, 9: 2.2, 8.5: 1.5, 8: 1.1 },
-  CGC:  { 10: 5.5, 9.5: 3.2, 9: 1.8, 8.5: 1.3, 8: 1.0 },
+  PSA: { 10:7.0, 9:2.8, 8:1.4, 7:1.0 },
+  BGS: { 10:9.5, 9.5:5.0, 9:2.2, 8.5:1.5, 8:1.1 },
+  CGC: { 10:5.5, 9.5:3.2, 9:1.8, 8.5:1.3, 8:1.0 },
 };
-
 var ANL_COND_RANGE = {
-  MINT: { label:'9.5 – 10',  scores:[10,9,9],   desc:'Eccellente probabilità di 10' },
-  NM:   { label:'8.5 – 9.5', scores:[9,9,8.5],  desc:'Buona probabilità di 9+' },
-  EX:   { label:'7 – 8.5',   scores:[8,8,8],    desc:'Discreto, difficile il 9' },
-  GD:   { label:'6 – 7.5',   scores:[7,7,7],    desc:'Improbabile >8' },
-  LP:   { label:'5 – 6.5',   scores:[7,7,7],    desc:'Grading sconsigliato' },
-  PL:   { label:'4 – 5.5',   scores:[7,7,7],    desc:'Grading non conveniente' },
-  PO:   { label:'< 4',       scores:[7,7,7],    desc:'Non gradabile' },
+  MINT:{ label:'9.5–10',  scores:[10,9,9],   desc:'Eccellente probabilità di 10' },
+  NM:  { label:'8.5–9.5', scores:[9,9,8.5],  desc:'Buona probabilità di 9+' },
+  EX:  { label:'7–8.5',   scores:[8,8,8],    desc:'Discreto, difficile il 9' },
+  GD:  { label:'6–7.5',   scores:[7,7,7],    desc:'Improbabile >8' },
+  LP:  { label:'5–6.5',   scores:[7,7,7],    desc:'Grading sconsigliato' },
+  PL:  { label:'4–5.5',   scores:[7,7,7],    desc:'Grading non conveniente' },
+  PO:  { label:'< 4',     scores:[7,7,7],    desc:'Non gradabile' },
 };
+var ANL_GRADE_COSTS  = { PSA:55, BGS:70, CGC:45 };
+var ANL_EXTRA_COST   = 8;
+var ANL_COND_FACTOR  = { MINT:1.15, NM:1.0, EX:0.85, GD:0.70, LP:0.60, PL:0.40, PO:0.20, 'INK/ALT':0 };
+var ANL_FIRST_ED_MULT= 1.8;
 
-var ANL_GRADE_COSTS = { PSA: 55, BGS: 70, CGC: 45 };
-var ANL_EXTRA_COST  = 8;
-
-// Fallback locali per costanti definite negli altri script (const = non su window)
-var ANL_COND_FACTOR   = { MINT:1.15, NM:1.0, EX:0.85, GD:0.70, LP:0.60, PL:0.40, PO:0.20, 'INK/ALT':0 };
-var ANL_FIRST_ED_MULT = 1.8;
-
-// ─── STATO ──────────────────────────────────────────────────────────────────
+// ─── STATO ───────────────────────────────────────────────────────────────────
 var anlCurrentCard = null;
-var anlAnalysisRunning = false;
+var anlSearching   = false;   // guard per evitare ricerche doppie
 
-// ─── INIT TAB ────────────────────────────────────────────────────────────────
+// ─── INIT (esposto su window per showTab) ────────────────────────────────────
 function anlInitTab(){
-  document.getElementById('anlCardName').focus();
+  var el = document.getElementById('anlCardName');
+  if(el) el.focus();
 }
-
-// anlInitTab è esposta su window così showTab può chiamarla (già registrata nel main showTab)
 window.anlInitTab = anlInitTab;
 
-// ─── SEARCH ─────────────────────────────────────────────────────────────────
+// ─── SEARCH ──────────────────────────────────────────────────────────────────
 window.anlSearch = async function(){
-  const raw = document.getElementById('anlCardName').value.trim();
-  if(!raw){ document.getElementById('anlCardName').focus(); return; }
-  if(anlAnalysisRunning) return;
+  var raw = (document.getElementById('anlCardName').value||'').trim();
+  if(!raw || anlSearching) return;
 
-  // Estrai nome e numero (es. "Charizard 4" → name="Charizard", num="4")
-  const m = raw.match(/^(.+?)\s+(\d+[\/\d]*)$/);
-  const cardName = m ? m[1].trim() : raw;
-  const cardNum  = m ? m[2] : null;
+  // parse "Charizard 4" → name="Charizard", num="4"
+  var pm = raw.match(/^(.+?)\s+(\d+[\/\d]*)$/);
+  var cardName = pm ? pm[1].trim() : raw;
+  var cardNum  = pm ? pm[2] : null;
 
-  // UI: loading
-  document.getElementById('anlBtn').disabled = true;
-  document.getElementById('anlBtn').innerHTML = '<span class="anl-spinner"></span>Ricerca...';
+  anlSearching = true;
+  var btn = document.getElementById('anlBtn');
+  if(btn){ btn.disabled=true; btn.innerHTML='<span class="anl-spinner"></span>Ricerca...'; }
   document.getElementById('anlCardArea').style.display='none';
   document.getElementById('anlPanels').style.display='none';
 
-  try {
-    const cards = await fetchCards(cardName);
-    if(!cards || cards.length===0){
-      anlShowNoCard('Nessuna carta trovata per "'+raw+'"');
-      return;
-    }
+  try{
+    var cards = await fetchCards(cardName);
+    if(!cards||!cards.length){ anlShowMsg('Nessuna carta trovata per "'+raw+'"'); return; }
 
-    // Filtra per numero se specificato
-    let filtered = cards;
+    // filtra per numero se specificato
+    var filtered = cards;
     if(cardNum){
-      const numClean = cardNum.split('/')[0];
-      filtered = cards.filter(c => (c.number||'').split('/')[0] === numClean);
-      if(filtered.length===0) filtered = cards; // fallback
+      var nc = cardNum.split('/')[0];
+      var byNum = cards.filter(function(c){ return (c.number||'').split('/')[0]===nc; });
+      if(byNum.length) filtered = byNum;
     }
 
-    if(filtered.length===1){
-      anlSelectCard(filtered[0]);
-    } else {
-      anlShowMulti(filtered.slice(0,12));
-    }
-  } catch(e){
-    anlShowNoCard('Errore ricerca: '+e.message);
-  } finally {
-    document.getElementById('anlBtn').disabled = false;
-    document.getElementById('anlBtn').innerHTML = '🔍 Analizza';
+    if(filtered.length===1){ anlSelectCard(filtered[0]); }
+    else { anlShowMulti(filtered.slice(0,12)); }
+  }catch(e){
+    anlShowMsg('Errore ricerca: '+e.message);
+  }finally{
+    anlSearching = false;
+    if(btn){ btn.disabled=false; btn.innerHTML='🔍 Analizza'; }
   }
 };
 
-function anlShowNoCard(msg){
-  const area = document.getElementById('anlCardArea');
-  area.innerHTML = '<div class="anl-no-card">'+msg+'</div>';
+function anlShowMsg(msg){
+  var area=document.getElementById('anlCardArea');
+  area.innerHTML='<div class="anl-no-card">'+msg+'</div>';
   area.style.display='block';
 }
 
+// ─── SELEZIONE MULTIPLA ──────────────────────────────────────────────────────
 function anlShowMulti(cards){
-  const area = document.getElementById('anlCardArea');
-  let html = '<div class="anl-panel"><div class="anl-panel-head"><span class="anl-panel-icon">🃏</span><span class="anl-panel-title">Seleziona la carta</span></div>';
-  html += '<div class="anl-multi-list">';
-  cards.forEach(c=>{
-    const img = (c.images&&c.images.small)||'';
-    const set = c.set ? c.set.name : '';
-    const price = c.cardmarket&&c.cardmarket.prices ? '€'+(c.cardmarket.prices.trendPrice||c.cardmarket.prices.avg30||0).toFixed(2) : '';
-    html += `<div class="anl-multi-item" onclick="anlSelectCardById('${c.id}')">
-      ${img?`<img src="${img}" alt="">`:''} 
-      <div style="flex:1;min-width:0">
-        <div style="font-size:12px;font-weight:600">${c.name} <span style="font-size:10px;color:var(--text-muted);font-family:var(--mono)">#${c.number}</span></div>
-        <div style="font-size:10px;color:var(--text-muted)">${set}</div>
-      </div>
-      <span style="font-size:12px;font-family:var(--mono);color:var(--accent)">${price}</span>
-    </div>`;
+  window._anlMulti={};
+  cards.forEach(function(c){ window._anlMulti[c.id]=c; });
+  var area=document.getElementById('anlCardArea');
+  var h='<div class="anl-panel"><div class="anl-panel-head"><span class="anl-panel-icon">🃏</span>'
+       +'<span class="anl-panel-title">Seleziona la carta ('+cards.length+' risultati)</span></div>'
+       +'<div class="anl-multi-list">';
+  cards.forEach(function(c){
+    var img=(c.images&&c.images.small)||'';
+    var setN=c.set?c.set.name:'';
+    var pr=c.cardmarket&&c.cardmarket.prices
+      ?'€'+((c.cardmarket.prices.trendPrice||c.cardmarket.prices.avg30||0).toFixed(2)):'';
+    h+='<div class="anl-multi-item" onclick="anlPickCard(\''+c.id+'\')">'
+      +(img?'<img src="'+img+'" alt="">':'')
+      +'<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">'+c.name
+      +' <span style="font-size:10px;color:var(--text-muted);font-family:var(--mono)">#'+c.number+'</span></div>'
+      +'<div style="font-size:10px;color:var(--text-muted)">'+setN+'</div></div>'
+      +(pr?'<span style="font-size:12px;font-family:var(--mono);color:var(--accent)">'+pr+'</span>':'')
+      +'</div>';
   });
-  html += '</div></div>';
-  area.innerHTML = html;
+  h+='</div></div>';
+  area.innerHTML=h;
   area.style.display='block';
-
-  // salva in cache temporanea
-  window._anlMultiCards = {};
-  cards.forEach(c=>{ window._anlMultiCards[c.id]=c; });
 }
 
-window.anlSelectCardById = function(id){
-  const c = window._anlMultiCards && window._anlMultiCards[id];
+window.anlPickCard = function(id){
+  var c=window._anlMulti&&window._anlMulti[id];
   if(c) anlSelectCard(c);
 };
 
+// ─── SELEZIONE CARTA ─────────────────────────────────────────────────────────
 function anlSelectCard(card){
-  anlCurrentCard = card;
+  anlCurrentCard=card;
+  var area=document.getElementById('anlCardArea');
+  var img=(card.images&&card.images.small)||'';
+  var setN=card.set?card.set.name:'';
+  var nm=card.cardmarket&&card.cardmarket.prices
+    ?(card.cardmarket.prices.trendPrice||card.cardmarket.prices.avg30||null):null;
+  var cond=document.getElementById('anlCond').value;
+  var lang=document.getElementById('anlLang').value;
+  var is1st=document.getElementById('anl1st').value==='yes';
 
-  // Mostra strip carta
-  const area = document.getElementById('anlCardArea');
-  const img = (card.images&&card.images.small)||'';
-  const setName = card.set ? card.set.name : '';
-  const rarity = card.rarity||'';
-  const nm = card.cardmarket&&card.cardmarket.prices ? (card.cardmarket.prices.trendPrice||card.cardmarket.prices.avg30||null) : null;
-  const nmStr = nm ? '€'+nm.toFixed(2)+' NM trend' : 'prezzo non disponibile';
-
-  area.innerHTML = `
-    <div class="anl-card-strip">
-      ${img?`<img class="anl-card-img" src="${img}" alt="">`:'' }
-      <div class="anl-card-info">
-        <div class="anl-card-name">${card.name} <span style="font-size:11px;color:var(--text-muted);font-family:var(--mono)">#${card.number}</span></div>
-        <div class="anl-card-meta">${setName}${rarity?' · '+rarity:''} · ${card.id}</div>
-        <div class="anl-card-badges">
-          <span class="anl-badge info">${document.getElementById('anlCond').value}</span>
-          <span class="anl-badge info">${document.getElementById('anlLang').value}</span>
-          ${document.getElementById('anl1st').value==='yes'?'<span class="anl-badge gold">1ª Ed.</span>':''}
-          <span class="anl-badge ok">${nmStr}</span>
-        </div>
-      </div>
-      <button class="anl-btn" onclick="anlSearch()" style="background:var(--surface3);color:var(--text);font-size:11px;padding:6px 12px">↩ Cambia</button>
-    </div>`;
+  area.innerHTML='<div class="anl-card-strip">'
+    +(img?'<img class="anl-card-img" src="'+img+'" alt="">':'')
+    +'<div class="anl-card-info">'
+    +'<div class="anl-card-name">'+card.name+' <span style="font-size:11px;color:var(--text-muted);font-family:var(--mono)">#'+card.number+'</span></div>'
+    +'<div class="anl-card-meta">'+setN+(card.rarity?' · '+card.rarity:'')+' · '+card.id+'</div>'
+    +'<div class="anl-card-badges">'
+    +'<span class="anl-badge info">'+cond+'</span>'
+    +'<span class="anl-badge info">'+lang+'</span>'
+    +(is1st?'<span class="anl-badge gold">1ª Ed.</span>':'')
+    +(nm?'<span class="anl-badge ok">€'+nm.toFixed(2)+' NM trend</span>':'<span class="anl-badge warn">prezzo n.d.</span>')
+    +'</div></div>'
+    +'<button class="anl-btn" onclick="anlReset()" style="background:var(--surface3);color:var(--text);font-size:11px;padding:6px 12px">↩ Cambia</button>'
+    +'</div>';
   area.style.display='block';
 
-  // Avvia analisi parallela
-  anlRunAnalysis(card);
-}
-
-// ─── ANALISI PARALLELA ───────────────────────────────────────────────────────
-async function anlRunAnalysis(card){
-  anlAnalysisRunning = true;
+  // avvia i 3 pannelli
   document.getElementById('anlPanels').style.display='grid';
-
-  // Avvia i 3 panel in parallelo
   anlRenderMarketplace(card);
   anlRenderGrading(card);
   anlRenderScore(card);
 }
 
+window.anlReset = function(){
+  anlCurrentCard=null;
+  document.getElementById('anlCardArea').style.display='none';
+  document.getElementById('anlPanels').style.display='none';
+  document.getElementById('anlMktBody').innerHTML='';
+  document.getElementById('anlGradeBody').innerHTML='';
+  document.getElementById('anlScoreBody').innerHTML='';
+  document.getElementById('anlMktSub').textContent='caricamento...';
+  document.getElementById('anlGradeSub').textContent='';
+  document.getElementById('anlScoreSub').textContent='';
+  var inp=document.getElementById('anlCardName');
+  if(inp){inp.value='';inp.focus();}
+};
+
 // ─── PANEL 1: MARKETPLACE ────────────────────────────────────────────────────
 function anlRenderMarketplace(card){
-  const cond = document.getElementById('anlCond').value;
-  const lang = document.getElementById('anlLang').value;
-  const is1st = document.getElementById('anl1st').value==='yes';
-  const variant = 'Normal';
+  var cond  =document.getElementById('anlCond').value;
+  var lang  =document.getElementById('anlLang').value;
+  var is1st =document.getElementById('anl1st').value==='yes';
 
-  const prices = card.cardmarket&&card.cardmarket.prices;
-  const nmTrend = prices ? (prices.trendPrice||prices.avg30||null) : null;
-  const condFactor = ANL_COND_FACTOR[cond]||1.0;
-  const first1stFactor = is1st ? ANL_FIRST_ED_MULT : 1.0;
-  const estPrice = nmTrend ? Math.round(nmTrend * condFactor * first1stFactor * 100)/100 : null;
+  var prices=card.cardmarket&&card.cardmarket.prices;
+  var nm    =prices?(prices.trendPrice||prices.avg30||null):null;
+  var cf    =ANL_COND_FACTOR[cond]||1.0;
+  var ef    =is1st?ANL_FIRST_ED_MULT:1.0;
+  var est   =nm?Math.round(nm*cf*ef*100)/100:null;
 
-  const setId = card.set ? card.set.id : null;
-  const cmUrl = buildCMDirectUrl(card.name, setId, card.number, cond, lang, variant, is1st, card.set&&card.set.name);
+  var setId =card.set?card.set.id:null;
+  var setNm =card.set?card.set.name:'';
+  var cmUrl =buildCMDirectUrl(card.name,setId,card.number,cond,lang,'Normal',is1st,setNm);
+  var ctUrl ='https://www.cardtrader.com/cards/pokemon?search='+encodeURIComponent(card.name+' '+(card.number||''));
+  var suUrl ='https://www.subito.it/annunci-italia/vendita/collezionismo/?q='+encodeURIComponent('pokemon '+card.name+' '+cond);
+  var viUrl ='https://www.vinted.it/catalog?search_text='+encodeURIComponent('pokemon '+card.name);
+  var pcUrl ='https://www.pricecharting.com/search-products?q='+encodeURIComponent(card.name+(setNm?' '+setNm:''))+'&type=pokemon';
 
-  // CardTrader search URL
-  const ctUrl = 'https://www.cardtrader.com/cards/pokemon?search='+encodeURIComponent(card.name+'+'+(card.number||''));
+  var h='';
 
-  // Subito.it search URL
-  const subitoUrl = 'https://www.subito.it/annunci-italia/vendita/collezionismo/?q='+encodeURIComponent('pokemon '+card.name+' '+cond);
-
-  // Vinted search URL
-  const vintedUrl = 'https://www.vinted.it/catalog?search_text='+encodeURIComponent('pokemon '+card.name);
-
-  // PriceCharting
-  const pcQuery = card.name + (card.set ? ' '+card.set.name : '');
-  const pcUrl = 'https://www.pricecharting.com/search-products?q='+encodeURIComponent(pcQuery)+'&type=pokemon';
-
-  const mkt = [
-    {
-      id:'cm', name:'CardMarket', color:'#2563eb', abbr:'CM',
-      price: estPrice ? '~€'+estPrice.toFixed(2) : null,
-      note: estPrice ? (nmTrend?'trend NM €'+nmTrend.toFixed(2)+' × '+Math.round(condFactor*100)+'%'+(is1st?' × 1ªEd':''): 'stima') : 'dati non disponibili',
-      link: cmUrl, linkText:'Vai a CardMarket →',
-      extra: prices ? anlPriceChips(prices) : null,
-    },
-    {
-      id:'ct', name:'CardTrader', color:'#059669', abbr:'CT',
-      price: null,
-      note:'Cerca per nome+numero — filtra per lingua e condizione',
-      link: ctUrl, linkText:'Cerca su CardTrader →',
-    },
-    {
-      id:'su', name:'Subito.it', color:'#d97706', abbr:'SU',
-      price: null,
-      note:'Annunci privati italiani — ottimo per WotC/Base Set',
-      link: subitoUrl, linkText:'Cerca su Subito →',
-    },
-    {
-      id:'vi', name:'Vinted', color:'#7c3aed', abbr:'VI',
-      price: null,
-      note:'Second-hand — prezzi generalmente più bassi',
-      link: vintedUrl, linkText:'Cerca su Vinted →',
-    },
-  ];
-
-  let html = '';
-
-  // Chip riassuntivi prezzi CM
+  // chip prezzi CM
   if(prices){
-    html += '<div class="anl-price-compare">';
-    if(prices.trendPrice)  html += anlChip('€'+prices.trendPrice.toFixed(2),'Trend CM');
-    if(prices.avg30)       html += anlChip('€'+prices.avg30.toFixed(2),'Avg 30gg');
-    if(prices.avg7)        html += anlChip('€'+prices.avg7.toFixed(2),'Avg 7gg');
-    if(prices.lowPrice)    html += anlChip('€'+prices.lowPrice.toFixed(2),'Low');
-    html += '</div>';
+    h+='<div class="anl-price-compare">';
+    if(prices.trendPrice) h+=anlChip('€'+prices.trendPrice.toFixed(2),'Trend CM');
+    if(prices.avg30)      h+=anlChip('€'+prices.avg30.toFixed(2),'Avg 30gg');
+    if(prices.avg7)       h+=anlChip('€'+prices.avg7.toFixed(2),'Avg 7gg');
+    if(prices.lowPrice)   h+=anlChip('€'+prices.lowPrice.toFixed(2),'Low');
+    if(est)               h+=anlChip('€'+est.toFixed(2),'Stima '+cond+(is1st?' 1ªEd':''));
+    h+='</div>';
   }
 
-  mkt.forEach(m=>{
-    html += `<div class="anl-mkt-row">
-      <div class="anl-mkt-logo" style="background:${m.color}20;border:1px solid ${m.color}40;color:${m.color}">${m.abbr}</div>
-      <div style="flex:1;min-width:0">
-        <div class="anl-mkt-name">${m.name}</div>
-        <div class="anl-mkt-note">${m.note}</div>
-      </div>
-      ${m.price ? `<div class="anl-mkt-price">${m.price}</div>` : ''}
-      <a class="anl-mkt-link" href="${m.link}" target="_blank">${m.linkText}</a>
-    </div>`;
+  var rows=[
+    {abbr:'CM', name:'CardMarket', color:'#2563eb',
+     note:est?'Trend NM €'+(nm?nm.toFixed(2):'?')+' × '+Math.round(cf*100)+'%'+(is1st?' × 1ªEd':'')
+             :'Dati prezzo non disponibili per questa carta',
+     price:est?'~€'+est.toFixed(2):null, link:cmUrl, lt:'Vai a CardMarket →'},
+    {abbr:'CT', name:'CardTrader',  color:'#059669', note:'Filtra per lingua e condizione sul sito', link:ctUrl, lt:'Cerca su CardTrader →'},
+    {abbr:'SU', name:'Subito.it',   color:'#d97706', note:'Annunci privati italiani — ottimo per WotC/Base Set', link:suUrl, lt:'Cerca su Subito →'},
+    {abbr:'VI', name:'Vinted',      color:'#7c3aed', note:'Second-hand — prezzi generalmente più bassi', link:viUrl, lt:'Cerca su Vinted →'},
+    {abbr:'PC', name:'PriceCharting',color:'#0891b2',note:'Storico prezzi graded (PSA/BGS/CGC)', link:pcUrl, lt:'Cerca su PriceCharting →'},
+  ];
+
+  rows.forEach(function(r){
+    h+='<div class="anl-mkt-row">'
+      +'<div class="anl-mkt-logo" style="background:'+r.color+'20;border:1px solid '+r.color+'40;color:'+r.color+'">'+r.abbr+'</div>'
+      +'<div style="flex:1;min-width:0">'
+      +'<div class="anl-mkt-name">'+r.name+'</div>'
+      +'<div class="anl-mkt-note">'+r.note+'</div>'
+      +'</div>'
+      +(r.price?'<div class="anl-mkt-price">'+r.price+'</div>':'')
+      +'<a class="anl-mkt-link" href="'+r.link+'" target="_blank">'+r.lt+'</a>'
+      +'</div>';
   });
 
-  document.getElementById('anlMktBody').innerHTML = html;
-  document.getElementById('anlMktSub').textContent = estPrice ? '~€'+estPrice.toFixed(2)+' ('+cond+')' : 'vedi link';
+  document.getElementById('anlMktBody').innerHTML=h;
+  document.getElementById('anlMktSub').textContent=est?'~€'+est.toFixed(2)+' ('+cond+(is1st?' · 1ªEd':'')+')'
+    :(nm?'NM €'+nm.toFixed(2):'prezzi n.d.');
 }
 
-function anlChip(val, lbl){
-  return `<div class="anl-price-chip"><div class="anl-price-chip-val">${val}</div><div class="anl-price-chip-lbl">${lbl}</div></div>`;
-}
-
-function anlPriceChips(prices){
-  let chips = [];
-  if(prices.trendPrice) chips.push('trend €'+prices.trendPrice.toFixed(2));
-  if(prices.avg30)      chips.push('avg30 €'+prices.avg30.toFixed(2));
-  return chips.join(' · ');
+function anlChip(val,lbl){
+  return '<div class="anl-price-chip"><div class="anl-price-chip-val">'+val+'</div>'
+        +'<div class="anl-price-chip-lbl">'+lbl+'</div></div>';
 }
 
 // ─── PANEL 2: GRADING ────────────────────────────────────────────────────────
 function anlRenderGrading(card){
-  const cond = document.getElementById('anlCond').value;
-  const is1st = document.getElementById('anl1st').value==='yes';
+  var cond =document.getElementById('anlCond').value;
+  var is1st=document.getElementById('anl1st').value==='yes';
 
-  const prices = card.cardmarket&&card.cardmarket.prices;
-  const nmRaw = prices ? (prices.trendPrice||prices.avg30||null) : null;
-  const base = nmRaw ? nmRaw * (is1st ? ANL_FIRST_ED_MULT : 1.0) : null;
+  var prices=card.cardmarket&&card.cardmarket.prices;
+  var nm    =prices?(prices.trendPrice||prices.avg30||null):null;
+  var base  =nm?nm*(is1st?ANL_FIRST_ED_MULT:1.0):null;
 
-  const range = ANL_COND_RANGE[cond] || ANL_COND_RANGE['NM'];
-  const pcBase = 'https://www.pricecharting.com/search-products?q='+encodeURIComponent(card.name+(card.set?' '+card.set.name:''))+'&type=pokemon';
+  var range=ANL_COND_RANGE[cond]||ANL_COND_RANGE['NM'];
+  document.getElementById('anlGradeSub').textContent=range.label;
 
-  document.getElementById('anlGradeSub').textContent = range.label;
+  var h='<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;padding:8px 10px;background:var(--surface2);border-radius:6px">'
+       +'<b style="color:var(--text)">'+cond+'</b> → score atteso <b style="color:var(--accent)">'+range.label+'</b><br>'
+       +'<span style="opacity:.8">'+range.desc+'</span></div>';
 
-  let html = '';
-  html += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;padding:8px 10px;background:var(--surface2);border-radius:6px;">
-    <b style="color:var(--text)">${cond}</b> → score atteso <b style="color:var(--accent)">${range.label}</b><br>
-    <span style="opacity:.8">${range.desc}</span>
-  </div>`;
+  h+='<table class="anl-grade-table"><thead><tr>'
+    +'<th>Casa</th><th>Score</th><th>Val. stimato</th><th>Costo</th><th>ROI lordo</th><th></th>'
+    +'</tr></thead><tbody>';
 
-  // Tabella per ogni house
-  const houses = ['PSA','BGS','CGC'];
-  html += '<table class="anl-grade-table"><thead><tr><th>Casa</th><th>Score</th><th>Val. stimato</th><th>Costo grad.</th><th>ROI lordo</th><th></th></tr></thead><tbody>';
+  ['PSA','BGS','CGC'].forEach(function(house,hi){
+    var mults     = ANL_GRADE_MULT[house];
+    var gradeCost = ANL_GRADE_COSTS[house];
+    var scenarios = anlScenarios(house,cond);
 
-  houses.forEach((house,hi)=>{
-    const mults = ANL_GRADE_MULT[house];
-    const expectedScore = range.scores[hi]; // es. 9 per PSA con NM
-    const gradeCost = ANL_GRADE_COSTS[house];
+    scenarios.forEach(function(sc){
+      var mult = mults[sc]||1.0;
+      var val  = base?Math.round(base*mult*100)/100:null;
+      var roi  = (base&&val)?val-gradeCost-ANL_EXTRA_COST:null;
 
-    // Righe: mostriamo 3 scenari (ottimistico/base/pessimistico) per la house
-    const scenarios = anlScenariosForHouse(house, cond);
+      var sc_cls = sc>=10?'s10':sc>=9?'s9':sc>=8?'s8':sc>=7?'s7':'slow';
+      var roiClr = roi===null?'':(roi>0?'color:var(--success)':'color:var(--danger)');
+      var roiStr = roi===null?'—':(roi>0?'+':'')+'€'+roi.toFixed(0);
 
-    scenarios.forEach(sc=>{
-      const mult = mults[sc] || 1.0;
-      const estimatedVal = base ? Math.round(base * mult * 100)/100 : null;
+      var pcUrl='https://www.pricecharting.com/search-products?q='
+        +encodeURIComponent(card.name+(card.set?' '+card.set.name:''))+'+'+house.toLowerCase()+'+'+sc+'&type=pokemon';
 
-      // score class
-      let scoreClass = 'slow';
-      if(sc>=10) scoreClass='s10';
-      else if(sc>=9) scoreClass='s9';
-      else if(sc>=8) scoreClass='s8';
-      else if(sc>=7) scoreClass='s7';
-
-      // ROI lordo = val_gradato - costo_grad - extra
-      const roiLordo = (base && estimatedVal) ? estimatedVal - gradeCost - ANL_EXTRA_COST : null;
-      const roiColor = roiLordo===null ? '' : (roiLordo>0 ? 'color:var(--success)' : 'color:var(--danger)');
-      const roiStr = roiLordo===null ? '—' : (roiLordo>0?'+':'')+'€'+roiLordo.toFixed(0);
-
-      // PriceCharting link per la grade
-      const pcUrl = 'https://www.pricecharting.com/search-products?q='+encodeURIComponent(card.name+(card.set?' '+card.set.name:''))+'+psa+'+sc+'&type=pokemon';
-
-      html += `<tr>
-        <td style="font-weight:600;font-family:var(--mono);font-size:11px">${house}</td>
-        <td><span class="anl-grade-score ${scoreClass}">${sc}</span></td>
-        <td style="font-family:var(--mono);font-size:12px">${estimatedVal?'~€'+estimatedVal.toFixed(2):'—'}</td>
-        <td style="font-family:var(--mono);font-size:11px;color:var(--text-muted)">€${gradeCost}</td>
-        <td style="font-family:var(--mono);font-size:12px;font-weight:600;${roiColor}">${roiStr}</td>
-        <td><a class="anl-pc-link" href="${pcUrl}" target="_blank">PC →</a></td>
-      </tr>`;
+      h+='<tr>'
+        +'<td style="font-weight:600;font-family:var(--mono);font-size:11px">'+house+'</td>'
+        +'<td><span class="anl-grade-score '+sc_cls+'">'+sc+'</span></td>'
+        +'<td style="font-family:var(--mono);font-size:12px">'+(val?'~€'+val.toFixed(2):'—')+'</td>'
+        +'<td style="font-family:var(--mono);font-size:11px;color:var(--text-muted)">€'+gradeCost+'</td>'
+        +'<td style="font-family:var(--mono);font-size:12px;font-weight:600;'+roiClr+'">'+roiStr+'</td>'
+        +'<td><a class="anl-pc-link" href="'+pcUrl+'" target="_blank">PC →</a></td>'
+        +'</tr>';
     });
   });
 
-  html += '</tbody></table>';
-  html += `<div style="margin-top:10px;font-size:10px;color:var(--text-muted);font-family:var(--mono)">
-    ⚠ Stime basate su moltiplicatori di mercato storici. Verifica su 
-    <a class="anl-pc-link" href="${pcBase}" target="_blank" style="color:var(--accent)">PriceCharting</a> 
-    per dati reali PSA/BGS/CGC.<br>
-    ROI lordo = valore stimato graded − costo gradazione − €${ANL_EXTRA_COST} (logistica). Non include prezzo acquisto.
-  </div>`;
+  h+='</tbody></table>';
+  h+='<div style="margin-top:10px;font-size:10px;color:var(--text-muted);font-family:var(--mono)">'
+    +'⚠ Stime su moltiplicatori storici. ROI lordo = valore graded − costo grad. − €'+ANL_EXTRA_COST+' logistica. '
+    +'Non include prezzo acquisto.</div>';
 
-  document.getElementById('anlGradeBody').innerHTML = html;
+  document.getElementById('anlGradeBody').innerHTML=h;
 }
 
-function anlScenariosForHouse(house, cond){
-  // Restituisce 3 score (ottimistico, base, pessimistico) in base alla house e condizione
-  const map = {
-    PSA: { MINT:[10,9,8], NM:[9,8,8], EX:[8,7,7], GD:[7,7,7], LP:[7,7,7], PL:[7,7,7], PO:[7,7,7] },
-    BGS: { MINT:[10,9.5,9], NM:[9.5,9,8.5], EX:[8.5,8,8], GD:[8,7,7], LP:[8,7,7], PL:[8,7,7], PO:[8,7,7] },
-    CGC: { MINT:[10,9.5,9], NM:[9.5,9,8.5], EX:[8.5,8,8], GD:[8,7,7], LP:[8,7,7], PL:[8,7,7], PO:[8,7,7] },
+function anlScenarios(house,cond){
+  var map={
+    PSA:{ MINT:[10,9,8], NM:[9,8,8],   EX:[8,7,7], GD:[7,7,7], LP:[7,7,7], PL:[7,7,7], PO:[7,7,7] },
+    BGS:{ MINT:[10,9.5,9],NM:[9.5,9,8.5],EX:[8.5,8,8],GD:[8,7,7],LP:[8,7,7],PL:[8,7,7],PO:[8,7,7] },
+    CGC:{ MINT:[10,9.5,9],NM:[9.5,9,8.5],EX:[8.5,8,8],GD:[8,7,7],LP:[8,7,7],PL:[8,7,7],PO:[8,7,7] },
   };
-  return (map[house]&&map[house][cond]) || [9,8,7];
+  return (map[house]&&map[house][cond])||[9,8,7];
 }
 
 // ─── PANEL 3: SCORE INVESTIMENTO ─────────────────────────────────────────────
 function anlRenderScore(card){
-  const cond = document.getElementById('anlCond').value;
-  const is1st = document.getElementById('anl1st').value==='yes';
-  const buyMin = parseFloat(document.getElementById('anlPriceMin').value)||null;
-  const buyMax = parseFloat(document.getElementById('anlPriceMax').value)||null;
+  var cond  =document.getElementById('anlCond').value;
+  var is1st =document.getElementById('anl1st').value==='yes';
+  var buyMin=parseFloat(document.getElementById('anlPriceMin').value)||null;
+  var buyMax=parseFloat(document.getElementById('anlPriceMax').value)||null;
 
-  const prices = card.cardmarket&&card.cardmarket.prices;
-  const nmRaw = prices ? (prices.trendPrice||prices.avg30||null) : null;
-  const base = nmRaw ? nmRaw * (is1st ? ANL_FIRST_ED_MULT : 1.0) * (ANL_COND_FACTOR[cond]||1.0) : null;
+  var prices=card.cardmarket&&card.cardmarket.prices;
+  var nm    =prices?(prices.trendPrice||prices.avg30||null):null;
+  var base  =nm?nm*(is1st?ANL_FIRST_ED_MULT:1.0)*(ANL_COND_FACTOR[cond]||1.0):null;
 
-  // Score basato su: se compro a buyMax, con gradazione PSA9 (scenario base) ho ROI positivo?
-  const psaMult = ANL_GRADE_MULT.PSA[9]; // 2.8
-  const gradedVal = base ? base * psaMult : null;
-  const totalCosts = ANL_GRADE_COSTS.PSA + ANL_EXTRA_COST; // €63 fissi
+  var psaMult   =ANL_GRADE_MULT.PSA[9];         // 2.8
+  var gradedVal =base?base*psaMult:null;
+  var totalCost =ANL_GRADE_COSTS.PSA+ANL_EXTRA_COST; // €63
 
-  let scoreLevel = null; // 1-5
-  let scoreEmoji = '';
-  let scoreLabel = '';
-  let scoreDesc = '';
-  let bar_roi = 0, bar_prob = 0, bar_risk = 0;
-
-  if(!buyMax || !gradedVal){
-    // Nessun budget inserito: calcola solo in base al potenziale intrinseco
-    const condOk = ['MINT','NM','EX'].includes(cond);
-    const has1st = is1st;
-    if(condOk && has1st){ scoreLevel=5; }
-    else if(condOk){ scoreLevel=4; }
-    else { scoreLevel=3; }
+  // calcola score 1-5
+  var scoreLevel=3;
+  if(!buyMax||!gradedVal){
+    var condOk=['MINT','NM','EX'].includes(cond);
+    scoreLevel=condOk?(is1st?5:4):3;
   } else {
-    const roi = gradedVal - buyMax - totalCosts;
-    const roiPct = buyMax>0 ? (roi/buyMax)*100 : 0;
-    if(roiPct >= 80)       { scoreLevel=5; }
-    else if(roiPct >= 40)  { scoreLevel=4; }
-    else if(roiPct >= 10)  { scoreLevel=3; }
-    else if(roiPct >= -15) { scoreLevel=2; }
-    else                   { scoreLevel=1; }
+    var roi=(gradedVal-buyMax-totalCost)/buyMax*100;
+    scoreLevel=roi>=80?5:roi>=40?4:roi>=10?3:roi>=-15?2:1;
   }
 
-  const SCORE_MAP = {
-    5: { emoji:'🔥', label:'Ottimo investimento', color:'#c9a84c', barRoi:90, barProb:80, barRisk:20, desc:'ROI stimato eccellente. Ottimo candidato a gradazione.' },
-    4: { emoji:'👍', label:'Buon investimento',   color:'#3fb950', barRoi:70, barProb:65, barRisk:35, desc:'Buone prospettive. Considera PSA/CGC se la carta è in ottimo stato.' },
-    3: { emoji:'😐', label:'Investimento discreto', color:'#58a6ff', barRoi:45, barProb:50, barRisk:50, desc:'Margini contenuti. Valuta con attenzione i costi totali.' },
-    2: { emoji:'⚠️', label:'Rischioso',           color:'#d29922', barRoi:20, barProb:35, barRisk:70, desc:'Prezzo di acquisto alto rispetto al potenziale. Tratta al ribasso.' },
-    1: { emoji:'🚫', label:'Meglio lasciar perdere', color:'#f85149', barRoi:5, barProb:15, barRisk:90, desc:'ROI negativo anche in scenario ottimistico. Evita a questo prezzo.' },
+  var SM={
+    5:{emoji:'🔥',label:'Ottimo investimento',   color:'#c9a84c',bRoi:90,bProb:80,bRisk:20,
+       desc:'ROI stimato eccellente. Ottimo candidato a gradazione.'},
+    4:{emoji:'👍',label:'Buon investimento',      color:'#3fb950',bRoi:70,bProb:65,bRisk:35,
+       desc:'Buone prospettive. Considera PSA/CGC se la carta è in ottimo stato.'},
+    3:{emoji:'😐',label:'Investimento discreto',  color:'#58a6ff',bRoi:45,bProb:50,bRisk:50,
+       desc:'Margini contenuti. Valuta con attenzione i costi totali.'},
+    2:{emoji:'⚠️',label:'Rischioso',              color:'#d29922',bRoi:20,bProb:35,bRisk:70,
+       desc:'Prezzo alto rispetto al potenziale. Tratta al ribasso o aspetta.'},
+    1:{emoji:'🚫',label:'Meglio lasciar perdere', color:'#f85149',bRoi:5, bProb:15,bRisk:90,
+       desc:'ROI negativo anche in scenario ottimistico. Evita a questo prezzo.'},
   };
+  var sm=SM[scoreLevel];
 
-  const sm = SCORE_MAP[scoreLevel];
+  var h='';
 
-  let html = '';
+  // score box
+  h+='<div class="anl-score-box" style="border-left:3px solid '+sm.color+'">'
+    +'<div class="anl-score-emoji">'+sm.emoji+'</div>'
+    +'<div><div class="anl-score-label" style="color:'+sm.color+'">'+sm.label+'</div>'
+    +'<div class="anl-score-desc">'+sm.desc+'</div></div></div>';
 
-  // Box score
-  html += `<div class="anl-score-box" style="border-left:3px solid ${sm.color}">
-    <div class="anl-score-emoji">${sm.emoji}</div>
-    <div>
-      <div class="anl-score-label" style="color:${sm.color}">${sm.label}</div>
-      <div class="anl-score-desc">${sm.desc}</div>
-    </div>
-  </div>`;
+  // barre
+  h+='<div class="anl-score-bars">'
+    +anlBar('ROI atteso',sm.bRoi,sm.color)
+    +anlBar('Prob. grade alto',sm.bProb,'var(--accent)')
+    +anlBar('Rischio',sm.bRisk,'var(--danger)')
+    +'</div>';
 
-  // Barre
-  html += `<div class="anl-score-bars">
-    <div class="anl-score-bar-wrap">
-      <div class="anl-score-bar-label">ROI atteso</div>
-      <div class="anl-score-bar-track"><div class="anl-score-bar-fill" style="width:${sm.barRoi}%;background:${sm.color}"></div></div>
-    </div>
-    <div class="anl-score-bar-wrap">
-      <div class="anl-score-bar-label">Prob. grade alto</div>
-      <div class="anl-score-bar-track"><div class="anl-score-bar-fill" style="width:${sm.barProb}%;background:var(--accent)"></div></div>
-    </div>
-    <div class="anl-score-bar-wrap">
-      <div class="anl-score-bar-label">Rischio</div>
-      <div class="anl-score-bar-track"><div class="anl-score-bar-fill" style="width:${sm.barRisk}%;background:var(--danger)"></div></div>
-    </div>
-  </div>`;
-
-  // Dettaglio numerico se budget inserito
-  if(buyMax && gradedVal){
-    const roiMax = gradedVal - buyMax - totalCosts;
-    const roiMin = buyMin ? gradedVal - buyMin - totalCosts : null;
-    html += `<div style="font-size:11px;font-family:var(--mono);padding:10px;background:var(--surface2);border-radius:6px;margin-bottom:12px;line-height:1.9">
-      <div>Valore graded PSA9 stimato: <b style="color:var(--accent)">€${gradedVal.toFixed(2)}</b></div>
-      ${roiMin!==null?`<div>ROI netto @ €${buyMin} acquisto: <b style="color:${roiMin>0?'var(--success)':'var(--danger)'}">${roiMin>0?'+':''}€${roiMin.toFixed(2)}</b></div>`:''}
-      <div>ROI netto @ €${buyMax} acquisto: <b style="color:${roiMax>0?'var(--success)':'var(--danger)'}">${roiMax>0?'+':''}€${roiMax.toFixed(2)}</b></div>
-      <div style="color:var(--text-muted)">Costi fissi stimati: €${totalCosts} (grad. PSA + logistica)</div>
-    </div>`;
+  // dettaglio numerico
+  if(buyMax&&gradedVal){
+    var rMax=gradedVal-buyMax-totalCost;
+    var rMin=buyMin?gradedVal-buyMin-totalCost:null;
+    h+='<div style="font-size:11px;font-family:var(--mono);padding:10px;background:var(--surface2);border-radius:6px;margin-bottom:12px;line-height:1.9">'
+      +'<div>Valore PSA9 stimato: <b style="color:var(--accent)">€'+gradedVal.toFixed(2)+'</b></div>'
+      +(rMin!==null?'<div>ROI netto @ €'+buyMin+' acquisto: <b style="color:'+(rMin>0?'var(--success)':'var(--danger)')+'">'+(rMin>0?'+':'')+'€'+rMin.toFixed(2)+'</b></div>':'')
+      +'<div>ROI netto @ €'+buyMax+' acquisto: <b style="color:'+(rMax>0?'var(--success)':'var(--danger)')+'">'+(rMax>0?'+':'')+'€'+rMax.toFixed(2)+'</b></div>'
+      +'<div style="color:var(--text-muted)">Costi fissi: €'+totalCost+' (grad. PSA + logistica)</div></div>';
   }
 
-  // Soglie buy/hold/skip
+  // soglie
   if(gradedVal){
-    const buyOpt  = Math.round((gradedVal - totalCosts) / psaMult * 0.5 * 100)/100;
-    const buyGood = Math.round((gradedVal - totalCosts) / psaMult * 0.7 * 100)/100;
-    const buyMax2 = Math.round((gradedVal - totalCosts - 5) * 100)/100;
-    html += `<div style="font-size:11px;margin-bottom:12px">
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px">Soglie di prezzo</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <span class="anl-badge ok">🎯 Ottimale ≤ €${buyOpt.toFixed(0)}</span>
-        <span class="anl-badge info">👍 Buono ≤ €${buyGood.toFixed(0)}</span>
-        <span class="anl-badge warn">⚠️ Limite €${buyMax2.toFixed(0)}</span>
-      </div>
-    </div>`;
+    var sOpt =Math.round((gradedVal-totalCost)/psaMult*0.5);
+    var sGood=Math.round((gradedVal-totalCost)/psaMult*0.7);
+    var sLim =Math.round(gradedVal-totalCost-5);
+    h+='<div style="font-size:11px;margin-bottom:12px">'
+      +'<div style="font-family:var(--mono);font-size:10px;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px">Soglie di acquisto</div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+      +'<span class="anl-badge ok">🎯 Ottimale ≤ €'+sOpt+'</span>'
+      +'<span class="anl-badge info">👍 Buono ≤ €'+sGood+'</span>'
+      +'<span class="anl-badge warn">⚠️ Limite €'+sLim+'</span>'
+      +'</div></div>';
   }
 
-  // Analisi AI
-  html += `<div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;font-family:var(--mono);margin-bottom:6px">Analisi AI</div>
-  <div class="anl-ai-analysis loading" id="anlAiText">Elaborazione in corso...</div>`;
+  // analisi AI
+  h+='<div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;font-family:var(--mono);margin-bottom:6px">Analisi AI</div>'
+    +'<div class="anl-ai-analysis loading" id="anlAiText">Elaborazione in corso...</div>';
 
-  document.getElementById('anlScoreBody').innerHTML = html;
-  document.getElementById('anlScoreSub').textContent = sm.emoji + ' ' + sm.label;
+  document.getElementById('anlScoreBody').innerHTML=h;
+  document.getElementById('anlScoreSub').textContent=sm.emoji+' '+sm.label;
 
-  // Avvia analisi AI async
-  anlRunAI(card, cond, is1st, buyMin, buyMax, scoreLevel, gradedVal, sm);
+  // lancia AI (async, non blocca il render)
+  anlRunAI(card,cond,is1st,buyMin,buyMax,scoreLevel,gradedVal,sm);
 }
 
-async function anlRunAI(card, cond, is1st, buyMin, buyMax, scoreLevel, gradedVal, sm){
-  const apiKey = window._SC_AK || window._K_;
-  if(!apiKey || apiKey.includes('PLACEHOLDER')){
-    document.getElementById('anlAiText').textContent = 'Chiave API Anthropic non configurata. Analisi AI non disponibile.';
-    document.getElementById('anlAiText').classList.remove('loading');
+function anlBar(lbl,pct,color){
+  return '<div class="anl-score-bar-wrap">'
+        +'<div class="anl-score-bar-label">'+lbl+'</div>'
+        +'<div class="anl-score-bar-track">'
+        +'<div class="anl-score-bar-fill" style="width:'+pct+'%;background:'+color+'"></div>'
+        +'</div></div>';
+}
+
+// ─── AI ANALYSIS ─────────────────────────────────────────────────────────────
+async function anlRunAI(card,cond,is1st,buyMin,buyMax,scoreLevel,gradedVal,sm){
+  var apiKey=window._SC_AK||window._K_;
+  if(!apiKey||apiKey.includes('PLACEHOLDER')){
+    var el=document.getElementById('anlAiText');
+    if(el){el.textContent='Chiave API Anthropic non configurata. Analisi AI non disponibile.';el.classList.remove('loading');}
     return;
   }
+  var prices=card.cardmarket&&card.cardmarket.prices;
+  var nm=prices?(prices.trendPrice||prices.avg30||null):null;
+  var setN=card.set?card.set.name:'set sconosciuto';
 
-  const prices = card.cardmarket&&card.cardmarket.prices;
-  const nmRaw = prices ? (prices.trendPrice||prices.avg30||null) : null;
-  const setName = card.set ? card.set.name : 'set sconosciuto';
-  const rarity = card.rarity || 'sconosciuta';
+  var prompt='Sei un esperto di carte Pokémon per collezionismo e investimento.\n\n'
+    +'Dati della carta:\n'
+    +'- Nome: '+card.name+' #'+card.number+'\n'
+    +'- Set: '+setN+' ('+card.id+')\n'
+    +'- Rarità: '+(card.rarity||'sconosciuta')+'\n'
+    +'- Condizione: '+cond+(is1st?' — 1ª Edizione':'')+'\n'
+    +'- Prezzo NM CardMarket: '+(nm?'€'+nm.toFixed(2):'non disponibile')+'\n'
+    +'- Valore stimato PSA9: '+(gradedVal?'€'+gradedVal.toFixed(2):'n.d.')+'\n'
+    +'- Budget acquisto: '+(buyMin&&buyMax?'€'+buyMin+'–€'+buyMax:buyMax?'max €'+buyMax:'non specificato')+'\n'
+    +'- Score algoritmo: '+scoreLevel+'/5 ('+sm.label+')\n\n'
+    +'In 4-6 righe, fornisci:\n'
+    +'1. Valutazione carta come asset da grading/investimento\n'
+    +'2. Fattori chiave che ne influenzano il valore\n'
+    +'3. Consiglio operativo chiaro (acquista/tratta/evita/aspetta)\n'
+    +'Rispondi in italiano, tono diretto come un dealer esperto.';
 
-  const prompt = `Sei un esperto di carte Pokémon per collezionismo e investimento.
-
-Dati della carta:
-- Nome: ${card.name} #${card.number}
-- Set: ${setName} (${card.id})
-- Rarità: ${rarity}
-- Condizione attuale: ${cond}${is1st?' — 1ª Edizione':''}
-- Prezzo NM su CardMarket: ${nmRaw?'€'+nmRaw.toFixed(2):'non disponibile'}
-- Valore stimato graded PSA9: ${gradedVal?'€'+gradedVal.toFixed(2):'non calcolabile'}
-- Budget acquisto: ${buyMin&&buyMax?'€'+buyMin+' – €'+buyMax : buyMax?'max €'+buyMax : 'non specificato'}
-- Score algoritmo: ${scoreLevel}/5 (${sm.label})
-
-In 4-6 righe max, fornisci:
-1. Una valutazione concisa della carta come asset da grading/investimento
-2. Fattori chiave che influenzano il suo valore (popolarità, set, rarità, storico)
-3. Un consiglio operativo chiaro (acquista / tratta / evita / aspetta)
-Sii diretto, concreto e usa il punto di vista di un dealer esperto. Rispondi in italiano.`;
-
-  try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages',{
+  try{
+    var resp=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
       headers:{
         'Content-Type':'application/json',
-        'x-api-key': apiKey,
+        'x-api-key':apiKey,
         'anthropic-version':'2023-06-01',
         'anthropic-dangerous-direct-browser-access':'true'
       },
-      body: JSON.stringify({
+      body:JSON.stringify({
         model:'claude-sonnet-4-20250514',
         max_tokens:400,
         messages:[{role:'user',content:prompt}]
       })
     });
-    const data = await resp.json();
-    const text = data.content&&data.content[0]&&data.content[0].text;
-    const el = document.getElementById('anlAiText');
-    if(el){
-      el.textContent = text || 'Analisi non disponibile.';
-      el.classList.remove('loading');
-    }
-  } catch(e){
-    const el = document.getElementById('anlAiText');
-    if(el){ el.textContent = 'Errore analisi AI: '+e.message; el.classList.remove('loading'); }
+    var data=await resp.json();
+    var text=data.content&&data.content[0]&&data.content[0].text;
+    var el=document.getElementById('anlAiText');
+    if(el){el.textContent=text||'Analisi non disponibile.';el.classList.remove('loading');}
+  }catch(e){
+    var el=document.getElementById('anlAiText');
+    if(el){el.textContent='Errore analisi AI: '+e.message;el.classList.remove('loading');}
   }
 }
 
 </script>
 
 </body>
-</html><!-- v20260418-analizza -->
+</html><!-- v20260418-r3 -->
