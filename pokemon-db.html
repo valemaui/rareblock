@@ -1194,6 +1194,7 @@ function showTab(t){
   if(t==='prev')renderPrevList();
   if(t==='ms')msInit();
   if(t==='auth'&&window.auInitTab)auInitTab();
+  if(t==='anl'&&window.anlInitTab)window.anlInitTab();
 }
 
 function parseQuery(q){
@@ -5429,12 +5430,8 @@ function anlInitTab(){
   document.getElementById('anlCardName').focus();
 }
 
-// Hook showTab
-var _anlOrig = window.showTab;
-window.showTab = function(t){
-  _anlOrig(t);
-  if(t==='anl') anlInitTab();
-};
+// anlInitTab è esposta su window così showTab può chiamarla (già registrata nel main showTab)
+window.anlInitTab = anlInitTab;
 
 // ─── SEARCH ─────────────────────────────────────────────────────────────────
 window.anlSearch = async function(){
