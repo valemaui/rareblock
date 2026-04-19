@@ -1200,14 +1200,16 @@ const TCG_KEY='ca385a14-d149-4a9f-a275-3bda5b7b1555';
 // HDR dinamico: usa JWT utente autenticato quando disponibile (RLS enforcement)
 // Fallback all'anon key per retrocompatibilità durante sviluppo
 function getHDR(){
-  const token=window._rbSession?.access_token||SUPA_KEY;
+  var token=(window._rbSession&&window._rbSession.access_token)||SUPA_KEY;
   return{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+token,'Prefer':'return=representation'};
 }
 // Compatibilità con codice esistente che usa HDR direttamente
 Object.defineProperty(window,'HDR',{get:getHDR,configurable:true});
 
 // Helper: restituisce l'UUID dell'utente autenticato (null se anon)
-function getCurrentUserId(){return window._rbSession?.user?.id||null;}
+function getCurrentUserId(){
+  return (window._rbSession&&window._rbSession.user&&window._rbSession.user.id)||null;
+}
 
 // Fattori ufficiali Cardmarket (base NM=100%)
 const COND_FACTOR={MINT:1.15,NM:1.0,EX:0.85,GD:0.70,LP:0.60,PL:0.40,PO:0.20,'INK/ALT':0};
@@ -1268,18 +1270,19 @@ function positionZoom(e, el, followCursor){
 }
 
 function showTab(t){
-  document.querySelectorAll('.nav-btn').forEach(b=>{
-    const match=b.getAttribute('onclick')||'';
+  document.querySelectorAll('.nav-btn').forEach(function(b){
+    var match=b.getAttribute('onclick')||'';
     b.classList.toggle('active',match.includes("'"+t+"'"));
   });
-  document.querySelectorAll('.tab').forEach(p=>{
+  document.querySelectorAll('.tab').forEach(function(p){
     p.classList.toggle('active',p.id==='tab-'+t);
   });
-  if(t==='col')loadCollection();
-  if(t==='prev')renderPrevList();
-  if(t==='ms')msInit();
-  if(t==='auth'&&window.auInitTab)auInitTab();
-  if(t==='anl'&&window.anlInitTab)window.anlInitTab();
+  // Ogni chiamata in try/catch per evitare che un errore blocchi la navigazione
+  try{ if(t==='col') loadCollection(); }catch(e){ console.error('loadCollection:',e); }
+  try{ if(t==='prev') renderPrevList(); }catch(e){ console.error('renderPrevList:',e); }
+  try{ if(t==='ms') msInit(); }catch(e){ console.error('msInit:',e); }
+  try{ if(t==='auth'&&window.auInitTab) auInitTab(); }catch(e){}
+  try{ if(t==='anl'&&window.anlInitTab) window.anlInitTab(); }catch(e){}
 }
 
 function parseQuery(q){
@@ -1656,7 +1659,17 @@ async function loadCollection(){
           ${c.cm_avg30>0?`<div class="ccard-cm">CM avg30: €${parseFloat(c.cm_avg30).toFixed(2)}</div>`:''}
         </div>
       </div>`).join('');
-  }catch(e){if(colst){colst.className='status err';colst.textContent='Errore: '+e.message}}
+  }catch(e){
+    var errMsg=e.message||'Errore sconosciuto';
+    var hint='';
+    if(errMsg.includes('permission denied')||errMsg.includes('RLS')||errMsg.includes('row-level'))
+      hint=' (sessione scaduta — ricarica la pagina)';
+    if(errMsg.includes('JWT')||errMsg.includes('401')||errMsg.includes('403'))
+      hint=' (errore autenticazione — ricarica la pagina)';
+    if(colst){colst.className='status err';colst.textContent='Errore: '+errMsg+hint;}
+    if(cg){cg.innerHTML='<div class="empty-state"><div style="font-size:13px;color:var(--danger)">'+
+      'Errore caricamento'+hint+'<br><button class="btn btn-primary" style="margin-top:12px" onclick="location.reload()">Ricarica pagina</button></div></div>';}
+  }
 }
 
 
@@ -6148,4 +6161,4 @@ if(document.readyState==='loading'){
 
 <script src="config.js" defer onerror="console.warn('config.js non trovato')"></script>
 </body>
-</html><!-- v20260419-auth-final -->
+</html><!-- v20260419-robust -->
