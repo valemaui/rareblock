@@ -2,8 +2,6 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8"/>
-<!-- Supabase JS Client -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>RareBlock — Collector</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -5936,273 +5934,218 @@ async function anlRunAI(card,cond,is1st,buyMin,buyMax,scoreLevel,gradedVal,sm){
 
 </script>
 
-<!-- ═══════════════════════════════════════════════════════════
-     MODULO AUTH — Supabase Auth, session management, UI login
-     ═══════════════════════════════════════════════════════════ -->
 <script>
-// ═══ MODULO AUTH — globale (no IIFE, come ANL) ═══
-// ── Inizializza Supabase client con auth ────────────────────────────
-var _supaClient = null;
-function getSupaClient(){
-  if(_supaClient) return _supaClient;
-  if(!window.supabase){
-    console.warn('supabase-js non caricato — auth disabilitato');
-    return null;
-  }
-  _supaClient = window.supabase.createClient(
-    'https://rbjaaeyjeeqfpbzyavag.supabase.co',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E'
-  );
-  return _supaClient;
+// ═══════════════════════════════════════════════════════════
+//  AUTH — fetch puro, zero dipendenze CDN
+//  Usa direttamente le REST API di Supabase Auth v1
+// ═══════════════════════════════════════════════════════════
+
+var RB_AUTH_URL = 'https://rbjaaeyjeeqfpbzyavag.supabase.co/auth/v1';
+var RB_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
+var RB_SESSION_KEY = 'rb_auth_session';
+
+// ── Helpers UI ──────────────────────────────────────────────
+function authShow(){ var o=document.getElementById('authOverlay'); if(o) o.classList.remove('hidden'); }
+function authHide(){ var o=document.getElementById('authOverlay'); if(o) o.classList.add('hidden'); }
+function authMsg(id,msg,type){
+  var el=document.getElementById(id); if(!el) return;
+  el.textContent=msg; el.className='auth-msg '+(type==='ok'?'ok':'err');
+}
+function authClear(id){ var el=document.getElementById(id); if(el){el.textContent='';el.className='auth-msg';} }
+function authBtn(id,loading,lbl){
+  var b=document.getElementById(id); if(!b) return;
+  b.disabled=loading; b.textContent=loading?'Attendere...':lbl;
+}
+function authDiag(msg,ok){
+  var el=document.getElementById('authDiag');
+  if(el){el.textContent=msg; el.style.color=ok?'var(--success)':'var(--warning)';}
 }
 
-// ── Helpers UI ──────────────────────────────────────────────────────
-function showOverlay(){ var o=document.getElementById('authOverlay'); if(o) o.classList.remove('hidden'); }
-function hideOverlay(){ var o=document.getElementById('authOverlay'); if(o) o.classList.add('hidden'); }
-function setAuthMsg(id, msg, type){
-  var el=document.getElementById(id);
-  if(!el) return;
-  el.textContent=msg;
-  el.className='auth-msg '+(type||'err');
+// ── Sessione in localStorage ─────────────────────────────────
+function rbSaveSession(s){
+  try{ localStorage.setItem(RB_SESSION_KEY, JSON.stringify(s)); }catch(e){}
+  window._rbSession = s;
+  var badge=document.getElementById('userBadge');
+  var emailEl=document.getElementById('userEmail');
+  if(badge) badge.style.display = s?'flex':'none';
+  if(emailEl&&s) emailEl.textContent = s.user&&s.user.email||'Utente';
 }
-function clearAuthMsg(id){ var el=document.getElementById(id); if(el){el.textContent='';el.className='auth-msg';} }
-function authBtnLoading(id, loading, label){
-  var btn=document.getElementById(id);
-  if(!btn) return;
-  btn.disabled=loading;
-  btn.textContent=loading?'Attendere...':label;
+function rbLoadSession(){
+  try{ var raw=localStorage.getItem(RB_SESSION_KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; }
 }
-
-// ── Switch tab login/register/reset ─────────────────────────────────
-window.authSwitchTab = function(tab){
-  ['login','reg','reset'].forEach(function(t){
-    var pane=document.getElementById('authPane'+t.charAt(0).toUpperCase()+t.slice(1));
-    var btn =document.getElementById('authTab'+t.charAt(0).toUpperCase()+t.slice(1));
-    if(pane) pane.style.display = t===tab ? '' : 'none';
-    if(btn)  btn.classList.toggle('active', t===tab);
-  });
-};
-
-// ── Login ───────────────────────────────────────────────────────────
-window.authDoLogin = async function(){
-  var email=(document.getElementById('authLoginEmail')?.value||'').trim();
-  var pwd  = document.getElementById('authLoginPwd')?.value||'';
-  clearAuthMsg('authLoginMsg');
-
-  if(!email||!pwd){
-    setAuthMsg('authLoginMsg','Inserisci email e password');
-    return;
-  }
-
-  var sb=getSupaClient();
-  if(!sb){
-    setAuthMsg('authLoginMsg','⚠ Libreria auth non caricata. Controlla la connessione e ricarica la pagina.');
-    return;
-  }
-
-  authBtnLoading('authLoginBtn',true,'Connessione...');
-  setAuthMsg('authLoginMsg','Verifica credenziali...','ok');
-
-  try{
-    var r=await sb.auth.signInWithPassword({email:email, password:pwd});
-
-    // Mostra risposta raw per debug
-    if(r.error){
-      throw new Error('['+r.error.status+'] '+r.error.message);
-    }
-    if(!r.data||!r.data.session){
-      throw new Error('Risposta inattesa: nessuna sessione restituita. '+JSON.stringify(r.data||{}));
-    }
-
-    setAuthMsg('authLoginMsg','✓ Accesso riuscito, caricamento...','ok');
-    setTimeout(function(){ authOnSuccess(r.data.session); }, 300);
-
-  }catch(e){
-    var raw=e.message||'Errore sconosciuto';
-    var friendly=raw;
-    if(raw.includes('Invalid login credentials')) friendly='Email o password errata.';
-    else if(raw.includes('Email not confirmed'))  friendly='Email non confermata. Controlla la tua casella.';
-    else if(raw.includes('too many requests'))    friendly='Troppi tentativi — aspetta qualche minuto.';
-    else if(raw.includes('Failed to fetch')||raw.includes('NetworkError')) friendly='Errore di rete. Controlla la connessione.';
-
-    // Mostra sia il messaggio friendly che il raw per debug
-    setAuthMsg('authLoginMsg', friendly+'
-
-[debug: '+raw+']');
-
-  }finally{
-    authBtnLoading('authLoginBtn',false,'Accedi');
-  }
-};
-
-// ── Register ────────────────────────────────────────────────────────
-window.authDoRegister = async function(){
-  var email=(document.getElementById('authRegEmail')?.value||'').trim();
-  var pwd  = document.getElementById('authRegPwd')?.value||'';
-  var pwd2 = document.getElementById('authRegPwd2')?.value||'';
-  clearAuthMsg('authRegMsg');
-  if(!email||!pwd){ setAuthMsg('authRegMsg','Inserisci email e password'); return; }
-  if(pwd.length<8){ setAuthMsg('authRegMsg','Password minimo 8 caratteri'); return; }
-  if(pwd!==pwd2){ setAuthMsg('authRegMsg','Le password non coincidono'); return; }
-
-  var sb=getSupaClient(); if(!sb){ setAuthMsg('authRegMsg','Auth non disponibile'); return; }
-  authBtnLoading('authRegBtn',true,'Registrati');
-  try{
-    var r=await sb.auth.signUp({email:email, password:pwd});
-    if(r.error) throw r.error;
-    if(r.data?.user?.identities?.length===0){
-      setAuthMsg('authRegMsg','Questa email è già registrata. Usa Accedi.','err');
-    } else {
-      setAuthMsg('authRegMsg','✓ Account creato! Controlla la tua email per confermare.','ok');
-    }
-  }catch(e){
-    setAuthMsg('authRegMsg', e.message||'Errore registrazione');
-  }finally{
-    authBtnLoading('authRegBtn',false,'Crea account');
-  }
-};
-
-// ── Password Reset ──────────────────────────────────────────────────
-window.authDoReset = async function(){
-  var email=(document.getElementById('authResetEmail')?.value||'').trim();
-  clearAuthMsg('authResetMsg');
-  if(!email){ setAuthMsg('authResetMsg','Inserisci la tua email'); return; }
-
-  var sb=getSupaClient(); if(!sb){ setAuthMsg('authResetMsg','Auth non disponibile'); return; }
-  authBtnLoading('authResetBtn',true,'Invia link reset');
-  try{
-    var r=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
-    if(r.error) throw r.error;
-    setAuthMsg('authResetMsg','✓ Link inviato! Controlla la tua email.','ok');
-  }catch(e){
-    setAuthMsg('authResetMsg', e.message||'Errore invio email');
-  }finally{
-    authBtnLoading('authResetBtn',false,'Invia link reset');
-  }
-};
-
-// ── Logout ──────────────────────────────────────────────────────────
-window.authLogout = async function(){
-  var sb=getSupaClient();
-  if(sb) await sb.auth.signOut().catch(function(){});
+function rbClearSession(){
+  try{ localStorage.removeItem(RB_SESSION_KEY); }catch(e){}
   window._rbSession=null;
+}
+
+// ── Chiamata REST diretta a Supabase Auth ─────────────────────
+async function rbAuthFetch(path, body, token){
+  var hdrs = {'Content-Type':'application/json','apikey':RB_ANON_KEY};
+  if(token) hdrs['Authorization']='Bearer '+token;
+  var r = await fetch(RB_AUTH_URL+path, {
+    method:'POST', headers:hdrs,
+    body: JSON.stringify(body)
+  });
+  var data = await r.json().catch(function(){return{};});
+  if(!r.ok) throw new Error(data.error_description||data.msg||data.error||('HTTP '+r.status));
+  return data;
+}
+
+// ── Login ────────────────────────────────────────────────────
+window.authDoLogin = async function(){
+  var email=(document.getElementById('authLoginEmail').value||'').trim();
+  var pwd  = document.getElementById('authLoginPwd').value||'';
+  authClear('authLoginMsg');
+  if(!email||!pwd){ authMsg('authLoginMsg','Inserisci email e password'); return; }
+
+  authBtn('authLoginBtn',true,'Accedi');
+  authDiag('Accesso in corso...',false);
+  try{
+    var data = await rbAuthFetch('/token?grant_type=password',{email:email,password:pwd});
+    var session = {
+      access_token:  data.access_token,
+      refresh_token: data.refresh_token,
+      expires_at:    Math.floor(Date.now()/1000)+(data.expires_in||3600),
+      user:          data.user
+    };
+    rbSaveSession(session);
+    authDiag('Accesso riuscito!',true);
+    authHide();
+    if(typeof appStart==='function') appStart();
+  }catch(e){
+    var msg=e.message||'Errore sconosciuto';
+    if(msg.includes('Invalid login'))       msg='Email o password errata';
+    if(msg.includes('Email not confirmed')) msg='Conferma la tua email';
+    if(msg.includes('Failed to fetch'))     msg='Errore di rete';
+    authMsg('authLoginMsg', msg);
+    authDiag('Accesso fallito',false);
+  }finally{
+    authBtn('authLoginBtn',false,'Accedi');
+  }
+};
+
+// ── Register ─────────────────────────────────────────────────
+window.authDoRegister = async function(){
+  var email=(document.getElementById('authRegEmail').value||'').trim();
+  var pwd  = document.getElementById('authRegPwd').value||'';
+  var pwd2 = document.getElementById('authRegPwd2').value||'';
+  authClear('authRegMsg');
+  if(!email||!pwd){ authMsg('authRegMsg','Inserisci email e password'); return; }
+  if(pwd.length<8){ authMsg('authRegMsg','Password minimo 8 caratteri'); return; }
+  if(pwd!==pwd2){   authMsg('authRegMsg','Le password non coincidono');  return; }
+
+  authBtn('authRegBtn',true,'Registrati');
+  try{
+    var hdrs={'Content-Type':'application/json','apikey':RB_ANON_KEY};
+    var r=await fetch(RB_AUTH_URL+'/signup',{method:'POST',headers:hdrs,body:JSON.stringify({email:email,password:pwd})});
+    var data=await r.json().catch(function(){return{};});
+    if(!r.ok) throw new Error(data.error_description||data.msg||data.error||('HTTP '+r.status));
+    authMsg('authRegMsg','✓ Account creato! Controlla la tua email.','ok');
+  }catch(e){
+    authMsg('authRegMsg', e.message||'Errore registrazione');
+  }finally{
+    authBtn('authRegBtn',false,'Crea account');
+  }
+};
+
+// ── Reset password ───────────────────────────────────────────
+window.authDoReset = async function(){
+  var email=(document.getElementById('authResetEmail').value||'').trim();
+  authClear('authResetMsg');
+  if(!email){ authMsg('authResetMsg','Inserisci la tua email'); return; }
+
+  authBtn('authResetBtn',true,'Invia link reset');
+  try{
+    var hdrs={'Content-Type':'application/json','apikey':RB_ANON_KEY};
+    await fetch(RB_AUTH_URL+'/recover',{method:'POST',headers:hdrs,body:JSON.stringify({email:email})});
+    authMsg('authResetMsg','✓ Link inviato! Controlla la tua email.','ok');
+  }catch(e){
+    authMsg('authResetMsg','Errore: '+e.message);
+  }finally{
+    authBtn('authResetBtn',false,'Invia link reset');
+  }
+};
+
+// ── Logout ───────────────────────────────────────────────────
+window.authLogout = async function(){
+  var s=window._rbSession;
+  if(s&&s.access_token){
+    fetch(RB_AUTH_URL+'/logout',{
+      method:'POST',
+      headers:{'apikey':RB_ANON_KEY,'Authorization':'Bearer '+s.access_token}
+    }).catch(function(){});
+  }
+  rbClearSession();
   location.reload();
 };
 
-// ── Aggiorna badge utente nell'header ───────────────────────────────
-function updateUserBadge(session){
-  var badge=document.getElementById('userBadge');
-  var emailEl=document.getElementById('userEmail');
-  if(!badge) return;
-  if(session){
-    badge.style.display='flex';
-    if(emailEl) emailEl.textContent=session.user?.email||'Utente';
-  } else {
-    badge.style.display='none';
-    if(emailEl) emailEl.textContent='';
-  }
-}
-
-// ── Avvio app dopo auth confermata ───────────────────────────────────
-var _appStarted=false;
-function authOnSuccess(session){
-  if(_appStarted) return; // guard anti-doppio (onAuthStateChange + return diretto)
-  _appStarted=true;
-  window._rbSession=session;
-  updateUserBadge(session);
-  hideOverlay();
-  if(typeof appStart==='function') appStart();
-}
-
-// ── Fallback: se supabase-js non carica (CDN down, offline) ─────────
-function authFallbackStart(){
-  console.warn('Auth fallback: avvio senza sessione autenticata');
-  window._rbSession=null;
-  hideOverlay();
-  if(typeof appStart==='function') appStart();
-}
-
-// ── Init principale — chiamato da DOMContentLoaded ───────────────────
-function authSetDiag(msg,color){
-  var el=document.getElementById('authDiag');
-  if(el){el.textContent=msg;el.style.color=color||'var(--text-muted)';}
-}
-
-window.rbAuthInit = async function(){
-  var av=document.getElementById('authVersion');
-  if(av&&window.APP_VERSION) av.textContent=window.APP_VERSION;
-
-  authSetDiag('verifica libreria auth...','var(--warning)');
-
-  var sb=getSupaClient();
-  if(!sb){
-    authSetDiag('⚠ supabase-js non caricato — modalità offline','var(--danger)');
-    authFallbackStart();
-    return;
-  }
-  authSetDiag('connesso a Supabase','var(--success)');
-
-  // Listener post-login: gestisce SIGNED_IN, logout e token refresh
-  // NON gestisce INITIAL_SESSION qui (lo fa getSession sotto)
-  sb.auth.onAuthStateChange(function(event, session){
-    if(event==='SIGNED_IN'){
-      // Login appena avvenuto → avvia app se overlay visibile
-      var overlay=document.getElementById('authOverlay');
-      if(overlay&&!overlay.classList.contains('hidden')){
-        authOnSuccess(session);
-      } else {
-        window._rbSession=session;
-        updateUserBadge(session);
-      }
-    } else if(event==='TOKEN_REFRESHED'){
-      // Refresh silenzioso — aggiorna solo la sessione in memoria
-      window._rbSession=session;
-    } else if(event==='SIGNED_OUT'){
-      window._rbSession=null;
-      updateUserBadge(null);
-      showOverlay();
-    }
+// ── Switch tab ───────────────────────────────────────────────
+window.authSwitchTab = function(tab){
+  ['Login','Reg','Reset'].forEach(function(t){
+    var pane=document.getElementById('authPane'+t);
+    var btn =document.getElementById('authTab'+t.toLowerCase());
+    if(pane) pane.style.display=(t.toLowerCase()===tab)?'':'none';
+    if(btn)  btn.classList.toggle('active', t.toLowerCase()===tab);
   });
-
-  // Controlla sessione esistente al caricamento (cookie/localStorage)
-  authSetDiag('controllo sessione...','var(--warning)');
-  try{
-    var r=await sb.auth.getSession();
-    var session=(r&&r.data&&r.data.session)||null;
-    if(session){
-      authSetDiag('sessione attiva — caricamento...','var(--success)');
-      authOnSuccess(session);
-    } else {
-      authSetDiag('nessuna sessione — effettua il login','var(--text-muted)');
-      showOverlay();
-    }
-  }catch(e){
-    authSetDiag('errore: '+e.message,'var(--danger)');
-    console.warn('getSession error:', e.message);
-    showOverlay();
-  }
 };
 
-</script>
-<script>
-// Init auth immediato — eseguito subito dopo la definizione delle funzioni auth
-(function(){
-  function tryInit(){
-    if(typeof window.rbAuthInit==='function'){
-      window.rbAuthInit();
-    } else {
-      // rbAuthInit non ancora disponibile — riprova tra 50ms
-      setTimeout(tryInit, 50);
+// ── Init ─────────────────────────────────────────────────────
+window.rbAuthInit = function(){
+  authDiag('controllo sessione...',false);
+
+  var session = rbLoadSession();
+
+  // Verifica se la sessione è ancora valida (non scaduta)
+  if(session && session.access_token){
+    var now = Math.floor(Date.now()/1000);
+    var expired = session.expires_at && (now > session.expires_at - 60);
+
+    if(!expired){
+      // Sessione valida → avvia app direttamente
+      rbSaveSession(session);
+      authDiag('sessione attiva',true);
+      authHide();
+      if(typeof appStart==='function') appStart();
+      return;
+    } else if(session.refresh_token){
+      // Sessione scaduta ma abbiamo refresh token → rinnova
+      authDiag('rinnovo sessione...',false);
+      rbAuthFetch('/token?grant_type=refresh_token',{refresh_token:session.refresh_token})
+        .then(function(data){
+          var newSession={
+            access_token:data.access_token,
+            refresh_token:data.refresh_token,
+            expires_at:Math.floor(Date.now()/1000)+(data.expires_in||3600),
+            user:data.user||session.user
+          };
+          rbSaveSession(newSession);
+          authDiag('sessione rinnovata',true);
+          authHide();
+          if(typeof appStart==='function') appStart();
+        })
+        .catch(function(){
+          rbClearSession();
+          authDiag('sessione scaduta — effettua il login',false);
+          authShow();
+        });
+      return;
     }
   }
-  if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded', function(){ setTimeout(tryInit,0); });
-  } else {
-    setTimeout(tryInit, 0);
-  }
-})();
+
+  // Nessuna sessione → mostra login
+  rbClearSession();
+  authDiag('nessuna sessione — effettua il login',false);
+  authShow();
+};
+
+// Avvio automatico
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded', window.rbAuthInit);
+} else {
+  window.rbAuthInit();
+}
 </script>
 
-<script src="config.js" defer onerror="console.warn('config.js non trovato - uso configurazione inline')"></script>
+<script src="config.js" defer onerror="console.warn('config.js non trovato')"></script>
 </body>
-</html><!-- v20260419-auth6 -->
+</html><!-- v20260419-auth-final -->
