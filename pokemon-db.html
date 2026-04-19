@@ -3102,10 +3102,16 @@ function appStart(){
   setTimeout(checkApiStatus, 800);
   loadCollection();
 }
-document.addEventListener('DOMContentLoaded', () => {
-  // rbAuthInit è definito nel modulo Auth in fondo alla pagina
-  if(typeof rbAuthInit==='function') rbAuthInit();
-  else appStart(); // fallback se auth non carica
+document.addEventListener('DOMContentLoaded', function() {
+  // Piccolo delay per assicurarsi che tutti gli script inline siano eseguiti
+  setTimeout(function(){
+    if(typeof window.rbAuthInit==='function'){
+      window.rbAuthInit();
+    } else {
+      console.warn('rbAuthInit non definito — avvio senza auth');
+      appStart();
+    }
+  }, 0);
 });
 
 // Ri-controlla subito quando torna online
@@ -5934,9 +5940,7 @@ async function anlRunAI(card,cond,is1st,buyMin,buyMax,scoreLevel,gradedVal,sm){
      MODULO AUTH — Supabase Auth, session management, UI login
      ═══════════════════════════════════════════════════════════ -->
 <script>
-(function(){
-'use strict';
-
+// ═══ MODULO AUTH — globale (no IIFE, come ANL) ═══
 // ── Inizializza Supabase client con auth ────────────────────────────
 var _supaClient = null;
 function getSupaClient(){
@@ -6179,9 +6183,8 @@ window.rbAuthInit = async function(){
   }
 };
 
-})();
 </script>
 
 <script src="config.js" defer onerror="console.warn('config.js non trovato - uso configurazione inline')"></script>
 </body>
-</html><!-- v20260419-auth4 -->
+</html><!-- v20260419-auth5 -->
