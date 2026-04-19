@@ -856,7 +856,6 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
     <div class="led checking" id="apiLed"></div>
     <span class="led-label" id="apiLabel">verifica...</span>
   </div>
-  <div id="rbStatus" style="font-size:10px;font-family:var(--mono);color:var(--text-muted);padding:0 8px;display:none"></div>
   <div class="user-badge" id="userBadge" style="display:none">
     <span class="user-email" id="userEmail"></span>
     <button class="user-logout" onclick="authLogout()">Esci</button>
@@ -4135,8 +4134,45 @@ function guessVars(set) {
   return ['Normal','Holo'];
 }
 
-function msLoad(){ try{ return JSON.parse(localStorage.getItem(MS_LS)||'[]'); }catch(e){ return[]; } }
-function msSave(d){ localStorage.setItem(MS_LS,JSON.stringify(d)); }
+// msLoad/msSave: Supabase come storage principale, localStorage come cache
+function msLoad(){
+  try{ return JSON.parse(localStorage.getItem(MS_LS)||'[]'); }catch(e){ return[]; }
+}
+function msSave(d){
+  // Salva in localStorage (cache immediata)
+  try{ localStorage.setItem(MS_LS,JSON.stringify(d)); }catch(e){}
+  // Salva in Supabase (persistenza cloud + multi-device)
+  msSupaSave(d);
+}
+
+async function msSupaSave(data){
+  var uid=getCurrentUserId();
+  if(!uid) return; // non autenticato
+  try{
+    var upsertHdr=Object.assign({},getHDR(),{'Prefer':'resolution=merge-duplicates,return=minimal'});
+    await fetch(SUPA_URL+'/rest/v1/mastersets',{
+      method:'POST', headers:upsertHdr,
+      body:JSON.stringify({user_id:uid, data:JSON.stringify(data), updated_at:new Date().toISOString()})
+    });
+  }catch(e){ console.warn('msSupaSave error:',e.message); }
+}
+
+async function msSupaLoad(){
+  var uid=getCurrentUserId();
+  if(!uid) return null;
+  try{
+    var r=await fetch(SUPA_URL+'/rest/v1/mastersets?user_id=eq.'+uid+'&limit=1',{headers:getHDR()});
+    if(!r.ok) return null;
+    var rows=await r.json();
+    if(rows&&rows.length>0&&rows[0].data){
+      var d=JSON.parse(rows[0].data);
+      // Aggiorna cache locale
+      try{ localStorage.setItem(MS_LS,JSON.stringify(d)); }catch(e){}
+      return d;
+    }
+    return null;
+  }catch(e){ console.warn('msSupaLoad error:',e.message); return null; }
+}
 
 var msData    = msLoad();
 var msActive  = null;
@@ -4147,8 +4183,19 @@ var msSetsAll = null;
 var msMatches = [];
 
 window.msInit = function(){
-  msData = msLoad();
+  msData = msLoad(); // cache locale immediata
   msRenderList();
+  // Carica da Supabase in background e aggiorna se ci sono dati più recenti
+  msSupaLoad().then(function(cloudData){
+    if(cloudData && JSON.stringify(cloudData)!==JSON.stringify(msData)){
+      msData = cloudData;
+      msRenderList();
+      if(msActive){
+        var ms=msData.find(function(m){return m.id===msActive;});
+        if(ms) msOpen(ms.id);
+      }
+    }
+  }).catch(function(){});
   if(msActive){
     var ms = msData.find(function(m){return m.id===msActive;});
     if(ms) msOpen(ms.id); else { msActive=null; msShowEmpty(); }
@@ -5990,13 +6037,8 @@ function rbSaveSession(s){
   window._rbSession = s;
   var badge=document.getElementById('userBadge');
   var emailEl=document.getElementById('userEmail');
-  var status=document.getElementById('rbStatus');
   if(badge) badge.style.display = s?'flex':'none';
   if(emailEl&&s) emailEl.textContent = s.user&&s.user.email||'Utente';
-  if(status) {
-    if(s){ status.style.display='block'; status.textContent='uid:'+((s.user&&s.user.id)||'?').substring(0,8)+'...'; }
-    else  { status.style.display='none'; }
-  }
 }
 function rbLoadSession(){
   try{ var raw=localStorage.getItem(RB_SESSION_KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; }
@@ -6176,4 +6218,4 @@ if(document.readyState==='loading'){
 
 <script src="config.js" defer onerror="console.warn('config.js non trovato')"></script>
 </body>
-</html><!-- v20260419-final -->
+</html><!-- v20260420 -->
