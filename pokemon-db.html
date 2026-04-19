@@ -834,7 +834,7 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
 
     <div class="auth-footer">RareBlock Collector &mdash; solo per utenti invitati</div>
   </div>
-  <div class="auth-sep">v<span id="authVersion"></span> &middot; <span id="authDiag" style="color:var(--warning)">verifica connessione...</span></div>
+  <div class="auth-sep">v<span id="authVersion"></span> &middot; <span id="authDiag" style="color:var(--warning)">■ RB-AUTH-v5</span></div>
 </div>
 
 <header class="header">
@@ -6184,7 +6184,25 @@ window.rbAuthInit = async function(){
 };
 
 </script>
+<script>
+// Init auth immediato — eseguito subito dopo la definizione delle funzioni auth
+(function(){
+  function tryInit(){
+    if(typeof window.rbAuthInit==='function'){
+      window.rbAuthInit();
+    } else {
+      // rbAuthInit non ancora disponibile — riprova tra 50ms
+      setTimeout(tryInit, 50);
+    }
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(tryInit,0); });
+  } else {
+    setTimeout(tryInit, 0);
+  }
+})();
+</script>
 
 <script src="config.js" defer onerror="console.warn('config.js non trovato - uso configurazione inline')"></script>
 </body>
-</html><!-- v20260419-auth5 -->
+</html><!-- v20260419-auth6 -->
