@@ -6099,21 +6099,21 @@ window.rbAuthInit = async function(){
   var sb=getSupaClient();
   if(!sb){ authFallbackStart(); return; }
 
-  // Listener su cambi di sessione (login, logout, token refresh)
+  // Listener post-login: gestisce SIGNED_IN, logout e token refresh
+  // NON gestisce INITIAL_SESSION qui (lo fa getSession sotto)
   sb.auth.onAuthStateChange(function(event, session){
-    if(event==='SIGNED_IN'||event==='TOKEN_REFRESHED'||event==='INITIAL_SESSION'){
-      if(session){
+    if(event==='SIGNED_IN'){
+      // Login appena avvenuto → avvia app se overlay visibile
+      var overlay=document.getElementById('authOverlay');
+      if(overlay&&!overlay.classList.contains('hidden')){
+        authOnSuccess(session);
+      } else {
         window._rbSession=session;
         updateUserBadge(session);
-        // Se overlay è visibile (primo login), avvia app
-        var overlay=document.getElementById('authOverlay');
-        if(overlay&&!overlay.classList.contains('hidden')){
-          authOnSuccess(session);
-        } else {
-          // Token refresh silenzioso — aggiorna solo la sessione
-          window._rbSession=session;
-        }
       }
+    } else if(event==='TOKEN_REFRESHED'){
+      // Refresh silenzioso — aggiorna solo la sessione in memoria
+      window._rbSession=session;
     } else if(event==='SIGNED_OUT'){
       window._rbSession=null;
       updateUserBadge(null);
@@ -6121,14 +6121,17 @@ window.rbAuthInit = async function(){
     }
   });
 
-  // Controlla sessione esistente (utente già loggato, cookie valido)
-  var r=await sb.auth.getSession().catch(function(){ return {data:{session:null}}; });
-  var session=r?.data?.session||null;
-
-  if(session){
-    authOnSuccess(session);
-  } else {
-    // Nessuna sessione → mostra login overlay
+  // Controlla sessione esistente al caricamento (cookie/localStorage)
+  try{
+    var r=await sb.auth.getSession();
+    var session=(r&&r.data&&r.data.session)||null;
+    if(session){
+      authOnSuccess(session);
+    } else {
+      showOverlay();
+    }
+  }catch(e){
+    console.warn('getSession error:', e.message);
     showOverlay();
   }
 };
@@ -6138,4 +6141,4 @@ window.rbAuthInit = async function(){
 
 <script src="config.js" defer onerror="console.warn('config.js non trovato - uso configurazione inline')"></script>
 </body>
-</html><!-- v20260419-auth -->
+</html><!-- v20260419-auth2 -->
