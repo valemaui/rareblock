@@ -844,7 +844,7 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
     <button class="mode-btn active">Collector</button>
   </div>
   <nav class="nav">
-    <button class="nav-btn active" onclick="showTab('col')">Collezione</button>
+    <button class="nav-btn active" onclick="if(typeof showTab==='function'){showTab('col')}else{document.getElementById('tab-col').style.display='block';document.getElementById('tab-prev').style.display='none';this.classList.add('active');}">Collezione</button>
     <button class="nav-btn" onclick="showTab('prev')">Preventivi</button>
     <button class="nav-btn" onclick="showTab('imp')">Import CSV</button>
     <button class="nav-btn" onclick="showTab('ms')">Masterset</button>
@@ -856,6 +856,7 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
     <div class="led checking" id="apiLed"></div>
     <span class="led-label" id="apiLabel">verifica...</span>
   </div>
+  <div id="rbStatus" style="font-size:10px;font-family:var(--mono);color:var(--text-muted);padding:0 8px;display:none"></div>
   <div class="user-badge" id="userBadge" style="display:none">
     <span class="user-email" id="userEmail"></span>
     <button class="user-logout" onclick="authLogout()">Esci</button>
@@ -5980,8 +5981,13 @@ function rbSaveSession(s){
   window._rbSession = s;
   var badge=document.getElementById('userBadge');
   var emailEl=document.getElementById('userEmail');
+  var status=document.getElementById('rbStatus');
   if(badge) badge.style.display = s?'flex':'none';
   if(emailEl&&s) emailEl.textContent = s.user&&s.user.email||'Utente';
+  if(status) {
+    if(s){ status.style.display='block'; status.textContent='uid:'+((s.user&&s.user.id)||'?').substring(0,8)+'...'; }
+    else  { status.style.display='none'; }
+  }
 }
 function rbLoadSession(){
   try{ var raw=localStorage.getItem(RB_SESSION_KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; }
@@ -6161,4 +6167,4 @@ if(document.readyState==='loading'){
 
 <script src="config.js" defer onerror="console.warn('config.js non trovato')"></script>
 </body>
-</html><!-- v20260419-robust -->
+</html><!-- v20260419-diag2 -->
