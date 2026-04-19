@@ -834,7 +834,7 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
 
     <div class="auth-footer">RareBlock Collector &mdash; solo per utenti invitati</div>
   </div>
-  <div class="auth-sep">v<span id="authVersion"></span> &middot; powered by Supabase Auth</div>
+  <div class="auth-sep">v<span id="authVersion"></span> &middot; <span id="authDiag" style="color:var(--warning)">verifica connessione...</span></div>
 </div>
 
 <header class="header">
@@ -5984,27 +5984,48 @@ window.authDoLogin = async function(){
   var email=(document.getElementById('authLoginEmail')?.value||'').trim();
   var pwd  = document.getElementById('authLoginPwd')?.value||'';
   clearAuthMsg('authLoginMsg');
-  if(!email||!pwd){ setAuthMsg('authLoginMsg','Inserisci email e password'); return; }
+
+  if(!email||!pwd){
+    setAuthMsg('authLoginMsg','Inserisci email e password');
+    return;
+  }
 
   var sb=getSupaClient();
   if(!sb){
-    setAuthMsg('authLoginMsg','Servizio auth non disponibile — ricarica la pagina','err');
+    setAuthMsg('authLoginMsg','⚠ Libreria auth non caricata. Controlla la connessione e ricarica la pagina.');
     return;
   }
-  authBtnLoading('authLoginBtn',true,'Accedi');
+
+  authBtnLoading('authLoginBtn',true,'Connessione...');
+  setAuthMsg('authLoginMsg','Verifica credenziali...','ok');
+
   try{
     var r=await sb.auth.signInWithPassword({email:email, password:pwd});
-    if(r.error) throw r.error;
-    if(!r.data||!r.data.session) throw new Error('Sessione non ricevuta dal server');
-    // Avvia direttamente — non aspettiamo onAuthStateChange (più affidabile)
-    authOnSuccess(r.data.session);
+
+    // Mostra risposta raw per debug
+    if(r.error){
+      throw new Error('['+r.error.status+'] '+r.error.message);
+    }
+    if(!r.data||!r.data.session){
+      throw new Error('Risposta inattesa: nessuna sessione restituita. '+JSON.stringify(r.data||{}));
+    }
+
+    setAuthMsg('authLoginMsg','✓ Accesso riuscito, caricamento...','ok');
+    setTimeout(function(){ authOnSuccess(r.data.session); }, 300);
+
   }catch(e){
-    var msg=e.message||'Errore di accesso';
-    if(msg.includes('Invalid login credentials')) msg='Email o password errata';
-    if(msg.includes('Email not confirmed'))       msg='Conferma la tua email prima di accedere';
-    if(msg.includes('too many requests'))         msg='Troppi tentativi — attendi qualche minuto';
-    if(msg.includes('fetch'))                     msg='Errore di rete — controlla la connessione';
-    setAuthMsg('authLoginMsg', msg);
+    var raw=e.message||'Errore sconosciuto';
+    var friendly=raw;
+    if(raw.includes('Invalid login credentials')) friendly='Email o password errata.';
+    else if(raw.includes('Email not confirmed'))  friendly='Email non confermata. Controlla la tua casella.';
+    else if(raw.includes('too many requests'))    friendly='Troppi tentativi — aspetta qualche minuto.';
+    else if(raw.includes('Failed to fetch')||raw.includes('NetworkError')) friendly='Errore di rete. Controlla la connessione.';
+
+    // Mostra sia il messaggio friendly che il raw per debug
+    setAuthMsg('authLoginMsg', friendly+'
+
+[debug: '+raw+']');
+
   }finally{
     authBtnLoading('authLoginBtn',false,'Accedi');
   }
@@ -6098,13 +6119,24 @@ function authFallbackStart(){
 }
 
 // ── Init principale — chiamato da DOMContentLoaded ───────────────────
+function authSetDiag(msg,color){
+  var el=document.getElementById('authDiag');
+  if(el){el.textContent=msg;el.style.color=color||'var(--text-muted)';}
+}
+
 window.rbAuthInit = async function(){
-  // Mostra versione nell'overlay
   var av=document.getElementById('authVersion');
   if(av&&window.APP_VERSION) av.textContent=window.APP_VERSION;
 
+  authSetDiag('verifica libreria auth...','var(--warning)');
+
   var sb=getSupaClient();
-  if(!sb){ authFallbackStart(); return; }
+  if(!sb){
+    authSetDiag('⚠ supabase-js non caricato — modalità offline','var(--danger)');
+    authFallbackStart();
+    return;
+  }
+  authSetDiag('connesso a Supabase','var(--success)');
 
   // Listener post-login: gestisce SIGNED_IN, logout e token refresh
   // NON gestisce INITIAL_SESSION qui (lo fa getSession sotto)
@@ -6129,15 +6161,19 @@ window.rbAuthInit = async function(){
   });
 
   // Controlla sessione esistente al caricamento (cookie/localStorage)
+  authSetDiag('controllo sessione...','var(--warning)');
   try{
     var r=await sb.auth.getSession();
     var session=(r&&r.data&&r.data.session)||null;
     if(session){
+      authSetDiag('sessione attiva — caricamento...','var(--success)');
       authOnSuccess(session);
     } else {
+      authSetDiag('nessuna sessione — effettua il login','var(--text-muted)');
       showOverlay();
     }
   }catch(e){
+    authSetDiag('errore: '+e.message,'var(--danger)');
     console.warn('getSession error:', e.message);
     showOverlay();
   }
@@ -6148,4 +6184,4 @@ window.rbAuthInit = async function(){
 
 <script src="config.js" defer onerror="console.warn('config.js non trovato - uso configurazione inline')"></script>
 </body>
-</html><!-- v20260419-auth3 -->
+</html><!-- v20260419-auth4 -->
