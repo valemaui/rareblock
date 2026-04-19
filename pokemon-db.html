@@ -5986,16 +5986,24 @@ window.authDoLogin = async function(){
   clearAuthMsg('authLoginMsg');
   if(!email||!pwd){ setAuthMsg('authLoginMsg','Inserisci email e password'); return; }
 
-  var sb=getSupaClient(); if(!sb){ authFallbackStart(); return; }
+  var sb=getSupaClient();
+  if(!sb){
+    setAuthMsg('authLoginMsg','Servizio auth non disponibile — ricarica la pagina','err');
+    return;
+  }
   authBtnLoading('authLoginBtn',true,'Accedi');
   try{
     var r=await sb.auth.signInWithPassword({email:email, password:pwd});
     if(r.error) throw r.error;
-    // success → onAuthChange gestirà l'avvio app
+    if(!r.data||!r.data.session) throw new Error('Sessione non ricevuta dal server');
+    // Avvia direttamente — non aspettiamo onAuthStateChange (più affidabile)
+    authOnSuccess(r.data.session);
   }catch(e){
     var msg=e.message||'Errore di accesso';
-    if(msg.includes('Invalid login')) msg='Email o password errata';
-    if(msg.includes('Email not confirmed')) msg='Conferma la tua email prima di accedere';
+    if(msg.includes('Invalid login credentials')) msg='Email o password errata';
+    if(msg.includes('Email not confirmed'))       msg='Conferma la tua email prima di accedere';
+    if(msg.includes('too many requests'))         msg='Troppi tentativi — attendi qualche minuto';
+    if(msg.includes('fetch'))                     msg='Errore di rete — controlla la connessione';
     setAuthMsg('authLoginMsg', msg);
   }finally{
     authBtnLoading('authLoginBtn',false,'Accedi');
@@ -6071,14 +6079,13 @@ function updateUserBadge(session){
 }
 
 // ── Avvio app dopo auth confermata ───────────────────────────────────
+var _appStarted=false;
 function authOnSuccess(session){
+  if(_appStarted) return; // guard anti-doppio (onAuthStateChange + return diretto)
+  _appStarted=true;
   window._rbSession=session;
   updateUserBadge(session);
   hideOverlay();
-  // Aggiorna versione nell'overlay (visibile prima del login)
-  var av=document.getElementById('authVersion');
-  if(av&&window.APP_VERSION) av.textContent=window.APP_VERSION;
-  // Avvia l'app
   if(typeof appStart==='function') appStart();
 }
 
@@ -6141,4 +6148,4 @@ window.rbAuthInit = async function(){
 
 <script src="config.js" defer onerror="console.warn('config.js non trovato - uso configurazione inline')"></script>
 </body>
-</html><!-- v20260419-auth2 -->
+</html><!-- v20260419-auth3 -->
