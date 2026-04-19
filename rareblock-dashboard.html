@@ -882,11 +882,18 @@ async function onSession(data){
     var profiles = await supa('GET','profiles?id=eq.'+user.id);
     _profile = profiles && profiles[0];
     if(!_profile){
-      await supa('POST','profiles',{ id:user.id, full_name:user.user_metadata&&user.user_metadata.full_name||'', role:_isAdmin?'admin':'investor' });
-      _profile = { id:user.id, role:_isAdmin?'admin':'investor' };
+      // Try inserting with both column names (handle nome vs full_name)
+      try {
+        await supa('POST','profiles',{ id:user.id, nome:user.user_metadata&&user.user_metadata.full_name||'', full_name:user.user_metadata&&user.user_metadata.full_name||'', role:_isAdmin?'admin':'investor' });
+      } catch(e2) {
+        // Fallback: minimal insert
+        try { await supa('POST','profiles',{ id:user.id, role:_isAdmin?'admin':'investor' }); } catch(e3){}
+      }
+      var profiles2 = await supa('GET','profiles?id=eq.'+user.id);
+      _profile = profiles2 && profiles2[0];
     }
     if(_isAdmin || (_profile && _profile.role==='admin')) _isAdmin = true;
-  } catch(e){ /* profiles table may not exist yet */ }
+  } catch(e){ console.warn('profiles:',e.message); /* profiles table may differ */ }
 
   // Show UI
   document.getElementById('authOverlay').style.display = 'none';
