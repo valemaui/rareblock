@@ -1,0 +1,1798 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RareBlock — Investor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Montserrat:wght@200;300&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#21262d;--surface3:#2d333b;
+  --border:#30363d;--border-focus:#58a6ff;
+  --text:#e6edf3;--text-muted:#7d8590;--text-subtle:#484f58;
+  --accent:#58a6ff;--accent-hover:#388bfd;
+  --danger:#f85149;--success:#3fb950;--warning:#d29922;
+  --gold:#c9a84c;
+  --font:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",monospace;
+  --r:6px;--header-h:48px;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.5;display:flex;flex-direction:column}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:3px}
+
+/* HEADER */
+.header{height:var(--header-h);flex-shrink:0;display:flex;align-items:center;padding:0 20px;border-bottom:1px solid var(--border);gap:16px;background:var(--surface)}
+.logo{font-family:'Montserrat',sans-serif;font-size:15px;font-weight:300;letter-spacing:.18em;text-transform:uppercase;display:flex;align-items:center;gap:8px;flex-shrink:0;white-space:nowrap;text-decoration:none;color:var(--text)}
+.logo-gold{color:var(--gold)}
+.mode-switch{display:flex;align-items:center;gap:2px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:2px}
+.mode-btn{font-size:11px;font-family:var(--mono);padding:3px 10px;border-radius:20px;border:none;background:none;cursor:pointer;color:var(--text-muted);transition:all .15s;white-space:nowrap}
+.mode-btn.active{background:var(--gold);color:#0d1117;font-weight:600}
+.mode-btn:not(.active):hover{color:var(--text)}
+.nav{display:flex;gap:2px;flex:1}
+.nav-btn{padding:5px 12px;font-size:13px;border:none;background:none;color:var(--text-muted);cursor:pointer;font-family:var(--font);border-radius:var(--r);transition:color .12s,background .12s;white-space:nowrap}
+.nav-btn:hover{color:var(--text);background:var(--surface2)}
+.nav-btn.active{color:var(--gold);background:rgba(201,168,76,.1)}
+.nav-btn.admin-only{border-left:1px solid var(--border);margin-left:4px;padding-left:14px}
+.user-badge{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.user-email{font-size:11px;font-family:var(--mono);color:var(--text-muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-role{font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:10px;font-weight:600;background:rgba(201,168,76,.15);color:var(--gold);border:1px solid rgba(201,168,76,.3)}
+.user-role.admin{background:rgba(248,81,73,.12);color:var(--danger);border-color:rgba(248,81,73,.3)}
+.user-logout{font-size:11px;font-family:var(--mono);color:var(--text-muted);background:none;border:1px solid var(--border);border-radius:var(--r);padding:3px 8px;cursor:pointer;transition:all .15s}
+.user-logout:hover{color:var(--danger);border-color:var(--danger)}
+
+/* TABS */
+.tab{display:none;flex:1;overflow:hidden}
+.tab.active{display:flex}
+
+/* COMMON */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;font-size:13px;font-family:var(--font);border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);cursor:pointer;transition:all .12s;white-space:nowrap}
+.btn:hover{border-color:var(--border-focus);background:var(--surface3)}
+.btn.primary{background:var(--gold);border-color:var(--gold);color:#0d1117;font-weight:600}
+.btn.primary:hover{background:#b8973e;border-color:#b8973e}
+.btn.danger{background:rgba(248,81,73,.1);border-color:var(--danger);color:var(--danger)}
+.btn.danger:hover{background:rgba(248,81,73,.2)}
+.btn.sm{padding:4px 10px;font-size:12px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.field{display:flex;flex-direction:column;gap:3px}
+.field label{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
+input,select,textarea{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--font);font-size:13px;padding:6px 10px;width:100%;transition:border-color .12s;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--border-focus)}
+textarea{resize:vertical;min-height:60px}
+.status{font-size:12px;font-family:var(--mono);padding:6px 10px;border-radius:var(--r)}
+.status.ok{color:var(--success);background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.2)}
+.status.err{color:var(--danger);background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.2)}
+.status.info{color:var(--accent);background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.2)}
+.status.warn{color:var(--warning);background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.2)}
+.divider{border:none;border-top:1px solid var(--border);margin:16px 0}
+.empty-state{text-align:center;padding:48px 24px;color:var(--text-muted)}
+.empty-state .icon{font-size:32px;margin-bottom:12px}
+.empty-state h3{font-size:15px;font-weight:500;margin-bottom:6px;color:var(--text)}
+.empty-state p{font-size:13px}
+.badge{display:inline-flex;align-items:center;font-size:10px;font-family:var(--mono);font-weight:600;padding:2px 7px;border-radius:10px;gap:4px}
+.badge.full{background:rgba(88,166,255,.12);color:var(--accent);border:1px solid rgba(88,166,255,.25)}
+.badge.fractional{background:rgba(63,185,80,.12);color:var(--success);border:1px solid rgba(63,185,80,.25)}
+.badge.millesimal{background:rgba(201,168,76,.12);color:var(--gold);border:1px solid rgba(201,168,76,.25)}
+.badge.grade_hold{background:rgba(248,81,73,.1);color:#ff7b72;border:1px solid rgba(248,81,73,.25)}
+.badge.status-draft{background:var(--surface2);color:var(--text-muted);border:1px solid var(--border)}
+.badge.status-open{background:rgba(63,185,80,.12);color:var(--success);border:1px solid rgba(63,185,80,.25)}
+.badge.status-closed{background:var(--surface2);color:var(--text-muted);border:1px solid var(--border)}
+.badge.status-liquidated{background:rgba(201,168,76,.12);color:var(--gold);border:1px solid rgba(201,168,76,.25)}
+.badge.status-hold{background:rgba(210,153,34,.1);color:var(--warning);border:1px solid rgba(210,153,34,.25)}
+.badge.status-pending_grading{background:rgba(88,166,255,.08);color:#79c0ff;border:1px solid rgba(88,166,255,.2)}
+.badge.pay-pending{background:rgba(210,153,34,.1);color:var(--warning);border:1px solid rgba(210,153,34,.25)}
+.badge.pay-confirmed{background:rgba(63,185,80,.12);color:var(--success);border:1px solid rgba(63,185,80,.25)}
+.badge.pay-rejected{background:rgba(248,81,73,.1);color:var(--danger);border:1px solid rgba(248,81,73,.25)}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;display:none;align-items:center;justify-content:center}
+.modal-bg.show{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:min(560px,96vw);max-height:90vh;overflow-y:auto;display:flex;flex-direction:column}
+.modal.lg{width:min(720px,96vw)}
+.modal-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.modal-head h3{font-size:15px;font-weight:600}
+.modal-close{background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:18px;line-height:1;padding:2px 6px;border-radius:3px;transition:color .12s}
+.modal-close:hover{color:var(--text)}
+.modal-body{padding:20px;display:flex;flex-direction:column;gap:14px}
+.modal-footer{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid.three{grid-template-columns:1fr 1fr 1fr}
+.span2{grid-column:span 2}
+
+/* AUTH OVERLAY */
+#authOverlay{position:fixed;inset:0;background:var(--bg);z-index:200;display:flex;align-items:center;justify-content:center}
+.auth-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:340px;padding:32px}
+.auth-logo{font-family:'Montserrat',sans-serif;font-size:18px;font-weight:300;letter-spacing:.18em;text-transform:uppercase;text-align:center;margin-bottom:4px}
+.auth-sub{text-align:center;font-size:12px;color:var(--text-muted);margin-bottom:24px;font-family:var(--mono)}
+.auth-field{margin-bottom:12px}
+.auth-field label{display:block;font-size:11px;color:var(--text-muted);margin-bottom:4px;font-family:var(--mono)}
+.auth-link{font-size:12px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;margin-top:10px;display:block;text-align:center}
+
+/* ═══ MARKETPLACE ═══ */
+.mkt-wrap{flex:1;overflow-y:auto;padding:20px 24px}
+.mkt-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.mkt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.prod-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;transition:border-color .15s}
+.prod-card:hover{border-color:var(--gold)}
+.prod-card-img{width:100%;height:180px;object-fit:cover;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:48px;color:var(--text-subtle);position:relative}
+.prod-card-img img{width:100%;height:100%;object-fit:cover}
+.prod-card-body{padding:14px;flex:1;display:flex;flex-direction:column;gap:8px}
+.prod-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.prod-card-name{font-size:14px;font-weight:600;flex:1}
+.prod-card-meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.prod-progress{background:var(--surface2);border-radius:2px;height:6px;overflow:hidden;margin:2px 0}
+.prod-progress-fill{height:100%;background:var(--gold);border-radius:2px;transition:width .4s}
+.prod-progress-label{display:flex;justify-content:space-between;font-size:10px;font-family:var(--mono);color:var(--text-muted)}
+.prod-price-row{display:flex;align-items:baseline;gap:8px}
+.prod-price{font-size:20px;font-weight:600;font-family:var(--mono);color:var(--gold)}
+.prod-price-unit{font-size:12px;color:var(--text-muted)}
+.prod-card-footer{padding:12px 14px;border-top:1px solid var(--border);display:flex;gap:8px}
+.prod-card-footer .btn{flex:1;justify-content:center}
+.prod-date{font-size:11px;font-family:var(--mono);color:var(--text-muted)}
+
+/* ═══ PORTFOLIO ═══ */
+.port-wrap{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:16px}
+.port-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.port-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
+.port-kpi-lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-family:var(--mono);margin-bottom:4px}
+.port-kpi-val{font-size:20px;font-weight:600;font-family:var(--mono)}
+.port-kpi-val.pos{color:var(--success)}
+.port-kpi-val.neg{color:var(--danger)}
+.port-kpi-val.gold{color:var(--gold)}
+.port-table{width:100%;border-collapse:collapse;font-size:13px}
+.port-table th{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-family:var(--mono);padding:8px 12px;border-bottom:1px solid var(--border);text-align:left;background:var(--surface);position:sticky;top:0;z-index:1}
+.port-table td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.port-table tr:hover td{background:rgba(255,255,255,.025)}
+.accrual-warn{color:var(--warning);font-size:11px;font-family:var(--mono)}
+
+/* ═══ TRANSACTIONS ═══ */
+.tx-wrap{flex:1;overflow-y:auto}
+.tx-toolbar{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;background:var(--surface)}
+.tx-table{width:100%;border-collapse:collapse;font-size:13px}
+.tx-table th{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-family:var(--mono);padding:8px 16px;border-bottom:1px solid var(--border);text-align:left;background:var(--surface);position:sticky;top:0;z-index:1}
+.tx-table td{padding:10px 16px;border-bottom:1px solid var(--border);vertical-align:middle}
+.tx-table tr:hover td{background:rgba(255,255,255,.025)}
+
+/* ═══ AGENDA ═══ */
+.agenda-wrap{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:12px}
+.agenda-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;display:flex;gap:14px;align-items:flex-start}
+.agenda-date-box{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 12px;text-align:center;flex-shrink:0;min-width:56px}
+.agenda-date-day{font-size:20px;font-weight:700;font-family:var(--mono);line-height:1;color:var(--gold)}
+.agenda-date-mon{font-size:10px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase}
+.agenda-content{flex:1}
+.agenda-title{font-size:13px;font-weight:600;margin-bottom:3px}
+.agenda-sub{font-size:12px;color:var(--text-muted)}
+.agenda-ddays{font-size:11px;font-family:var(--mono);color:var(--warning)}
+.agenda-section-title{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;font-family:var(--mono);margin:8px 0 4px}
+
+/* ═══ MERCATO SECONDARIO ═══ */
+.market-wrap{flex:1;overflow-y:auto;padding:20px 24px;display:flex;gap:20px}
+.market-left{flex:1}
+.market-right{width:320px;flex-shrink:0}
+.offer-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px}
+.offer-card-top{display:flex;justify-content:space-between;align-items:flex-start}
+.offer-product{font-size:13px;font-weight:600}
+.offer-seller{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
+.offer-price{font-size:18px;font-weight:600;font-family:var(--mono);color:var(--gold)}
+.offer-qty{font-size:12px;color:var(--text-muted)}
+.offer-actions{display:flex;gap:6px}
+
+/* ═══ ADMIN ═══ */
+.admin-wrap{flex:1;overflow:hidden;display:flex}
+.admin-sidebar{width:200px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);padding:12px}
+.admin-side-btn{display:block;width:100%;text-align:left;padding:7px 10px;font-size:13px;font-family:var(--font);background:none;border:none;border-radius:var(--r);color:var(--text-muted);cursor:pointer;transition:all .12s;margin-bottom:2px}
+.admin-side-btn:hover,.admin-side-btn.active{background:var(--surface2);color:var(--text)}
+.admin-side-btn.active{color:var(--gold)}
+.admin-main{flex:1;overflow-y:auto;padding:20px 24px}
+.admin-section{display:none}
+.admin-section.active{display:block}
+.admin-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px}
+.admin-table th{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-family:var(--mono);padding:7px 10px;border-bottom:1px solid var(--border);text-align:left;background:var(--surface);position:sticky;top:0;z-index:1}
+.admin-table td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+.admin-table tr:hover td{background:rgba(255,255,255,.025)}
+</style>
+</head>
+<body>
+
+<!-- AUTH OVERLAY -->
+<div id="authOverlay">
+  <div class="auth-box">
+    <div class="auth-logo"><span style="color:var(--text)">Rare</span><span style="color:var(--gold)">Block</span></div>
+    <div class="auth-sub">INVESTOR AREA</div>
+    <div id="authPane">
+      <div class="auth-field"><label>Email</label><input type="email" id="aEmail" placeholder="investor@email.com"/></div>
+      <div class="auth-field"><label>Password</label><input type="password" id="aPass" onkeydown="if(event.key==='Enter')doLogin()"/></div>
+      <button class="btn primary" onclick="doLogin()" style="width:100%;justify-content:center;margin-top:4px">Accedi</button>
+      <div id="authSt" style="margin-top:10px;font-size:12px;min-height:18px;text-align:center;color:var(--text-muted)"></div>
+      <button class="auth-link" onclick="showAuthPane('reg')">Non hai un account? Registrati</button>
+    </div>
+    <div id="authPaneReg" style="display:none">
+      <div class="auth-field"><label>Nome completo</label><input type="text" id="aName"/></div>
+      <div class="auth-field"><label>Email</label><input type="email" id="aEmailR"/></div>
+      <div class="auth-field"><label>Password</label><input type="password" id="aPassR"/></div>
+      <button class="btn primary" onclick="doRegister()" style="width:100%;justify-content:center;margin-top:4px">Registrati</button>
+      <div id="authStR" style="margin-top:10px;font-size:12px;min-height:18px;text-align:center;color:var(--text-muted)"></div>
+      <button class="auth-link" onclick="showAuthPane('login')">Hai già un account? Accedi</button>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header class="header">
+  <a href="pokemon-db.html" class="logo"><span style="color:var(--text)">Rare</span><span class="logo-gold">Block</span></a>
+  <div class="mode-switch">
+    <button class="mode-btn active">Investor</button>
+    <button class="mode-btn" onclick="window.location.href='pokemon-db.html'">Collector</button>
+  </div>
+  <nav class="nav">
+    <button class="nav-btn active" onclick="showTab('mkt')">🏪 Marketplace</button>
+    <button class="nav-btn" onclick="showTab('port')">💼 Portfolio</button>
+    <button class="nav-btn" onclick="showTab('market')">🔄 Secondario</button>
+    <button class="nav-btn" onclick="showTab('tx')">📋 Transazioni</button>
+    <button class="nav-btn" onclick="showTab('agenda')">📅 Agenda</button>
+    <button class="nav-btn admin-only" id="adminNavBtn" style="display:none" onclick="showTab('admin')">⚙️ Admin</button>
+  </nav>
+  <div class="user-badge" id="userBadge" style="display:none">
+    <span class="user-role" id="userRoleBadge">investor</span>
+    <span class="user-email" id="userEmail"></span>
+    <button class="user-logout" onclick="doLogout()">Esci</button>
+  </div>
+</header>
+
+<!-- MAIN CONTENT -->
+<div style="display:flex;flex:1;overflow:hidden">
+
+<!-- ═══ TAB: MARKETPLACE ═══ -->
+<div class="tab active" id="tab-mkt" style="display:flex;flex:1;flex-direction:column;overflow:hidden">
+  <div class="mkt-wrap">
+    <div class="mkt-toolbar">
+      <input type="text" id="mktSearch" placeholder="Cerca prodotto..." oninput="mktRender()" style="max-width:220px"/>
+      <select id="mktType" onchange="mktRender()" style="max-width:160px">
+        <option value="">Tutti i tipi</option>
+        <option value="full">Full Ownership</option>
+        <option value="fractional">Fractional</option>
+        <option value="millesimal">Millesimale</option>
+        <option value="grade_hold">Grade &amp; Hold</option>
+      </select>
+      <select id="mktStatus" onchange="mktRender()" style="max-width:140px">
+        <option value="open">Aperti</option>
+        <option value="">Tutti</option>
+        <option value="closed">Chiusi</option>
+        <option value="liquidated">Liquidati</option>
+      </select>
+      <span style="flex:1"></span>
+      <span id="mktCount" style="font-size:12px;font-family:var(--mono);color:var(--text-muted)"></span>
+    </div>
+    <div class="mkt-grid" id="mktGrid"></div>
+    <div class="empty-state" id="mktEmpty" style="display:none">
+      <div class="icon">📦</div>
+      <h3>Nessun prodotto disponibile</h3>
+      <p>I prodotti aperti agli investimenti appariranno qui</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB: PORTFOLIO ═══ -->
+<div class="tab" id="tab-port" style="display:none;flex:1;flex-direction:column;overflow:hidden">
+  <div class="port-wrap">
+    <div class="port-kpis" id="portKpis">
+      <div class="port-kpi"><div class="port-kpi-lbl">Investito</div><div class="port-kpi-val gold" id="pkInvested">—</div></div>
+      <div class="port-kpi"><div class="port-kpi-lbl">Valore stimato</div><div class="port-kpi-val" id="pkValue">—</div></div>
+      <div class="port-kpi"><div class="port-kpi-lbl">P&amp;L stimato</div><div class="port-kpi-val" id="pkPL">—</div></div>
+      <div class="port-kpi"><div class="port-kpi-lbl">Liquidazioni incassate</div><div class="port-kpi-val" id="pkLiquidated">—</div></div>
+      <div class="port-kpi"><div class="port-kpi-lbl">Costi accrual pendenti</div><div class="port-kpi-val" id="pkAccrual" style="color:var(--warning)">—</div></div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+      <div style="padding:12px 14px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;font-family:var(--mono)">Le tue quote</div>
+      <div style="overflow-x:auto">
+        <table class="port-table" id="portTable">
+          <thead><tr>
+            <th>Prodotto</th><th>Tipo</th><th>Quote</th><th>Pagato/quota</th>
+            <th>Val. stimato</th><th>P&amp;L</th><th>Scadenza</th><th>Costi pendenti</th><th></th>
+          </tr></thead>
+          <tbody id="portTbody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="portEmpty" style="display:none">
+        <div class="icon">💼</div>
+        <h3>Nessun investimento attivo</h3>
+        <p>Acquista quote dal <button onclick="showTab('mkt')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:13px">Marketplace</button></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB: MERCATO SECONDARIO ═══ -->
+<div class="tab" id="tab-market" style="display:none;flex:1;flex-direction:column;overflow:hidden">
+  <div class="market-wrap">
+    <!-- Offerte disponibili -->
+    <div class="market-left">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:600">Offerte disponibili <span id="offersCount" style="font-size:12px;color:var(--text-muted);font-family:var(--mono)"></span></div>
+        <button class="btn sm" onclick="openSellModal()">+ Vendi le tue quote</button>
+      </div>
+      <div id="offersList">
+        <div class="empty-state"><div class="icon">🔄</div><h3>Nessuna offerta attiva</h3><p>Sii il primo a proporre le tue quote</p></div>
+      </div>
+    </div>
+    <!-- Le tue offerte aperte -->
+    <div class="market-right">
+      <div style="font-size:13px;font-weight:600;margin-bottom:14px">Le tue offerte attive</div>
+      <div id="myOffersList">
+        <div style="color:var(--text-muted);font-size:12px">Nessuna offerta attiva</div>
+      </div>
+      <div style="margin-top:20px;font-size:13px;font-weight:600;margin-bottom:10px">Come funziona</div>
+      <div style="font-size:12px;color:var(--text-muted);line-height:1.7">
+        <p>1. Proponi le tue quote con il prezzo desiderato</p>
+        <p>2. Il compratore contatta il venditore e si accordano</p>
+        <p>3. Il compratore deve essere iscritto alla piattaforma</p>
+        <p>4. Il pagamento avviene tramite bonifico o piattaforma</p>
+        <p>5. L'admin convalida e trasferisce le quote</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB: TRANSAZIONI ═══ -->
+<div class="tab" id="tab-tx" style="display:none;flex:1;flex-direction:column;overflow:hidden">
+  <div class="tx-wrap">
+    <div class="tx-toolbar">
+      <select id="txFilter" onchange="txLoad()" style="max-width:160px">
+        <option value="">Tutti i tipi</option>
+        <option value="purchase">Acquisti</option>
+        <option value="accrual">Accrual costi</option>
+        <option value="liquidation">Liquidazioni</option>
+        <option value="secondary_buy">Secondario</option>
+      </select>
+      <select id="txStatus" onchange="txLoad()" style="max-width:140px">
+        <option value="">Tutti gli stati</option>
+        <option value="pending">In attesa</option>
+        <option value="confirmed">Confermati</option>
+        <option value="rejected">Rifiutati</option>
+      </select>
+      <span style="flex:1"></span>
+      <button class="btn sm" onclick="txLoad()">↺ Aggiorna</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="tx-table" id="txTable">
+        <thead><tr>
+          <th>Data</th><th>Prodotto</th><th>Tipo</th><th>Quote</th>
+          <th>Importo</th><th>Metodo</th><th>Stato</th><th>Note</th>
+        </tr></thead>
+        <tbody id="txTbody"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="txEmpty" style="display:none">
+      <div class="icon">📋</div><h3>Nessuna transazione</h3>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB: AGENDA ═══ -->
+<div class="tab" id="tab-agenda" style="display:none;flex:1;flex-direction:column;overflow:hidden">
+  <div class="agenda-wrap" id="agendaWrap">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:16px;font-weight:600">📅 Agenda Investimenti</div>
+      <button class="btn sm" onclick="agendaLoad()">↺ Aggiorna</button>
+    </div>
+    <div id="agendaContent"></div>
+  </div>
+</div>
+
+<!-- ═══ TAB: ADMIN ═══ -->
+<div class="tab" id="tab-admin" style="display:none;flex:1;overflow:hidden">
+  <div class="admin-wrap">
+    <div class="admin-sidebar">
+      <div style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;font-family:var(--mono);margin-bottom:10px">Admin</div>
+      <button class="admin-side-btn active" onclick="adminSection('products')">📦 Prodotti</button>
+      <button class="admin-side-btn" onclick="adminSection('payments')">💳 Pagamenti</button>
+      <button class="admin-side-btn" onclick="adminSection('accruals')">📎 Accrual</button>
+      <button class="admin-side-btn" onclick="adminSection('liquidations')">💰 Liquidazioni</button>
+      <button class="admin-side-btn" onclick="adminSection('transfers')">🔄 Trasferimenti</button>
+    </div>
+    <div class="admin-main">
+
+      <!-- PRODOTTI -->
+      <div class="admin-section active" id="admin-products">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div style="font-size:15px;font-weight:600">Gestione Prodotti</div>
+          <button class="btn primary" onclick="openProductModal()">+ Nuovo prodotto</button>
+        </div>
+        <table class="admin-table" id="adminProductsTable">
+          <thead><tr><th>Nome</th><th>Tipo</th><th>Status</th><th>Quote</th><th>Prezzo</th><th>Scadenza</th><th></th></tr></thead>
+          <tbody id="adminProductsTbody"></tbody>
+        </table>
+        <div class="empty-state" id="adminProductsEmpty" style="display:none"><div class="icon">📦</div><h3>Nessun prodotto</h3></div>
+      </div>
+
+      <!-- PAGAMENTI DA CONFERMARE -->
+      <div class="admin-section" id="admin-payments">
+        <div style="font-size:15px;font-weight:600;margin-bottom:16px">Pagamenti da validare</div>
+        <div style="margin-bottom:12px">
+          <span class="badge pay-pending" id="pendingPayCount">0 in attesa</span>
+        </div>
+        <table class="admin-table" id="adminPaymentsTable">
+          <thead><tr><th>Data</th><th>Utente</th><th>Prodotto</th><th>Quote</th><th>Importo</th><th>Metodo</th><th>Rif. Bonifico</th><th>Stato</th><th></th></tr></thead>
+          <tbody id="adminPaymentsTbody"></tbody>
+        </table>
+        <div class="empty-state" id="adminPaymentsEmpty" style="display:none"><div class="icon">💳</div><h3>Nessun pagamento pendente</h3></div>
+      </div>
+
+      <!-- ACCRUAL COSTI -->
+      <div class="admin-section" id="admin-accruals">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div style="font-size:15px;font-weight:600">Registra costo accrual</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;max-width:560px;margin-bottom:20px">
+          <div class="form-grid">
+            <div class="field span2">
+              <label>Prodotto</label>
+              <select id="accrualProduct"></select>
+            </div>
+            <div class="field">
+              <label>Categoria</label>
+              <select id="accrualCategory">
+                <option value="grading">Gradazione</option>
+                <option value="storage">Storage</option>
+                <option value="shipping">Spedizione</option>
+                <option value="unexpected">Imprevisto</option>
+                <option value="other">Altro</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Importo totale €</label>
+              <input type="number" id="accrualAmount" placeholder="0.00" step="0.01"/>
+            </div>
+            <div class="field">
+              <label>Data</label>
+              <input type="date" id="accrualDate"/>
+            </div>
+            <div class="field span2">
+              <label>Descrizione</label>
+              <input type="text" id="accrualDesc" placeholder="es. PSA submission fee, spedizione imprevista…"/>
+            </div>
+            <div class="field span2">
+              <label>Note admin</label>
+              <textarea id="accrualNotes" style="height:48px"></textarea>
+            </div>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+            <button class="btn primary" onclick="adminSaveAccrual()">Registra accrual</button>
+            <div id="accrualSt" style="font-size:12px;color:var(--text-muted)"></div>
+          </div>
+        </div>
+        <table class="admin-table" id="adminAccrualsTable">
+          <thead><tr><th>Data</th><th>Prodotto</th><th>Categoria</th><th>Importo totale</th><th>Descrizione</th><th>Saldato</th></tr></thead>
+          <tbody id="adminAccrualsTbody"></tbody>
+        </table>
+      </div>
+
+      <!-- LIQUIDAZIONI -->
+      <div class="admin-section" id="admin-liquidations">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div style="font-size:15px;font-weight:600">Gestione Liquidazioni</div>
+          <button class="btn primary" onclick="openLiqModal()">+ Nuova liquidazione</button>
+        </div>
+        <table class="admin-table" id="adminLiqTable">
+          <thead><tr><th>Prodotto</th><th>Stato</th><th>Lordo</th><th>Netto</th><th>Per quota</th><th>Data prevista</th><th>Data effettiva</th><th></th></tr></thead>
+          <tbody id="adminLiqTbody"></tbody>
+        </table>
+        <div class="empty-state" id="adminLiqEmpty" style="display:none"><div class="icon">💰</div><h3>Nessuna liquidazione</h3></div>
+      </div>
+
+      <!-- TRASFERIMENTI SECONDARIO -->
+      <div class="admin-section" id="admin-transfers">
+        <div style="font-size:15px;font-weight:600;margin-bottom:16px">Trasferimenti secondario da validare</div>
+        <table class="admin-table" id="adminTransfTable">
+          <thead><tr><th>Prodotto</th><th>Venditore</th><th>Compratore</th><th>Quote</th><th>Prezzo</th><th>Stato</th><th></th></tr></thead>
+          <tbody id="adminTransfTbody"></tbody>
+        </table>
+        <div class="empty-state" id="adminTransfEmpty" style="display:none"><div class="icon">🔄</div><h3>Nessun trasferimento pendente</h3></div>
+      </div>
+
+    </div><!-- /admin-main -->
+  </div>
+</div>
+
+</div><!-- /main content -->
+
+<!-- ══════════════ MODALI ══════════════ -->
+
+<!-- Modal: Dettaglio prodotto / Acquisto quote -->
+<div class="modal-bg" id="buyModalBg" onclick="if(event.target===this)closeBuyModal()">
+  <div class="modal lg">
+    <div class="modal-head">
+      <h3 id="buyModalTitle">Acquista Quote</h3>
+      <button class="modal-close" onclick="closeBuyModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="buyModalProduct"></div>
+      <hr class="divider" style="margin:4px 0"/>
+      <div class="form-grid">
+        <div class="field">
+          <label>Numero di quote da acquistare</label>
+          <input type="number" id="buyQty" value="1" min="1" oninput="buyUpdateTotal()"/>
+        </div>
+        <div class="field">
+          <label>Totale da pagare</label>
+          <div style="font-size:20px;font-weight:600;font-family:var(--mono);color:var(--gold);padding:6px 0" id="buyTotal">—</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Metodo di pagamento</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);flex:1">
+            <input type="radio" name="payMethod" value="bonifico" checked onchange="buyShowMethod()"/> 🏦 Bonifico bancario
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);flex:1;opacity:.5" title="Prossimamente">
+            <input type="radio" name="payMethod" value="stripe" disabled onchange="buyShowMethod()"/> 💳 Carta / Stripe
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);flex:1;opacity:.5" title="Prossimamente">
+            <input type="radio" name="payMethod" value="paypal" disabled onchange="buyShowMethod()"/> 🅿 PayPal
+          </label>
+        </div>
+      </div>
+      <div id="buyBonifico" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:14px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--text-muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px">Istruzioni bonifico</div>
+        <div style="font-size:13px;line-height:1.8">
+          <div>Intestatario: <strong>RareBlock</strong></div>
+          <div>IBAN: <strong style="font-family:var(--mono)">IT00 X000 0000 0000 0000 0000 000</strong></div>
+          <div>Causale: <strong id="buyBonificoCausal" style="font-family:var(--mono)">—</strong></div>
+        </div>
+        <div style="margin-top:12px" class="field">
+          <label>Inserisci riferimento/numero di bonifico (opzionale)</label>
+          <input type="text" id="buyBankRef" placeholder="es. BON-2024-001"/>
+        </div>
+      </div>
+      <div id="buyStripePh" style="display:none;text-align:center;padding:20px;color:var(--text-muted);font-size:13px">
+        🔜 Integrazione Stripe in arrivo
+      </div>
+      <div class="field">
+        <label>Note (opzionale)</label>
+        <input type="text" id="buyNotes" placeholder="es. interessato a ricevere aggiornamenti sul prodotto"/>
+      </div>
+      <div id="buySt"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeBuyModal()">Annulla</button>
+      <button class="btn primary" onclick="buyConfirm()">📨 Invia richiesta acquisto</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nuovo prodotto (admin) -->
+<div class="modal-bg" id="productModalBg" onclick="if(event.target===this)closeProductModal()">
+  <div class="modal lg">
+    <div class="modal-head">
+      <h3 id="productModalTitle">Nuovo Prodotto</h3>
+      <button class="modal-close" onclick="closeProductModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field span2">
+          <label>Nome prodotto *</label>
+          <input type="text" id="pmName" placeholder="es. Charizard Holo Base Set #4 PSA 10"/>
+        </div>
+        <div class="field">
+          <label>Tipo *</label>
+          <select id="pmType" onchange="pmToggleFields()">
+            <option value="full">Full Ownership</option>
+            <option value="fractional">Fractional</option>
+            <option value="millesimal">Millesimale/Centesimale</option>
+            <option value="grade_hold">Grade &amp; Hold</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Status iniziale</label>
+          <select id="pmStatus">
+            <option value="draft">Bozza</option>
+            <option value="open">Aperto</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Quote totali *</label>
+          <input type="number" id="pmTotalQuotes" value="100" min="1"/>
+        </div>
+        <div class="field">
+          <label>Prezzo per quota (€) *</label>
+          <input type="number" id="pmPricePerQuote" placeholder="0.00" step="0.01"/>
+        </div>
+        <div class="field">
+          <label>Valore stimato prodotto (€)</label>
+          <input type="number" id="pmEstValue" placeholder="0.00" step="0.01"/>
+        </div>
+        <div class="field">
+          <label>Unità quota</label>
+          <input type="text" id="pmQuoteUnit" value="quota" placeholder="quota / bustina / millesimo"/>
+        </div>
+        <div class="field">
+          <label>Data target (apertura/liquidazione)</label>
+          <input type="date" id="pmTargetDate"/>
+        </div>
+        <div class="field">
+          <label>Anni di hold previsti</label>
+          <input type="number" id="pmHoldYears" placeholder="es. 3" min="1"/>
+        </div>
+        <div class="field">
+          <label>Storage fee annuale (€/quota)</label>
+          <input type="number" id="pmStorageFee" value="0" step="0.01"/>
+        </div>
+
+        <!-- Campi gradazione (tipo grade_hold) -->
+        <div class="field" id="pmGradingRow" style="display:none">
+          <label>Casa di gradazione</label>
+          <select id="pmGradingHouse">
+            <option value="PSA">PSA</option>
+            <option value="BGS">BGS / Beckett</option>
+            <option value="CGC">CGC</option>
+            <option value="CGS">CGS</option>
+            <option value="ACE">ACE</option>
+          </select>
+        </div>
+        <div class="field" id="pmGradingCostRow" style="display:none">
+          <label>Costo gradazione stimato (€)</label>
+          <input type="number" id="pmGradingCost" placeholder="0.00" step="0.01"/>
+        </div>
+
+        <div class="field span2">
+          <label>Descrizione</label>
+          <textarea id="pmDesc" placeholder="Descrivi il prodotto, condizione, provenienza, potenziale…"></textarea>
+        </div>
+        <div class="field span2">
+          <label>URL immagine</label>
+          <input type="url" id="pmImg" placeholder="https://…"/>
+        </div>
+        <div class="field span2">
+          <label>Note interne admin</label>
+          <textarea id="pmAdminNotes" style="height:48px"></textarea>
+        </div>
+      </div>
+      <div id="pmSt"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeProductModal()">Annulla</button>
+      <button class="btn primary" onclick="pmSave()">💾 Salva prodotto</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Vendi quote (secondario) -->
+<div class="modal-bg" id="sellModalBg" onclick="if(event.target===this)closeSellModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Vendi le tue quote</h3>
+      <button class="modal-close" onclick="closeSellModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Prodotto</label>
+        <select id="sellProduct" onchange="sellUpdateMax()"></select>
+      </div>
+      <div class="form-grid">
+        <div class="field">
+          <label>Quote disponibili</label>
+          <div id="sellAvailable" style="padding:6px 0;font-family:var(--mono);font-size:14px">—</div>
+        </div>
+        <div class="field">
+          <label>Quote da vendere</label>
+          <input type="number" id="sellQty" value="1" min="1" oninput="sellUpdateTotal()"/>
+        </div>
+        <div class="field">
+          <label>Prezzo richiesto / quota (€)</label>
+          <input type="number" id="sellPrice" placeholder="0.00" step="0.01" oninput="sellUpdateTotal()"/>
+        </div>
+        <div class="field">
+          <label>Totale richiesto</label>
+          <div id="sellTotal" style="padding:6px 0;font-family:var(--mono);font-size:16px;font-weight:600;color:var(--gold)">—</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Scadenza offerta</label>
+        <input type="date" id="sellExpiry"/>
+      </div>
+      <div class="field">
+        <label>Note</label>
+        <input type="text" id="sellNotes" placeholder="Condizioni, disponibilità, metodo pagamento preferito…"/>
+      </div>
+      <div id="sellSt"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeSellModal()">Annulla</button>
+      <button class="btn primary" onclick="sellConfirm()">📢 Pubblica offerta</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nuova liquidazione (admin) -->
+<div class="modal-bg" id="liqModalBg" onclick="if(event.target===this)closeLiqModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="liqModalTitle">Nuova Liquidazione</h3>
+      <button class="modal-close" onclick="closeLiqModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Prodotto</label>
+        <select id="liqProduct" onchange="liqUpdateCalc()"></select>
+      </div>
+      <div class="form-grid">
+        <div class="field">
+          <label>Importo lordo (€)</label>
+          <input type="number" id="liqGross" placeholder="0.00" step="0.01" oninput="liqUpdateCalc()"/>
+        </div>
+        <div class="field">
+          <label>Fee RareBlock (€)</label>
+          <input type="number" id="liqFee" value="0" step="0.01" oninput="liqUpdateCalc()"/>
+        </div>
+        <div class="field">
+          <label>Importo netto</label>
+          <div id="liqNet" style="padding:6px 0;font-family:var(--mono);font-size:16px;font-weight:600;color:var(--success)">—</div>
+        </div>
+        <div class="field">
+          <label>Per quota</label>
+          <div id="liqPerQuota" style="padding:6px 0;font-family:var(--mono);font-size:16px;font-weight:600;color:var(--gold)">—</div>
+        </div>
+        <div class="field">
+          <label>Data prevista</label>
+          <input type="date" id="liqPlanned"/>
+        </div>
+        <div class="field">
+          <label>Stato</label>
+          <select id="liqStatus">
+            <option value="planned">Pianificata</option>
+            <option value="processing">In corso</option>
+            <option value="completed">Completata</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Note acquirente / modalità vendita</label>
+        <textarea id="liqBuyerNotes"></textarea>
+      </div>
+      <div class="field">
+        <label>Note admin</label>
+        <textarea id="liqAdminNotes" style="height:48px"></textarea>
+      </div>
+      <div id="liqSt"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeLiqModal()">Annulla</button>
+      <button class="btn primary" onclick="liqSave()">💾 Salva liquidazione</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  CONFIG & HELPERS
+// ═══════════════════════════════════════════════════════════
+const SUPA_URL = 'https://rbjaaeyjeeqfpbzyavag.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
+
+// Admin emails — aggiorna con il tuo email
+const ADMIN_EMAILS = ['admin@rareblock.eu','valemaui@gmail.com'];
+
+var _session = null;
+var _profile = null;
+var _isAdmin = false;
+
+function getHDR(){
+  var token = (_session && _session.access_token) || SUPA_KEY;
+  return { 'Content-Type':'application/json', 'apikey':SUPA_KEY, 'Authorization':'Bearer '+token, 'Prefer':'return=representation' };
+}
+
+async function supa(method, path, body){
+  var r = await fetch(SUPA_URL+'/rest/v1/'+path, { method, headers:getHDR(), body:body?JSON.stringify(body):undefined });
+  if(!r.ok){ var e=await r.text(); throw new Error(e); }
+  var t = await r.text();
+  return t ? JSON.parse(t) : null;
+}
+
+async function supaAuth(path, body){
+  var r = await fetch(SUPA_URL+'/auth/v1/'+path, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'apikey':SUPA_KEY },
+    body: JSON.stringify(body)
+  });
+  var data = await r.json();
+  if(!r.ok) throw new Error(data.error_description || data.message || 'Errore auth');
+  return data;
+}
+
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function fmt2(v){ return (parseFloat(v)||0).toFixed(2); }
+
+function fmtDate(d){
+  if(!d) return '—';
+  return new Date(d).toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'numeric'});
+}
+
+function daysTo(dateStr){
+  if(!dateStr) return null;
+  var diff = new Date(dateStr) - new Date();
+  return Math.ceil(diff/(1000*60*60*24));
+}
+
+function typeBadge(t){
+  var labels = { full:'Full Ownership', fractional:'Fractional', millesimal:'Millesimale', grade_hold:'Grade & Hold' };
+  return '<span class="badge '+t+'">'+(labels[t]||t)+'</span>';
+}
+function statusBadge(s){
+  var labels = { draft:'Bozza', open:'Aperto', closed:'Chiuso', pending_grading:'Gradazione', grading_complete:'Gradato', hold:'Hold', liquidated:'Liquidato' };
+  return '<span class="badge status-'+s+'">'+(labels[s]||s)+'</span>';
+}
+function payBadge(s){
+  var labels = { pending:'In attesa', confirmed:'Confermato', rejected:'Rifiutato', refunded:'Rimborsato' };
+  return '<span class="badge pay-'+s+'">'+(labels[s]||s)+'</span>';
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  AUTH
+// ═══════════════════════════════════════════════════════════
+function showAuthPane(p){
+  document.getElementById('authPane').style.display      = p==='login'?'':'none';
+  document.getElementById('authPaneReg').style.display   = p==='reg'?'':'none';
+}
+
+async function doLogin(){
+  var email = document.getElementById('aEmail').value.trim();
+  var pass  = document.getElementById('aPass').value;
+  if(!email||!pass){ document.getElementById('authSt').textContent='Inserisci email e password'; return; }
+  document.getElementById('authSt').textContent='Accesso in corso…';
+  try {
+    var data = await supaAuth('token?grant_type=password', { email, password:pass });
+    await onSession(data);
+  } catch(e) {
+    document.getElementById('authSt').textContent = e.message;
+  }
+}
+
+async function doRegister(){
+  var name  = document.getElementById('aName').value.trim();
+  var email = document.getElementById('aEmailR').value.trim();
+  var pass  = document.getElementById('aPassR').value;
+  if(!email||!pass){ document.getElementById('authStR').textContent='Inserisci email e password'; return; }
+  document.getElementById('authStR').textContent='Registrazione…';
+  try {
+    var data = await supaAuth('signup', { email, password:pass, data:{ full_name:name } });
+    if(data.user && !data.session){
+      document.getElementById('authStR').textContent='✓ Controlla la tua email per confermare l\'account';
+    } else if(data.session) {
+      await onSession(data);
+    }
+  } catch(e) {
+    document.getElementById('authStR').textContent = e.message;
+  }
+}
+
+async function onSession(data){
+  _session = data.session || data;
+  var user = data.user || (data.session && data.session.user);
+  if(!user) throw new Error('Sessione non valida');
+  _isAdmin = ADMIN_EMAILS.indexOf(user.email) > -1;
+
+  // Load/create profile
+  try {
+    var profiles = await supa('GET','profiles?id=eq.'+user.id);
+    _profile = profiles && profiles[0];
+    if(!_profile){
+      await supa('POST','profiles',{ id:user.id, full_name:user.user_metadata&&user.user_metadata.full_name||'', role:_isAdmin?'admin':'investor' });
+      _profile = { id:user.id, role:_isAdmin?'admin':'investor' };
+    }
+    if(_isAdmin || (_profile && _profile.role==='admin')) _isAdmin = true;
+  } catch(e){ /* profiles table may not exist yet */ }
+
+  // Show UI
+  document.getElementById('authOverlay').style.display = 'none';
+  document.getElementById('userBadge').style.display = 'flex';
+  document.getElementById('userEmail').textContent = user.email;
+  var roleEl = document.getElementById('userRoleBadge');
+  roleEl.textContent = _isAdmin ? 'admin' : 'investor';
+  if(_isAdmin) roleEl.classList.add('admin');
+  if(_isAdmin) document.getElementById('adminNavBtn').style.display = '';
+
+  // Initial loads
+  await mktLoad();
+}
+
+function doLogout(){
+  _session = null; _profile = null; _isAdmin = false;
+  document.getElementById('authOverlay').style.display = 'flex';
+  document.getElementById('userBadge').style.display = 'none';
+  document.getElementById('adminNavBtn').style.display = 'none';
+  document.getElementById('aEmail').value='';
+  document.getElementById('aPass').value='';
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  TAB NAVIGATION
+// ═══════════════════════════════════════════════════════════
+function showTab(t){
+  document.querySelectorAll('.nav-btn').forEach(function(b){
+    b.classList.toggle('active', (b.getAttribute('onclick')||'').indexOf("'"+t+"'")>-1);
+  });
+  document.querySelectorAll('.tab').forEach(function(p){
+    p.style.display = 'none';
+    p.classList.remove('active');
+  });
+  var el = document.getElementById('tab-'+t);
+  if(el){ el.style.display='flex'; el.classList.add('active'); }
+  if(t==='port')   portLoad();
+  if(t==='tx')     txLoad();
+  if(t==='agenda') agendaLoad();
+  if(t==='market') marketLoad();
+  if(t==='admin')  adminLoad();
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  MARKETPLACE
+// ═══════════════════════════════════════════════════════════
+var _mktProducts = [];
+var _mktStats = {};
+
+async function mktLoad(){
+  try {
+    _mktProducts = (await supa('GET','inv_products?order=created_at.desc&limit=200')) || [];
+    // Load stats
+    try {
+      var stats = await supa('GET','inv_product_stats');
+      if(stats) stats.forEach(function(s){ _mktStats[s.id]=s; });
+    } catch(e){}
+    mktRender();
+  } catch(e) {
+    document.getElementById('mktGrid').innerHTML = '<div style="color:var(--danger);padding:20px">Errore caricamento: '+esc(e.message)+'</div>';
+  }
+}
+
+function mktRender(){
+  var q      = (document.getElementById('mktSearch').value||'').toLowerCase();
+  var type   = document.getElementById('mktType').value;
+  var status = document.getElementById('mktStatus').value;
+  var rows   = _mktProducts.filter(function(p){
+    if(q && p.name.toLowerCase().indexOf(q)===-1) return false;
+    if(type && p.type!==type) return false;
+    if(status && p.status!==status) return false;
+    return true;
+  });
+  document.getElementById('mktCount').textContent = rows.length+' prodott'+(rows.length===1?'o':'i');
+  var empty = document.getElementById('mktEmpty');
+  var grid  = document.getElementById('mktGrid');
+  if(!rows.length){ empty.style.display=''; grid.innerHTML=''; return; }
+  empty.style.display='none';
+  grid.innerHTML = rows.map(function(p){
+    var st   = _mktStats[p.id] || { sold_quotes:0, available_quotes:p.total_quotes };
+    var pct  = p.total_quotes>0 ? Math.round((st.sold_quotes/p.total_quotes)*100) : 0;
+    var avail= Math.max(0, p.total_quotes - st.sold_quotes);
+    var dd   = daysTo(p.target_date);
+    var ddStr= dd!==null ? (dd>0?dd+' gg al termine':'Scaduto') : '';
+    return '<div class="prod-card">'
+      +'<div class="prod-card-img">'
+        +(p.image_url?'<img src="'+esc(p.image_url)+'" loading="lazy" onerror="this.style.display=\'none\'"/>'
+          :'<span>📦</span>')
+        +'<span style="position:absolute;top:8px;left:8px">'+statusBadge(p.status)+'</span>'
+      +'</div>'
+      +'<div class="prod-card-body">'
+        +'<div class="prod-card-top">'
+          +'<div class="prod-card-name">'+esc(p.name)+'</div>'
+        +'</div>'
+        +'<div class="prod-card-meta">'+typeBadge(p.type)
+          +(p.grading_house?'<span class="badge status-pending_grading">'+p.grading_house+'</span>':'')
+        +'</div>'
+        +'<div class="prod-progress-label"><span>'+st.sold_quotes+'/'+p.total_quotes+' quote</span><span>'+pct+'%</span></div>'
+        +'<div class="prod-progress"><div class="prod-progress-fill" style="width:'+pct+'%"></div></div>'
+        +'<div class="prod-price-row">'
+          +'<div class="prod-price">€'+fmt2(p.price_per_quote)+'</div>'
+          +'<div class="prod-price-unit">/ '+(p.quote_unit||'quota')+'</div>'
+          +(p.estimated_value?'<div style="font-size:11px;color:var(--text-muted);margin-left:8px;font-family:var(--mono)">val. €'+fmt2(p.estimated_value)+'</div>':'')
+        +'</div>'
+        +(p.target_date?'<div class="prod-date">🗓 '+fmtDate(p.target_date)+(ddStr?' · <span style="color:var(--warning)">'+ddStr+'</span>':'')+'</div>':'')
+        +(p.description?'<div style="font-size:12px;color:var(--text-muted);line-height:1.5">'+esc(p.description.slice(0,120))+(p.description.length>120?'…':'')+'</div>':'')
+      +'</div>'
+      +'<div class="prod-card-footer">'
+        +(p.status==='open'&&avail>0
+          ?'<button class="btn primary" onclick="openBuyModal(\''+p.id+'\')">🛒 Acquista '+(p.quote_unit||'quote')+'</button>'
+          :'<button class="btn" disabled>'+( p.status==='open'?'Esaurito':statusBadge(p.status))+'</button>')
+        +'<button class="btn sm" onclick="showProductDetail(\''+p.id+'\')" title="Dettagli">ℹ️</button>'
+      +'</div>'
+    +'</div>';
+  }).join('');
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  BUY MODAL
+// ═══════════════════════════════════════════════════════════
+var _buyProduct = null;
+
+function openBuyModal(pid){
+  _buyProduct = _mktProducts.find(function(p){ return p.id===pid; });
+  if(!_buyProduct) return;
+  var st = _mktStats[pid] || { available_quotes: _buyProduct.total_quotes };
+  document.getElementById('buyModalTitle').textContent = 'Acquista — '+_buyProduct.name;
+  var avail = Math.max(0, _buyProduct.total_quotes - (st.sold_quotes||0));
+  document.getElementById('buyQty').max = avail;
+  document.getElementById('buyQty').value = Math.min(1, avail);
+  document.getElementById('buyModalProduct').innerHTML =
+    '<div style="display:flex;gap:12px;align-items:flex-start">'
+    +(_buyProduct.image_url?'<img src="'+esc(_buyProduct.image_url)+'" style="width:60px;height:80px;object-fit:cover;border-radius:3px"/>':'')
+    +'<div>'
+      +'<div style="font-size:15px;font-weight:600;margin-bottom:4px">'+esc(_buyProduct.name)+'</div>'
+      +'<div style="display:flex;gap:6px;margin-bottom:6px">'+typeBadge(_buyProduct.type)+statusBadge(_buyProduct.status)+'</div>'
+      +'<div style="font-size:12px;color:var(--text-muted)">'+avail+' '+(avail===1?'quota disponibile':'quote disponibili')+' su '+_buyProduct.total_quotes+'</div>'
+      +(_buyProduct.storage_fee_annual&&_buyProduct.storage_fee_annual>0
+        ?'<div style="font-size:12px;color:var(--warning);margin-top:4px">⚠️ Storage fee: €'+fmt2(_buyProduct.storage_fee_annual)+'/quota/anno</div>':'')
+      +(_buyProduct.type==='grade_hold'&&_buyProduct.grading_cost_estimated
+        ?'<div style="font-size:12px;color:var(--accent);margin-top:2px">Gradazione stimata: €'+fmt2(_buyProduct.grading_cost_estimated)+' — addebitata proporzionalmente</div>':'')
+    +'</div></div>';
+  buyUpdateTotal();
+  document.getElementById('buySt').innerHTML='';
+  document.getElementById('buyBankRef').value='';
+  document.getElementById('buyNotes').value='';
+  document.getElementById('buyModalBg').classList.add('show');
+}
+
+function buyUpdateTotal(){
+  if(!_buyProduct) return;
+  var qty = parseInt(document.getElementById('buyQty').value)||1;
+  var total = qty * (_buyProduct.price_per_quote||0);
+  document.getElementById('buyTotal').textContent = '€'+total.toFixed(2);
+  // Causale
+  var uid = _session && (_session.user && _session.user.id || _session.access_token.slice(-6));
+  document.getElementById('buyBonificoCausal').textContent = 'RBK-'+_buyProduct.id.slice(0,8).toUpperCase()+'-Q'+qty;
+}
+
+async function buyConfirm(){
+  if(!_buyProduct || !_session) return;
+  var qty   = parseInt(document.getElementById('buyQty').value)||1;
+  var ref   = document.getElementById('buyBankRef').value.trim();
+  var notes = document.getElementById('buyNotes').value.trim();
+  var st    = _mktStats[_buyProduct.id] || { sold_quotes:0 };
+  var avail = Math.max(0, _buyProduct.total_quotes - st.sold_quotes);
+  if(qty < 1 || qty > avail){ setSt('buySt','Quote non disponibili: max '+avail,'err'); return; }
+  setSt('buySt','Invio richiesta…','info');
+  try {
+    var user = _session.user || {};
+    // 1. Crea holding (in attesa di conferma pagamento)
+    var holding = await supa('POST','inv_holdings',{
+      product_id: _buyProduct.id,
+      user_id: user.id,
+      qty: qty,
+      price_per_quote: _buyProduct.price_per_quote,
+      origin: 'primary',
+      notes: notes
+    });
+    var hid = holding && holding[0] && holding[0].id;
+    // 2. Crea pagamento
+    await supa('POST','inv_payments',{
+      user_id: user.id,
+      product_id: _buyProduct.id,
+      holding_id: hid||null,
+      type: 'purchase',
+      amount: qty * _buyProduct.price_per_quote,
+      qty: qty,
+      method: 'bonifico',
+      status: 'pending',
+      bank_reference: ref||null,
+      admin_notes: notes||null
+    });
+    setSt('buySt','✅ Richiesta inviata! Effettua il bonifico e l\'admin confermerà entro 24-48h.','ok');
+    // Refresh stats
+    setTimeout(function(){ mktLoad(); },500);
+  } catch(e) {
+    setSt('buySt','Errore: '+e.message,'err');
+  }
+}
+
+function closeBuyModal(){ document.getElementById('buyModalBg').classList.remove('show'); }
+function showProductDetail(pid){ openBuyModal(pid); } // per ora riusa il modal
+
+function buyShowMethod(){
+  var m = document.querySelector('input[name="payMethod"]:checked');
+  document.getElementById('buyBonifico').style.display = (!m||m.value==='bonifico')?'':'none';
+  document.getElementById('buyStripePh').style.display = (m&&m.value==='stripe')?'':'none';
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  PORTFOLIO
+// ═══════════════════════════════════════════════════════════
+var _portHoldings = [];
+var _portPayments = [];
+var _portAccruals = [];
+var _portLiquidations = [];
+
+async function portLoad(){
+  if(!_session) return;
+  var uid = _session.user && _session.user.id;
+  if(!uid) return;
+  try {
+    _portHoldings    = (await supa('GET','inv_holdings?user_id=eq.'+uid+'&order=acquired_at.desc')) || [];
+    _portPayments    = (await supa('GET','inv_payments?user_id=eq.'+uid)) || [];
+    _portAccruals    = (await supa('GET','inv_accruals?order=accrual_date.desc')) || [];
+    _portLiquidations= (await supa('GET','inv_liquidations?order=planned_date.desc')) || [];
+  } catch(e){ _portHoldings=[]; }
+  portRender();
+}
+
+function portRender(){
+  var confirmedPayments = _portPayments.filter(function(p){ return p.status==='confirmed'&&p.type==='purchase'; });
+  var totalInvested = confirmedPayments.reduce(function(a,p){ return a+((p.amount||0)); },0);
+  var totalLiquidated = _portPayments.filter(function(p){ return p.type==='liquidation'&&p.status==='confirmed'; })
+    .reduce(function(a,p){ return a+(p.amount||0); },0);
+
+  // Estimated value: match holdings to products
+  var estValue = _portHoldings.reduce(function(a,h){
+    var p = _mktProducts.find(function(x){ return x.id===h.product_id; });
+    var est = (p&&p.estimated_value&&p.total_quotes) ? (p.estimated_value/p.total_quotes)*h.qty : h.qty*h.price_per_quote;
+    return a+est;
+  },0);
+
+  // Pending accruals for this user
+  var pendingAccrual = 0;
+  _portHoldings.forEach(function(h){
+    var productAccruals = _portAccruals.filter(function(a){ return a.product_id===h.product_id&&!a.is_settled; });
+    var p = _mktProducts.find(function(x){ return x.id===h.product_id; });
+    if(!p) return;
+    var st = _mktStats[p.id] || { sold_quotes: p.total_quotes };
+    var myShare = st.sold_quotes>0 ? h.qty/st.sold_quotes : 0;
+    productAccruals.forEach(function(a){ pendingAccrual += (a.total_amount||0)*myShare; });
+  });
+
+  var pl = estValue - totalInvested;
+  var plEl = document.getElementById('pkPL');
+  document.getElementById('pkInvested').textContent   = '€'+totalInvested.toFixed(2);
+  document.getElementById('pkValue').textContent      = '€'+estValue.toFixed(2);
+  plEl.textContent = (pl>=0?'+':'')+'€'+Math.abs(pl).toFixed(2);
+  plEl.className = 'port-kpi-val '+(pl>=0?'pos':'neg');
+  document.getElementById('pkLiquidated').textContent = '€'+totalLiquidated.toFixed(2);
+  document.getElementById('pkAccrual').textContent    = '€'+pendingAccrual.toFixed(2);
+
+  var empty = document.getElementById('portEmpty');
+  var tbody = document.getElementById('portTbody');
+  if(!_portHoldings.length){ empty.style.display=''; tbody.innerHTML=''; return; }
+  empty.style.display='none';
+
+  tbody.innerHTML = _portHoldings.map(function(h){
+    var p = _mktProducts.find(function(x){ return x.id===h.product_id; });
+    var pname = p ? p.name : '—';
+    var ptype = p ? typeBadge(p.type) : '—';
+    var st = _mktStats[h.product_id] || { sold_quotes: (p&&p.total_quotes)||1 };
+    var myShare = st.sold_quotes>0 ? h.qty/st.sold_quotes : 0;
+    var estPerQ = (p&&p.estimated_value&&p.total_quotes) ? p.estimated_value/p.total_quotes : h.price_per_quote;
+    var myEst   = estPerQ * h.qty;
+    var paid    = h.price_per_quote * h.qty;
+    var pl2     = myEst - paid;
+    var plCls   = pl2>=0?'pos':'neg';
+    // Accruals
+    var acc = _portAccruals.filter(function(a){ return a.product_id===h.product_id&&!a.is_settled; })
+      .reduce(function(a,x){ return a+(x.total_amount||0)*myShare; },0);
+    // Payment status
+    var pay = _portPayments.find(function(x){ return x.holding_id===h.id&&x.type==='purchase'; });
+    var payStatus = pay ? payBadge(pay.status) : '<span style="color:var(--text-muted);font-size:11px">—</span>';
+
+    return '<tr>'
+      +'<td><div style="font-weight:500">'+esc(pname)+'</div><div style="font-size:11px;margin-top:2px">'+payStatus+'</div></td>'
+      +'<td>'+ptype+'</td>'
+      +'<td style="font-family:var(--mono)">'+h.qty+' / '+((p&&p.total_quotes)||'?')+'<div style="font-size:10px;color:var(--text-muted)">'+(myShare*100).toFixed(1)+'%</div></td>'
+      +'<td style="font-family:var(--mono)">€'+fmt2(h.price_per_quote)+'</td>'
+      +'<td style="font-family:var(--mono)">€'+fmt2(myEst)+'</td>'
+      +'<td class="'+plCls+'" style="font-family:var(--mono)">'+(pl2>=0?'+':'')+'€'+Math.abs(pl2).toFixed(2)+'</td>'
+      +'<td style="font-size:12px">'+fmtDate(p&&p.target_date)+'</td>'
+      +'<td>'+(acc>0?'<span class="accrual-warn">⚠️ €'+acc.toFixed(2)+'</span>':'<span style="color:var(--text-muted);font-size:12px">—</span>')+'</td>'
+      +'<td><button class="btn sm" onclick="openSellFromHolding(\''+h.id+'\',\''+h.product_id+'\','+h.qty+')">Vendi</button></td>'
+    +'</tr>';
+  }).join('');
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  TRANSAZIONI
+// ═══════════════════════════════════════════════════════════
+async function txLoad(){
+  if(!_session) return;
+  var uid  = _session.user && _session.user.id;
+  if(!uid) return;
+  var type = document.getElementById('txFilter').value;
+  var stat = document.getElementById('txStatus').value;
+  var qs   = 'inv_payments?user_id=eq.'+uid+'&order=created_at.desc'
+    +(type?'&type=eq.'+type:'')
+    +(stat?'&status=eq.'+stat:'');
+  try {
+    var rows = (await supa('GET',qs)) || [];
+    var empty = document.getElementById('txEmpty');
+    var tbody = document.getElementById('txTbody');
+    if(!rows.length){ empty.style.display=''; tbody.innerHTML=''; return; }
+    empty.style.display='none';
+    var typeLabels = { purchase:'Acquisto', secondary_buy:'Secondario', accrual:'Costo accrual', refund:'Rimborso', liquidation:'Liquidazione' };
+    tbody.innerHTML = rows.map(function(r){
+      var p = _mktProducts.find(function(x){ return x.id===r.product_id; });
+      return '<tr>'
+        +'<td style="font-family:var(--mono);color:var(--text-muted)">'+fmtDate(r.created_at)+'</td>'
+        +'<td>'+(p?esc(p.name):'—')+'</td>'
+        +'<td>'+(typeLabels[r.type]||r.type)+'</td>'
+        +'<td style="font-family:var(--mono)">'+(r.qty||'—')+'</td>'
+        +'<td style="font-family:var(--mono);font-weight:600">€'+fmt2(r.amount)+'</td>'
+        +'<td style="font-size:12px">'+esc(r.method||'—')+'</td>'
+        +'<td>'+payBadge(r.status)+'</td>'
+        +'<td style="font-size:12px;color:var(--text-muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(r.admin_notes||r.bank_reference||'')+'</td>'
+      +'</tr>';
+    }).join('');
+  } catch(e) {
+    document.getElementById('txTbody').innerHTML='<tr><td colspan="8" style="color:var(--danger)">'+esc(e.message)+'</td></tr>';
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  AGENDA
+// ═══════════════════════════════════════════════════════════
+async function agendaLoad(){
+  var wrap = document.getElementById('agendaContent');
+  wrap.innerHTML = '<div style="color:var(--text-muted);font-size:13px">Caricamento…</div>';
+  try {
+    var products     = _mktProducts.length ? _mktProducts : (await supa('GET','inv_products?order=target_date.asc'))||[];
+    var liquidations = (await supa('GET','inv_liquidations?order=planned_date.asc'))||[];
+    var events = [];
+
+    // Scadenze prodotti
+    products.filter(function(p){ return p.target_date; }).forEach(function(p){
+      events.push({ date:p.target_date, title:p.name, sub:'Scadenza: '+(p.type==='fractional'?'Apertura bustine':p.type==='grade_hold'?'Invio gradazione':'Liquidazione'), type:p.type, status:p.status });
+    });
+    // Liquidazioni pianificate
+    liquidations.filter(function(l){ return l.planned_date&&l.status!=='completed'; }).forEach(function(l){
+      var p = products.find(function(x){ return x.id===l.product_id; });
+      events.push({ date:l.planned_date, title:(p?p.name:'—'), sub:'💰 Liquidazione prevista: '+(l.per_quote?'€'+fmt2(l.per_quote)+'/quota':'importo da definire'), type:'liquidation', status:l.status });
+    });
+
+    // Sort by date
+    events.sort(function(a,b){ return new Date(a.date)-new Date(b.date); });
+
+    if(!events.length){ wrap.innerHTML='<div class="empty-state"><div class="icon">📅</div><h3>Nessun evento in agenda</h3><p>Verranno mostrati qui aperture, scadenze e liquidazioni</p></div>'; return; }
+
+    var today = new Date();
+    var upcoming = events.filter(function(e){ return new Date(e.date)>=today; });
+    var past     = events.filter(function(e){ return new Date(e.date)<today; });
+
+    var html = '';
+    if(upcoming.length){
+      html += '<div class="agenda-section-title">Prossimi eventi</div>';
+      html += upcoming.map(function(e){ return renderAgendaItem(e); }).join('');
+    }
+    if(past.length){
+      html += '<div class="agenda-section-title" style="margin-top:16px">Passati</div>';
+      html += past.slice(0,5).map(function(e){ return renderAgendaItem(e,true); }).join('');
+    }
+    wrap.innerHTML = html;
+  } catch(err){
+    wrap.innerHTML = '<div style="color:var(--danger);font-size:13px">Errore: '+esc(err.message)+'</div>';
+  }
+}
+
+function renderAgendaItem(e, isPast){
+  var d    = new Date(e.date);
+  var day  = d.getDate();
+  var mon  = d.toLocaleDateString('it-IT',{month:'short'}).replace('.','');
+  var dd   = daysTo(e.date);
+  var ddStr= dd!==null&&!isPast ? (dd===0?'Oggi':dd===1?'Domani':dd+' giorni') : '';
+  return '<div class="agenda-item" style="'+(isPast?'opacity:.55':'')+'"><div class="agenda-date-box"><div class="agenda-date-day">'+day+'</div><div class="agenda-date-mon">'+mon+'</div></div><div class="agenda-content"><div class="agenda-title">'+esc(e.title)+'</div><div class="agenda-sub">'+esc(e.sub)+'</div>'+(ddStr?'<div class="agenda-ddays">⏳ '+ddStr+'</div>':'')+'</div><div>'+typeBadge(e.type==='liquidation'?'millesimal':e.type)+'</div></div>';
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  MERCATO SECONDARIO
+// ═══════════════════════════════════════════════════════════
+var _allTransfers = [];
+var _myHoldingsForSell = [];
+
+async function marketLoad(){
+  try {
+    _allTransfers = (await supa('GET','inv_transfers?status=eq.open&order=created_at.desc'))||[];
+  } catch(e){ _allTransfers=[]; }
+  marketRender();
+  // Populate sell product selector
+  if(_session){
+    var uid = _session.user&&_session.user.id;
+    if(uid){
+      try{ _myHoldingsForSell = (await supa('GET','inv_holdings?user_id=eq.'+uid))||[]; }catch(e){}
+    }
+  }
+}
+
+function marketRender(){
+  var list   = document.getElementById('offersList');
+  var myList = document.getElementById('myOffersList');
+  document.getElementById('offersCount').textContent = '('+_allTransfers.length+')';
+  if(!_allTransfers.length){
+    list.innerHTML='<div class="empty-state"><div class="icon">🔄</div><h3>Nessuna offerta attiva</h3><p>Sii il primo a proporre le tue quote</p></div>';
+  } else {
+    list.innerHTML = _allTransfers.map(function(t){
+      var p = _mktProducts.find(function(x){ return x.id===t.product_id; });
+      var isMine = _session && _session.user && t.seller_id===_session.user.id;
+      return '<div class="offer-card">'
+        +'<div class="offer-card-top">'
+          +'<div><div class="offer-product">'+(p?esc(p.name):'Prodotto')+'</div>'
+          +'<div class="offer-seller">da '+esc(t.seller_id&&t.seller_id.slice(0,8))+'…'+(t.notes?' · '+esc(t.notes):'')+'</div></div>'
+          +'<div><div class="offer-price">€'+fmt2(t.ask_price)+'/q</div><div class="offer-qty">'+t.qty+' quote</div></div>'
+        +'</div>'
+        +(t.expires_at?'<div style="font-size:11px;color:var(--text-muted);font-family:var(--mono)">Scade: '+fmtDate(t.expires_at)+'</div>':'')
+        +'<div class="offer-actions">'
+          +(!isMine?'<button class="btn primary sm" onclick="showTab(\'tx\')">Contatta &amp; Acquista</button>':'<span style="font-size:11px;color:var(--text-muted)">Tua offerta</span>')
+          +(isMine?'<button class="btn danger sm" onclick="cancelTransfer(\''+t.id+'\')">Cancella</button>':'')
+        +'</div>'
+      +'</div>';
+    }).join('');
+  }
+  var myOffers = _session ? _allTransfers.filter(function(t){ return _session.user&&t.seller_id===_session.user.id; }) : [];
+  myList.innerHTML = myOffers.length
+    ? myOffers.map(function(t){
+        var p=_mktProducts.find(function(x){return x.id===t.product_id;});
+        return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px;margin-bottom:8px;font-size:12px"><div style="font-weight:500">'+(p?esc(p.name):'?')+'</div><div style="font-family:var(--mono);color:var(--gold)">€'+fmt2(t.ask_price)+'×'+t.qty+' = €'+(t.ask_price*t.qty).toFixed(2)+'</div></div>';
+      }).join('')
+    : '<div style="color:var(--text-muted);font-size:12px">Nessuna offerta attiva</div>';
+}
+
+function openSellModal(){
+  if(!_session){ alert('Accedi per vendere le tue quote'); return; }
+  var sel = document.getElementById('sellProduct');
+  sel.innerHTML = _myHoldingsForSell.map(function(h){
+    var p=_mktProducts.find(function(x){return x.id===h.product_id;});
+    return '<option value="'+h.product_id+'" data-max="'+h.qty+'">'+(p?esc(p.name):'—')+' ('+h.qty+' quote)</option>';
+  }).join('');
+  sellUpdateMax();
+  document.getElementById('sellExpiry').value='';
+  document.getElementById('sellNotes').value='';
+  document.getElementById('sellSt').innerHTML='';
+  document.getElementById('sellModalBg').classList.add('show');
+}
+function openSellFromHolding(hid, pid, qty){
+  // Pre-select the product
+  openSellModal();
+  setTimeout(function(){
+    var sel=document.getElementById('sellProduct');
+    for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value===pid){ sel.selectedIndex=i; break; } }
+    sellUpdateMax();
+  },50);
+}
+function sellUpdateMax(){
+  var opt = document.getElementById('sellProduct').selectedOptions[0];
+  var max = opt ? parseInt(opt.dataset.max)||0 : 0;
+  document.getElementById('sellAvailable').textContent = max+' quote';
+  document.getElementById('sellQty').max = max;
+  sellUpdateTotal();
+}
+function sellUpdateTotal(){
+  var qty   = parseInt(document.getElementById('sellQty').value)||0;
+  var price = parseFloat(document.getElementById('sellPrice').value)||0;
+  document.getElementById('sellTotal').textContent = qty&&price ? '€'+(qty*price).toFixed(2) : '—';
+}
+async function sellConfirm(){
+  if(!_session) return;
+  var pid   = document.getElementById('sellProduct').value;
+  var qty   = parseInt(document.getElementById('sellQty').value)||0;
+  var price = parseFloat(document.getElementById('sellPrice').value)||0;
+  var notes = document.getElementById('sellNotes').value.trim();
+  var exp   = document.getElementById('sellExpiry').value||null;
+  if(!pid||qty<1||price<=0){ setSt('sellSt','Compila tutti i campi richiesti','err'); return; }
+  var uid = _session.user&&_session.user.id;
+  try {
+    await supa('POST','inv_transfers',{ product_id:pid, seller_id:uid, qty, ask_price:price, notes:notes||null, expires_at:exp, status:'open' });
+    setSt('sellSt','✅ Offerta pubblicata!','ok');
+    setTimeout(closeSellModal,1500);
+    marketLoad();
+  } catch(e){ setSt('sellSt','Errore: '+e.message,'err'); }
+}
+function closeSellModal(){ document.getElementById('sellModalBg').classList.remove('show'); }
+async function cancelTransfer(id){
+  if(!confirm('Cancellare questa offerta?')) return;
+  try{ await supa('PATCH','inv_transfers?id=eq.'+id,{status:'cancelled'}); marketLoad(); }catch(e){ alert(e.message); }
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  ADMIN
+// ═══════════════════════════════════════════════════════════
+var _adminCurrentSection = 'products';
+
+function adminSection(s){
+  _adminCurrentSection = s;
+  document.querySelectorAll('.admin-side-btn').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('onclick').indexOf("'"+s+"'")>-1);
+  });
+  document.querySelectorAll('.admin-section').forEach(function(x){ x.classList.remove('active'); });
+  var el = document.getElementById('admin-'+s);
+  if(el) el.classList.add('active');
+  if(s==='products')    adminLoadProducts();
+  if(s==='payments')    adminLoadPayments();
+  if(s==='accruals')    adminLoadAccruals();
+  if(s==='liquidations')adminLoadLiquidations();
+  if(s==='transfers')   adminLoadTransfers();
+}
+
+async function adminLoad(){
+  if(!_isAdmin) return;
+  adminLoadProducts();
+  // Populate product selectors for accrual and liq modals
+  var opts = _mktProducts.map(function(p){ return '<option value="'+p.id+'">'+esc(p.name)+'</option>'; }).join('');
+  document.getElementById('accrualProduct').innerHTML = opts;
+  document.getElementById('liqProduct').innerHTML = opts;
+  document.getElementById('accrualDate').value = new Date().toISOString().slice(0,10);
+}
+
+async function adminLoadProducts(){
+  try {
+    _mktProducts = (await supa('GET','inv_products?order=created_at.desc'))||[];
+    var tbody = document.getElementById('adminProductsTbody');
+    var empty = document.getElementById('adminProductsEmpty');
+    if(!_mktProducts.length){ empty.style.display=''; tbody.innerHTML=''; return; }
+    empty.style.display='none';
+    try {
+      var stats = await supa('GET','inv_product_stats');
+      if(stats) stats.forEach(function(s){ _mktStats[s.id]=s; });
+    } catch(e){}
+    tbody.innerHTML = _mktProducts.map(function(p){
+      var st = _mktStats[p.id]||{sold_quotes:0};
+      return '<tr>'
+        +'<td><div style="font-weight:500">'+esc(p.name)+'</div>'+(p.description?'<div style="font-size:11px;color:var(--text-muted)">'+esc(p.description.slice(0,60))+'…</div>':'')+'</td>'
+        +'<td>'+typeBadge(p.type)+'</td>'
+        +'<td>'+statusBadge(p.status)+'</td>'
+        +'<td style="font-family:var(--mono)">'+st.sold_quotes+'/'+p.total_quotes+'</td>'
+        +'<td style="font-family:var(--mono)">€'+fmt2(p.price_per_quote)+'</td>'
+        +'<td style="font-size:12px;font-family:var(--mono)">'+fmtDate(p.target_date)+'</td>'
+        +'<td style="white-space:nowrap">'
+          +'<button class="btn sm" onclick="adminEditProduct(\''+p.id+'\')">✏️</button> '
+          +'<select onchange="adminChangeStatus(\''+p.id+'\',this.value)" style="font-size:11px;padding:3px 6px;max-width:120px">'
+            +['draft','open','closed','pending_grading','grading_complete','hold','liquidated'].map(function(s){ return '<option'+(p.status===s?' selected':'')+' value="'+s+'">'+s+'</option>'; }).join('')
+          +'</select>'
+        +'</td>'
+      +'</tr>';
+    }).join('');
+  } catch(e){ document.getElementById('adminProductsTbody').innerHTML='<tr><td colspan="7" style="color:var(--danger)">'+esc(e.message)+'</td></tr>'; }
+}
+
+async function adminChangeStatus(pid, status){
+  try{ await supa('PATCH','inv_products?id=eq.'+pid,{status,updated_at:new Date().toISOString()}); }catch(e){ alert(e.message); }
+}
+
+async function adminLoadPayments(){
+  try {
+    var all = (await supa('GET','inv_payments?status=in.(pending,confirmed)&order=created_at.desc'))||[];
+    var pending = all.filter(function(p){ return p.status==='pending'; });
+    document.getElementById('pendingPayCount').textContent = pending.length+' in attesa';
+    var tbody = document.getElementById('adminPaymentsTbody');
+    var empty = document.getElementById('adminPaymentsEmpty');
+    if(!all.length){ empty.style.display=''; tbody.innerHTML=''; return; }
+    empty.style.display='none';
+    tbody.innerHTML = all.map(function(r){
+      var p=_mktProducts.find(function(x){return x.id===r.product_id;});
+      return '<tr>'
+        +'<td style="font-family:var(--mono);font-size:11px">'+fmtDate(r.created_at)+'</td>'
+        +'<td style="font-family:var(--mono);font-size:11px">'+esc((r.user_id||'').slice(0,12))+'…</td>'
+        +'<td style="font-size:12px">'+(p?esc(p.name):'—')+'</td>'
+        +'<td style="font-family:var(--mono)">'+r.qty+'</td>'
+        +'<td style="font-family:var(--mono);font-weight:600">€'+fmt2(r.amount)+'</td>'
+        +'<td style="font-size:12px">'+esc(r.method)+'</td>'
+        +'<td style="font-family:var(--mono);font-size:11px">'+esc(r.bank_reference||'—')+'</td>'
+        +'<td>'+payBadge(r.status)+'</td>'
+        +'<td style="white-space:nowrap">'
+          +(r.status==='pending'?
+            '<button class="btn primary sm" onclick="adminConfirmPayment(\''+r.id+'\',\''+r.holding_id+'\')">✓ Conferma</button> '
+            +'<button class="btn danger sm" onclick="adminRejectPayment(\''+r.id+'\',\''+r.holding_id+'\')">✕ Rifiuta</button>'
+            :'')
+        +'</td>'
+      +'</tr>';
+    }).join('');
+  } catch(e){ document.getElementById('adminPaymentsTbody').innerHTML='<tr><td colspan="9" style="color:var(--danger)">'+esc(e.message)+'</td></tr>'; }
+}
+
+async function adminConfirmPayment(payId, holdingId){
+  if(!confirm('Confermare questo pagamento?')) return;
+  try {
+    await supa('PATCH','inv_payments?id=eq.'+payId,{
+      status:'confirmed', confirmed_by:_session.user.id, confirmed_at:new Date().toISOString()
+    });
+    // Refresh stats
+    adminLoadPayments(); mktLoad();
+  } catch(e){ alert(e.message); }
+}
+
+async function adminRejectPayment(payId, holdingId){
+  var reason = prompt('Motivo del rifiuto:');
+  if(reason===null) return;
+  try {
+    await supa('PATCH','inv_payments?id=eq.'+payId,{ status:'rejected', rejection_reason:reason });
+    if(holdingId&&holdingId!=='null') await supa('DELETE','inv_holdings?id=eq.'+holdingId);
+    adminLoadPayments(); mktLoad();
+  } catch(e){ alert(e.message); }
+}
+
+async function adminLoadAccruals(){
+  try {
+    var all = (await supa('GET','inv_accruals?order=accrual_date.desc'))||[];
+    var tbody = document.getElementById('adminAccrualsTbody');
+    tbody.innerHTML = all.map(function(a){
+      var p=_mktProducts.find(function(x){return x.id===a.product_id;});
+      return '<tr>'
+        +'<td style="font-family:var(--mono);font-size:11px">'+fmtDate(a.accrual_date)+'</td>'
+        +'<td>'+(p?esc(p.name):'—')+'</td>'
+        +'<td><span style="font-size:11px;font-family:var(--mono)">'+a.category+'</span></td>'
+        +'<td style="font-family:var(--mono);font-weight:600">€'+fmt2(a.total_amount)+'</td>'
+        +'<td style="font-size:12px;color:var(--text-muted)">'+esc(a.description)+'</td>'
+        +'<td>'+(a.is_settled?'<span style="color:var(--success);font-size:11px">✓</span>':'<span style="color:var(--warning);font-size:11px">⏳</span>')+'</td>'
+      +'</tr>';
+    }).join('');
+  } catch(e){}
+}
+
+async function adminSaveAccrual(){
+  var pid  = document.getElementById('accrualProduct').value;
+  var cat  = document.getElementById('accrualCategory').value;
+  var amt  = parseFloat(document.getElementById('accrualAmount').value)||0;
+  var date = document.getElementById('accrualDate').value;
+  var desc = document.getElementById('accrualDesc').value.trim();
+  if(!pid||!amt||!date||!desc){ setSt('accrualSt','Compila tutti i campi','err'); return; }
+  try {
+    await supa('POST','inv_accruals',{ product_id:pid, created_by:_session.user.id, category:cat, total_amount:amt, accrual_date:date, description:desc, notes:document.getElementById('accrualNotes').value.trim()||null });
+    setSt('accrualSt','✅ Accrual registrato!','ok');
+    document.getElementById('accrualAmount').value='';
+    document.getElementById('accrualDesc').value='';
+    adminLoadAccruals();
+  } catch(e){ setSt('accrualSt','Errore: '+e.message,'err'); }
+}
+
+async function adminLoadLiquidations(){
+  try {
+    var all = (await supa('GET','inv_liquidations?order=planned_date.desc'))||[];
+    var tbody = document.getElementById('adminLiqTbody');
+    var empty = document.getElementById('adminLiqEmpty');
+    if(!all.length){ empty.style.display=''; tbody.innerHTML=''; return; }
+    empty.style.display='none';
+    tbody.innerHTML = all.map(function(l){
+      var p=_mktProducts.find(function(x){return x.id===l.product_id;});
+      var sLabels={planned:'Pianificata',processing:'In corso',completed:'Completata'};
+      return '<tr>'
+        +'<td style="font-weight:500">'+(p?esc(p.name):'—')+'</td>'
+        +'<td>'+statusBadge(l.status==='completed'?'liquidated':l.status==='processing'?'hold':'hold')+'<div style="font-size:10px;margin-top:2px">'+(sLabels[l.status]||l.status)+'</div></td>'
+        +'<td style="font-family:var(--mono)">'+(l.gross_amount?'€'+fmt2(l.gross_amount):'—')+'</td>'
+        +'<td style="font-family:var(--mono)">'+(l.net_amount?'€'+fmt2(l.net_amount):'—')+'</td>'
+        +'<td style="font-family:var(--mono);color:var(--gold)">'+(l.per_quote?'€'+fmt2(l.per_quote):'—')+'</td>'
+        +'<td style="font-size:12px">'+fmtDate(l.planned_date)+'</td>'
+        +'<td style="font-size:12px">'+fmtDate(l.completed_date)+'</td>'
+        +'<td><button class="btn sm" onclick="adminEditLiq(\''+l.id+'\')">✏️</button></td>'
+      +'</tr>';
+    }).join('');
+  } catch(e){}
+}
+
+async function adminLoadTransfers(){
+  try {
+    var all = (await supa('GET','inv_transfers?status=in.(open,payment_pending)&order=created_at.desc'))||[];
+    var tbody = document.getElementById('adminTransfTbody');
+    var empty = document.getElementById('adminTransfEmpty');
+    if(!all.length){ empty.style.display=''; tbody.innerHTML=''; return; }
+    empty.style.display='none';
+    tbody.innerHTML = all.map(function(t){
+      var p=_mktProducts.find(function(x){return x.id===t.product_id;});
+      return '<tr>'
+        +'<td>'+(p?esc(p.name):'—')+'</td>'
+        +'<td style="font-family:var(--mono);font-size:11px">'+esc((t.seller_id||'').slice(0,12))+'…</td>'
+        +'<td style="font-family:var(--mono);font-size:11px">'+(t.buyer_id?esc(t.buyer_id.slice(0,12))+'…':'<span style="color:var(--text-muted)">—</span>')+'</td>'
+        +'<td style="font-family:var(--mono)">'+t.qty+'</td>'
+        +'<td style="font-family:var(--mono)">€'+fmt2(t.ask_price)+'</td>'
+        +'<td>'+statusBadge(t.status==='open'?'open':'hold')+'</td>'
+        +'<td><button class="btn primary sm" onclick="adminCompleteTransfer(\''+t.id+'\',\''+t.seller_id+'\',\''+t.buyer_id+'\',\''+t.product_id+'\','+t.qty+','+t.ask_price+')">✓ Completa</button></td>'
+      +'</tr>';
+    }).join('');
+  } catch(e){}
+}
+
+async function adminCompleteTransfer(tid, sellerId, buyerId, productId, qty, price){
+  if(!buyerId||buyerId==='null'){ alert('Nessun compratore associato al trasferimento'); return; }
+  if(!confirm('Completare il trasferimento delle '+qty+' quote?')) return;
+  try {
+    // 1. Riduci holding venditore
+    var selHoldings = (await supa('GET','inv_holdings?user_id=eq.'+sellerId+'&product_id=eq.'+productId))||[];
+    if(selHoldings.length){
+      var sh = selHoldings[0];
+      var newQty = (sh.qty||0) - qty;
+      if(newQty<=0) await supa('DELETE','inv_holdings?id=eq.'+sh.id);
+      else await supa('PATCH','inv_holdings?id=eq.'+sh.id,{qty:newQty});
+    }
+    // 2. Aggiungi holding compratore
+    await supa('POST','inv_holdings',{ product_id:productId, user_id:buyerId, qty, price_per_quote:price, origin:'secondary' });
+    // 3. Chiudi trasferimento
+    await supa('PATCH','inv_transfers?id=eq.'+tid,{status:'completed',completed_at:new Date().toISOString()});
+    adminLoadTransfers(); mktLoad();
+    alert('Trasferimento completato!');
+  } catch(e){ alert('Errore: '+e.message); }
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  PRODUCT MODAL (admin)
+// ═══════════════════════════════════════════════════════════
+var _editProductId = null;
+
+function openProductModal(pid){
+  _editProductId = pid||null;
+  document.getElementById('productModalTitle').textContent = pid?'Modifica Prodotto':'Nuovo Prodotto';
+  if(!pid){
+    ['pmName','pmDesc','pmImg','pmAdminNotes','pmHoldYears','pmGradingCost'].forEach(function(id){ var el=document.getElementById(id);if(el)el.value=''; });
+    document.getElementById('pmTotalQuotes').value='100';
+    document.getElementById('pmPricePerQuote').value='';
+    document.getElementById('pmEstValue').value='';
+    document.getElementById('pmQuoteUnit').value='quota';
+    document.getElementById('pmTargetDate').value='';
+    document.getElementById('pmStorageFee').value='0';
+    document.getElementById('pmType').value='full';
+    document.getElementById('pmStatus').value='draft';
+    pmToggleFields();
+  } else {
+    var p=_mktProducts.find(function(x){return x.id===pid;});
+    if(p){
+      document.getElementById('pmName').value=p.name||'';
+      document.getElementById('pmDesc').value=p.description||'';
+      document.getElementById('pmImg').value=p.image_url||'';
+      document.getElementById('pmTotalQuotes').value=p.total_quotes||100;
+      document.getElementById('pmPricePerQuote').value=p.price_per_quote||'';
+      document.getElementById('pmEstValue').value=p.estimated_value||'';
+      document.getElementById('pmQuoteUnit').value=p.quote_unit||'quota';
+      document.getElementById('pmTargetDate').value=p.target_date||'';
+      document.getElementById('pmStorageFee').value=p.storage_fee_annual||0;
+      document.getElementById('pmHoldYears').value=p.hold_years||'';
+      document.getElementById('pmType').value=p.type||'full';
+      document.getElementById('pmStatus').value=p.status||'draft';
+      document.getElementById('pmAdminNotes').value=p.admin_notes||'';
+      if(p.type==='grade_hold'){ document.getElementById('pmGradingHouse').value=p.grading_house||'PSA'; document.getElementById('pmGradingCost').value=p.grading_cost_estimated||''; }
+      pmToggleFields();
+    }
+  }
+  document.getElementById('pmSt').innerHTML='';
+  document.getElementById('productModalBg').classList.add('show');
+}
+function closeProductModal(){ document.getElementById('productModalBg').classList.remove('show'); }
+
+function pmToggleFields(){
+  var isGrade = document.getElementById('pmType').value==='grade_hold';
+  document.getElementById('pmGradingRow').style.display    = isGrade?'':'none';
+  document.getElementById('pmGradingCostRow').style.display= isGrade?'':'none';
+}
+
+function adminEditProduct(pid){ openProductModal(pid); }
+
+async function pmSave(){
+  var name = document.getElementById('pmName').value.trim();
+  if(!name){ setSt('pmSt','Il nome è obbligatorio','err'); return; }
+  var price = parseFloat(document.getElementById('pmPricePerQuote').value)||0;
+  if(!price){ setSt('pmSt','Inserisci il prezzo per quota','err'); return; }
+  var type = document.getElementById('pmType').value;
+  var body = {
+    name, type,
+    status:      document.getElementById('pmStatus').value,
+    description: document.getElementById('pmDesc').value.trim()||null,
+    image_url:   document.getElementById('pmImg').value.trim()||null,
+    total_quotes: parseInt(document.getElementById('pmTotalQuotes').value)||100,
+    price_per_quote: price,
+    estimated_value: parseFloat(document.getElementById('pmEstValue').value)||null,
+    quote_unit:   document.getElementById('pmQuoteUnit').value.trim()||'quota',
+    target_date:  document.getElementById('pmTargetDate').value||null,
+    hold_years:   parseInt(document.getElementById('pmHoldYears').value)||null,
+    storage_fee_annual: parseFloat(document.getElementById('pmStorageFee').value)||0,
+    admin_notes:  document.getElementById('pmAdminNotes').value.trim()||null,
+    updated_at:   new Date().toISOString()
+  };
+  if(type==='grade_hold'){
+    body.grading_house            = document.getElementById('pmGradingHouse').value;
+    body.grading_cost_estimated   = parseFloat(document.getElementById('pmGradingCost').value)||null;
+  }
+  try {
+    if(_editProductId){
+      await supa('PATCH','inv_products?id=eq.'+_editProductId, body);
+      setSt('pmSt','✅ Prodotto aggiornato!','ok');
+    } else {
+      body.created_by = _session.user.id;
+      await supa('POST','inv_products', body);
+      setSt('pmSt','✅ Prodotto creato!','ok');
+    }
+    setTimeout(function(){ closeProductModal(); adminLoadProducts(); mktLoad(); },800);
+  } catch(e){ setSt('pmSt','Errore: '+e.message,'err'); }
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  LIQUIDATION MODAL (admin)
+// ═══════════════════════════════════════════════════════════
+var _editLiqId = null;
+
+function openLiqModal(lid){
+  _editLiqId = lid||null;
+  document.getElementById('liqModalTitle').textContent = lid?'Modifica Liquidazione':'Nuova Liquidazione';
+  var opts = _mktProducts.map(function(p){ return '<option value="'+p.id+'">'+esc(p.name)+'</option>'; }).join('');
+  document.getElementById('liqProduct').innerHTML = opts;
+  if(!lid){
+    ['liqGross','liqFee','liqBuyerNotes','liqAdminNotes'].forEach(function(id){ document.getElementById(id).value=''; });
+    document.getElementById('liqFee').value='0';
+    document.getElementById('liqPlanned').value='';
+    document.getElementById('liqStatus').value='planned';
+  }
+  document.getElementById('liqSt').innerHTML='';
+  document.getElementById('liqNet').textContent='—';
+  document.getElementById('liqPerQuota').textContent='—';
+  document.getElementById('liqModalBg').classList.add('show');
+}
+function closeLiqModal(){ document.getElementById('liqModalBg').classList.remove('show'); }
+function adminEditLiq(id){ openLiqModal(id); }
+
+function liqUpdateCalc(){
+  var gross = parseFloat(document.getElementById('liqGross').value)||0;
+  var fee   = parseFloat(document.getElementById('liqFee').value)||0;
+  var net   = gross - fee;
+  document.getElementById('liqNet').textContent = net>=0?'€'+net.toFixed(2):'—';
+  // Per quota
+  var pid = document.getElementById('liqProduct').value;
+  var p   = _mktProducts.find(function(x){ return x.id===pid; });
+  var tot = p ? p.total_quotes : 0;
+  document.getElementById('liqPerQuota').textContent = (tot>0&&net>0)?'€'+(net/tot).toFixed(4):'—';
+}
+
+async function liqSave(){
+  var pid    = document.getElementById('liqProduct').value;
+  var gross  = parseFloat(document.getElementById('liqGross').value)||0;
+  var fee    = parseFloat(document.getElementById('liqFee').value)||0;
+  var net    = gross-fee;
+  var p      = _mktProducts.find(function(x){ return x.id===pid; });
+  var perQ   = (p&&p.total_quotes&&net>0) ? net/p.total_quotes : null;
+  var body   = {
+    product_id:    pid,
+    created_by:    _session.user.id,
+    status:        document.getElementById('liqStatus').value,
+    gross_amount:  gross||null,
+    fee_rareblock: fee,
+    net_amount:    net||null,
+    per_quote:     perQ,
+    planned_date:  document.getElementById('liqPlanned').value||null,
+    buyer_notes:   document.getElementById('liqBuyerNotes').value.trim()||null,
+    admin_notes:   document.getElementById('liqAdminNotes').value.trim()||null
+  };
+  try {
+    if(_editLiqId) await supa('PATCH','inv_liquidations?id=eq.'+_editLiqId,body);
+    else await supa('POST','inv_liquidations',body);
+    setSt('liqSt','✅ Salvato!','ok');
+    setTimeout(function(){ closeLiqModal(); adminLoadLiquidations(); },700);
+  } catch(e){ setSt('liqSt','Errore: '+e.message,'err'); }
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════════════════
+function setSt(elId, msg, type){
+  var el = document.getElementById(elId);
+  if(!el) return;
+  el.innerHTML = msg ? '<div class="status '+(type||'info')+'">'+esc(msg)+'</div>' : '';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', function(){
+  // Check existing session via Supabase local storage (simplified)
+  try {
+    var raw = Object.keys(localStorage).filter(function(k){ return k.indexOf('supabase')>-1||k.indexOf('sb-')>-1; });
+    if(raw.length){
+      var stored = null;
+      raw.forEach(function(k){ try{ var v=JSON.parse(localStorage.getItem(k)); if(v&&v.access_token) stored=v; if(v&&v.session) stored=v.session; }catch(e){} });
+      if(stored&&stored.access_token){ onSession({session:stored,user:stored.user}).catch(function(){}); return; }
+    }
+  } catch(e){}
+});
+</script>
+</body>
+</html>
