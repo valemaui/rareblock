@@ -2,6 +2,8 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8"/>
+<!-- Supabase JS Client -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>RareBlock — Collector</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -757,10 +759,83 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
 .anl-multi-item{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);border-radius:6px;cursor:pointer;border:1px solid var(--border);transition:border-color .12s}
 .anl-multi-item:hover{border-color:var(--accent)}
 .anl-multi-item img{width:32px;border-radius:3px;flex-shrink:0}
+
+/* ── AUTH OVERLAY ─────────────────────────────────────────────────── */
+#authOverlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:0}
+#authOverlay.hidden{display:none}
+.auth-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:36px 40px;width:100%;max-width:380px;box-shadow:0 24px 64px rgba(0,0,0,.5)}
+.auth-logo{font-family:'Montserrat',system-ui,sans-serif;font-size:20px;font-weight:300;letter-spacing:.18em;text-transform:uppercase;text-align:center;margin-bottom:28px}
+.auth-logo span{color:#c9a84c}
+.auth-tabs{display:flex;gap:2px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:2px;margin-bottom:24px}
+.auth-tab{flex:1;text-align:center;padding:6px;border-radius:6px;font-size:12px;font-family:var(--mono);cursor:pointer;color:var(--text-muted);transition:all .15s;border:none;background:none}
+.auth-tab.active{background:var(--surface3);color:var(--text);font-weight:500}
+.auth-field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+.auth-field label{font-size:11px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em}
+.auth-field input{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--font);font-size:13px;padding:8px 12px;outline:none;transition:border-color .15s;width:100%;box-sizing:border-box}
+.auth-field input:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(88,166,255,.12)}
+.auth-btn{width:100%;padding:10px;background:var(--accent);color:#0d1117;font-weight:700;font-size:13px;border:none;border-radius:var(--r);cursor:pointer;transition:background .15s;margin-top:6px;font-family:var(--font)}
+.auth-btn:hover{background:var(--accent-hover)}
+.auth-btn:disabled{opacity:.5;cursor:not-allowed}
+.auth-msg{font-size:12px;text-align:center;padding:8px 12px;border-radius:var(--r);margin-top:10px;display:none}
+.auth-msg.err{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.25);color:var(--danger);display:block}
+.auth-msg.ok{background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.25);color:var(--success);display:block}
+.auth-footer{font-size:11px;color:var(--text-muted);text-align:center;margin-top:14px}
+.auth-footer a{color:var(--accent);cursor:pointer;text-decoration:none}
+.auth-footer a:hover{text-decoration:underline}
+.auth-sep{width:100%;max-width:380px;text-align:center;font-size:10px;font-family:var(--mono);color:var(--text-subtle);margin:10px 0}
+
+/* User badge in header */
+.user-badge{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.user-email{font-size:11px;font-family:var(--mono);color:var(--text-muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-logout{font-size:11px;font-family:var(--mono);color:var(--text-muted);background:none;border:1px solid var(--border);border-radius:var(--r);padding:3px 8px;cursor:pointer;transition:all .15s}
+.user-logout:hover{color:var(--danger);border-color:var(--danger)}
 </style>
 
 </head>
 <body>
+
+<!-- ═══════════════════════════════════════════════════════════
+     AUTH OVERLAY — mostrato finché l'utente non è autenticato
+     ═══════════════════════════════════════════════════════ -->
+<div id="authOverlay">
+  <div class="auth-card">
+    <div class="auth-logo">Rare<span>Block</span> <span style="font-size:11px;color:var(--text-muted);letter-spacing:.05em">Collector</span></div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="authTabLogin"  onclick="authSwitchTab('login')">Accedi</button>
+      <button class="auth-tab"        id="authTabReg"    onclick="authSwitchTab('reg')">Registrati</button>
+      <button class="auth-tab"        id="authTabReset"  onclick="authSwitchTab('reset')">Password</button>
+    </div>
+
+    <!-- LOGIN -->
+    <div id="authPaneLogin">
+      <div class="auth-field"><label>Email</label><input type="email" id="authLoginEmail" placeholder="la-tua@email.it" autocomplete="email"/></div>
+      <div class="auth-field"><label>Password</label><input type="password" id="authLoginPwd" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')authDoLogin()"/></div>
+      <button class="auth-btn" id="authLoginBtn" onclick="authDoLogin()">Accedi</button>
+      <div class="auth-msg" id="authLoginMsg"></div>
+    </div>
+
+    <!-- REGISTER -->
+    <div id="authPaneReg" style="display:none">
+      <div class="auth-field"><label>Email</label><input type="email" id="authRegEmail" placeholder="la-tua@email.it" autocomplete="email"/></div>
+      <div class="auth-field"><label>Password</label><input type="password" id="authRegPwd" placeholder="min 8 caratteri" autocomplete="new-password"/></div>
+      <div class="auth-field"><label>Conferma password</label><input type="password" id="authRegPwd2" placeholder="ripeti password" onkeydown="if(event.key==='Enter')authDoRegister()"/></div>
+      <button class="auth-btn" id="authRegBtn" onclick="authDoRegister()">Crea account</button>
+      <div class="auth-msg" id="authRegMsg"></div>
+    </div>
+
+    <!-- RESET PASSWORD -->
+    <div id="authPaneReset" style="display:none">
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Inserisci la tua email. Riceverai un link per reimpostare la password.</p>
+      <div class="auth-field"><label>Email</label><input type="email" id="authResetEmail" placeholder="la-tua@email.it" onkeydown="if(event.key==='Enter')authDoReset()"/></div>
+      <button class="auth-btn" id="authResetBtn" onclick="authDoReset()">Invia link reset</button>
+      <div class="auth-msg" id="authResetMsg"></div>
+    </div>
+
+    <div class="auth-footer">RareBlock Collector &mdash; solo per utenti invitati</div>
+  </div>
+  <div class="auth-sep">v<span id="authVersion"></span> &middot; powered by Supabase Auth</div>
+</div>
 
 <header class="header">
   <a href="index.html" class="logo">
@@ -782,6 +857,10 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
   <div class="led-wrap">
     <div class="led checking" id="apiLed"></div>
     <span class="led-label" id="apiLabel">verifica...</span>
+  </div>
+  <div class="user-badge" id="userBadge" style="display:none">
+    <span class="user-email" id="userEmail"></span>
+    <button class="user-logout" onclick="authLogout()">Esci</button>
   </div>
 </header>
 
@@ -1119,14 +1198,23 @@ const SUPA_URL='https://rbjaaeyjeeqfpbzyavag.supabase.co';
 const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
 const TCG_URL='https://api.pokemontcg.io/v2/cards';
 const TCG_KEY='ca385a14-d149-4a9f-a275-3bda5b7b1555';
-const HDR={'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Prefer':'return=representation'};
+
+// HDR dinamico: usa JWT utente autenticato quando disponibile (RLS enforcement)
+// Fallback all'anon key per retrocompatibilità durante sviluppo
+function getHDR(){
+  const token=window._rbSession?.access_token||SUPA_KEY;
+  return{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+token,'Prefer':'return=representation'};
+}
+// Compatibilità con codice esistente che usa HDR direttamente
+Object.defineProperty(window,'HDR',{get:getHDR,configurable:true});
+
+// Helper: restituisce l'UUID dell'utente autenticato (null se anon)
+function getCurrentUserId(){return window._rbSession?.user?.id||null;}
+
 // Fattori ufficiali Cardmarket (base NM=100%)
-// MINT +15% | NM 100% | EX 85% | GD 70% | LP 60% | PL 40% | PO 20% | INK/ALT non quotato
 const COND_FACTOR={MINT:1.15,NM:1.0,EX:0.85,GD:0.70,LP:0.60,PL:0.40,PO:0.20,'INK/ALT':0};
 const COND_LABEL={MINT:'+15%',NM:'100%',EX:'85%',GD:'70%',LP:'60%',PL:'40%',PO:'20%','INK/ALT':'n.q.'};
-// Prima edizione: moltiplicatore aggiuntivo sul prezzo
 const FIRST_ED_FACTOR=1.8;
-// cache defined in search engine below
 
 let quickCard=null, selCard=null;
 let activePrev=null; // preventivo attivo
@@ -1134,7 +1222,7 @@ let prevCard=null;   // carta selezionata nel preventivo
 let preventivi=[];   // lista preventivi in memoria
 
 async function supa(method,path,body){
-  const r=await fetch(SUPA_URL+'/rest/v1/'+path,{method,headers:HDR,body:body?JSON.stringify(body):undefined});
+  const r=await fetch(SUPA_URL+'/rest/v1/'+path,{method,headers:getHDR(),body:body?JSON.stringify(body):undefined});
   if(!r.ok){const e=await r.text();throw new Error(e)}
   const t=await r.text();
   return t?JSON.parse(t):null;
@@ -1257,7 +1345,7 @@ async function _fetchRaw(name,attempt=1){
   const start=Date.now();
   try{
     const proxyUrl=`${SUPA_URL}/functions/v1/hyper-endpoint?name=${encodeURIComponent(name)}`;
-    const r=await fetch(proxyUrl,{headers:{'Authorization':'Bearer '+SUPA_KEY}});
+    const r=await fetch(proxyUrl,{headers:{'Authorization':'Bearer '+(window._rbSession?.access_token||SUPA_KEY)}});
     if((r.status===500||r.status===503)&&attempt===1){
       setLed('yellow','avvio server...');
       await new Promise(res=>setTimeout(res,3000));
@@ -1390,7 +1478,7 @@ async function addQuickCard(){
       first_edition:first1st,qty:parseInt(document.getElementById('qQty').value)||1,
       buy_price:parseFloat(document.getElementById('qBuy').value)||0,
       sell_price:parseFloat(document.getElementById('qSell').value)||0,
-      cm_avg30:p?p.price:0,notes:document.getElementById('qNotes').value,is_manual:false
+      cm_avg30:p?p.price:0,notes:document.getElementById('qNotes').value,is_manual:false,user_id:getCurrentUserId()
     });
     document.getElementById('st').className='status ok';
     document.getElementById('st').textContent='✓ "'+quickCard.name+'"'+(first1st?' (1ª ed.)':'')+' aggiunta!';
@@ -1498,7 +1586,7 @@ async function addManualCard(){
       language:document.getElementById('mlang').value,variant:document.getElementById('mvar').value,
       first_edition:document.getElementById('m1st').checked,qty:parseInt(document.getElementById('mqty').value)||1,
       buy_price:parseFloat(document.getElementById('mbuy').value)||0,sell_price:parseFloat(document.getElementById('msell').value)||0,
-      cm_avg30:parseFloat(document.getElementById('mcm').value)||0,notes:document.getElementById('mnotes').value,is_manual:true
+      cm_avg30:parseFloat(document.getElementById('mcm').value)||0,notes:document.getElementById('mnotes').value,is_manual:true,user_id:getCurrentUserId()
     });
     document.getElementById('st').className='status ok';document.getElementById('st').textContent='✓ "'+name+'" aggiunta manualmente!';
     cancelManual();document.getElementById('q').value='';
@@ -1544,7 +1632,8 @@ async function loadCollection(){
   const fc=document.getElementById('filterCond')?.value||'';
   const fl=document.getElementById('filterLang')?.value||'';
   const fs=document.getElementById('filterSet')?.value||'';
-  let q='cards?order=created_at.desc&limit=500';
+  const uid=getCurrentUserId();
+  let q='cards?order=created_at.desc&limit=500'+(uid?'&user_id=eq.'+uid:'');
   if(fc)q+='&condition=eq.'+encodeURIComponent(fc);
   if(fl)q+='&language=eq.'+encodeURIComponent(fl);
   if(fs)q+='&set_name=eq.'+encodeURIComponent(fs);
@@ -1609,11 +1698,12 @@ async function exportCSV(){
 // ── PREVENTIVI SU SUPABASE ──
 async function savePrev(p){
   try{
-    const upsertHdr={...HDR,'Prefer':'resolution=merge-duplicates,return=representation'};
+    const upsertHdr={...getHDR(),'Prefer':'resolution=merge-duplicates,return=representation'};
+    const uid=getCurrentUserId();
     await fetch(SUPA_URL+'/rest/v1/preventivi',{
       method:'POST',
       headers:upsertHdr,
-      body:JSON.stringify({id:p.id,name:p.name,created:p.created,items:p.items,provenienza:p.provenienza||null})
+      body:JSON.stringify({id:p.id,name:p.name,created:p.created,items:p.items,provenienza:p.provenienza||null,...(uid?{user_id:uid}:{})})
     });
   }catch(e){
     localStorage.setItem('pkm_preventivi',JSON.stringify(preventivi));
@@ -1626,7 +1716,8 @@ async function deletePrevFromDB(id){
 }
 async function loadPrev(){
   try{
-    const data=await supa('GET','preventivi?order=created.desc&limit=200');
+    const uid=getCurrentUserId();
+    const data=await supa('GET','preventivi?order=created.desc&limit=200'+(uid?'&user_id=eq.'+uid:''));
     preventivi=data.map(p=>({
       id:p.id,
       name:p.name,
@@ -2617,7 +2708,7 @@ async function verifyPrice(idx){
       // Fallback Edge Function silenzioso
       try{
         const res=await fetch(SUPA_URL+'/functions/v1/smooth-endpoint',{
-          method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPA_KEY},
+          method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(window._rbSession?.access_token||SUPA_KEY)},
           body:JSON.stringify({url:cmUrl,card_name:c.name,condition:c.condition})
         });
         if(res.ok){
@@ -2689,7 +2780,7 @@ async function autoVerifyPriceAdd(prefix){
     const t0 = Date.now();
     const res = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {
       method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPA_KEY},
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(window._rbSession?.access_token||SUPA_KEY)},
       body: JSON.stringify({url: cmUrl, card_name: card.name, condition: cond})
     });
     const elapsed = Date.now()-t0;
@@ -2769,7 +2860,7 @@ async function verifyPriceAdd(prefix){
   try {
     const res = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {
       method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPA_KEY},
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(window._rbSession?.access_token||SUPA_KEY)},
       body: JSON.stringify({url: cmUrl, card_name: name, condition: cond})
     });
 
@@ -2916,7 +3007,7 @@ async function importCSV(ev){
       const name=get(vals,'name');if(!name){skipped++;continue}
       batch.push({name,set_name:get(vals,'set_name'),condition:get(vals,'condition')||'NM',language:get(vals,'language')||'ITA',variant:get(vals,'variant')||'Normal',first_edition:get(vals,'first_edition')==='true',qty:parseInt(get(vals,'qty'))||1,buy_price:parseFloat(get(vals,'buy_price'))||0,sell_price:parseFloat(get(vals,'sell_price'))||0,cm_avg30:parseFloat(get(vals,'cm_avg30'))||0,notes:get(vals,'notes'),is_manual:true});
     }
-    if(batch.length){try{await supa('POST','cards',batch);added+=batch.length}catch(e){skipped+=batch.length}}
+    if(batch.length){try{const uid=getCurrentUserId();if(uid)batch.forEach(b=>{b.user_id=uid;});await supa('POST','cards',batch);added+=batch.length}catch(e){skipped+=batch.length}}
     pf.style.width=Math.round(((i+BATCH)/lines.length)*100)+'%';
     ist.textContent='Importazione: '+added+' carte...';
     await new Promise(r=>setTimeout(r,60));
@@ -2949,7 +3040,7 @@ async function keepAlive(){
   try{
     await fetch(
       `${SUPA_URL}/functions/v1/hyper-endpoint?name=Pikachu`,
-      { headers:{'Authorization':'Bearer '+SUPA_KEY} }
+      { headers:{'Authorization':'Bearer '+(window._rbSession?.access_token||SUPA_KEY)} }
     );
   }catch(e){}
 }
@@ -2976,7 +3067,7 @@ async function checkApiStatus(){
     const t = setTimeout(() => ctrl.abort(), 6000);
     const r = await fetch(
       `${SUPA_URL}/functions/v1/hyper-endpoint?name=Pikachu`,
-      { headers: {'Authorization': 'Bearer '+SUPA_KEY}, signal: ctrl.signal }
+      { headers: {'Authorization': 'Bearer '+(window._rbSession?.access_token||SUPA_KEY)}, signal: ctrl.signal }
     );
     clearTimeout(t);
     const elapsed = Date.now() - start;
@@ -3004,12 +3095,17 @@ async function checkApiStatus(){
   apiCheckTimer = setTimeout(checkApiStatus, API_CHECK_INTERVAL);
 }
 
-// Avvia il monitor al caricamento della pagina
-document.addEventListener('DOMContentLoaded', () => {
+// Avvio controllato dall'auth — rbAuthInit() chiama appStart() dopo login
+function appStart(){
   const vb=document.getElementById('versionBadge');
   if(vb)vb.textContent='v'+APP_VERSION;
   setTimeout(checkApiStatus, 800);
   loadCollection();
+}
+document.addEventListener('DOMContentLoaded', () => {
+  // rbAuthInit è definito nel modulo Auth in fondo alla pagina
+  if(typeof rbAuthInit==='function') rbAuthInit();
+  else appStart(); // fallback se auth non carica
 });
 
 // Ri-controlla subito quando torna online
@@ -3208,7 +3304,7 @@ async function scCallAI(prompt){
   try {
     var r = await fetch(SUPA_URL + '/functions/v1/scan-cards', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPA_KEY },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window._rbSession?.access_token||SUPA_KEY) },
       body: JSON.stringify({
         image_base64: scState.imageBase64,
         media_type:   scState.imageMediaType,
@@ -5834,6 +5930,212 @@ async function anlRunAI(card,cond,is1st,buyMin,buyMax,scoreLevel,gradedVal,sm){
 
 </script>
 
+<!-- ═══════════════════════════════════════════════════════════
+     MODULO AUTH — Supabase Auth, session management, UI login
+     ═══════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+'use strict';
+
+// ── Inizializza Supabase client con auth ────────────────────────────
+var _supaClient = null;
+function getSupaClient(){
+  if(_supaClient) return _supaClient;
+  if(!window.supabase){
+    console.warn('supabase-js non caricato — auth disabilitato');
+    return null;
+  }
+  _supaClient = window.supabase.createClient(
+    'https://rbjaaeyjeeqfpbzyavag.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E'
+  );
+  return _supaClient;
+}
+
+// ── Helpers UI ──────────────────────────────────────────────────────
+function showOverlay(){ var o=document.getElementById('authOverlay'); if(o) o.classList.remove('hidden'); }
+function hideOverlay(){ var o=document.getElementById('authOverlay'); if(o) o.classList.add('hidden'); }
+function setAuthMsg(id, msg, type){
+  var el=document.getElementById(id);
+  if(!el) return;
+  el.textContent=msg;
+  el.className='auth-msg '+(type||'err');
+}
+function clearAuthMsg(id){ var el=document.getElementById(id); if(el){el.textContent='';el.className='auth-msg';} }
+function authBtnLoading(id, loading, label){
+  var btn=document.getElementById(id);
+  if(!btn) return;
+  btn.disabled=loading;
+  btn.textContent=loading?'Attendere...':label;
+}
+
+// ── Switch tab login/register/reset ─────────────────────────────────
+window.authSwitchTab = function(tab){
+  ['login','reg','reset'].forEach(function(t){
+    var pane=document.getElementById('authPane'+t.charAt(0).toUpperCase()+t.slice(1));
+    var btn =document.getElementById('authTab'+t.charAt(0).toUpperCase()+t.slice(1));
+    if(pane) pane.style.display = t===tab ? '' : 'none';
+    if(btn)  btn.classList.toggle('active', t===tab);
+  });
+};
+
+// ── Login ───────────────────────────────────────────────────────────
+window.authDoLogin = async function(){
+  var email=(document.getElementById('authLoginEmail')?.value||'').trim();
+  var pwd  = document.getElementById('authLoginPwd')?.value||'';
+  clearAuthMsg('authLoginMsg');
+  if(!email||!pwd){ setAuthMsg('authLoginMsg','Inserisci email e password'); return; }
+
+  var sb=getSupaClient(); if(!sb){ authFallbackStart(); return; }
+  authBtnLoading('authLoginBtn',true,'Accedi');
+  try{
+    var r=await sb.auth.signInWithPassword({email:email, password:pwd});
+    if(r.error) throw r.error;
+    // success → onAuthChange gestirà l'avvio app
+  }catch(e){
+    var msg=e.message||'Errore di accesso';
+    if(msg.includes('Invalid login')) msg='Email o password errata';
+    if(msg.includes('Email not confirmed')) msg='Conferma la tua email prima di accedere';
+    setAuthMsg('authLoginMsg', msg);
+  }finally{
+    authBtnLoading('authLoginBtn',false,'Accedi');
+  }
+};
+
+// ── Register ────────────────────────────────────────────────────────
+window.authDoRegister = async function(){
+  var email=(document.getElementById('authRegEmail')?.value||'').trim();
+  var pwd  = document.getElementById('authRegPwd')?.value||'';
+  var pwd2 = document.getElementById('authRegPwd2')?.value||'';
+  clearAuthMsg('authRegMsg');
+  if(!email||!pwd){ setAuthMsg('authRegMsg','Inserisci email e password'); return; }
+  if(pwd.length<8){ setAuthMsg('authRegMsg','Password minimo 8 caratteri'); return; }
+  if(pwd!==pwd2){ setAuthMsg('authRegMsg','Le password non coincidono'); return; }
+
+  var sb=getSupaClient(); if(!sb){ setAuthMsg('authRegMsg','Auth non disponibile'); return; }
+  authBtnLoading('authRegBtn',true,'Registrati');
+  try{
+    var r=await sb.auth.signUp({email:email, password:pwd});
+    if(r.error) throw r.error;
+    if(r.data?.user?.identities?.length===0){
+      setAuthMsg('authRegMsg','Questa email è già registrata. Usa Accedi.','err');
+    } else {
+      setAuthMsg('authRegMsg','✓ Account creato! Controlla la tua email per confermare.','ok');
+    }
+  }catch(e){
+    setAuthMsg('authRegMsg', e.message||'Errore registrazione');
+  }finally{
+    authBtnLoading('authRegBtn',false,'Crea account');
+  }
+};
+
+// ── Password Reset ──────────────────────────────────────────────────
+window.authDoReset = async function(){
+  var email=(document.getElementById('authResetEmail')?.value||'').trim();
+  clearAuthMsg('authResetMsg');
+  if(!email){ setAuthMsg('authResetMsg','Inserisci la tua email'); return; }
+
+  var sb=getSupaClient(); if(!sb){ setAuthMsg('authResetMsg','Auth non disponibile'); return; }
+  authBtnLoading('authResetBtn',true,'Invia link reset');
+  try{
+    var r=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
+    if(r.error) throw r.error;
+    setAuthMsg('authResetMsg','✓ Link inviato! Controlla la tua email.','ok');
+  }catch(e){
+    setAuthMsg('authResetMsg', e.message||'Errore invio email');
+  }finally{
+    authBtnLoading('authResetBtn',false,'Invia link reset');
+  }
+};
+
+// ── Logout ──────────────────────────────────────────────────────────
+window.authLogout = async function(){
+  var sb=getSupaClient();
+  if(sb) await sb.auth.signOut().catch(function(){});
+  window._rbSession=null;
+  location.reload();
+};
+
+// ── Aggiorna badge utente nell'header ───────────────────────────────
+function updateUserBadge(session){
+  var badge=document.getElementById('userBadge');
+  var emailEl=document.getElementById('userEmail');
+  if(!badge) return;
+  if(session){
+    badge.style.display='flex';
+    if(emailEl) emailEl.textContent=session.user?.email||'Utente';
+  } else {
+    badge.style.display='none';
+    if(emailEl) emailEl.textContent='';
+  }
+}
+
+// ── Avvio app dopo auth confermata ───────────────────────────────────
+function authOnSuccess(session){
+  window._rbSession=session;
+  updateUserBadge(session);
+  hideOverlay();
+  // Aggiorna versione nell'overlay (visibile prima del login)
+  var av=document.getElementById('authVersion');
+  if(av&&window.APP_VERSION) av.textContent=window.APP_VERSION;
+  // Avvia l'app
+  if(typeof appStart==='function') appStart();
+}
+
+// ── Fallback: se supabase-js non carica (CDN down, offline) ─────────
+function authFallbackStart(){
+  console.warn('Auth fallback: avvio senza sessione autenticata');
+  window._rbSession=null;
+  hideOverlay();
+  if(typeof appStart==='function') appStart();
+}
+
+// ── Init principale — chiamato da DOMContentLoaded ───────────────────
+window.rbAuthInit = async function(){
+  // Mostra versione nell'overlay
+  var av=document.getElementById('authVersion');
+  if(av&&window.APP_VERSION) av.textContent=window.APP_VERSION;
+
+  var sb=getSupaClient();
+  if(!sb){ authFallbackStart(); return; }
+
+  // Listener su cambi di sessione (login, logout, token refresh)
+  sb.auth.onAuthStateChange(function(event, session){
+    if(event==='SIGNED_IN'||event==='TOKEN_REFRESHED'||event==='INITIAL_SESSION'){
+      if(session){
+        window._rbSession=session;
+        updateUserBadge(session);
+        // Se overlay è visibile (primo login), avvia app
+        var overlay=document.getElementById('authOverlay');
+        if(overlay&&!overlay.classList.contains('hidden')){
+          authOnSuccess(session);
+        } else {
+          // Token refresh silenzioso — aggiorna solo la sessione
+          window._rbSession=session;
+        }
+      }
+    } else if(event==='SIGNED_OUT'){
+      window._rbSession=null;
+      updateUserBadge(null);
+      showOverlay();
+    }
+  });
+
+  // Controlla sessione esistente (utente già loggato, cookie valido)
+  var r=await sb.auth.getSession().catch(function(){ return {data:{session:null}}; });
+  var session=r?.data?.session||null;
+
+  if(session){
+    authOnSuccess(session);
+  } else {
+    // Nessuna sessione → mostra login overlay
+    showOverlay();
+  }
+};
+
+})();
+</script>
+
 <script src="config.js" defer onerror="console.warn('config.js non trovato - uso configurazione inline')"></script>
 </body>
-</html><!-- v20260418-r4 -->
+</html><!-- v20260419-auth -->

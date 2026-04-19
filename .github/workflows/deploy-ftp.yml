@@ -1,4 +1,4 @@
-name: Deploy to FTP
+name: Build & Deploy to FTP
 
 on:
   push:
@@ -6,13 +6,19 @@ on:
     paths:
       - 'pokemon-db.html'
       - 'rareblock-cardmarket.user.js'
-      - 'cm-price.ts'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Inietta le chiavi API dai GitHub Secrets nel file HTML
+      # Le chiavi NON sono mai nel repo — solo nei Secrets di GitHub
+      - name: Inject API keys
+        run: |
+          sed -i "s|ANTHROPIC_API_KEY_PLACEHOLDER|${{ secrets.ANTHROPIC_KEY }}|g" pokemon-db.html
+          sed -i "s|OPENROUTER_API_KEY_PLACEHOLDER|${{ secrets.OPENROUTER_KEY }}|g" pokemon-db.html
 
       - name: Deploy to FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
@@ -29,4 +35,4 @@ jobs:
             .github/**
             README.md
             .env.example
-            cm-price.ts
+            supabase/**
