@@ -844,7 +844,7 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
     <button class="mode-btn active">Collector</button>
   </div>
   <nav class="nav">
-    <button class="nav-btn active" onclick="if(typeof showTab==='function'){showTab('col')}else{document.getElementById('tab-col').style.display='block';document.getElementById('tab-prev').style.display='none';this.classList.add('active');}">Collezione</button>
+    <button class="nav-btn active" onclick="showTab('col')">Collezione</button>
     <button class="nav-btn" onclick="showTab('prev')">Preventivi</button>
     <button class="nav-btn" onclick="showTab('imp')">Import CSV</button>
     <button class="nav-btn" onclick="showTab('ms')">Masterset</button>
@@ -1271,19 +1271,28 @@ function positionZoom(e, el, followCursor){
 }
 
 function showTab(t){
+  // Nav buttons active state
   document.querySelectorAll('.nav-btn').forEach(function(b){
     var match=b.getAttribute('onclick')||'';
-    b.classList.toggle('active',match.includes("'"+t+"'"));
+    b.classList.toggle('active', match.indexOf("'"+t+"'")>-1);
   });
+
+  // Tab visibility — usa display diretto per massima affidabilità
   document.querySelectorAll('.tab').forEach(function(p){
-    p.classList.toggle('active',p.id==='tab-'+t);
+    if(p.id==='tab-'+t){
+      p.style.display = (p.id==='tab-anl') ? 'block' : 'flex';
+      p.classList.add('active');
+    } else {
+      p.style.display = 'none';
+      p.classList.remove('active');
+    }
   });
-  // Ogni chiamata in try/catch per evitare che un errore blocchi la navigazione
-  try{ if(t==='col') loadCollection(); }catch(e){ console.error('loadCollection:',e); }
-  try{ if(t==='prev') renderPrevList(); }catch(e){ console.error('renderPrevList:',e); }
-  try{ if(t==='ms') msInit(); }catch(e){ console.error('msInit:',e); }
-  try{ if(t==='auth'&&window.auInitTab) auInitTab(); }catch(e){}
-  try{ if(t==='anl'&&window.anlInitTab) window.anlInitTab(); }catch(e){}
+
+  try{ if(t==='col')  loadCollection();  }catch(e){ console.error('loadCollection:',e); }
+  try{ if(t==='prev') renderPrevList();  }catch(e){ console.error('renderPrevList:',e); }
+  try{ if(t==='ms')   msInit();          }catch(e){ console.error('msInit:',e); }
+  try{ if(t==='auth'&&window.auInitTab)  auInitTab();         }catch(e){}
+  try{ if(t==='anl'&&window.anlInitTab)  window.anlInitTab(); }catch(e){}
 }
 
 function parseQuery(q){
@@ -6167,4 +6176,4 @@ if(document.readyState==='loading'){
 
 <script src="config.js" defer onerror="console.warn('config.js non trovato')"></script>
 </body>
-</html><!-- v20260419-diag2 -->
+</html><!-- v20260419-stable -->
