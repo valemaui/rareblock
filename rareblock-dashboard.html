@@ -31,16 +31,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 .logo-gold{color:var(--gold)}
 .mode-switch{display:flex;align-items:center;gap:2px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:2px}
 .mode-btn{font-size:11px;font-family:var(--mono);padding:3px 10px;border-radius:20px;border:none;background:none;cursor:pointer;color:var(--text-muted);transition:all .15s;white-space:nowrap}
-.mode-btn.active{background:var(--gold);color:#0d1117;font-weight:600}
+.mode-btn.active{background:var(--surface3);color:var(--text);font-weight:500}
 .mode-btn:not(.active):hover{color:var(--text)}
 .nav{display:flex;gap:2px;flex:1}
 .nav-btn{padding:5px 12px;font-size:13px;border:none;background:none;color:var(--text-muted);cursor:pointer;font-family:var(--font);border-radius:var(--r);transition:color .12s,background .12s;white-space:nowrap}
 .nav-btn:hover{color:var(--text);background:var(--surface2)}
-.nav-btn.active{color:var(--gold);background:rgba(201,168,76,.1)}
+.nav-btn.active{color:var(--accent);background:rgba(88,166,255,.1)}
 .nav-btn.admin-only{border-left:1px solid var(--border);margin-left:4px;padding-left:14px}
+.nav-btn.admin-only.active{color:var(--danger);background:rgba(248,81,73,.08)}
 .user-badge{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .user-email{font-size:11px;font-family:var(--mono);color:var(--text-muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.user-role{font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:10px;font-weight:600;background:rgba(201,168,76,.15);color:var(--gold);border:1px solid rgba(201,168,76,.3)}
+.user-role{font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:10px;font-weight:600;background:var(--surface2);color:var(--text-muted);border:1px solid var(--border)}
 .user-role.admin{background:rgba(248,81,73,.12);color:var(--danger);border-color:rgba(248,81,73,.3)}
 .user-logout{font-size:11px;font-family:var(--mono);color:var(--text-muted);background:none;border:1px solid var(--border);border-radius:var(--r);padding:3px 8px;cursor:pointer;transition:all .15s}
 .user-logout:hover{color:var(--danger);border-color:var(--danger)}
@@ -52,8 +53,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 /* COMMON */
 .btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;font-size:13px;font-family:var(--font);border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);cursor:pointer;transition:all .12s;white-space:nowrap}
 .btn:hover{border-color:var(--border-focus);background:var(--surface3)}
-.btn.primary{background:var(--gold);border-color:var(--gold);color:#0d1117;font-weight:600}
-.btn.primary:hover{background:#b8973e;border-color:#b8973e}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
+.btn.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
 .btn.danger{background:rgba(248,81,73,.1);border-color:var(--danger);color:var(--danger)}
 .btn.danger:hover{background:rgba(248,81,73,.2)}
 .btn.sm{padding:4px 10px;font-size:12px}
@@ -251,7 +252,7 @@ textarea{resize:vertical;min-height:60px}
     <button class="nav-btn admin-only" id="adminNavBtn" style="display:none" onclick="showTab('admin')">⚙️ Admin</button>
   </nav>
   <div class="user-badge" id="userBadge" style="display:none">
-    <span class="user-role" id="userRoleBadge">investor</span>
+    <span class="user-role" id="userRoleBadge" onclick="refreshRole()" title="Clicca per ricaricare il ruolo dal database" style="cursor:pointer">investor</span>
     <span class="user-email" id="userEmail"></span>
     <button class="user-logout" onclick="doLogout()">Esci</button>
   </div>
@@ -787,6 +788,9 @@ textarea{resize:vertical;min-height:60px}
 const SUPA_URL = 'https://rbjaaeyjeeqfpbzyavag.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
 
+// ⚠️ CHIAVE CONDIVISA col Collector (pokemon-db.html). NON cambiare.
+const RB_SESSION_KEY = 'rb_auth_session';
+
 // Admin emails — aggiorna con il tuo email
 const ADMIN_EMAILS = ['admin@rareblock.eu','valemaui@gmail.com'];
 
@@ -797,6 +801,16 @@ var _isAdmin = false;
 function getHDR(){
   var token = (_session && _session.access_token) || SUPA_KEY;
   return { 'Content-Type':'application/json', 'apikey':SUPA_KEY, 'Authorization':'Bearer '+token, 'Prefer':'return=representation' };
+}
+
+function saveSessionToStorage(s){
+  try { localStorage.setItem(RB_SESSION_KEY, JSON.stringify(s)); } catch(e){}
+}
+function loadSessionFromStorage(){
+  try { var raw = localStorage.getItem(RB_SESSION_KEY); return raw ? JSON.parse(raw) : null; } catch(e){ return null; }
+}
+function clearSessionFromStorage(){
+  try { localStorage.removeItem(RB_SESSION_KEY); } catch(e){}
 }
 
 async function supa(method, path, body){
@@ -862,7 +876,13 @@ async function doLogin(){
   document.getElementById('authSt').textContent='Accesso in corso…';
   try {
     var data = await supaAuth('token?grant_type=password', { email, password:pass });
-    await onSession(data);
+    var session = {
+      access_token:  data.access_token,
+      refresh_token: data.refresh_token,
+      expires_at:    Math.floor(Date.now()/1000) + (data.expires_in||3600),
+      user:          data.user
+    };
+    await onSession({ session:session, user:data.user });
   } catch(e) {
     document.getElementById('authSt').textContent = e.message;
   }
@@ -876,10 +896,16 @@ async function doRegister(){
   document.getElementById('authStR').textContent='Registrazione…';
   try {
     var data = await supaAuth('signup', { email, password:pass, data:{ full_name:name } });
-    if(data.user && !data.session){
+    if(data.user && !data.session && !data.access_token){
       document.getElementById('authStR').textContent='✓ Controlla la tua email per confermare l\'account';
-    } else if(data.session) {
-      await onSession(data);
+    } else if(data.access_token || data.session) {
+      var session = data.session || {
+        access_token:  data.access_token,
+        refresh_token: data.refresh_token,
+        expires_at:    Math.floor(Date.now()/1000) + (data.expires_in||3600),
+        user:          data.user
+      };
+      await onSession({ session:session, user:data.user });
     }
   } catch(e) {
     document.getElementById('authStR').textContent = e.message;
@@ -888,43 +914,72 @@ async function doRegister(){
 
 async function onSession(data){
   _session = data.session || data;
-  var user = data.user || (data.session && data.session.user);
+  // Se data non ha struttura esatta (es. viene dalla storage), assicuriamoci che abbia .user
+  if(!_session.user && data.user) _session.user = data.user;
+  var user = _session.user || data.user;
   if(!user) throw new Error('Sessione non valida');
   _isAdmin = ADMIN_EMAILS.indexOf(user.email) > -1;
 
-  // Load/create profile
+  // Salva nella chiave condivisa col Collector
+  saveSessionToStorage(_session);
+  window._rbSession = _session;
+
+  // Load/create profile — il ruolo nel DB ha PRIORITÀ sull'email list
   try {
     var profiles = await supa('GET','profiles?id=eq.'+user.id);
     _profile = profiles && profiles[0];
     if(!_profile){
-      // Try inserting with both column names (handle nome vs full_name)
+      // Nuovo profilo: se l'email è nell'allowlist admin, crea come admin
+      var initialRole = _isAdmin ? 'admin' : 'investor';
       try {
-        await supa('POST','profiles',{ id:user.id, nome:user.user_metadata&&user.user_metadata.full_name||'', full_name:user.user_metadata&&user.user_metadata.full_name||'', role:_isAdmin?'admin':'investor' });
+        await supa('POST','profiles',{ id:user.id, nome:user.user_metadata&&user.user_metadata.full_name||'', full_name:user.user_metadata&&user.user_metadata.full_name||'', role:initialRole });
       } catch(e2) {
-        // Fallback: minimal insert
-        try { await supa('POST','profiles',{ id:user.id, role:_isAdmin?'admin':'investor' }); } catch(e3){}
+        try { await supa('POST','profiles',{ id:user.id, role:initialRole }); } catch(e3){}
       }
       var profiles2 = await supa('GET','profiles?id=eq.'+user.id);
       _profile = profiles2 && profiles2[0];
     }
-    if(_isAdmin || (_profile && _profile.role==='admin')) _isAdmin = true;
-  } catch(e){ console.warn('profiles:',e.message); /* profiles table may differ */ }
+    // Il ruolo nel DB è la verità assoluta
+    if(_profile && _profile.role==='admin') _isAdmin = true;
+    else if(_profile && _profile.role && _profile.role!=='admin') _isAdmin = false;
+  } catch(e){ console.warn('profiles:',e.message); }
 
   // Show UI
   document.getElementById('authOverlay').style.display = 'none';
   document.getElementById('userBadge').style.display = 'flex';
   document.getElementById('userEmail').textContent = user.email;
   var roleEl = document.getElementById('userRoleBadge');
-  roleEl.textContent = _isAdmin ? 'admin' : 'investor';
-  if(_isAdmin) roleEl.classList.add('admin');
-  if(_isAdmin) document.getElementById('adminNavBtn').style.display = '';
+  roleEl.textContent = _isAdmin ? 'ADMIN' : 'investor';
+  roleEl.classList.toggle('admin', _isAdmin);
+  document.getElementById('adminNavBtn').style.display = _isAdmin ? '' : 'none';
 
   // Initial loads
   await mktLoad();
 }
 
+// Ricarica ruolo dal DB (utile se l'admin ti ha appena promosso)
+async function refreshRole(){
+  if(!_session || !_session.user) return;
+  try {
+    var profiles = await supa('GET','profiles?id=eq.'+_session.user.id);
+    var p = profiles && profiles[0];
+    if(p){
+      var wasAdmin = _isAdmin;
+      _isAdmin = p.role==='admin' || ADMIN_EMAILS.indexOf(_session.user.email)>-1;
+      var roleEl = document.getElementById('userRoleBadge');
+      roleEl.textContent = _isAdmin ? 'ADMIN' : 'investor';
+      roleEl.classList.toggle('admin', _isAdmin);
+      document.getElementById('adminNavBtn').style.display = _isAdmin ? '' : 'none';
+      if(_isAdmin && !wasAdmin) alert('✅ Ora sei admin! Il tab ⚙️ Admin è visibile.');
+      else if(!_isAdmin && wasAdmin) alert('Il tuo ruolo è stato declassato a investor.');
+    }
+  } catch(e){ console.warn(e); }
+}
+
 function doLogout(){
   _session = null; _profile = null; _isAdmin = false;
+  clearSessionFromStorage();
+  window._rbSession = null;
   document.getElementById('authOverlay').style.display = 'flex';
   document.getElementById('userBadge').style.display = 'none';
   document.getElementById('adminNavBtn').style.display = 'none';
@@ -1805,15 +1860,22 @@ function setSt(elId, msg, type){
 //  INIT
 // ═══════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', function(){
-  // Check existing session via Supabase local storage (simplified)
-  try {
-    var raw = Object.keys(localStorage).filter(function(k){ return k.indexOf('supabase')>-1||k.indexOf('sb-')>-1; });
-    if(raw.length){
-      var stored = null;
-      raw.forEach(function(k){ try{ var v=JSON.parse(localStorage.getItem(k)); if(v&&v.access_token) stored=v; if(v&&v.session) stored=v.session; }catch(e){} });
-      if(stored&&stored.access_token){ onSession({session:stored,user:stored.user}).catch(function(){}); return; }
+  // Leggi sessione dalla chiave condivisa col Collector
+  var stored = loadSessionFromStorage();
+  if(stored && stored.access_token && stored.user){
+    // Controlla scadenza
+    var now = Math.floor(Date.now()/1000);
+    if(!stored.expires_at || stored.expires_at > now){
+      onSession({ session:stored, user:stored.user }).catch(function(err){
+        console.warn('Session restore failed:', err);
+        clearSessionFromStorage();
+      });
+      return;
+    } else {
+      // Sessione scaduta: pulisci
+      clearSessionFromStorage();
     }
-  } catch(e){}
+  }
 });
 </script>
 </body>
