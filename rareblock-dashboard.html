@@ -199,43 +199,6 @@ textarea{resize:vertical;min-height:60px}
 </head>
 <body>
 
-<!-- AUTH OVERLAY -->
-<div id="authOverlay">
-  <div class="auth-box">
-    <div class="auth-logo"><span style="color:var(--text)">Rare</span><span style="color:var(--gold)">Block</span></div>
-    <div class="auth-sub">INVESTOR AREA</div>
-    <div id="authPane">
-      <div class="auth-field"><label>Email</label><input type="email" id="aEmail" placeholder="investor@email.com"/></div>
-      <div class="auth-field"><label>Password</label><input type="password" id="aPass" onkeydown="if(event.key==='Enter')doLogin()"/></div>
-      <button class="btn primary" onclick="doLogin()" style="width:100%;justify-content:center;margin-top:4px">Accedi</button>
-      <div id="authSt" style="margin-top:10px;font-size:12px;min-height:18px;text-align:center;color:var(--text-muted)"></div>
-      <button class="auth-link" onclick="showAuthPane('reg')">Non hai un account? Registrati</button>
-      <button class="auth-link" onclick="showAuthPane('reset')" style="color:var(--text-subtle);font-size:11px">Password dimenticata?</button>
-    </div>
-    <div id="authPaneReg" style="display:none">
-      <div class="auth-field"><label>Nome completo</label><input type="text" id="aName"/></div>
-      <div class="auth-field"><label>Email</label><input type="email" id="aEmailR"/></div>
-      <div class="auth-field"><label>Password</label><input type="password" id="aPassR"/></div>
-      <button class="btn primary" onclick="doRegister()" style="width:100%;justify-content:center;margin-top:4px">Registrati</button>
-      <div id="authStR" style="margin-top:10px;font-size:12px;min-height:18px;text-align:center;color:var(--text-muted)"></div>
-      <button class="auth-link" onclick="showAuthPane('login')">Hai già un account? Accedi</button>
-    </div>
-    <div id="authPaneReset" style="display:none">
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.6;text-align:center">
-        Il recupero via email non è disponibile.<br>
-        Per resettare la password contatta l'admin oppure esegui nel <strong>Supabase SQL Editor</strong>:
-      </div>
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px;font-family:var(--mono);font-size:11px;color:var(--text-muted);word-break:break-all;line-height:1.6">
-        UPDATE auth.users<br>
-        SET encrypted_password =<br>
-        &nbsp;&nbsp;crypt('NuovaPassword!', gen_salt('bf'))<br>
-        WHERE email = 'tua@email.com';
-      </div>
-      <button class="auth-link" onclick="showAuthPane('login')" style="margin-top:14px">← Torna al login</button>
-    </div>
-  </div>
-</div>
-
 <!-- HEADER -->
 <header class="header">
   <a href="pokemon-db.html" class="logo"><span style="color:var(--text)">Rare</span><span class="logo-gold">Block</span></a>
@@ -861,56 +824,9 @@ function payBadge(s){
 
 
 // ═══════════════════════════════════════════════════════════
-//  AUTH
+//  AUTH — Login centralizzato nel Collector (pokemon-db.html)
+//  Qui gestiamo solo restore sessione e logout
 // ═══════════════════════════════════════════════════════════
-function showAuthPane(p){
-  document.getElementById('authPane').style.display      = p==='login'?'':'none';
-  document.getElementById('authPaneReg').style.display   = p==='reg'?'':'none';
-  document.getElementById('authPaneReset').style.display = p==='reset'?'':'none';
-}
-
-async function doLogin(){
-  var email = document.getElementById('aEmail').value.trim();
-  var pass  = document.getElementById('aPass').value;
-  if(!email||!pass){ document.getElementById('authSt').textContent='Inserisci email e password'; return; }
-  document.getElementById('authSt').textContent='Accesso in corso…';
-  try {
-    var data = await supaAuth('token?grant_type=password', { email, password:pass });
-    var session = {
-      access_token:  data.access_token,
-      refresh_token: data.refresh_token,
-      expires_at:    Math.floor(Date.now()/1000) + (data.expires_in||3600),
-      user:          data.user
-    };
-    await onSession({ session:session, user:data.user });
-  } catch(e) {
-    document.getElementById('authSt').textContent = e.message;
-  }
-}
-
-async function doRegister(){
-  var name  = document.getElementById('aName').value.trim();
-  var email = document.getElementById('aEmailR').value.trim();
-  var pass  = document.getElementById('aPassR').value;
-  if(!email||!pass){ document.getElementById('authStR').textContent='Inserisci email e password'; return; }
-  document.getElementById('authStR').textContent='Registrazione…';
-  try {
-    var data = await supaAuth('signup', { email, password:pass, data:{ full_name:name } });
-    if(data.user && !data.session && !data.access_token){
-      document.getElementById('authStR').textContent='✓ Controlla la tua email per confermare l\'account';
-    } else if(data.access_token || data.session) {
-      var session = data.session || {
-        access_token:  data.access_token,
-        refresh_token: data.refresh_token,
-        expires_at:    Math.floor(Date.now()/1000) + (data.expires_in||3600),
-        user:          data.user
-      };
-      await onSession({ session:session, user:data.user });
-    }
-  } catch(e) {
-    document.getElementById('authStR').textContent = e.message;
-  }
-}
 
 async function onSession(data){
   _session = data.session || data;
@@ -980,11 +896,8 @@ function doLogout(){
   _session = null; _profile = null; _isAdmin = false;
   clearSessionFromStorage();
   window._rbSession = null;
-  document.getElementById('authOverlay').style.display = 'flex';
-  document.getElementById('userBadge').style.display = 'none';
-  document.getElementById('adminNavBtn').style.display = 'none';
-  document.getElementById('aEmail').value='';
-  document.getElementById('aPass').value='';
+  // Redirect al login unico
+  location.href = 'pokemon-db.html';
 }
 
 
@@ -1869,6 +1782,7 @@ window.addEventListener('DOMContentLoaded', function(){
       onSession({ session:stored, user:stored.user }).catch(function(err){
         console.warn('Session restore failed:', err);
         clearSessionFromStorage();
+        redirectToLogin();
       });
       return;
     } else {
@@ -1876,7 +1790,15 @@ window.addEventListener('DOMContentLoaded', function(){
       clearSessionFromStorage();
     }
   }
+  // No session — redirect to Collector login (punto d'ingresso unico)
+  redirectToLogin();
 });
+
+function redirectToLogin(){
+  // Redirect con parametro return per tornare qui dopo login
+  var returnUrl = encodeURIComponent(location.pathname + location.search + location.hash);
+  location.href = 'pokemon-db.html?return=' + returnUrl;
+}
 </script>
 </body>
 </html>

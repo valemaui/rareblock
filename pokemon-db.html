@@ -6422,6 +6422,12 @@ window.authDoLogin = async function(){
     rbSaveSession(session);
     authDiag('Accesso riuscito!',true);
     authHide();
+    // Se c'è un return URL, redirect lì invece di avviare il Collector
+    var params = new URLSearchParams(location.search);
+    var ret = params.get('return');
+    if(ret){
+      try{ var decoded = decodeURIComponent(ret); if(decoded.indexOf('/')===0 || decoded.startsWith('rareblock-')) { location.href = decoded; return; } }catch(e){}
+    }
     if(typeof appStart==='function') appStart();
   }catch(e){
     var msg=e.message||'Errore sconosciuto';
@@ -6516,6 +6522,10 @@ window.rbAuthInit = function(){
       rbSaveSession(session);
       authDiag('sessione attiva',true);
       authHide();
+      // Return URL redirect
+      var _p1 = new URLSearchParams(location.search);
+      var _r1 = _p1.get('return');
+      if(_r1){ try{ var _d1=decodeURIComponent(_r1); if(_d1.indexOf('/')===0 || _d1.startsWith('rareblock-')){ location.href=_d1; return; } }catch(e){} }
       if(typeof appStart==='function') appStart();
       return;
     } else if(session.refresh_token){
@@ -6532,6 +6542,9 @@ window.rbAuthInit = function(){
           rbSaveSession(newSession);
           authDiag('sessione rinnovata',true);
           authHide();
+          var _p2 = new URLSearchParams(location.search);
+          var _r2 = _p2.get('return');
+          if(_r2){ try{ var _d2=decodeURIComponent(_r2); if(_d2.indexOf('/')===0 || _d2.startsWith('rareblock-')){ location.href=_d2; return; } }catch(e){} }
           if(typeof appStart==='function') appStart();
         })
         .catch(function(){
