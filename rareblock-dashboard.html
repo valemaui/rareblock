@@ -830,38 +830,37 @@ function payBadge(s){
 
 async function onSession(data){
   _session = data.session || data;
-  // Se data non ha struttura esatta (es. viene dalla storage), assicuriamoci che abbia .user
   if(!_session.user && data.user) _session.user = data.user;
   var user = _session.user || data.user;
-  if(!user) throw new Error('Sessione non valida');
+  if(!user || !_session.access_token) throw new Error('Sessione non valida');
   _isAdmin = ADMIN_EMAILS.indexOf(user.email) > -1;
 
   // Salva nella chiave condivisa col Collector
   saveSessionToStorage(_session);
   window._rbSession = _session;
 
-  // Load/create profile — il ruolo nel DB ha PRIORITÀ sull'email list
+  // Load/create profile — NON fa throw: se fallisce usiamo solo ADMIN_EMAILS
   try {
     var profiles = await supa('GET','profiles?id=eq.'+user.id);
     _profile = profiles && profiles[0];
     if(!_profile){
-      // Nuovo profilo: se l'email è nell'allowlist admin, crea come admin
       var initialRole = _isAdmin ? 'admin' : 'investor';
       try {
         await supa('POST','profiles',{ id:user.id, nome:user.user_metadata&&user.user_metadata.full_name||'', full_name:user.user_metadata&&user.user_metadata.full_name||'', role:initialRole });
       } catch(e2) {
         try { await supa('POST','profiles',{ id:user.id, role:initialRole }); } catch(e3){}
       }
-      var profiles2 = await supa('GET','profiles?id=eq.'+user.id);
-      _profile = profiles2 && profiles2[0];
+      try {
+        var profiles2 = await supa('GET','profiles?id=eq.'+user.id);
+        _profile = profiles2 && profiles2[0];
+      } catch(e4){}
     }
-    // Il ruolo nel DB è la verità assoluta
     if(_profile && _profile.role==='admin') _isAdmin = true;
     else if(_profile && _profile.role && _profile.role!=='admin') _isAdmin = false;
-  } catch(e){ console.warn('profiles:',e.message); }
+  } catch(e){ console.warn('profile load non-fatal:', e.message); }
 
   // Show UI
-  document.getElementById('authOverlay').style.display = 'none';
+  document.getElementById('authOverlay') && (document.getElementById('authOverlay').style.display = 'none');
   document.getElementById('userBadge').style.display = 'flex';
   document.getElementById('userEmail').textContent = user.email;
   var roleEl = document.getElementById('userRoleBadge');
@@ -869,8 +868,8 @@ async function onSession(data){
   roleEl.classList.toggle('admin', _isAdmin);
   document.getElementById('adminNavBtn').style.display = _isAdmin ? '' : 'none';
 
-  // Initial loads
-  await mktLoad();
+  // Initial loads — non fa throw
+  try { await mktLoad(); } catch(e){ console.warn('mktLoad:', e.message); }
 }
 
 // Ricarica ruolo dal DB (utile se l'admin ti ha appena promosso)
@@ -1779,18 +1778,25 @@ window.addEventListener('DOMContentLoaded', function(){
     // Controlla scadenza
     var now = Math.floor(Date.now()/1000);
     if(!stored.expires_at || stored.expires_at > now){
+      // Prova ad avviare la sessione. Solo se l'errore è "sessione invalida"
+      // cancelliamo e rimandiamo al login. Per tutti gli altri errori
+      // (es. tabelle non ancora migrate, profile mancante, network)
+      // mostriamo comunque l'app.
       onSession({ session:stored, user:stored.user }).catch(function(err){
-        console.warn('Session restore failed:', err);
-        clearSessionFromStorage();
-        redirectToLogin();
+        console.error('Session init error:', err);
+        var msg = String(err && err.message || '');
+        if(msg.indexOf('Sessione non valida')>-1 || msg.indexOf('JWT')>-1 || msg.indexOf('401')>-1){
+          clearSessionFromStorage();
+          redirectToLogin();
+        }
+        // altri errori: la sessione resta, l'utente vede l'errore in console
+        // ma l'UI dovrebbe essere già stata mostrata da onSession
       });
       return;
     } else {
-      // Sessione scaduta: pulisci
       clearSessionFromStorage();
     }
   }
-  // No session — redirect to Collector login (punto d'ingresso unico)
   redirectToLogin();
 });
 
