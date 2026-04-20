@@ -209,6 +209,7 @@ textarea{resize:vertical;min-height:60px}
       <button class="btn primary" onclick="doLogin()" style="width:100%;justify-content:center;margin-top:4px">Accedi</button>
       <div id="authSt" style="margin-top:10px;font-size:12px;min-height:18px;text-align:center;color:var(--text-muted)"></div>
       <button class="auth-link" onclick="showAuthPane('reg')">Non hai un account? Registrati</button>
+      <button class="auth-link" onclick="showAuthPane('reset')" style="color:var(--text-subtle);font-size:11px">Password dimenticata?</button>
     </div>
     <div id="authPaneReg" style="display:none">
       <div class="auth-field"><label>Nome completo</label><input type="text" id="aName"/></div>
@@ -217,6 +218,19 @@ textarea{resize:vertical;min-height:60px}
       <button class="btn primary" onclick="doRegister()" style="width:100%;justify-content:center;margin-top:4px">Registrati</button>
       <div id="authStR" style="margin-top:10px;font-size:12px;min-height:18px;text-align:center;color:var(--text-muted)"></div>
       <button class="auth-link" onclick="showAuthPane('login')">Hai già un account? Accedi</button>
+    </div>
+    <div id="authPaneReset" style="display:none">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.6;text-align:center">
+        Il recupero via email non è disponibile.<br>
+        Per resettare la password contatta l'admin oppure esegui nel <strong>Supabase SQL Editor</strong>:
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px;font-family:var(--mono);font-size:11px;color:var(--text-muted);word-break:break-all;line-height:1.6">
+        UPDATE auth.users<br>
+        SET encrypted_password =<br>
+        &nbsp;&nbsp;crypt('NuovaPassword!', gen_salt('bf'))<br>
+        WHERE email = 'tua@email.com';
+      </div>
+      <button class="auth-link" onclick="showAuthPane('login')" style="margin-top:14px">← Torna al login</button>
     </div>
   </div>
 </div>
@@ -838,6 +852,7 @@ function payBadge(s){
 function showAuthPane(p){
   document.getElementById('authPane').style.display      = p==='login'?'':'none';
   document.getElementById('authPaneReg').style.display   = p==='reg'?'':'none';
+  document.getElementById('authPaneReset').style.display = p==='reset'?'':'none';
 }
 
 async function doLogin(){
