@@ -579,6 +579,7 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
 .sc-state-ok{color:var(--success);background:rgba(63,185,80,.1);border-color:rgba(63,185,80,.3)}
 .sc-state-amb{color:var(--warning);background:rgba(210,153,34,.1);border-color:rgba(210,153,34,.3)}
 .sc-state-err{color:var(--danger);background:rgba(248,81,73,.1);border-color:rgba(248,81,73,.25)}
+.sc-state-oos{color:#a78bfa;background:rgba(167,139,250,.1);border-color:rgba(167,139,250,.3);font-size:9px;margin-left:4px}
 .sc-state-skip{color:var(--text-subtle);background:var(--surface2);border-color:var(--border)}
 .sc-conf-dots{display:flex;gap:3px;align-items:center}
 .sc-conf-dot{width:6px;height:6px;border-radius:50%;background:var(--surface3)}
@@ -1262,6 +1263,10 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
           </select>
           <div style="display:flex;gap:6px;margin-left:auto">
             <button class="btn btn-primary" onclick="togglePrevSearch()" id="btnAddCard">+ Aggiungi carta</button>
+            <button class="btn" onclick="scanFromPrev()" title="Scansiona album e aggiungi direttamente a questo preventivo" style="display:flex;align-items:center;gap:5px">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="3" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="21"/><line x1="3" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="21" y2="12"/></svg>
+              Scan Album
+            </button>
             <button class="btn" onclick="exportPrevCSV()">CSV</button>
             <button class="btn btn-danger" onclick="deletePreventivo()">Elimina</button>
           </div>
@@ -3665,46 +3670,40 @@ function scRenderSetChips(){
   }
 }
 
-// Ricerca TCG con eventuale filtro set attivo.
-// Se ci sono set selezionati, usa API TCG diretta con query name:"X" (set.id:A OR set.id:B).
-// Altrimenti usa l'Edge Function esistente (fetchCards).
 async function scFetchCardsWithFilter(name){
   if(!name) return [];
-  // Percorso 1: se nessun filtro set, proviamo la Edge Function (più veloce e cacheata)
-  if(!scState.selectedSets.length){
-    try {
-      var res = await fetchCards(name);
-      if(res && res.length) return res;
-    } catch(e){ console.warn('fetchCards failed, fallback diretto:', e); }
-    // Fallback diretto TCG API se Edge Function fallisce o restituisce 0
-    try {
-      var r = await fetch(TCG_URL+'?q='+encodeURIComponent('name:"'+name.replace(/"/g,'')+'"')+'&pageSize=30', { headers:{'X-Api-Key':TCG_KEY} });
-      if(r.ok){ var d = await r.json(); return d.data||[]; }
-    } catch(e2){ console.warn('TCG direct failed:', e2); }
-    // Ultima risorsa: fuzzy wildcards
-    try {
-      var r2 = await fetch(TCG_URL+'?q='+encodeURIComponent('name:*'+name.replace(/"/g,'').split(/\s+/)[0]+'*')+'&pageSize=30', { headers:{'X-Api-Key':TCG_KEY} });
-      if(r2.ok){ var d2 = await r2.json(); return d2.data||[]; }
-    } catch(e3){}
+  // Percorso senza filtro: Edge Function → TCG diretto → fuzzy
+  async function fetchAllSets(n){
+    try{ var r=await fetchCards(n); if(r&&r.length) return r; }catch(e){}
+    try{
+      var r2=await fetch(TCG_URL+'?q='+encodeURIComponent('name:"'+n.replace(/"/g,'')+'"')+'&pageSize=30',{headers:{'X-Api-Key':TCG_KEY}});
+      if(r2.ok){ var d2=await r2.json(); if(d2.data&&d2.data.length) return d2.data; }
+    }catch(e){}
+    try{
+      var r3=await fetch(TCG_URL+'?q='+encodeURIComponent('name:*'+n.replace(/"/g,'').split(/\s+/)[0]+'*')+'&pageSize=30',{headers:{'X-Api-Key':TCG_KEY}});
+      if(r3.ok){ var d3=await r3.json(); return d3.data||[]; }
+    }catch(e){}
     return [];
   }
-  // Percorso 2: filtro set attivo → sempre TCG API diretta
+
+  // Senza filtro set attivo
+  if(!scState.selectedSets.length) return fetchAllSets(name);
+
+  // Con filtro set: prima prova nei set selezionati
   var setFilter = scState.selectedSets.map(function(s){ return 'set.id:'+s.id; }).join(' OR ');
   var q = 'name:"'+name.replace(/"/g,'')+'" ('+setFilter+')';
   try{
-    var r3 = await fetch(TCG_URL+'?q='+encodeURIComponent(q)+'&pageSize=30', { headers:{'X-Api-Key':TCG_KEY} });
-    if(!r3.ok) throw new Error('HTTP '+r3.status);
-    var d3 = await r3.json();
-    if(d3.data && d3.data.length) return d3.data;
-    // Fuzzy con wildcard e filtro set
-    var qFuzzy = 'name:*'+name.replace(/"/g,'').split(/\s+/)[0]+'* ('+setFilter+')';
-    var rF = await fetch(TCG_URL+'?q='+encodeURIComponent(qFuzzy)+'&pageSize=30', { headers:{'X-Api-Key':TCG_KEY} });
-    if(rF.ok){ var dF = await rF.json(); return dF.data||[]; }
-    return [];
-  }catch(e){
-    console.warn('scFetchCardsWithFilter failed, fallback senza filtro:', e);
-    return await fetchCards(name).catch(function(){ return []; });
-  }
+    var rf = await fetch(TCG_URL+'?q='+encodeURIComponent(q)+'&pageSize=30',{headers:{'X-Api-Key':TCG_KEY}});
+    if(rf.ok){
+      var df = await rf.json();
+      if(df.data && df.data.length > 0) return df.data; // trovata nei set filtrati ✓
+    }
+  }catch(e){}
+
+  // Non trovata nei set filtrati → cerca su tutti i set e marca i risultati
+  var fallback = await fetchAllSets(name);
+  fallback.forEach(function(c){ c._outOfSelectedSets = true; }); // flag warning
+  return fallback;
 }
 
 // Scarta il match corrente e porta la riga in stato "err" con ricerca manuale aperta.
@@ -3728,6 +3727,24 @@ function scReplaceCard(idx){
       if(inp){ inp.focus(); inp.select(); }
     }, 50);
   }
+}
+
+// Attiva il tab Scan pre-selezionando il preventivo attivo.
+// Chiamata dal bottone "Scan Album" dentro il tab Preventivi.
+function scanFromPrev(){
+  if(!activePrev){ alert('Seleziona prima un preventivo.'); return; }
+  showTab('scan');
+  // Dopo che scInit() ha popolato il dropdown, pre-seleziona il preventivo corrente
+  setTimeout(function(){
+    var sel = document.getElementById('scPrevSelect');
+    if(!sel) return;
+    for(var i=0; i<sel.options.length; i++){
+      if(String(sel.options[i].value) === String(activePrev.id)){
+        sel.selectedIndex = i;
+        break;
+      }
+    }
+  }, 300);
 }
 
 // Hook showTab per trigger scInit al cambio tab
@@ -4080,6 +4097,11 @@ function scRenderCardRow(resolved, idx, container){
   var stateMap = {ok:'sc-state-ok',amb:'sc-state-amb',err:'sc-state-err',skip:'sc-state-skip'};
   var stateLabel = {ok:'TROVATA',amb:'AMBIGUA',err:'NON TROVATA',skip:'SKIP'};
   var badgeHtml = '<span class="sc-state-badge '+stateMap[resolved.state]+'">'+stateLabel[resolved.state]+'</span>';
+  // Warning se la carta è fuori dai set filtrati
+  var outOfSet = tc && tc._outOfSelectedSets;
+  if(outOfSet){
+    badgeHtml += '<span class="sc-state-badge sc-state-oos" title="Carta trovata fuori dai set selezionati">⚠ set diverso</span>';
+  }
 
   // Confidence dots
   var confN = ai.confidence==='high'?3:ai.confidence==='medium'?2:1;
@@ -4303,23 +4325,75 @@ function scSelectAll(val){
 // ── STEP 3: CONDIZIONI ─────────────────────────────────────────────────────────
 function scGoToConditions(){
   // Filtra le carte selezionate e trovate
-  scState.condCards = scState.resolvedCards
-    .filter(function(r){ return r.selected && (r.state==='ok' || (r.state==='amb' && r.tcgCard)); })
-    .map(function(r){ return {
+  var candidates = scState.resolvedCards
+    .filter(function(r){ return r.selected && (r.state==='ok' || (r.state==='amb' && r.tcgCard)); });
+
+  if(!candidates.length){
+    alert('Nessuna carta selezionata o identificata. Controlla i risultati e usa "Includi" sulle carte che vuoi aggiungere.');
+    return;
+  }
+
+  // Mostra modal condizione predefinita prima di procedere
+  scShowCondPresetModal(candidates);
+}
+
+function scShowCondPresetModal(candidates){
+  var conds = ['NM','MINT','EX','GD','LP','PL','PO','INK/ALT'];
+  var modal = document.getElementById('scCondPresetModal');
+  if(!modal){
+    modal = document.createElement('div');
+    modal.id = 'scCondPresetModal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:5000;display:flex;align-items:center;justify-content:center;padding:16px';
+    modal.innerHTML =
+      '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:24px;width:min(380px,100%);display:flex;flex-direction:column;gap:16px">'
+        + '<div style="font-size:15px;font-weight:600">Condizione predefinita</div>'
+        + '<div style="font-size:13px;color:var(--text-muted)">Vuoi impostare la stessa condizione per tutte le carte?</div>'
+        + '<div style="display:flex;flex-direction:column;gap:8px">'
+          + '<div style="font-size:11px;color:var(--text-muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em">Condizione</div>'
+          + '<select id="scCondPresetSel" style="font-size:14px;padding:8px 10px">'
+          + conds.map(function(c){ return '<option value="'+c+'"'+(c==='NM'?' selected':'')+'>'+c+'</option>'; }).join('')
+          + '</select>'
+        + '</div>'
+        + '<div style="display:flex;gap:8px;justify-content:flex-end">'
+          + '<button class="btn" onclick="scCondPresetSkip()">Non impostare (mantieni singole)</button>'
+          + '<button class="btn btn-primary" onclick="scCondPresetApply()">Applica e continua →</button>'
+        + '</div>'
+      + '</div>';
+    document.body.appendChild(modal);
+  } else {
+    modal.style.display = 'flex';
+  }
+  // salva candidates in stato temporaneo
+  scState._condCandidates = candidates;
+}
+
+function scCondPresetSkip(){
+  var modal = document.getElementById('scCondPresetModal');
+  if(modal) modal.style.display = 'none';
+  scBuildCondCards(scState._condCandidates, null);
+}
+
+function scCondPresetApply(){
+  var modal = document.getElementById('scCondPresetModal');
+  var sel = document.getElementById('scCondPresetSel');
+  var cond = sel ? sel.value : 'NM';
+  if(modal) modal.style.display = 'none';
+  scBuildCondCards(scState._condCandidates, cond);
+}
+
+function scBuildCondCards(candidates, defaultCond){
+  scState.condCards = candidates.map(function(r){
+    return {
       slot: r.slot,
       tcgCard: r.tcgCard,
       aiCard: r.aiCard,
-      condition: 'NM',
+      condition: defaultCond || r.detectedCondition || 'NM',
       variant: r.detectedVariant || 'Normal',
       language: r.detectedLang || 'ITA',
       first1st: r.detectedFirst || false,
       qty: 1
-    }; });
-
-  if(!scState.condCards.length){
-    alert('Nessuna carta selezionata o identificata. Controlla i risultati.');
-    return;
-  }
+    };
+  });
 
   var prevSel = document.getElementById('scPrevSelect').value;
   var addBtn = document.getElementById('scAddBtnLabel');
@@ -4437,7 +4511,7 @@ function scBackToIdentify(){
 async function scAddToPreventivo(){
   var btn = document.getElementById('scAddPrevBtn');
   btn.disabled = true;
-  document.getElementById('scAddBtnLabel').textContent = '⏳ Aggiunta...';
+  document.getElementById('scAddBtnLabel').textContent = '⏳ Salvataggio...';
 
   // Leggi condizioni finali
   scState.condCards.forEach(function(cc, i){
@@ -4454,24 +4528,54 @@ async function scAddToPreventivo(){
   var n   = scState.condCards.length;
 
   if(prevId){
-    var prev = preventivi.find(function(x){ return x.id==prevId; });
-    if(!prev){ alert('Preventivo non trovato. Ricaricare la pagina.'); btn.disabled=false; return; }
+    // Ricarica preventivi freschi da DB per evitare stale state
+    try { await loadPrev(); } catch(e){}
+    var prev = preventivi.find(function(x){ return String(x.id)===String(prevId); });
+    if(!prev){
+      btn.disabled = false;
+      document.getElementById('scAddBtnLabel').textContent = 'Aggiungi al preventivo →';
+      // Prova a trovarlo con confronto loose
+      prev = preventivi.find(function(x){ return x.id==prevId; });
+      if(!prev){
+        alert('Preventivo non trovato (id: '+prevId+'). Ricarica la pagina e riprova.');
+        return;
+      }
+    }
     var newItems = scState.condCards.map(function(cc){
       var tc = cc.tcgCard;
-      return { name:tc.name, set:tc.set&&tc.set.name||'', set_id:tc.set&&tc.set.id||'',
-               number:tc.number||'', rarity:tc.rarity||'',
-               image:tc.images&&tc.images.small||'', image_lg:tc.images&&tc.images.large||'',
-               condition:cc.condition, language:cc.language,
-               variant:cc.variant, first_edition:cc.first1st, qty:cc.qty||1, cm_avg30:cc.cm_avg30||0 };
+      return {
+        name: tc.name,
+        set:  tc.set&&tc.set.name||'',
+        set_id: tc.set&&tc.set.id||'',
+        number: tc.number||'',
+        rarity: tc.rarity||'',
+        image:  tc.images&&tc.images.small||'',
+        image_lg: tc.images&&tc.images.large||'',
+        condition: cc.condition,
+        language:  cc.language,
+        variant:   cc.variant,
+        first_edition: cc.first1st,
+        qty: cc.qty||1,
+        price: cc.cm_avg30||0,
+        cm_avg30: cc.cm_avg30||0
+      };
     });
     prev.items = (prev.items||[]).concat(newItems);
-    await savePrev(prev);
-    renderPrevList();
-    document.getElementById('scResultTitle').textContent = n + ' carte aggiunte';
-    document.getElementById('scResultSub').textContent = 'Preventivo: "'+prev.name+'"';
+    try {
+      await savePrev(prev);
+      document.getElementById('scResultTitle').textContent = n + ' carte aggiunte';
+      document.getElementById('scResultSub').textContent   = 'Preventivo: "'+prev.name+'" · €'+tot.toFixed(2)+' valore stimato';
+    } catch(e) {
+      btn.disabled = false;
+      document.getElementById('scAddBtnLabel').textContent = 'Aggiungi al preventivo →';
+      alert('Errore nel salvataggio: ' + e.message);
+      return;
+    }
+    // Aggiorna tab preventivi in background
+    try { await renderPrevList(); } catch(e){}
   } else {
     document.getElementById('scResultTitle').textContent = n + ' carte identificate';
-    document.getElementById('scResultSub').textContent = 'Nessun preventivo selezionato';
+    document.getElementById('scResultSub').textContent   = 'Nessun preventivo selezionato';
   }
 
   document.getElementById('scResultStats').innerHTML =
