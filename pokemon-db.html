@@ -3866,14 +3866,67 @@ async function scAnalyze(){
   }
 }
 
-// Chiama l'AI: Anthropic diretto (primario) → OpenRouter multi-model (fallback)
+// Chiama l'AI: OpenRouter (primario, multi-model) → Anthropic diretto (fallback garantito)
 // La Edge Function scan-cards non è ancora deployata — rimossa per evitare CORS noise.
 async function scCallAI(prompt){
   var lastErr = null;
+
+  // ── 1. OpenRouter — primario, multi-model, claude-haiku come primo ────
+  var orKey = window._SC_OR || null;
+  if(orKey){
+    var OR_MODELS = [
+      'anthropic/claude-haiku-4-5',       // claude via OR: affidabile, vision nativa
+      'google/gemini-flash-1.5',           // più stabile del 2.0-flash
+      'google/gemini-2.0-flash-001',
+      'openai/gpt-4o-mini',
+      'meta-llama/llama-3.2-11b-vision-instruct:free'
+    ];
+
+    for(var mi = 0; mi < OR_MODELS.length; mi++){
+      var model = OR_MODELS[mi];
+      try {
+        scSetStatus('Analisi AI (' + model.split('/')[1] + ')...', 'info');
+        var ctrl3 = new AbortController();
+        var t3 = setTimeout(function(){ ctrl3.abort(); }, 45000);
+        var r3 = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST', signal: ctrl3.signal,
+          headers: {
+            'Authorization': 'Bearer ' + orKey,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://www.rareblock.eu',
+            'X-Title': 'RareBlock'
+          },
+          body: JSON.stringify({
+            model: model,
+            max_tokens: 2048,
+            messages: [{ role: 'user', content: [
+              { type: 'image_url', image_url: { url: 'data:' + scState.imageMediaType + ';base64,' + scState.imageBase64 }},
+              { type: 'text', text: prompt }
+            ]}]
+          })
+        });
+        clearTimeout(t3);
+        if(r3.ok){
+          var d3 = await r3.json();
+          if(d3.error){ lastErr = 'OR ' + model + ': ' + JSON.stringify(d3.error).substring(0,100); continue; }
+          var raw3 = ((d3.choices||[])[0]||{}).message?.content || '';
+          raw3 = raw3.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
+          try{ return JSON.parse(raw3); } catch(pe){ lastErr = 'Parse error su ' + model; continue; }
+        }
+        var e3txt = await r3.text().catch(function(){ return ''; });
+        lastErr = 'OR ' + r3.status + ' (' + model + '): ' + e3txt.substring(0,100);
+        if(r3.status === 401 || r3.status === 403) break; // chiave invalida
+      } catch(e){
+        lastErr = model + ': ' + e.message;
+      }
+    }
+  }
+
+  // ── 2. Anthropic diretto — fallback garantito ─────────────────────────
   var ak = window._SC_AK || window._K_ || null;
   if(ak && ak !== 'ANTHROPIC_API_KEY_PLACEHOLDER'){
     try {
-      scSetStatus('Analisi con Claude AI...', 'info');
+      scSetStatus('Analisi con Claude AI (diretto)...', 'info');
       var ctrl = new AbortController();
       var tAnt = setTimeout(function(){ ctrl.abort(); }, 55000);
       var rAnt = await fetch('https://api.anthropic.com/v1/messages', {
@@ -3900,62 +3953,11 @@ async function scCallAI(prompt){
         raw2 = raw2.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
         try{ return JSON.parse(raw2); } catch(pe){ throw new Error('Parse error: ' + raw2.substring(0,150)); }
       }
-      lastErr = 'Anthropic ' + rAnt.status;
+      lastErr = 'Anthropic diretto ' + rAnt.status;
     } catch(e){ lastErr = 'Anthropic: ' + e.message; }
   }
 
-  // ── 3. OpenRouter — multi-model retry in ordine di affidabilità ───────
-  var ok2 = window._SC_OR || null;
-  if(!ok2) throw new Error('Nessuna chiave API disponibile. ' + (lastErr||''));
-
-  // Modelli in ordine: prima quelli con provider più affidabile per vision
-  var OR_MODELS = [
-    'anthropic/claude-haiku-4-5',
-    'google/gemini-flash-1.5',
-    'google/gemini-2.0-flash-001',
-    'openai/gpt-4o-mini',
-    'meta-llama/llama-3.2-11b-vision-instruct:free'
-  ];
-
-  for(var mi = 0; mi < OR_MODELS.length; mi++){
-    var model = OR_MODELS[mi];
-    try {
-      scSetStatus('Analisi AI (' + model.split('/')[1] + ')...', 'info');
-      var ctrl3 = new AbortController();
-      var t3 = setTimeout(function(){ ctrl3.abort(); }, 45000);
-      var r3 = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST', signal: ctrl3.signal,
-        headers: { 'Authorization': 'Bearer ' + ok2, 'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://www.rareblock.eu', 'X-Title': 'RareBlock' },
-        body: JSON.stringify({
-          model: model,
-          max_tokens: 2048,
-          messages: [{ role: 'user', content: [
-            { type: 'image_url', image_url: { url: 'data:' + scState.imageMediaType + ';base64,' + scState.imageBase64 }},
-            { type: 'text', text: prompt }
-          ]}]
-        })
-      });
-      clearTimeout(t3);
-      if(r3.ok){
-        var d3 = await r3.json();
-        // Controlla errori nel body (OpenRouter li embeds a volte)
-        if(d3.error){ lastErr = 'OR ' + model + ': ' + JSON.stringify(d3.error).substring(0,100); continue; }
-        var raw3 = ((d3.choices||[])[0]||{}).message?.content || '';
-        raw3 = raw3.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
-        try{ return JSON.parse(raw3); } catch(pe){ lastErr = 'Parse error su ' + model; continue; }
-      }
-      // 504 o 5xx: prova prossimo modello
-      var e3txt = await r3.text().catch(function(){ return ''; });
-      lastErr = 'OR ' + r3.status + ' (' + model + '): ' + e3txt.substring(0,100);
-      if(r3.status === 401 || r3.status === 403) break; // chiave invalida: inutile riprovare
-    } catch(e){
-      lastErr = model + ': ' + e.message;
-      // timeout o network: prova prossimo
-    }
-  }
-
-  throw new Error('Analisi AI fallita su tutti i provider. Ultimo errore: ' + (lastErr||'sconosciuto'));
+  throw new Error('Analisi AI fallita su tutti i provider. Ultimo errore: ' + (lastErr||'nessuna chiave API configurata'));
 }
 
 function scHandleFile(file){
