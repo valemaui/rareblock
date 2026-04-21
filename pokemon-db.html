@@ -3780,6 +3780,17 @@ var SC_SETS_STATIC = [
   {id:'sv7',name:'Stellar Crown',series:'Scarlet & Violet',releaseDate:'2024-09-13',ptcgoCode:'SCR'},
   {id:'sv8',name:'Surging Sparks',series:'Scarlet & Violet',releaseDate:'2024-11-08',ptcgoCode:'SSP'},
   {id:'sv9',name:'Prismatic Evolutions',series:'Scarlet & Violet',releaseDate:'2025-01-17',ptcgoCode:'PRE'},
+  // Set speciali e mini-set mancanti
+  {id:'vs',name:'VS',series:'VS',releaseDate:'2001-11-21',ptcgoCode:'VS'},
+  {id:'np',name:'Nintendo Black Star Promos',series:'Nintendo',releaseDate:'2003-07-18',ptcgoCode:'NP'},
+  {id:'det1',name:'Detective Pikachu',series:'Other',releaseDate:'2019-03-29',ptcgoCode:'DET'},
+  {id:'swsh35',name:"Champion's Path",series:'Sword & Shield',releaseDate:'2020-09-25',ptcgoCode:'CPA'},
+  {id:'swsh45',name:'Shining Fates',series:'Sword & Shield',releaseDate:'2021-02-19',ptcgoCode:'SHF'},
+  {id:'swsh75',name:'Celebrations',series:'Sword & Shield',releaseDate:'2021-10-08',ptcgoCode:'CEL'},
+  {id:'sv3pt5',name:'151',series:'Scarlet & Violet',releaseDate:'2023-09-22',ptcgoCode:'MEW'},
+  {id:'sv4pt5',name:'Paldean Fates',series:'Scarlet & Violet',releaseDate:'2024-01-26',ptcgoCode:'PAF'},
+  {id:'sv6pt5',name:'Shrouded Fable',series:'Scarlet & Violet',releaseDate:'2024-08-02',ptcgoCode:'SFA'},
+  {id:'sv7pt5',name:'Destined Rivals',series:'Scarlet & Violet',releaseDate:'2025-01-31',ptcgoCode:'DRI'},
 ];
 
 async function scLoadAllSets(){
@@ -5420,18 +5431,47 @@ window.msToggleChip = function(lbl, vid){
 };
 
 function msFetchSets(){
-  fetch(TCG_BASE+'/sets?orderBy=-releaseDate&pageSize=250',{headers:{'X-Api-Key':TCG_KEY}})
+  // Carica tutti i set con paginazione — TCG API ha ~170+ set, pageSize max 250
+  // Prima pagina
+  fetch(TCG_BASE+'/sets?orderBy=-releaseDate&pageSize=250&page=1',{headers:{'X-Api-Key':TCG_KEY}})
     .then(function(r){return r.json();})
     .then(function(d){
-      msSetsAll=(d.data||[]).sort(function(a,b){return b.releaseDate.localeCompare(a.releaseDate);});
-    }).catch(function(e){console.warn('sets error',e);});
+      var sets = d.data||[];
+      var total = d.totalCount||sets.length;
+      msSetsAll = sets.sort(function(a,b){
+        return (b.releaseDate||'').localeCompare(a.releaseDate||'');
+      });
+      // Se ci sono più pagine, caricale
+      if(total > 250){
+        fetch(TCG_BASE+'/sets?orderBy=-releaseDate&pageSize=250&page=2',{headers:{'X-Api-Key':TCG_KEY}})
+          .then(function(r2){return r2.json();})
+          .then(function(d2){
+            var more = d2.data||[];
+            msSetsAll = msSetsAll.concat(more).sort(function(a,b){
+              return (b.releaseDate||'').localeCompare(a.releaseDate||'');
+            });
+          }).catch(function(){});
+      }
+    }).catch(function(e){
+      console.warn('sets error',e);
+      // Fallback: usa lista statica del scan filter come base
+      msSetsAll = (typeof SC_SETS_STATIC !== 'undefined' ? SC_SETS_STATIC : []).map(function(s){
+        return { id:s.id, name:s.name, series:s.series, releaseDate:s.releaseDate,
+                 total:0, printedTotal:0, images:{} };
+      }).sort(function(a,b){
+        return (b.releaseDate||'').localeCompare(a.releaseDate||'');
+      });
+    });
 }
 
 window.msSearchSets = function(q){
   if(!msSetsAll){ setTimeout(function(){msSearchSets(q);},600); return; }
   var f=(q||'').toLowerCase().trim();
   msMatches=f ? msSetsAll.filter(function(s){
-    return s.name.toLowerCase().indexOf(f)>=0||s.series.toLowerCase().indexOf(f)>=0;
+    return s.name.toLowerCase().indexOf(f)>=0
+        || (s.series||'').toLowerCase().indexOf(f)>=0
+        || (s.id||'').toLowerCase().indexOf(f)>=0
+        || (s.ptcgoCode||'').toLowerCase().indexOf(f)>=0;
   }) : msSetsAll.slice(0,30);
   var el=document.getElementById('msSetList');
   if(!msMatches.length){
