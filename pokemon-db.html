@@ -98,6 +98,9 @@ label{font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;fon
 .sc-zoomable:hover{outline:2px solid var(--accent);outline-offset:2px}
 .sc-card-replace{font-size:10px;font-family:var(--mono);background:none;border:1px solid var(--border);color:var(--text-muted);padding:3px 8px;border-radius:var(--r);cursor:pointer;margin-top:4px;transition:all .12s}
 .sc-card-replace:hover{border-color:var(--warning);color:var(--warning);background:rgba(210,153,34,.06)}
+/* Toast di successo */
+.sc-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--success);color:#0d1117;font-family:var(--font);font-size:13px;font-weight:600;padding:10px 22px;border-radius:var(--r);box-shadow:0 4px 16px rgba(0,0,0,.4);z-index:9000;opacity:0;transition:transform .3s ease,opacity .3s ease;pointer-events:none;white-space:nowrap}
+.sc-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
 /* ── TAB AGGIUNGI ── */
 .add-layout{display:grid;grid-template-columns:1fr 360px;height:100%;overflow:hidden}
@@ -1467,7 +1470,7 @@ const zoomImg=zoomEl.querySelector('img');
 
 function addZoom(el, lgSrc, followCursor){
   el.addEventListener('mouseenter',function(e){
-    if(!lgSrc||!lgSrc.startsWith('http'))return;
+    if(!lgSrc||(!lgSrc.startsWith('http')&&!lgSrc.startsWith('data:')))return;
     zoomImg.src=lgSrc;
     zoomEl.style.display='block';
     positionZoom(e, el, followCursor);
@@ -1950,14 +1953,30 @@ async function savePrev(p){
   try{
     const upsertHdr={...getHDR(),'Prefer':'resolution=merge-duplicates,return=representation'};
     const uid=getCurrentUserId();
-    await fetch(SUPA_URL+'/rest/v1/preventivi',{
+    // items va serializzato come stringa JSON se la colonna è text,
+    // oppure mandato come array se è jsonb. Supabase gestisce entrambi
+    // tramite JSON.stringify nel body — ma usiamo la serializzazione
+    // esplicita per sicurezza con colonne text.
+    const itemsPayload = Array.isArray(p.items) ? JSON.stringify(p.items) : (p.items||'[]');
+    const r = await fetch(SUPA_URL+'/rest/v1/preventivi',{
       method:'POST',
       headers:upsertHdr,
-      body:JSON.stringify({id:p.id,name:p.name,created:p.created,items:p.items,provenienza:p.provenienza||null,...(uid?{user_id:uid}:{})})
+      body:JSON.stringify({
+        id:p.id, name:p.name, created:p.created,
+        items: itemsPayload,
+        provenienza:p.provenienza||null,
+        ...(uid?{user_id:uid}:{})
+      })
     });
+    if(!r.ok){
+      const errText = await r.text().catch(function(){ return ''; });
+      throw new Error('Supabase '+r.status+': '+errText.substring(0,200));
+    }
   }catch(e){
-    localStorage.setItem('pkm_preventivi',JSON.stringify(preventivi));
-    console.warn('savePrev fallback localStorage:',e.message);
+    // Fallback localStorage per non perdere dati
+    try{ localStorage.setItem('pkm_preventivi',JSON.stringify(preventivi)); }catch(le){}
+    console.warn('savePrev error:', e.message);
+    throw e; // rilanciamo per far emergere l'errore al chiamante
   }
 }
 async function deletePrevFromDB(id){
@@ -3991,9 +4010,14 @@ function scHandleFile(file){
     document.getElementById('scDzHint').style.display = 'none';
     document.getElementById('scDzName').textContent = file.name;
     document.getElementById('scResetBtn').disabled = false;
-    // Zoom al mouseover (stessa immagine a qualità alta)
+    // Zoom al mouseover — xl perché è la pagina intera del binder
     preview.classList.add('sc-zoomable');
-    try{ addZoom(preview, result, false); }catch(e){}
+    try{
+      addZoom(preview, result, false);
+      // Attiva la variante grande al momento dell'hover
+      preview.addEventListener('mouseenter', function(){ zoomEl.classList.add('xl'); });
+      preview.addEventListener('mouseleave', function(){ zoomEl.classList.remove('xl'); });
+    }catch(e){}
     scCheckReady();
   };
   reader.readAsDataURL(file);
@@ -4345,19 +4369,17 @@ function scShowCondPresetModal(candidates){
     modal.id = 'scCondPresetModal';
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:5000;display:flex;align-items:center;justify-content:center;padding:16px';
     modal.innerHTML =
-      '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:24px;width:min(380px,100%);display:flex;flex-direction:column;gap:16px">'
+      '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:24px;width:min(340px,calc(100vw-32px));display:flex;flex-direction:column;gap:16px">'
         + '<div style="font-size:15px;font-weight:600">Condizione predefinita</div>'
-        + '<div style="font-size:13px;color:var(--text-muted)">Vuoi impostare la stessa condizione per tutte le carte?</div>'
+        + '<div style="font-size:13px;color:var(--text-muted)">Imposta la stessa condizione per tutte le carte identificate?</div>'
         + '<div style="display:flex;flex-direction:column;gap:8px">'
           + '<div style="font-size:11px;color:var(--text-muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em">Condizione</div>'
           + '<select id="scCondPresetSel" style="font-size:14px;padding:8px 10px">'
           + conds.map(function(c){ return '<option value="'+c+'"'+(c==='NM'?' selected':'')+'>'+c+'</option>'; }).join('')
           + '</select>'
         + '</div>'
-        + '<div style="display:flex;gap:8px;justify-content:flex-end">'
-          + '<button class="btn" onclick="scCondPresetSkip()">Non impostare (mantieni singole)</button>'
-          + '<button class="btn btn-primary" onclick="scCondPresetApply()">Applica e continua →</button>'
-        + '</div>'
+        + '<button class="btn btn-primary" onclick="scCondPresetApply()" style="width:100%;justify-content:center">Applica e continua →</button>'
+        + '<button class="btn" onclick="scCondPresetSkip()" style="width:100%;justify-content:center;font-size:12px;color:var(--text-muted)">Salta — imposta singolarmente</button>'
       + '</div>';
     document.body.appendChild(modal);
   } else {
@@ -4508,6 +4530,21 @@ function scBackToIdentify(){
 }
 
 // ── STEP 4: ADD TO PREVENTIVO ─────────────────────────────────────────────────
+// Toast di conferma operazione completata
+function showToast(msg, durationMs){
+  durationMs = durationMs||2800;
+  var t = document.getElementById('scToast');
+  if(!t){
+    t = document.createElement('div');
+    t.id='scToast'; t.className='sc-toast';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function(){ t.classList.remove('show'); }, durationMs);
+}
+
 async function scAddToPreventivo(){
   var btn = document.getElementById('scAddPrevBtn');
   btn.disabled = true;
@@ -4563,8 +4600,10 @@ async function scAddToPreventivo(){
     prev.items = (prev.items||[]).concat(newItems);
     try {
       await savePrev(prev);
+      var successMsg = '✓ '+n+' cart'+(n===1?'a':'e')+' aggiunte a "'+prev.name+'"';
       document.getElementById('scResultTitle').textContent = n + ' carte aggiunte';
       document.getElementById('scResultSub').textContent   = 'Preventivo: "'+prev.name+'" · €'+tot.toFixed(2)+' valore stimato';
+      showToast(successMsg);
     } catch(e) {
       btn.disabled = false;
       document.getElementById('scAddBtnLabel').textContent = 'Aggiungi al preventivo →';
