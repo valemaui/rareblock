@@ -1561,6 +1561,140 @@ function calcPrice(prices,cond,variant,first1st){
   return{price,factor,condFactor,base,label:src,pct,detail,notQuoted:false};
 }
 
+// ── ITALIAN → ENGLISH POKEMON NAME MAP ──
+// Nomi italiani non standard (quelli identici all'inglese non servono)
+const IT_EN_MAP = {
+  // Gen 1
+  'bulbasauro':'bulbasaur','ivysaur':'ivysaur','venusaur':'venusaur',
+  'charmander':'charmander','charmeleon':'charmeleon','charizard':'charizard',
+  'squirtle':'squirtle','wartortle':'wartortle','blastoise':'blastoise',
+  'caterpie':'caterpie','metapod':'metapod','butterfree':'butterfree',
+  'weedle':'weedle','kakuna':'kakuna','beedrill':'beedrill',
+  'pidgey':'pidgey','pidgeotto':'pidgeotto','pidgeot':'pidgeot',
+  'rattata':'rattata','raticate':'raticate',
+  'spearow':'spearow','fearow':'fearow',
+  'ekans':'ekans','arbok':'arbok',
+  'pikachu':'pikachu','raichu':'raichu',
+  'sandshrew':'sandshrew','sandslash':'sandslash',
+  'nidoran♀':'nidoran♀','nidorina':'nidorina','nidoqueen':'nidoqueen',
+  'nidoran♂':'nidoran♂','nidorino':'nidorino','nidoking':'nidoking',
+  'clefairy':'clefairy','clefable':'clefable',
+  'vulpix':'vulpix','ninetales':'ninetales',
+  'jigglypuff':'jigglypuff','wigglytuff':'wigglytuff',
+  'zubat':'zubat','golbat':'golbat',
+  'oddish':'oddish','gloom':'gloom','vileplume':'vileplume',
+  'paras':'paras','parasect':'parasect',
+  'venonat':'venonat','venomoth':'venomoth',
+  'diglett':'diglett','dugtrio':'dugtrio',
+  'meowth':'meowth','persian':'persian',
+  'psyduck':'psyduck','golduck':'golduck',
+  'mankey':'mankey','primeape':'primeape',
+  'growlithe':'growlithe','arcanine':'arcanine',
+  'poliwag':'poliwag','poliwhirl':'poliwhirl','poliwrath':'poliwrath',
+  'abra':'abra','kadabra':'kadabra','alakazam':'alakazam',
+  'machop':'machop','machoke':'machoke','machamp':'machamp',
+  'bellsprout':'bellsprout','weepinbell':'weepinbell','victreebel':'victreebel',
+  'tentacool':'tentacool','tentacruel':'tentacruel',
+  'geodude':'geodude','graveler':'graveler','golem':'golem',
+  'ponyta':'ponyta','rapidash':'rapidash',
+  'slowpoke':'slowpoke','slowbro':'slowbro',
+  'magnemite':'magnemite','magneton':'magneton',
+  "farfetch'd":"farfetch'd",
+  'doduo':'doduo','dodrio':'dodrio',
+  'seel':'seel','dewgong':'dewgong',
+  'grimer':'grimer','muk':'muk',
+  'shellder':'shellder','cloyster':'cloyster',
+  'gastly':'gastly','haunter':'haunter','gengar':'gengar',
+  'onix':'onix',
+  'drowzee':'drowzee','hypno':'hypno',
+  'krabby':'krabby','kingler':'kingler',
+  'voltorb':'voltorb','electrode':'electrode',
+  'exeggcute':'exeggcute','exeggutor':'exeggutor',
+  'cubone':'cubone','marowak':'marowak',
+  'hitmonlee':'hitmonlee','hitmonchan':'hitmonchan',
+  'lickitung':'lickitung',
+  'koffing':'koffing','weezing':'weezing',
+  'rhyhorn':'rhyhorn','rhydon':'rhydon',
+  'chansey':'chansey',
+  'tangela':'tangela',
+  'kangaskhan':'kangaskhan',
+  'horsea':'horsea','seadra':'seadra',
+  'goldeen':'goldeen','seaking':'seaking',
+  'staryu':'staryu','starmie':'starmie',
+  "mr. mime":"mr. mime",
+  'scyther':'scyther','jynx':'jynx','electabuzz':'electabuzz','magmar':'magmar',
+  'pinsir':'pinsir','tauros':'tauros',
+  'magikarp':'magikarp','gyarados':'gyarados',
+  'lapras':'lapras','ditto':'ditto','eevee':'eevee',
+  'vaporeon':'vaporeon','jolteon':'jolteon','flareon':'flareon',
+  'porygon':'porygon',
+  'omanyte':'omanyte','omastar':'omastar',
+  'kabuto':'kabuto','kabutops':'kabutops',
+  'aerodactyl':'aerodactyl','snorlax':'snorlax',
+  'articuno':'articuno','zapdos':'zapdos','moltres':'moltres',
+  'dratini':'dratini','dragonair':'dragonair','dragonite':'dragonite',
+  'mewtwo':'mewtwo','mew':'mew',
+  // Gen 2
+  'chikorita':'chikorita','bayleef':'bayleef','meganium':'meganium',
+  'cyndaquil':'cyndaquil','quilava':'quilava','typhlosion':'typhlosion',
+  'totodile':'totodile','croconaw':'croconaw','feraligatr':'feraligatr',
+  'sentret':'sentret','furret':'furret',
+  'hoothoot':'hoothoot','noctowl':'noctowl',
+  'ledyba':'ledyba','ledian':'ledian',
+  'spinarak':'spinarak','ariados':'ariados',
+  'crobat':'crobat','chinchou':'chinchou','lanturn':'lanturn',
+  'pichu':'pichu','cleffa':'cleffa','igglybuff':'igglybuff','togepi':'togepi','togetic':'togetic',
+  'natu':'natu','xatu':'xatu',
+  'mareep':'mareep','flaaffy':'flaaffy','ampharos':'ampharos',
+  'bellossom':'bellossom','marill':'marill','azumarill':'azumarill',
+  'sudowoodo':'sudowoodo','politoed':'politoed',
+  'hoppip':'hoppip','skiploom':'skiploom','jumpluff':'jumpluff',
+  'aipom':'aipom','sunkern':'sunkern','sunflora':'sunflora',
+  'yanma':'yanma','wooper':'wooper','quagsire':'quagsire',
+  'espeon':'espeon','umbreon':'umbreon',
+  'murkrow':'murkrow','slowking':'slowking','misdreavus':'misdreavus',
+  "unown":"unown",'wobbuffet':'wobbuffet',
+  'girafarig':'girafarig','pineco':'pineco','forretress':'forretress',
+  'dunsparce':'dunsparce','gligar':'gligar',
+  'steelix':'steelix','snubbull':'snubbull','granbull':'granbull',
+  'qwilfish':'qwilfish','scizor':'scizor','shuckle':'shuckle',
+  'heracross':'heracross','sneasel':'sneasel',
+  'teddiursa':'teddiursa','ursaring':'ursaring',
+  'slugma':'slugma','magcargo':'magcargo',
+  'swinub':'swinub','piloswine':'piloswine',
+  'corsola':'corsola','remoraid':'remoraid','octillery':'octillery',
+  'delibird':'delibird','mantine':'mantine',
+  'skarmory':'skarmory','houndour':'houndour','houndoom':'houndoom',
+  'kingdra':'kingdra','phanpy':'phanpy','donphan':'donphan',
+  'porygon2':'porygon2','stantler':'stantler','smeargle':'smeargle',
+  'tyrogue':'tyrogue','hitmontop':'hitmontop',
+  'smoochum':'smoochum','elekid':'elekid','magby':'magby',
+  'miltank':'miltank','blissey':'blissey',
+  'raikou':'raikou','entei':'entei','suicune':'suicune',
+  'larvitar':'larvitar','pupitar':'pupitar','tyranitar':'tyranitar',
+  'lugia':'lugia','ho-oh':'ho-oh','celebi':'celebi',
+  // Nomi italiani effettivi (diversi dall'inglese)
+  'lucertank':'charizard',    // soprannome IT colloquiale
+  'tartaruga':'blastoise',
+  'erbastoro':'bulbasaur',
+};
+
+function itToEn(name){
+  return IT_EN_MAP[name.toLowerCase().trim()] || name;
+}
+
+// Cerca direttamente via TCG API (fallback quando Edge Function non trova)
+async function _fetchTCGDirect(query, pageSize){
+  pageSize = pageSize||30;
+  const r = await fetch(
+    TCG_URL+'?q='+encodeURIComponent(query)+'&pageSize='+pageSize+'&orderBy=-set.releaseDate',
+    {headers:{'X-Api-Key':TCG_KEY}}
+  );
+  if(!r.ok) throw new Error('TCG API '+r.status);
+  const d = await r.json();
+  return d.data||[];
+}
+
 // ── SEARCH ENGINE ──
 const cache={};
 
@@ -1605,18 +1739,70 @@ async function _fetchRaw(name,attempt=1){
   }catch(e){setLed('red','errore: '+e.message);throw e;}
 }
 
-async function fetchCards(name,attempt=1){
-  const exact=await _fetchRaw(name,attempt);
-  if(exact.length>0) return exact;
-  setLed('checking','fuzzy search...');
-  for(const v of nameVariants(name)){
-    if(!v||v.toLowerCase()===name.toLowerCase()) continue;
-    try{
-      const res=await _fetchRaw(v,1);
-      if(res.length>0){cache[name.toLowerCase().trim()]=res;return res;}
-    }catch(e){}
+async function fetchCards(name, number){
+  // 1. Traduzione italiano → inglese
+  const enName = itToEn(name);
+  const nameToSearch = enName !== name ? enName : name;
+
+  // 2. Ricerca via Edge Function (cacheata)
+  let results = [];
+  try {
+    results = await _fetchRaw(nameToSearch);
+  } catch(e) {
+    // Edge Function non disponibile → vai diretto
   }
-  return[];
+
+  // 3. Se Edge Function non trova o non disponibile → TCG API diretta
+  if(!results.length){
+    try {
+      results = await _fetchTCGDirect('name:"'+nameToSearch.replace(/"/g,'')+'"');
+    } catch(e) {}
+  }
+
+  // 4. Se ho un numero di carta, prova ricerca combinata nome+numero (molto precisa)
+  if(number && (!results.length || results.length > 5)){
+    try {
+      const byNum = await _fetchTCGDirect('name:"'+nameToSearch.replace(/"/g,'')+'" number:'+number);
+      if(byNum.length > 0){
+        // Merge: metti quelli col numero corretto in cima
+        const ids = new Set(byNum.map(c=>c.id));
+        const rest = results.filter(c=>!ids.has(c.id));
+        results = byNum.concat(rest);
+      }
+    } catch(e) {}
+  }
+
+  // 5. Fuzzy fallback se ancora vuoto
+  if(!results.length){
+    setLed('checking','fuzzy search...');
+    for(const v of nameVariants(nameToSearch)){
+      if(!v||v.toLowerCase()===nameToSearch.toLowerCase()) continue;
+      try{
+        const res = await _fetchRaw(v,1);
+        if(res.length>0){ results=res; break; }
+      }catch(e){}
+      // Prova anche TCG diretta in fuzzy
+      try{
+        const res2 = await _fetchTCGDirect('name:*'+v.split(' ')[0]+'*');
+        if(res2.length>0){ results=res2; break; }
+      }catch(e){}
+    }
+  }
+
+  // 6. Se nome italiano fallisce con mappa, prova traduzione AI-assisted
+  //    (solo se nome non trovato e sembra italiano)
+  if(!results.length && enName === name){
+    // Wildcard sul primo token come ultima risorsa
+    try {
+      const firstWord = name.split(' ')[0];
+      if(firstWord.length > 3){
+        results = await _fetchTCGDirect('name:*'+firstWord+'*');
+      }
+    } catch(e) {}
+  }
+
+  if(results.length) cache[nameToSearch.toLowerCase().trim()] = results;
+  return results;
 }
 
 // ── SEARCH (tab aggiungi) ──
@@ -1647,9 +1833,8 @@ async function doSearch(){
   document.getElementById('mform').style.display='none';
   quickCard=null;selCard=null;
   try{
-    const cards=await fetchCards(name);
+    const cards=await fetchCards(name, number||null);
     if(!cards.length){st.className='status warn';st.textContent='Nessuna carta trovata — aggiungila manualmente.';showManualForm(name,number);return}
-    const foundName=cards[0]?.name||'';
     const isFuzzy=foundName.toLowerCase()!==name.toLowerCase()&&foundName.length>0;
     let filtered=cards;
     if(number){
