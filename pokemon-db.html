@@ -1953,30 +1953,28 @@ async function savePrev(p){
   try{
     const upsertHdr={...getHDR(),'Prefer':'resolution=merge-duplicates,return=representation'};
     const uid=getCurrentUserId();
-    // items va serializzato come stringa JSON se la colonna è text,
-    // oppure mandato come array se è jsonb. Supabase gestisce entrambi
-    // tramite JSON.stringify nel body — ma usiamo la serializzazione
-    // esplicita per sicurezza con colonne text.
     const itemsPayload = Array.isArray(p.items) ? JSON.stringify(p.items) : (p.items||'[]');
+    const bodyObj = {
+      id:p.id, name:p.name, created:p.created,
+      items: itemsPayload,
+      provenienza:p.provenienza||null,
+      ...(uid?{user_id:uid}:{})
+    };
+    console.log('[savePrev] PATCH preventivo id='+p.id+' items count='+(Array.isArray(p.items)?p.items.length:'?'));
     const r = await fetch(SUPA_URL+'/rest/v1/preventivi',{
       method:'POST',
       headers:upsertHdr,
-      body:JSON.stringify({
-        id:p.id, name:p.name, created:p.created,
-        items: itemsPayload,
-        provenienza:p.provenienza||null,
-        ...(uid?{user_id:uid}:{})
-      })
+      body:JSON.stringify(bodyObj)
     });
+    const respText = await r.text().catch(function(){ return ''; });
+    console.log('[savePrev] response status='+r.status+' body='+respText.substring(0,200));
     if(!r.ok){
-      const errText = await r.text().catch(function(){ return ''; });
-      throw new Error('Supabase '+r.status+': '+errText.substring(0,200));
+      throw new Error('Supabase HTTP '+r.status+': '+respText.substring(0,300));
     }
   }catch(e){
-    // Fallback localStorage per non perdere dati
     try{ localStorage.setItem('pkm_preventivi',JSON.stringify(preventivi)); }catch(le){}
-    console.warn('savePrev error:', e.message);
-    throw e; // rilanciamo per far emergere l'errore al chiamante
+    console.error('[savePrev] ERRORE:', e.message);
+    throw e;
   }
 }
 async function deletePrevFromDB(id){
@@ -4547,97 +4545,120 @@ function showToast(msg, durationMs){
 
 async function scAddToPreventivo(){
   var btn = document.getElementById('scAddPrevBtn');
+  var lbl = document.getElementById('scAddBtnLabel');
   btn.disabled = true;
-  document.getElementById('scAddBtnLabel').textContent = '⏳ Salvataggio...';
+  lbl.textContent = '⏳ Salvataggio...';
 
-  // Leggi condizioni finali
-  scState.condCards.forEach(function(cc, i){
-    cc.condition = document.getElementById('scCC_cond_'+i).value;
-    cc.variant   = document.getElementById('scCC_var_'+i).value;
-    cc.language  = document.getElementById('scCC_lang_'+i).value;
-    cc.first1st  = document.getElementById('scCC_1st_'+i).checked;
-    var p = calcPrice(cc.tcgCard.cardmarket&&cc.tcgCard.cardmarket.prices, cc.condition, cc.variant, cc.first1st);
-    cc.cm_avg30 = (p&&!p.notQuoted) ? p.price : 0;
-  });
+  try {
+    // 1. Leggi condizioni finali dalla UI
+    var readErr = null;
+    scState.condCards.forEach(function(cc, i){
+      try {
+        cc.condition = document.getElementById('scCC_cond_'+i).value;
+        cc.variant   = document.getElementById('scCC_var_'+i).value;
+        cc.language  = document.getElementById('scCC_lang_'+i).value;
+        cc.first1st  = document.getElementById('scCC_1st_'+i).checked;
+      } catch(e){ readErr = 'elemento UI scCC_*_'+i+' non trovato: '+e.message; }
+      try {
+        var pr = calcPrice(cc.tcgCard.cardmarket&&cc.tcgCard.cardmarket.prices, cc.condition, cc.variant, cc.first1st);
+        cc.cm_avg30 = (pr&&!pr.notQuoted) ? pr.price : 0;
+      } catch(e){ cc.cm_avg30 = 0; }
+    });
+    if(readErr){ throw new Error('Lettura UI: ' + readErr); }
 
-  var prevId = document.getElementById('scPrevSelect').value;
-  var tot = scState.condCards.reduce(function(a,cc){ return a+(cc.cm_avg30||0); }, 0);
-  var n   = scState.condCards.length;
+    var prevId = document.getElementById('scPrevSelect').value;
+    var tot = scState.condCards.reduce(function(a,cc){ return a+(cc.cm_avg30||0); }, 0);
+    var n   = scState.condCards.length;
 
-  if(prevId){
-    // Ricarica preventivi freschi da DB per evitare stale state
-    try { await loadPrev(); } catch(e){}
-    var prev = preventivi.find(function(x){ return String(x.id)===String(prevId); });
-    if(!prev){
+    if(!prevId){
+      // Nessun preventivo — vai direttamente alla schermata risultato
+      document.getElementById('scResultTitle').textContent = n + ' carte identificate';
+      document.getElementById('scResultSub').textContent   = 'Nessun preventivo selezionato — carte non salvate';
+      scSetPhase(4);
+      scShowResultList(tot, n);
       btn.disabled = false;
-      document.getElementById('scAddBtnLabel').textContent = 'Aggiungi al preventivo →';
-      // Prova a trovarlo con confronto loose
-      prev = preventivi.find(function(x){ return x.id==prevId; });
-      if(!prev){
-        alert('Preventivo non trovato (id: '+prevId+'). Ricarica la pagina e riprova.');
-        return;
-      }
+      return;
     }
+
+    // 2. Ricarica preventivi freschi dal DB
+    try { await loadPrev(); } catch(e){ console.warn('loadPrev pre-save:', e); }
+
+    // 3. Trova il preventivo per id
+    var prev = preventivi.find(function(x){ return String(x.id)===String(prevId); });
+    if(!prev) prev = preventivi.find(function(x){ return x.id==prevId; });
+    if(!prev){
+      throw new Error('Preventivo id="'+prevId+'" non trovato. Array preventivi: '+preventivi.length+' elementi. Ricarica la pagina.');
+    }
+
+    // 4. Costruisci i nuovi items
     var newItems = scState.condCards.map(function(cc){
       var tc = cc.tcgCard;
       return {
-        name: tc.name,
-        set:  tc.set&&tc.set.name||'',
-        set_id: tc.set&&tc.set.id||'',
-        number: tc.number||'',
-        rarity: tc.rarity||'',
-        image:  tc.images&&tc.images.small||'',
-        image_lg: tc.images&&tc.images.large||'',
-        condition: cc.condition,
-        language:  cc.language,
-        variant:   cc.variant,
+        name:         tc.name,
+        set:          (tc.set&&tc.set.name)||'',
+        set_id:       (tc.set&&tc.set.id)||'',
+        number:       tc.number||'',
+        rarity:       tc.rarity||'',
+        image:        (tc.images&&tc.images.small)||'',
+        image_lg:     (tc.images&&tc.images.large)||'',
+        condition:    cc.condition,
+        language:     cc.language,
+        variant:      cc.variant,
         first_edition: cc.first1st,
-        qty: cc.qty||1,
-        price: cc.cm_avg30||0,
-        cm_avg30: cc.cm_avg30||0
+        qty:          cc.qty||1,
+        price:        cc.cm_avg30||0,
+        cm_avg30:     cc.cm_avg30||0
       };
     });
-    prev.items = (prev.items||[]).concat(newItems);
+
+    // 5. Aggiorna l'array locale e salva
+    var existingItems = [];
     try {
-      await savePrev(prev);
-      var successMsg = '✓ '+n+' cart'+(n===1?'a':'e')+' aggiunte a "'+prev.name+'"';
-      document.getElementById('scResultTitle').textContent = n + ' carte aggiunte';
-      document.getElementById('scResultSub').textContent   = 'Preventivo: "'+prev.name+'" · €'+tot.toFixed(2)+' valore stimato';
-      showToast(successMsg);
-    } catch(e) {
-      btn.disabled = false;
-      document.getElementById('scAddBtnLabel').textContent = 'Aggiungi al preventivo →';
-      alert('Errore nel salvataggio: ' + e.message);
-      return;
-    }
+      existingItems = Array.isArray(prev.items) ? prev.items
+        : (typeof prev.items==='string' ? JSON.parse(prev.items||'[]') : []);
+    } catch(e){ existingItems = []; }
+    prev.items = existingItems.concat(newItems);
+
+    await savePrev(prev);
+
+    // 6. Successo
+    var successMsg = '✓ '+n+' cart'+(n===1?'a':'e')+' aggiunte a "'+prev.name+'"';
+    showToast(successMsg, 3500);
+    document.getElementById('scResultTitle').textContent = n + ' carte aggiunte';
+    document.getElementById('scResultSub').textContent   = 'Preventivo: "'+prev.name+'" · €'+tot.toFixed(2)+' valore stimato';
+    scSetPhase(4);
+    scShowResultList(tot, n);
     // Aggiorna tab preventivi in background
-    try { await renderPrevList(); } catch(e){}
-  } else {
-    document.getElementById('scResultTitle').textContent = n + ' carte identificate';
-    document.getElementById('scResultSub').textContent   = 'Nessun preventivo selezionato';
+    try { renderPrevList(); } catch(e){}
+
+  } catch(e) {
+    btn.disabled = false;
+    lbl.textContent = 'Aggiungi al preventivo →';
+    alert('Errore durante il salvataggio:\n\n' + e.message);
+    console.error('scAddToPreventivo error:', e);
   }
 
+  btn.disabled = false;
+}
+
+function scShowResultList(tot, n){
   document.getElementById('scResultStats').innerHTML =
     '<div class="sc-result-stat"><div class="sc-result-stat-val">'+n+'</div><div class="sc-result-stat-lbl">Carte</div></div>'
     + '<div class="sc-result-stat"><div class="sc-result-stat-val">€'+tot.toFixed(2)+'</div><div class="sc-result-stat-lbl">Valore CM</div></div>'
     + '<div class="sc-result-stat"><div class="sc-result-stat-val">€'+(tot*0.8).toFixed(2)+'</div><div class="sc-result-stat-lbl">Lotto −20%</div></div>';
-
   var listEl = document.getElementById('scResultList');
   listEl.innerHTML = scState.condCards.map(function(cc){
     var tc = cc.tcgCard;
     return '<div class="sc-result-item">'
-      + (tc.images&&tc.images.small ? '<img src="'+tc.images.small+'"/>' : '')
-      + '<div style="flex:1;min-width:0">'
-          + '<div class="sc-result-item-name">'+tc.name+'</div>'
-          + '<div class="sc-result-item-meta">'+(tc.set&&tc.set.name||'—')+' · '+cc.condition+'</div>'
-        + '</div>'
-      + '<div class="sc-result-item-price">'+(cc.cm_avg30>0?'€'+cc.cm_avg30.toFixed(2):'n.q.')+'</div>'
-      + '</div>';
+      +(tc.images&&tc.images.small?'<img src="'+tc.images.small+'"/>':'')
+      +'<div style="flex:1;min-width:0">'
+        +'<div class="sc-result-item-name">'+tc.name+'</div>'
+        +'<div class="sc-result-item-meta">'+(tc.set&&tc.set.name||'—')+' · '+cc.condition+'</div>'
+      +'</div>'
+      +'<div class="sc-result-item-price">'+(cc.cm_avg30>0?'€'+cc.cm_avg30.toFixed(2):'n.q.')+'</div>'
+    +'</div>';
   }).join('');
   listEl.style.display = 'block';
-
-  scSetPhase(4);
-  btn.disabled = false;
 }
 
 function scReset(){
