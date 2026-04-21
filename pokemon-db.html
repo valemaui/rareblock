@@ -590,6 +590,27 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
 .sc-amb-thumb.sel{border-color:var(--accent);background:rgba(88,166,255,.08)}
 .sc-amb-thumb img{width:100%;border-radius:4px;display:block;margin-bottom:4px;height:90px;object-fit:contain}
 .sc-amb-thumb-set{font-size:9px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3}
+/* Tile "+" per ricerca manuale */
+.sc-amb-thumb-add{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;color:var(--text-muted);border-style:dashed;font-size:11px;height:122px}
+.sc-amb-thumb-add:hover{border-color:var(--accent);color:var(--accent);background:rgba(88,166,255,.06)}
+.sc-amb-thumb-add-plus{font-size:28px;font-weight:300;line-height:1}
+.sc-amb-thumb-add-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.04em;text-align:center;padding:0 4px;line-height:1.2}
+/* Set filter */
+.sc-set-filter{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:6px;display:flex;flex-direction:column;gap:6px}
+.sc-set-chips{display:flex;flex-wrap:wrap;gap:4px;min-height:0}
+.sc-set-chips:empty{display:none}
+.sc-set-chip{display:inline-flex;align-items:center;gap:5px;background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.3);color:var(--gold,#c9a84c);font-size:11px;padding:3px 8px;border-radius:12px;font-family:var(--mono)}
+.sc-set-chip-x{background:none;border:none;color:currentColor;cursor:pointer;font-size:13px;line-height:1;padding:0;opacity:.7}
+.sc-set-chip-x:hover{opacity:1}
+.sc-set-search-wrap{position:relative}
+.sc-set-search-wrap input{font-size:12px;padding:5px 8px;width:100%}
+.sc-set-results{position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);max-height:180px;overflow-y:auto;z-index:50;box-shadow:0 6px 16px rgba(0,0,0,.4);display:none}
+.sc-set-results.show{display:block}
+.sc-set-result{padding:6px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sc-set-result:last-child{border-bottom:none}
+.sc-set-result:hover{background:var(--surface2)}
+.sc-set-result.disabled{opacity:.35;cursor:not-allowed}
+.sc-set-result-meta{font-family:var(--mono);font-size:10px;color:var(--text-muted)}
 .sc-amb-thumb-num{font-size:9px;font-family:var(--mono);color:var(--text-subtle)}
 
 /* Manual search */
@@ -3405,7 +3426,10 @@ var scState = {
   aiCards: [],       // risultati raw AI
   resolvedCards: [], // dopo lookup TCG (con tcgCard, stato, selezione)
   condCards: [],     // step 3: copia con condizione/variante/lingua/1sted
-  phase: 1
+  phase: 1,
+  selectedSets: [],  // [{id,name,series,releaseDate}] max 3
+  allSets: null,     // lazy-loaded lista completa dei set TCG
+  setsLoading: false
 };
 
 // Inizializzazione tab Scan
@@ -3418,7 +3442,122 @@ function scInit(){
     opt.value = p.id; opt.textContent = p.name;
     sel.appendChild(opt);
   });
+  scRenderSetChips();
+  // Chiudi dropdown set se clicchi fuori
+  if(!scState._setOutsideBound){
+    document.addEventListener('click', function(e){
+      var wrap = document.getElementById('scSetFilter');
+      if(wrap && !wrap.contains(e.target)){
+        var res = document.getElementById('scSetResults');
+        if(res) res.classList.remove('show');
+      }
+    });
+    scState._setOutsideBound = true;
+  }
   scCheckReady();
+}
+
+// ── SET FILTER ───────────────────────────────────────────────
+async function scLoadAllSets(){
+  if(scState.allSets || scState.setsLoading) return;
+  scState.setsLoading = true;
+  try{
+    var r = await fetch('https://api.pokemontcg.io/v2/sets?orderBy=-releaseDate&pageSize=250', { headers:{'X-Api-Key':TCG_KEY} });
+    var d = await r.json();
+    scState.allSets = (d.data||[]).map(function(s){
+      return { id:s.id, name:s.name, series:s.series||'', releaseDate:s.releaseDate||'', ptcgoCode:s.ptcgoCode||'' };
+    });
+  }catch(e){
+    console.warn('scLoadAllSets:', e);
+    scState.allSets = [];
+  }
+  scState.setsLoading = false;
+}
+
+function scSetSearchUpdate(){
+  var inp = document.getElementById('scSetSearch');
+  var q   = (inp && inp.value || '').trim().toLowerCase();
+  var box = document.getElementById('scSetResults');
+  if(!box) return;
+  if(scState.selectedSets.length >= 3){
+    box.classList.remove('show');
+    return;
+  }
+  if(!scState.allSets){
+    box.classList.add('show');
+    box.innerHTML = '<div class="sc-set-result" style="opacity:.6">Caricamento set...</div>';
+    scLoadAllSets().then(function(){ scSetSearchUpdate(); });
+    return;
+  }
+  var list = q
+    ? scState.allSets.filter(function(s){ return s.name.toLowerCase().indexOf(q)>-1 || (s.ptcgoCode||'').toLowerCase().indexOf(q)>-1; })
+    : scState.allSets.slice(0,20);
+  list = list.slice(0,25);
+  if(!list.length){
+    box.classList.add('show');
+    box.innerHTML = '<div class="sc-set-result" style="opacity:.6">Nessun set trovato</div>';
+    return;
+  }
+  box.innerHTML = list.map(function(s){
+    var already = scState.selectedSets.some(function(x){ return x.id===s.id; });
+    return '<div class="sc-set-result'+(already?' disabled':'')+'" '
+      + (already?'':'onclick="scAddSetFilter(\''+s.id+'\')"')
+      + '><span>'+esc(s.name)+(s.series?' <span style="color:var(--text-subtle)">· '+esc(s.series)+'</span>':'')+'</span>'
+      + '<span class="sc-set-result-meta">'+(s.releaseDate||'')+'</span></div>';
+  }).join('');
+  box.classList.add('show');
+}
+
+function scAddSetFilter(setId){
+  if(scState.selectedSets.length >= 3) return;
+  var s = (scState.allSets||[]).find(function(x){ return x.id===setId; });
+  if(!s) return;
+  if(scState.selectedSets.some(function(x){ return x.id===s.id; })) return;
+  scState.selectedSets.push(s);
+  document.getElementById('scSetSearch').value = '';
+  document.getElementById('scSetResults').classList.remove('show');
+  scRenderSetChips();
+}
+
+function scRemoveSetFilter(setId){
+  scState.selectedSets = scState.selectedSets.filter(function(x){ return x.id!==setId; });
+  scRenderSetChips();
+}
+
+function scRenderSetChips(){
+  var box = document.getElementById('scSetChips');
+  if(!box) return;
+  box.innerHTML = scState.selectedSets.map(function(s){
+    return '<span class="sc-set-chip">'+esc(s.name)
+      +'<button class="sc-set-chip-x" title="Rimuovi" onclick="scRemoveSetFilter(\''+s.id+'\')">×</button></span>';
+  }).join('');
+  var inp = document.getElementById('scSetSearch');
+  if(inp){
+    inp.disabled = scState.selectedSets.length >= 3;
+    inp.placeholder = scState.selectedSets.length >= 3
+      ? 'Massimo 3 set · rimuovi per aggiungere'
+      : 'Cerca set (es. Base, Fossil, Jungle)...';
+  }
+}
+
+// Ricerca TCG con eventuale filtro set attivo.
+// Se ci sono set selezionati, usa API TCG diretta con query name:"X" (set.id:A OR set.id:B).
+// Altrimenti usa l'Edge Function esistente (fetchCards).
+async function scFetchCardsWithFilter(name){
+  if(!name) return [];
+  if(!scState.selectedSets.length) return await fetchCards(name);
+  var setFilter = scState.selectedSets.map(function(s){ return 'set.id:'+s.id; }).join(' OR ');
+  var q = 'name:"'+name.replace(/"/g,'')+'" ('+setFilter+')';
+  try{
+    var r = await fetch(TCG_URL+'?q='+encodeURIComponent(q)+'&pageSize=30', { headers:{'X-Api-Key':TCG_KEY} });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var d = await r.json();
+    return d.data||[];
+  }catch(e){
+    console.warn('scFetchCardsWithFilter fallback:', e);
+    // fallback senza filtro
+    return await fetchCards(name);
+  }
 }
 
 // Hook showTab per trigger scInit al cambio tab
@@ -3649,7 +3788,7 @@ async function scResolveTCG(){
       try {
         // Cerca prima con numero esatto se disponibile
         var numClean = (ai.number||'').split('/')[0].trim();
-        var tcgResults = await fetchCards(ai.name);
+        var tcgResults = await scFetchCardsWithFilter(ai.name);
         if(tcgResults && tcgResults.length > 0){
           var exact = numClean ? tcgResults.filter(function(c){ return c.number === numClean; }) : [];
           if(exact.length === 1){
@@ -3738,14 +3877,16 @@ function scRenderCardRow(resolved, idx, container){
     + '<div class="sc-card-right">'+badgeHtml+dotsHtml+includeHtml+'</div>'
     + '</div>';
 
-  // Expand area for ambiguous / not found
-  if(resolved.state === 'amb' && resolved.tcgOptions.length){
+  // Expand area for ambiguous / ok (sempre consenti la scelta manuale)
+  if((resolved.state === 'amb' || resolved.state === 'ok') && resolved.tcgOptions && resolved.tcgOptions.length){
     var exp = document.createElement('div');
     exp.className = 'sc-card-expand';
-    exp.innerHTML = '<div class="sc-amb-label">Seleziona la versione corretta:</div>';
+    exp.innerHTML = '<div class="sc-amb-label">'
+      + (resolved.state==='amb' ? 'Seleziona la versione corretta:' : 'Versione corretta? Scegli o cerca manualmente:')
+      + '</div>';
     var grid = document.createElement('div');
     grid.className = 'sc-amb-grid';
-    resolved.tcgOptions.slice(0,8).forEach(function(opt){
+    resolved.tcgOptions.slice(0,12).forEach(function(opt){
       var t = document.createElement('div');
       t.className = 'sc-amb-thumb' + (resolved.tcgCard && resolved.tcgCard.id===opt.id ? ' sel' : '');
       var sm = opt.images&&opt.images.small ? '<img src="'+opt.images.small+'" loading="lazy"/>' : '';
@@ -3768,7 +3909,23 @@ function scRenderCardRow(resolved, idx, container){
       }; })(opt,t,grid);
       grid.appendChild(t);
     });
+    // Tile "+" per ricerca manuale (sempre in coda)
+    var addTile = document.createElement('div');
+    addTile.className = 'sc-amb-thumb sc-amb-thumb-add';
+    addTile.title = 'Cerca la carta manualmente se non è tra queste';
+    addTile.innerHTML = '<div class="sc-amb-thumb-add-plus">+</div><div class="sc-amb-thumb-add-lbl">Cerca manualmente</div>';
+    addTile.onclick = (function(ii){ return function(){ scShowManualSearchRow(ii); }; })(idx);
+    grid.appendChild(addTile);
     exp.appendChild(grid);
+    // Contenitore per form di ricerca manuale (hidden fino al click sul "+")
+    var manualBox = document.createElement('div');
+    manualBox.className = 'sc-manual-wrap';
+    manualBox.id = 'scManualWrap_'+idx;
+    manualBox.style.display = 'none';
+    manualBox.style.marginTop = '10px';
+    manualBox.innerHTML = '<div class="sc-manual-label">Ricerca manuale (nome carta):</div>'
+      + '<div class="sc-manual-row" id="scManualRow_'+idx+'"></div>';
+    exp.appendChild(manualBox);
     div.appendChild(exp);
   }
 
@@ -3790,13 +3947,42 @@ function scRenderCardRow(resolved, idx, container){
   container.appendChild(div);
 }
 
+// Mostra la riga di ricerca manuale (attivata dal tile "+" della griglia ambigua)
+function scShowManualSearchRow(idx){
+  var box = document.getElementById('scManualWrap_'+idx);
+  var row = document.getElementById('scManualRow_'+idx);
+  if(!box || !row) return;
+  box.style.display = 'block';
+  // Se non è ancora popolata, popolala
+  if(!row.children.length){
+    var resolved = scState.resolvedCards[idx];
+    var ai = (resolved && resolved.aiCard) || {};
+    var inp = document.createElement('input');
+    inp.type='text'; inp.placeholder='Nome carta...';
+    inp.value = ai.name || '';
+    var btn = document.createElement('button');
+    btn.className='btn'; btn.textContent='Cerca'; btn.style.cssText='font-size:11px';
+    btn.onclick = (function(i2, b2){ return function(){
+      scManualSearch(i2.value.trim(), idx);
+      b2.disabled=true; b2.textContent='...';
+      setTimeout(function(){ b2.disabled=false; b2.textContent='Cerca'; }, 3000);
+    }; })(inp, btn);
+    inp.onkeydown = function(e){ if(e.key==='Enter') btn.click(); };
+    row.appendChild(inp); row.appendChild(btn);
+    setTimeout(function(){ inp.focus(); inp.select(); }, 30);
+  } else {
+    var inp2 = row.querySelector('input');
+    if(inp2){ inp2.focus(); inp2.select(); }
+  }
+}
+
 async function scManualSearch(name, idx){
   if(!name) return;
   var row = document.getElementById('scRow_'+idx);
   var btn = row.querySelector('button');
   if(btn){ btn.disabled=true; btn.textContent='...'; }
   try{
-    var results = await fetchCards(name);
+    var results = await scFetchCardsWithFilter(name);
     var resolved = scState.resolvedCards[idx];
     if(results && results.length > 0){
       resolved.tcgOptions = results.slice(0,12);
@@ -4102,6 +4288,16 @@ function scReset(){
             <select id="scPrevSelect" onchange="scCheckReady()">
               <option value="">— Solo identificazione —</option>
             </select>
+          </div>
+          <div class="sc-field">
+            <label>Filtra per set <span style="color:var(--text-subtle);font-weight:400">(max 3, opzionale)</span></label>
+            <div id="scSetFilter" class="sc-set-filter">
+              <div class="sc-set-chips" id="scSetChips"></div>
+              <div class="sc-set-search-wrap">
+                <input type="text" id="scSetSearch" placeholder="Cerca set (es. Base, Fossil, Jungle)..." oninput="scSetSearchUpdate()" onfocus="scSetSearchUpdate()" autocomplete="off"/>
+                <div class="sc-set-results" id="scSetResults"></div>
+              </div>
+            </div>
           </div>
           <div class="sc-field">
             <label>Lingua predefinita</label>
