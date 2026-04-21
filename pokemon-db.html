@@ -92,7 +92,12 @@ label{font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;fon
 
 /* ZOOM */
 .thumb-zoom{display:none;position:fixed;z-index:9999;pointer-events:none;border-radius:var(--r);overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.7);border:1px solid var(--border)}
-.thumb-zoom img{display:block;width:280px;height:auto;max-height:390px;object-fit:contain;background:var(--surface2)}
+.thumb-zoom img{display:block;width:380px;height:auto;max-height:530px;object-fit:contain;background:var(--surface2)}
+.thumb-zoom.xl img{width:500px;max-height:700px}
+.sc-zoomable{cursor:zoom-in;transition:outline-color .12s}
+.sc-zoomable:hover{outline:2px solid var(--accent);outline-offset:2px}
+.sc-card-replace{font-size:10px;font-family:var(--mono);background:none;border:1px solid var(--border);color:var(--text-muted);padding:3px 8px;border-radius:var(--r);cursor:pointer;margin-top:4px;transition:all .12s}
+.sc-card-replace:hover{border-color:var(--warning);color:var(--warning);background:rgba(210,153,34,.06)}
 
 /* ── TAB AGGIUNGI ── */
 .add-layout{display:grid;grid-template-columns:1fr 360px;height:100%;overflow:hidden}
@@ -3433,11 +3438,16 @@ var scState = {
 };
 
 // Inizializzazione tab Scan
-function scInit(){
+async function scInit(){
+  // Se la lista preventivi non è ancora stata caricata, caricala ora
+  // (evita di dover passare prima dal tab Preventivi)
+  if(!preventivi || !preventivi.length){
+    try{ await loadPrev(); }catch(e){ console.warn('scInit loadPrev:', e); }
+  }
   // Popola select preventivi
   var sel = document.getElementById('scPrevSelect');
   sel.innerHTML = '<option value="">— nessuno (solo identificazione) —</option>';
-  preventivi.forEach(function(p){
+  (preventivi||[]).forEach(function(p){
     var opt = document.createElement('option');
     opt.value = p.id; opt.textContent = p.name;
     sel.appendChild(opt);
@@ -3545,18 +3555,63 @@ function scRenderSetChips(){
 // Altrimenti usa l'Edge Function esistente (fetchCards).
 async function scFetchCardsWithFilter(name){
   if(!name) return [];
-  if(!scState.selectedSets.length) return await fetchCards(name);
+  // Percorso 1: se nessun filtro set, proviamo la Edge Function (più veloce e cacheata)
+  if(!scState.selectedSets.length){
+    try {
+      var res = await fetchCards(name);
+      if(res && res.length) return res;
+    } catch(e){ console.warn('fetchCards failed, fallback diretto:', e); }
+    // Fallback diretto TCG API se Edge Function fallisce o restituisce 0
+    try {
+      var r = await fetch(TCG_URL+'?q='+encodeURIComponent('name:"'+name.replace(/"/g,'')+'"')+'&pageSize=30', { headers:{'X-Api-Key':TCG_KEY} });
+      if(r.ok){ var d = await r.json(); return d.data||[]; }
+    } catch(e2){ console.warn('TCG direct failed:', e2); }
+    // Ultima risorsa: fuzzy wildcards
+    try {
+      var r2 = await fetch(TCG_URL+'?q='+encodeURIComponent('name:*'+name.replace(/"/g,'').split(/\s+/)[0]+'*')+'&pageSize=30', { headers:{'X-Api-Key':TCG_KEY} });
+      if(r2.ok){ var d2 = await r2.json(); return d2.data||[]; }
+    } catch(e3){}
+    return [];
+  }
+  // Percorso 2: filtro set attivo → sempre TCG API diretta
   var setFilter = scState.selectedSets.map(function(s){ return 'set.id:'+s.id; }).join(' OR ');
   var q = 'name:"'+name.replace(/"/g,'')+'" ('+setFilter+')';
   try{
-    var r = await fetch(TCG_URL+'?q='+encodeURIComponent(q)+'&pageSize=30', { headers:{'X-Api-Key':TCG_KEY} });
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    var d = await r.json();
-    return d.data||[];
+    var r3 = await fetch(TCG_URL+'?q='+encodeURIComponent(q)+'&pageSize=30', { headers:{'X-Api-Key':TCG_KEY} });
+    if(!r3.ok) throw new Error('HTTP '+r3.status);
+    var d3 = await r3.json();
+    if(d3.data && d3.data.length) return d3.data;
+    // Fuzzy con wildcard e filtro set
+    var qFuzzy = 'name:*'+name.replace(/"/g,'').split(/\s+/)[0]+'* ('+setFilter+')';
+    var rF = await fetch(TCG_URL+'?q='+encodeURIComponent(qFuzzy)+'&pageSize=30', { headers:{'X-Api-Key':TCG_KEY} });
+    if(rF.ok){ var dF = await rF.json(); return dF.data||[]; }
+    return [];
   }catch(e){
-    console.warn('scFetchCardsWithFilter fallback:', e);
-    // fallback senza filtro
-    return await fetchCards(name);
+    console.warn('scFetchCardsWithFilter failed, fallback senza filtro:', e);
+    return await fetchCards(name).catch(function(){ return []; });
+  }
+}
+
+// Scarta il match corrente e porta la riga in stato "err" con ricerca manuale aperta.
+// Usato dal bottone "Sostituisci" quando il match trovato non è quello giusto.
+function scReplaceCard(idx){
+  var resolved = scState.resolvedCards[idx];
+  if(!resolved) return;
+  var ai = resolved.aiCard || {};
+  // Reset: butta via tcgCard, tcgOptions, torna in err
+  resolved.tcgCard = null;
+  resolved.tcgOptions = [];
+  resolved.state = 'err';
+  // Re-render della riga
+  var row = document.getElementById('scRow_'+idx);
+  if(row && row.parentNode){
+    scRenderCardRow(resolved, idx, { appendChild: function(el){ row.parentNode.replaceChild(el, row); } });
+    // Focus automatico sul campo ricerca della nuova riga err
+    setTimeout(function(){
+      var newRow = document.getElementById('scRow_'+idx);
+      var inp = newRow && newRow.querySelector('input[data-role="manual-search-input"]');
+      if(inp){ inp.focus(); inp.select(); }
+    }, 50);
   }
 }
 
@@ -3748,6 +3803,9 @@ function scHandleFile(file){
     document.getElementById('scDzHint').style.display = 'none';
     document.getElementById('scDzName').textContent = file.name;
     document.getElementById('scResetBtn').disabled = false;
+    // Zoom al mouseover (stessa immagine a qualità alta)
+    preview.classList.add('sc-zoomable');
+    try{ addZoom(preview, result, false); }catch(e){}
     scCheckReady();
   };
   reader.readAsDataURL(file);
@@ -3864,6 +3922,7 @@ function scRenderCardRow(resolved, idx, container){
   var includeHtml = resolved.state !== 'skip'
     ? '<label class="sc-card-include"><input type="checkbox"'+(resolved.selected?' checked':'')
       +' onchange="scToggleSelect('+idx+',this.checked)"/> Includi</label>'
+      + (tc ? '<button class="sc-card-replace" onclick="scReplaceCard('+idx+')" title="Scarta match e cerca manualmente">Sostituisci</button>' : '')
     : '';
 
   div.innerHTML = '<div class="sc-card-main">'
@@ -3936,15 +3995,34 @@ function scRenderCardRow(resolved, idx, container){
     var mr = exp2.querySelector('.sc-manual-row');
     var inp = document.createElement('input');
     inp.type='text'; inp.placeholder='Nome carta...'; inp.value=ai.name||'';
+    inp.setAttribute('data-role','manual-search-input');
     var btn = document.createElement('button');
     btn.className='btn'; btn.textContent='Cerca'; btn.style.cssText='font-size:11px';
-    btn.onclick = (function(i2, b2){ return function(){ scManualSearch(i2.value.trim(), idx); b2.disabled=true; b2.textContent='...'; setTimeout(function(){ b2.disabled=false; b2.textContent='Cerca'; }, 3000); }; })(inp, btn);
+    btn.setAttribute('data-role','manual-search-btn');
+    btn.onclick = (function(i2, b2){ return function(){
+      var name=(i2.value||'').trim();
+      if(!name){ i2.style.borderColor='var(--danger)'; i2.focus(); return; }
+      i2.style.borderColor='';
+      scManualSearch(name, idx);
+    }; })(inp, btn);
     inp.onkeydown = function(e){ if(e.key==='Enter') btn.click(); };
     mr.appendChild(inp); mr.appendChild(btn);
     div.appendChild(exp2);
   }
 
   container.appendChild(div);
+
+  // Attacca hover-zoom all'immagine grande della carta trovata (se presente)
+  if(tc && tc.images && tc.images.large){
+    var mainImg = div.querySelector('.sc-card-img');
+    if(mainImg){ mainImg.classList.add('sc-zoomable'); try{ addZoom(mainImg, tc.images.large, false); }catch(e){} }
+  }
+  // Attacca zoom anche alle thumbnail ambigue (grande = versione large)
+  div.querySelectorAll('.sc-amb-thumb img').forEach(function(im, i){
+    var opt = (resolved.tcgOptions||[])[i];
+    var large = opt && opt.images && opt.images.large;
+    if(large){ im.classList.add('sc-zoomable'); try{ addZoom(im, large, false); }catch(e){} }
+  });
 }
 
 // Mostra la riga di ricerca manuale (attivata dal tile "+" della griglia ambigua)
@@ -3960,12 +4038,15 @@ function scShowManualSearchRow(idx){
     var inp = document.createElement('input');
     inp.type='text'; inp.placeholder='Nome carta...';
     inp.value = ai.name || '';
+    inp.setAttribute('data-role','manual-search-input');
     var btn = document.createElement('button');
     btn.className='btn'; btn.textContent='Cerca'; btn.style.cssText='font-size:11px';
+    btn.setAttribute('data-role','manual-search-btn');
     btn.onclick = (function(i2, b2){ return function(){
-      scManualSearch(i2.value.trim(), idx);
-      b2.disabled=true; b2.textContent='...';
-      setTimeout(function(){ b2.disabled=false; b2.textContent='Cerca'; }, 3000);
+      var name=(i2.value||'').trim();
+      if(!name){ i2.style.borderColor='var(--danger)'; i2.focus(); return; }
+      i2.style.borderColor='';
+      scManualSearch(name, idx);
     }; })(inp, btn);
     inp.onkeydown = function(e){ if(e.key==='Enter') btn.click(); };
     row.appendChild(inp); row.appendChild(btn);
@@ -3979,7 +4060,10 @@ function scShowManualSearchRow(idx){
 async function scManualSearch(name, idx){
   if(!name) return;
   var row = document.getElementById('scRow_'+idx);
-  var btn = row.querySelector('button');
+  if(!row) return;
+  // Trova il bottone corretto tramite marker (non il primo trovato nella riga)
+  var btn = row.querySelector('button[data-role="manual-search-btn"]') || row.querySelector('button');
+  var inp = row.querySelector('input[data-role="manual-search-input"]') || row.querySelector('input');
   if(btn){ btn.disabled=true; btn.textContent='...'; }
   try{
     var results = await scFetchCardsWithFilter(name);
@@ -3990,19 +4074,41 @@ async function scManualSearch(name, idx){
         resolved.tcgCard = results[0];
         resolved.state = 'ok';
       } else {
-        resolved.state = 'amb';
+        // Prova a restringere per numero se l'AI l'aveva fornito
+        var ai = resolved.aiCard || {};
+        var numClean = (ai.number||'').split('/')[0].trim();
+        var exact = numClean ? results.filter(function(c){ return c.number===numClean; }) : [];
+        if(exact.length===1){
+          resolved.tcgCard = exact[0];
+          resolved.state = 'ok';
+          resolved.tcgOptions = results.slice(0,12);
+        } else {
+          resolved.state = 'amb';
+        }
       }
-      // Re-render this row
-      var newDiv = document.createElement('div');
-      scRenderCardRow(resolved, idx, {appendChild: function(el){
-        row.parentNode.replaceChild(el, row);
-      }});
+      // Re-render completo della riga
+      scRenderCardRow(resolved, idx, { appendChild: function(el){ row.parentNode.replaceChild(el, row); } });
     } else {
+      // Nessun risultato: entra in stato err e re-renderizza (così vedi il blocco errore con campo di ricerca dedicato)
       if(btn){ btn.disabled=false; btn.textContent='Cerca'; }
-      row.querySelector('input').style.borderColor='var(--danger)';
+      if(inp){ inp.style.borderColor='var(--danger)'; inp.focus(); }
+      // Messaggio inline
+      var existing = row.querySelector('.sc-manual-nores');
+      if(!existing){
+        var msg = document.createElement('div');
+        msg.className = 'sc-manual-nores';
+        msg.style.cssText = 'color:var(--danger);font-size:11px;margin-top:6px;font-family:var(--mono)';
+        msg.textContent = 'Nessun risultato per "'+name+'"' + (scState.selectedSets.length ? ' nei set selezionati — prova a rimuovere il filtro set.' : '.');
+        var wrap = row.querySelector('.sc-manual-wrap') || row.querySelector('.sc-card-expand');
+        if(wrap) wrap.appendChild(msg);
+      } else {
+        existing.textContent = 'Nessun risultato per "'+name+'"' + (scState.selectedSets.length ? ' nei set selezionati — prova a rimuovere il filtro set.' : '.');
+      }
     }
   } catch(e){
+    console.warn('scManualSearch error:', e);
     if(btn){ btn.disabled=false; btn.textContent='Cerca'; }
+    if(inp){ inp.style.borderColor='var(--danger)'; }
   }
 }
 
