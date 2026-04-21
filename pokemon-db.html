@@ -3694,7 +3694,7 @@ async function scFetchCardsWithFilter(name){
     try{ var r=await fetchCards(n); if(r&&r.length) return r; }catch(e){}
     try{
       var r2=await fetch(TCG_URL+'?q='+encodeURIComponent('name:"'+n.replace(/"/g,'')+'"')+'&pageSize=30',{headers:{'X-Api-Key':TCG_KEY}});
-      if(r2.ok){ var d2=await r2.json(); if(d2.data&&d2.data.length) return d2.data; }
+      if(rAnt.ok){ var d2=await r2.json(); if(d2.data&&d2.data.length) return d2.data; }
     }catch(e){}
     try{
       var r3=await fetch(TCG_URL+'?q='+encodeURIComponent('name:*'+n.replace(/"/g,'').split(/\s+/)[0]+'*')+'&pageSize=30',{headers:{'X-Api-Key':TCG_KEY}});
@@ -3866,43 +3866,18 @@ async function scAnalyze(){
   }
 }
 
-// Chiama l'AI: prova prima la Edge Function, fallback diretto se non deployata
+// Chiama l'AI: Anthropic diretto (primario) → OpenRouter multi-model (fallback)
+// La Edge Function scan-cards non è ancora deployata — rimossa per evitare CORS noise.
 async function scCallAI(prompt){
   var lastErr = null;
-
-  // ── 1. Edge Function Supabase ────────────────────────────────────────
-  try {
-    var ctrl1 = new AbortController();
-    var t1 = setTimeout(function(){ ctrl1.abort(); }, 30000);
-    var r = await fetch(SUPA_URL + '/functions/v1/scan-cards', {
-      method: 'POST', signal: ctrl1.signal,
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + ((window._rbSession&&window._rbSession.access_token)||SUPA_KEY) },
-      body: JSON.stringify({ image_base64: scState.imageBase64, media_type: scState.imageMediaType, prompt: prompt })
-    });
-    clearTimeout(t1);
-    if(r.ok){
-      scSetStatus('Analisi via Edge Function...', 'info');
-      return await r.json();
-    }
-    if(r.status !== 404 && r.status !== 500) {
-      var tErr = await r.text();
-      lastErr = 'Edge Function ' + r.status + ': ' + tErr.substring(0,100);
-    }
-  } catch(e) {
-    lastErr = 'Edge Function: ' + e.message;
-    // Solo network error o timeout → prova fallback
-    if(e.message && !e.message.includes('Failed to fetch') && !e.message.includes('abort') && !e.message.includes('404') && !e.message.includes('500')) throw e;
-  }
-
-  // ── 2. Anthropic diretto (claude-haiku — veloce, vision nativa) ───────
   var ak = window._SC_AK || window._K_ || null;
   if(ak && ak !== 'ANTHROPIC_API_KEY_PLACEHOLDER'){
     try {
       scSetStatus('Analisi con Claude AI...', 'info');
-      var ctrl2 = new AbortController();
-      var t2 = setTimeout(function(){ ctrl2.abort(); }, 55000);
-      var r2 = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST', signal: ctrl2.signal,
+      var ctrl = new AbortController();
+      var tAnt = setTimeout(function(){ ctrl.abort(); }, 55000);
+      var rAnt = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST', signal: ctrl.signal,
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': ak,
@@ -3918,14 +3893,14 @@ async function scCallAI(prompt){
           ]}]
         })
       });
-      clearTimeout(t2);
-      if(r2.ok){
-        var d2 = await r2.json();
+      clearTimeout(tAnt);
+      if(rAnt.ok){
+        var d2 = await rAnt.json();
         var raw2 = ((d2.content||[])[0]||{}).text || '';
         raw2 = raw2.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
         try{ return JSON.parse(raw2); } catch(pe){ throw new Error('Parse error: ' + raw2.substring(0,150)); }
       }
-      lastErr = 'Anthropic ' + r2.status;
+      lastErr = 'Anthropic ' + rAnt.status;
     } catch(e){ lastErr = 'Anthropic: ' + e.message; }
   }
 
