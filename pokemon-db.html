@@ -1134,7 +1134,7 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
                   <div style="font-size:11px;color:var(--text-subtle);margin-top:2px" id="qmRarity"></div>
                   <div id="qmPriceRow" style="display:none;margin-top:8px">
                     <div style="font-size:22px;font-weight:600;font-family:var(--mono);line-height:1" id="qmPriceVal"></div>
-                    <div style="font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:3px">CM avg30 · <span id="qmPriceFactor"></span></div>
+                    <div style="font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:3px">CM price · <span id="qmPriceFactor"></span></div>
                   </div>
                 </div>
               </div>
@@ -1221,7 +1221,7 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
                 <div class="field"><label>Quantità</label><input id="mqty" type="number" value="1" min="1"/></div>
                 <div class="field"><label>Acquisto (€)</label><input id="mbuy" type="number" placeholder="0.00" step="0.01"/></div>
                 <div class="field"><label>Vendita (€)</label><input id="msell" type="number" placeholder="0.00" step="0.01"/></div>
-                <div class="field"><label>CM avg30 (€)</label><div style="display:flex;gap:5px"><input id="mcm" type="number" placeholder="0.00" step="0.01" style="flex:1"/><button class="btn-verify" id="mVerifyBtn" onclick="verifyPriceAdd('m')" title="Verifica prezzo live su Cardmarket" style="flex-shrink:0">€</button></div></div>
+                <div class="field"><label>CM price (€)</label><div style="display:flex;gap:5px"><input id="mcm" type="number" placeholder="0.00" step="0.01" style="flex:1"/><button class="btn-verify" id="mVerifyBtn" onclick="verifyPriceAdd('m')" title="Verifica prezzo live su Cardmarket" style="flex-shrink:0">€</button></div></div>
                 <div class="field"><label>URL immagine</label><input id="mimg" type="text" placeholder="https://..."/></div>
                 <div class="field full"><label>Note</label><input id="mnotes" type="text"/></div>
               </div>
@@ -1292,7 +1292,7 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
                 <th>Lingua</th>
                 <th>Variante</th>
                 <th onclick="sortPrevTable('qty')">Qtà</th>
-                <th onclick="sortPrevTable('cm_avg30')" style="text-align:right">CM avg30</th>
+                <th onclick="sortPrevTable('cm_avg30')" style="text-align:right">CM price</th>
                 <th onclick="sortPrevTable('total')" style="text-align:right">Totale</th>
                 <th style="width:60px"></th>
               </tr></thead>
@@ -1379,7 +1379,7 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
       <div class="field"><label>Quantità</label><input id="emQty" type="number" value="1" min="1"/></div>
     </div>
     <div class="modal-cm-row">
-      <span class="modal-cm-label">CM avg30 (€)</span>
+      <span class="modal-cm-label">CM price (€)</span>
       <input id="emCm" type="number" placeholder="0.00" step="0.01" class="modal-cm-input" oninput="emUpdatePrice()"/>
       <button class="btn modal-cm-refresh" onclick="refreshEditPrice()" title="Ricalcola dal database">↺ Ricalcola</button>
       <label class="sc-1st-sm" title="Prima edizione" style="margin-left:4px">
@@ -1533,32 +1533,87 @@ function parseQuery(q){
   return{name:q.trim(),number:null};
 }
 
-function calcPrice(prices,cond,variant,first1st){
-  if(!prices)return null;
-  const isReverse=variant==='Reverse Holo';
+// ── PRICE ENGINE ─────────────────────────────────────────────────────────────
+// Calcola il prezzo NM di riferimento dalla struttura prices della TCG API.
+// Usa una media pesata dei datapoint disponibili — più accurata di solo avg30.
+//
+// Pesi: trendPrice×40% + avg7×35% + avg1×15% + lowPrice×10%
+// Se alcuni datapoint mancano, normalizza i pesi sui disponibili.
+// Per carte con pochi dati (avg1 o avg7 nulli) usa trend o avg30 come fallback.
+//
+function calcBaseNMPrice(prices, isReverse) {
+  if(!prices) return null;
 
-  // Usa trendPrice come base NM quando disponibile: è più stabile di avg30
-  // che può essere gonfiato da vendite recenti di alto valore.
-  // Per reverse holo usa il trend specifico se esiste.
-  const trend = isReverse ? (prices.reverseHoloTrend||null) : (prices.trendPrice||null);
-  const avg30 = isReverse ? (prices.reverseHoloAvg30||null) : (prices.avg30||null);
-  const base  = trend || avg30;
+  const p = isReverse ? {
+    trend:  prices.reverseHoloTrend   || null,
+    avg1:   null,  // TCG API non fornisce avg1 per reverse
+    avg7:   prices.reverseHoloAvg7    || null,
+    avg30:  prices.reverseHoloAvg30   || null,
+    low:    prices.reverseHoloLow     || null,
+  } : {
+    trend:  prices.trendPrice         || null,
+    avg1:   prices.avg1               || null,
+    avg7:   prices.avg7               || null,
+    avg30:  prices.avg30              || null,
+    low:    prices.lowPrice           || null,
+  };
 
-  if(!base||base<=0)return null;
+  // Raccoglie i datapoint disponibili con i rispettivi pesi
+  const candidates = [
+    { val: p.trend, weight: 40 },
+    { val: p.avg7,  weight: 35 },
+    { val: p.avg1,  weight: 15 },
+    { val: p.low,   weight: 10 },
+    { val: p.avg30, weight: 15 }, // fallback con peso ridotto se avg7/trend mancano
+  ].filter(function(c){ return c.val && c.val > 0; });
 
-  const condFactor=COND_FACTOR[cond];
-  if(condFactor===0)return{price:0,base,label:'trend/avg30',detail:'INK/ALT — non quotato su Cardmarket',notQuoted:true};
+  if(!candidates.length) return null;
 
-  let factor=condFactor!==undefined?condFactor:1.0;
-  if(first1st)factor*=FIRST_ED_FACTOR;
-  const price=Math.round(base*factor*100)/100;
-  const pct=COND_LABEL[cond]||'';
-  const src=trend?'trend':'avg30';
-  let detail='NM '+src+': €'+base.toFixed(2)+' [stima]';
-  if(cond!=='NM')detail+=' × '+pct+' ('+cond+')';
-  if(first1st)detail+=' × 1.8 (1ª ed.)';
-  if(cond!=='NM'&&cond!=='MINT') detail+=' · verifica con ↗ CM';
-  return{price,factor,condFactor,base,label:src,pct,detail,notQuoted:false};
+  // Rimuovi duplicati (stesso valore → prendi solo una volta con peso massimo)
+  const seen = {};
+  const unique = [];
+  candidates.forEach(function(c){
+    var k = Math.round(c.val * 100);
+    if(!seen[k]){ seen[k] = c; unique.push(c); }
+    else if(c.weight > seen[k].weight){ seen[k].weight = c.weight; }
+  });
+
+  // Normalizza pesi e calcola media pesata
+  const totalWeight = unique.reduce(function(a,c){ return a + c.weight; }, 0);
+  const weighted = unique.reduce(function(a,c){ return a + c.val * c.weight; }, 0);
+  const base = weighted / totalWeight;
+
+  // Sanity check: se il base è anomalo rispetto ad avg30, usa avg30 come ancora
+  if(p.avg30 && p.avg30 > 0) {
+    const ratio = base / p.avg30;
+    if(ratio > 3 || ratio < 0.1) return p.avg30; // base troppo lontano da avg30
+  }
+
+  return Math.round(base * 100) / 100;
+}
+
+function calcPrice(prices, cond, variant, first1st){
+  if(!prices) return null;
+  const isReverse = variant === 'Reverse Holo';
+
+  const base = calcBaseNMPrice(prices, isReverse);
+  if(!base || base <= 0) return null;
+
+  const condFactor = COND_FACTOR[cond];
+  if(condFactor === 0) return { price:0, base, label:'smart', detail:'INK/ALT — non quotato su Cardmarket', notQuoted:true };
+  if(condFactor === undefined) return null;
+
+  let factor = condFactor;
+  if(first1st) factor *= FIRST_ED_FACTOR;
+  const price = Math.round(base * factor * 100) / 100;
+
+  const pct = COND_LABEL[cond] || '';
+  const src = (prices.trendPrice || prices.reverseHoloTrend) ? 'smart' : 'avg30';
+  let detail = 'NM '+src+': €'+base.toFixed(2);
+  if(cond !== 'NM') detail += ' × '+pct+' ('+cond+')';
+  if(first1st) detail += ' × 1.8 (1ª ed.)';
+  if(cond !== 'NM' && cond !== 'MINT') detail += ' · verifica con ↗ CM';
+  return { price, factor, condFactor, base, label:src, pct, detail, notQuoted:false };
 }
 
 // ── SMART CM PRICING ─────────────────────────────────────────────────────────
@@ -2422,7 +2477,7 @@ function pickCard(c,el){
   el.classList.add('sel');selCard=c;
   const sf=document.getElementById('selForm');sf.style.display='block';
   const p=calcPrice(c.cardmarket?.prices,'NM','Normal',false);
-  const priceStr=p?` · CM avg30: €${p.price.toFixed(2)}`:'';
+  const priceStr=p?` · CM price: €${p.price.toFixed(2)}`:'';
   document.getElementById('selHeader').innerHTML=
     (c.images?.small?`<img src="${c.images.small}"/>`:'')
     +`<div><div class="sel-name">${c.name}</div><div class="sel-meta">${c.set?.name||''} · #${c.number||'?'} · ${c.rarity||'?'}${priceStr}</div></div>`;
@@ -2559,7 +2614,7 @@ async function loadCollection(){
             <button class="btn-ghost" style="padding:1px 5px" onclick="event.stopPropagation();delCard('${c.id}','${c.name.replace(/'/g,"\'")}')">✕</button>
           </div>
           ${c.sell_price>0?`<div class="ccard-price">€${parseFloat(c.sell_price).toFixed(2)}</div>`:''}
-          ${c.cm_avg30>0?`<div class="ccard-cm">CM avg30: €${parseFloat(c.cm_avg30).toFixed(2)}</div>`:''}
+          ${c.cm_price>0?`<div class="ccard-cm">CM: €${parseFloat(c.cm_avg30).toFixed(2)}</div>`:''}
         </div>
       </div>`).join('');
   }catch(e){
@@ -2601,7 +2656,7 @@ async function exportCSV(){
   try{
     const data=await supa('GET','cards?order=created_at.desc&limit=10000');
     if(!data?.length){alert('Nessuna carta');return}
-    const cols=['id','name','set_name','card_number','rarity','condition','language','variant','first_edition','qty','buy_price','sell_price','cm_avg30','is_manual','notes','image_url','created_at'];
+    const cols=['id','name','set_name','card_number','rarity','condition','language','variant','first_edition','qty','buy_price','sell_price','cm_price','is_manual','notes','image_url','created_at'];
     const csv=[cols.join(','),...data.map(r=>cols.map(k=>`"${String(r[k]||'').replace(/"/g,'""')}"`).join(','))].join('\n');
     const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
     a.download='pokemon_db_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
@@ -2731,7 +2786,7 @@ async function renderPrevList(){
   if(!preventivi.length){list.innerHTML='<div style="font-size:12px;color:var(--text-subtle);padding:8px 4px">Nessun preventivo — creane uno</div>';return}
   list.innerHTML=preventivi.map((p,i)=>{
     const items = getItems(p);
-    const tot=items.reduce((a,c)=>a+(c.cm_avg30||0)*(c.qty||1),0);
+    const tot=items.reduce((a,c)=>a+(c.cm_price||0)*(c.qty||1),0);
     const provBadge=p.provenienza?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--surface3);color:var(--text-subtle);border:1px solid var(--border);margin-left:4px">${p.provenienza}</span>`:'';
     return '<div class="prev-item'+(activePrev&&activePrev.id===p.id?' active':'')+'" onclick="openPreventivo('+i+')">'
       +'<div style="min-width:0;flex:1"><div class="prev-item-name" style="display:flex;align-items:center">'+p.name+provBadge+'</div>'
@@ -2830,12 +2885,12 @@ function renderPrevTable(){
     items.sort((a,b)=>{
       let va,vb;
       if(prevSortKey==='total'){
-        va=(a.cm_avg30||0)*(a.qty||1);
-        vb=(b.cm_avg30||0)*(b.qty||1);
+        va=(a.cm_price||0)*(a.qty||1);
+        vb=(b.cm_price||0)*(b.qty||1);
       } else if(prevSortKey==='condition'){
         va=COND_ORDER[a.condition]||99;
         vb=COND_ORDER[b.condition]||99;
-      } else if(prevSortKey==='cm_avg30'||prevSortKey==='qty'){
+      } else if(prevSortKey==='cm_price'||prevSortKey==='qty'){
         va=parseFloat(a[prevSortKey])||0;
         vb=parseFloat(b[prevSortKey])||0;
       } else {
@@ -2891,8 +2946,8 @@ function renderPrevTable(){
       +'<td style="font-size:11px;color:var(--text-subtle)">'+(c.language||'ITA')+'</td>'
       +'<td style="font-size:11px;color:var(--text-subtle)">'+(c.variant||'Normal')+'</td>'
       +'<td style="font-size:12px">×'+c.qty+'</td>'
-      +'<td class="td-cm">€'+(c.cm_avg30||0).toFixed(2)+'</td>'
-      +'<td class="td-price">€'+((c.cm_avg30||0)*(c.qty||1)).toFixed(2)+'</td>'
+      +'<td class="td-cm">€'+(c.cm_price||0).toFixed(2)+'</td>'
+      +'<td class="td-price">€'+((c.cm_price||0)*(c.qty||1)).toFixed(2)+'</td>'
       +'<td style="white-space:nowrap">'
         +'<button class="btn-ghost" title="Modifica" onclick="openEditModal('+i+')" style="color:var(--blue);font-size:15px;margin-right:2px">✎</button>'
         +'<button class="btn-verify" id="vbtn_'+i+'" title="Verifica prezzo live su Cardmarket" onclick="verifyPrice('+i+')">€</button>'
@@ -2912,7 +2967,7 @@ function renderPrevTotals(){
 
   // Totali
   const n=items.reduce((a,c)=>a+(c.qty||1),0);
-  const tot=items.reduce((a,c)=>a+(c.cm_avg30||0)*(c.qty||1),0);
+  const tot=items.reduce((a,c)=>a+(c.cm_price||0)*(c.qty||1),0);
 
   // Condizione media: conta le occorrenze e prendi le 2 più frequenti
   const ORDER=['MINT','NM','EX','GD','LP','PL','PO','INK/ALT'];
@@ -3014,7 +3069,7 @@ function openEditModal(idx){
   document.getElementById('emLang').value=c.language||'ITA';
   document.getElementById('emVar').value=c.variant||'Normal';
   document.getElementById('emQty').value=c.qty||1;
-  document.getElementById('emCm').value=(c.cm_avg30||0).toFixed(2);
+  document.getElementById('emCm').value=(c.cm_price||0).toFixed(2);
   document.getElementById('em1st').checked=c.first_edition||false;
   // Close replace panel on reopen
   document.getElementById('emReplacePanel').classList.remove('open');
@@ -3147,7 +3202,7 @@ async function saveEditModal(){
   c.language=document.getElementById('emLang').value;
   c.variant=document.getElementById('emVar').value;
   c.qty=parseInt(document.getElementById('emQty').value)||1;
-  c.cm_avg30=parseFloat(document.getElementById('emCm').value)||0;
+  c.cm_price=parseFloat(document.getElementById('emCm').value)||0;
   c.first_edition=document.getElementById('em1st').checked;
   await savePrev(activePrev);
   renderPrevTable();renderPrevList();
@@ -3466,19 +3521,20 @@ function buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, se
     return 'https://www.cardmarket.com/it/Pokemon/Products/Singles/'+setSlug+'/'+cardSlug+'?'+qs;
   }
 
-  // Livello 2: browse set + ricerca per nome esatta
-  // Aggiunge anche il numero carta come hint quando disponibile
+  // Livello 2: browse set + ricerca per nome
+  // Se abbiamo il numero, cercarlo nel nome migliora la precisione (es "Charizard 4/102")
   if(setSlug && nameSlug){
-    var searchStr = name;
-    if(number){ searchStr = name; } // CM cerca per nome nel set — il numero è visibile nell'elenco
+    const searchStr = number
+      ? name + ' ' + (number+'').split('/')[0]  // "Charizard 4" → trova più facilmente
+      : name;
     return 'https://www.cardmarket.com/it/Pokemon/Products/Singles/'+setSlug
-      +'?searchString='+encodeURIComponent(name)+'&exactMatch=true&'+qs;
+      +'?searchString='+encodeURIComponent(searchStr)+'&'+qs;
   }
 
-  // Livello 3: ricerca globale con nome (senza numero — più precisa)
+  // Livello 3: ricerca globale con nome e numero
+  const globalSearch = number ? name+' '+(number+'').split('/')[0] : name;
   return 'https://www.cardmarket.com/it/Pokemon/Products/Search?category=-1'
-    +'&searchString='+encodeURIComponent(name)+'&searchMode=v2&'+qs;
-}
+    +'&searchString='+encodeURIComponent(globalSearch)+'&searchMode=v2&'+qs;
 
 function openCardmarketAdd(){
   const c = quickCard || selCard;
@@ -3508,7 +3564,7 @@ async function applyVerifiedPrice(idx, price){
   if(!activePrev) return;
   const item = activePrev.items[idx];
   if(!item) return;
-  item.cm_avg30 = Math.round(price * 100) / 100;
+  item.cm_price = Math.round(price * 100) / 100;
   await savePrev(activePrev);
   const ov = document.getElementById('cmLogOverlay');
   if(ov) ov.remove();
@@ -3953,19 +4009,19 @@ async function addToPrev(){
 function exportPrevCSV(){
   const _expItems = getItems(activePrev);
   if(!activePrev||!_expItems.length){alert('Nessuna carta nel preventivo');return}
-  const cols=['name','set','number','rarity','condition','variant','first_edition','qty','cm_avg30','totale'];
+  const cols=['name','set','number','rarity','condition','variant','first_edition','qty','cm_price','totale'];
   const numFmt=v=>isNaN(parseFloat(v))||v===''?`"${String(v||'').replace(/"/g,'""')}"`:parseFloat(v);
   const txtFmt=v=>`"${String(v||'').replace(/"/g,'""')}"`;
   const rows=_expItems.map(c=>[
     txtFmt(c.name),txtFmt(c.set),txtFmt(c.number),txtFmt(c.rarity),
     txtFmt(c.condition),txtFmt(c.variant),txtFmt(c.first_edition),
-    numFmt(c.qty),numFmt(c.cm_avg30),numFmt(((c.cm_avg30||0)*(c.qty||1)).toFixed(2))
+    numFmt(c.qty),numFmt(c.cm_price),numFmt(((c.cm_price||0)*(c.qty||1)).toFixed(2))
   ].join(','));
-  const tot=_expItems.reduce((a,c)=>a+(c.cm_avg30||0)*(c.qty||1),0);
+  const tot=_expItems.reduce((a,c)=>a+(c.cm_price||0)*(c.qty||1),0);
   const offerVal=document.getElementById('prevOfferVal');
   const offer=parseFloat(offerVal?offerVal.value:(tot*0.72).toFixed(2));
   const offerPct=tot>0?Math.round(offer/tot*100):0;
-  rows.push(`"","","","","","","","","TOTALE CM avg30",${tot.toFixed(2)}`);
+  rows.push(`"","","","","","","","","TOTALE CM price",${tot.toFixed(2)}`);
   rows.push(`"","","","","","","","","Prezzo lotto (-20%)",${(tot*0.80).toFixed(2)}`);
   rows.push(`"","","","","","","","","Offerta proposta (${offerPct}%)",${offer.toFixed(2)}`);
   const csv=[cols.join(','),...rows].join('\n');
@@ -3991,7 +4047,7 @@ async function importCSV(ev){
     for(let j=i;j<Math.min(i+BATCH,lines.length);j++){
       const vals=lines[j].match(/("(?:[^"]|"")*"|[^,]*)/g)||[];
       const name=get(vals,'name');if(!name){skipped++;continue}
-      batch.push({name,set_name:get(vals,'set_name'),condition:get(vals,'condition')||'NM',language:get(vals,'language')||'ITA',variant:get(vals,'variant')||'Normal',first_edition:get(vals,'first_edition')==='true',qty:parseInt(get(vals,'qty'))||1,buy_price:parseFloat(get(vals,'buy_price'))||0,sell_price:parseFloat(get(vals,'sell_price'))||0,cm_avg30:parseFloat(get(vals,'cm_avg30'))||0,notes:get(vals,'notes'),is_manual:true});
+      batch.push({name,set_name:get(vals,'set_name'),condition:get(vals,'condition')||'NM',language:get(vals,'language')||'ITA',variant:get(vals,'variant')||'Normal',first_edition:get(vals,'first_edition')==='true',qty:parseInt(get(vals,'qty'))||1,buy_price:parseFloat(get(vals,'buy_price'))||0,sell_price:parseFloat(get(vals,'sell_price'))||0,cm_avg30:parseFloat(get(vals,'cm_avg30')||get(vals,'cm_price'))||0,notes:get(vals,'notes'),is_manual:true});
     }
     if(batch.length){try{const uid=getCurrentUserId();if(uid)batch.forEach(b=>{b.user_id=uid;});await supa('POST','cards',batch);added+=batch.length}catch(e){skipped+=batch.length}}
     pf.style.width=Math.round(((i+BATCH)/lines.length)*100)+'%';
@@ -4155,7 +4211,7 @@ async function applyUpdate(){
 setTimeout(checkForUpdates,3000);
 setInterval(checkForUpdates,3600000);
 
-// ALTER TABLE cards ADD COLUMN IF NOT EXISTS cm_avg30 numeric(10,2) default 0;
+// ALTER TABLE cards ADD COLUMN IF NOT EXISTS cm_price numeric(10,2) default 0;
 // ALTER TABLE cards ADD COLUMN IF NOT EXISTS is_manual boolean default false;
 // ALTER TABLE cards ADD COLUMN IF NOT EXISTS first_edition boolean default false;
 // ALTER TABLE preventivi ADD COLUMN IF NOT EXISTS provenienza text default null;
@@ -5232,16 +5288,16 @@ function scUpdateCondPrice(i){
   var p = calcPrice(cc.tcgCard.cardmarket&&cc.tcgCard.cardmarket.prices, cond, variant, first1st);
   var el = document.getElementById('scCC_price_'+i);
   if(p){
-    if(p.notQuoted){ el.textContent='n.q.'; el.className='sc-cond-price-big nq'; cc.cm_avg30=0; }
-    else { el.textContent='€'+p.price.toFixed(2); el.className='sc-cond-price-big'; cc.cm_avg30=p.price; }
+    if(p.notQuoted){ el.textContent='n.q.'; el.className='sc-cond-price-big nq'; cc.cm_price=0; }
+    else { el.textContent='€'+p.price.toFixed(2); el.className='sc-cond-price-big'; cc.cm_price=p.price; }
   } else {
-    el.textContent='—'; el.className='sc-cond-price-big nq'; cc.cm_avg30=0;
+    el.textContent='—'; el.className='sc-cond-price-big nq'; cc.cm_price=0;
   }
   scUpdateCondTotal();
 }
 
 function scUpdateCondTotal(){
-  var tot = scState.condCards.reduce(function(a,cc){ return a+(cc.cm_avg30||0)*(cc.qty||1); }, 0);
+  var tot = scState.condCards.reduce(function(a,cc){ return a+(cc.cm_price||0)*(cc.qty||1); }, 0);
   document.getElementById('scCondTotal').textContent = '€'+tot.toFixed(2);
   document.getElementById('scCondCount').textContent = scState.condCards.length + ' carte';
 }
@@ -5284,13 +5340,13 @@ async function scAddToPreventivo(){
       } catch(e){ readErr = 'elemento UI scCC_*_'+i+' non trovato: '+e.message; }
       try {
         var pr = calcPrice(cc.tcgCard.cardmarket&&cc.tcgCard.cardmarket.prices, cc.condition, cc.variant, cc.first1st);
-        cc.cm_avg30 = (pr&&!pr.notQuoted) ? pr.price : 0;
-      } catch(e){ cc.cm_avg30 = 0; }
+        cc.cm_price = (pr&&!pr.notQuoted) ? pr.price : 0;
+      } catch(e){ cc.cm_price = 0; }
     });
     if(readErr){ throw new Error('Lettura UI: ' + readErr); }
 
     var prevId = document.getElementById('scPrevSelect').value;
-    var tot = scState.condCards.reduce(function(a,cc){ return a+(cc.cm_avg30||0); }, 0);
+    var tot = scState.condCards.reduce(function(a,cc){ return a+(cc.cm_price||0); }, 0);
     var n   = scState.condCards.length;
 
     if(!prevId){
@@ -5329,7 +5385,7 @@ async function scAddToPreventivo(){
         variant:      cc.variant,
         first_edition: cc.first1st,
         qty:          cc.qty||1,
-        price:        cc.cm_avg30||0,
+        price:        cc.cm_price||0,
         cm_avg30:     cc.cm_avg30||0
       };
     });
@@ -5378,7 +5434,7 @@ function scShowResultList(tot, n){
         +'<div class="sc-result-item-name">'+tc.name+'</div>'
         +'<div class="sc-result-item-meta">'+(tc.set&&tc.set.name||'—')+' · '+cc.condition+'</div>'
       +'</div>'
-      +'<div class="sc-result-item-price">'+(cc.cm_avg30>0?'€'+cc.cm_avg30.toFixed(2):'n.q.')+'</div>'
+      +'<div class="sc-result-item-price">'+(cc.cm_price>0?'€'+cc.cm_price.toFixed(2):'n.q.')+'</div>'
     +'</div>';
   }).join('');
   listEl.style.display = 'block';
@@ -7163,7 +7219,7 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
     <!-- KPI ROW -->
     <div class="dash-kpis" id="dashKpis">
       <div class="dash-kpi"><div class="dash-kpi-label">Capitale investito</div><div class="dash-kpi-val" id="dkInvested">—</div><div class="dash-kpi-sub">buy_price × qty</div></div>
-      <div class="dash-kpi"><div class="dash-kpi-label">Valore di mercato</div><div class="dash-kpi-val warn" id="dkMarket">—</div><div class="dash-kpi-sub">cm_avg30 × qty</div></div>
+      <div class="dash-kpi"><div class="dash-kpi-label">Valore di mercato</div><div class="dash-kpi-val warn" id="dkMarket">—</div><div class="dash-kpi-sub">cm_price × qty</div></div>
       <div class="dash-kpi"><div class="dash-kpi-label">P&amp;L non realizzato</div><div class="dash-kpi-val" id="dkUnreal">—</div><div class="dash-kpi-sub" id="dkUnrealPct">—</div></div>
       <div class="dash-kpi"><div class="dash-kpi-label">P&amp;L realizzato</div><div class="dash-kpi-val" id="dkReal">—</div><div class="dash-kpi-sub">da vendite chiuse</div></div>
       <div class="dash-kpi"><div class="dash-kpi-label">Carte totali</div><div class="dash-kpi-val" id="dkCards">—</div><div class="dash-kpi-sub" id="dkUniq">—</div></div>
@@ -8126,7 +8182,7 @@ async function dashLoad(){
 function dashRender(cards, sales, wish){
   // ── KPIs ──
   var invested = cards.reduce(function(a,c){ return a+((c.buy_price||0)*(c.qty||1)); },0);
-  var market   = cards.reduce(function(a,c){ return a+(((c.cm_avg30||c.sell_price)||0)*(c.qty||1)); },0);
+  var market   = cards.reduce(function(a,c){ return a+(((c.cm_price||c.sell_price)||0)*(c.qty||1)); },0);
   var unreal   = market - invested;
   var unrealPct = invested>0 ? ((unreal/invested)*100) : 0;
   var totCards = cards.reduce(function(a,c){ return a+(c.qty||1); },0);
@@ -8161,10 +8217,10 @@ function dashRender(cards, sales, wish){
 
   // ── Top 5 carte per valore mercato ──
   var sorted = cards.slice().sort(function(a,b){
-    return ((b.cm_avg30||b.sell_price||0)*(b.qty||1)) - ((a.cm_avg30||a.sell_price||0)*(a.qty||1));
+    return ((b.cm_price||b.sell_price||0)*(b.qty||1)) - ((a.cm_price||a.sell_price||0)*(a.qty||1));
   }).slice(0,5);
   var topHtml = sorted.length ? sorted.map(function(c){
-    var val = ((c.cm_avg30||c.sell_price)||0)*(c.qty||1);
+    var val = ((c.cm_price||c.sell_price)||0)*(c.qty||1);
     return '<div class="dash-top-card">'
       +(c.image_url?'<img class="dash-top-img" src="'+c.image_url+'" loading="lazy"/>'
         :'<div class="dash-top-img-ph">🃏</div>')
@@ -8201,7 +8257,7 @@ function dashRender(cards, sales, wish){
   var setMap = {};
   cards.forEach(function(c){
     var k = c.set_name||'Senza set';
-    setMap[k] = (setMap[k]||0) + ((c.cm_avg30||c.sell_price||0)*(c.qty||1));
+    setMap[k] = (setMap[k]||0) + ((c.cm_price||c.sell_price||0)*(c.qty||1));
   });
   var setEntries = Object.entries(setMap).sort(function(a,b){ return b[1]-a[1]; }).slice(0,8);
   var setMax = Math.max.apply(null, setEntries.map(function(e){ return e[1]; }).concat([1]));
@@ -8254,8 +8310,8 @@ function dashRender(cards, sales, wish){
     // Wishlist summary
     if(wish&&wish.length){
       var wBudget = wish.reduce(function(a,w){ return a+(w.max_price||0); },0);
-      var wMarket = wish.reduce(function(a,w){ return a+(w.cm_avg30||0); },0);
-      var wBuyable = wish.filter(function(w){ return w.cm_avg30>0&&w.max_price>0&&w.cm_avg30<=w.max_price; }).length;
+      var wMarket = wish.reduce(function(a,w){ return a+(w.cm_price||0); },0);
+      var wBuyable = wish.filter(function(w){ return w.cm_price>0&&w.max_price>0&&w.cm_price<=w.max_price; }).length;
       document.getElementById('dashWishSummary').innerHTML =
         '<div style="display:flex;gap:16px;margin-bottom:12px">'
         +'<div><div style="font-size:18px;font-weight:600;font-family:var(--mono)">'+wish.length+'</div><div style="font-size:11px;color:var(--text-muted)">Carte cercate</div></div>'
@@ -8594,7 +8650,7 @@ async function wishRefreshPrices(){
           var mktPrice = prices.trendPrice||prices.avg30||prices.averageSellPrice||null;
           if(mktPrice&&mktPrice>0){
             await supa('PATCH','wishlist?id=eq.'+w.id,{cm_avg30:mktPrice});
-            w.cm_avg30 = mktPrice;
+            w.cm_price = mktPrice;
             updated++;
           }
         }
@@ -8610,16 +8666,16 @@ function wishRender(){
   var statusF = document.getElementById('wishFilterStatus').value||'';
   var rows = _wishItems.filter(function(w){
     if(q && w.name.toLowerCase().indexOf(q)===-1) return false;
-    if(statusF==='buyable' && !(w.cm_avg30>0&&w.max_price>0&&w.cm_avg30<=w.max_price)) return false;
-    if(statusF==='wait' && !(w.cm_avg30>0&&(!w.max_price||w.cm_avg30>w.max_price))) return false;
-    if(statusF==='np' && w.cm_avg30>0) return false;
+    if(statusF==='buyable' && !(w.cm_price>0&&w.max_price>0&&w.cm_price<=w.max_price)) return false;
+    if(statusF==='wait' && !(w.cm_price>0&&(!w.max_price||w.cm_price>w.max_price))) return false;
+    if(statusF==='np' && w.cm_price>0) return false;
     return true;
   });
 
   // Stats
-  var buyable = _wishItems.filter(function(w){ return w.cm_avg30>0&&w.max_price>0&&w.cm_avg30<=w.max_price; }).length;
+  var buyable = _wishItems.filter(function(w){ return w.cm_price>0&&w.max_price>0&&w.cm_price<=w.max_price; }).length;
   var budget = _wishItems.reduce(function(a,w){ return a+(w.max_price||0); },0);
-  var mktTotal = _wishItems.reduce(function(a,w){ return a+(w.cm_avg30||0); },0);
+  var mktTotal = _wishItems.reduce(function(a,w){ return a+(w.cm_price||0); },0);
   document.getElementById('wsTotal').textContent = _wishItems.length;
   document.getElementById('wsBuyable').textContent = buyable;
   document.getElementById('wsBudget').textContent = '€'+budget.toFixed(0);
@@ -8635,14 +8691,14 @@ function wishRender(){
   empty.style.display='none';
 
   grid.innerHTML = rows.map(function(w){
-    var buyable2 = w.cm_avg30>0&&w.max_price>0&&w.cm_avg30<=w.max_price;
-    var hasMkt = w.cm_avg30>0;
+    var buyable2 = w.cm_price>0&&w.max_price>0&&w.cm_price<=w.max_price;
+    var hasMkt = w.cm_price>0;
     var badge = buyable2
       ? '<span class="wish-item-badge ok">🟢 Comprabile</span>'
       : hasMkt
         ? '<span class="wish-item-badge wait">🟡 In attesa</span>'
         : '<span class="wish-item-badge np">⚪ No prezzo</span>';
-    var diff = hasMkt&&w.max_price ? w.cm_avg30-w.max_price : null;
+    var diff = hasMkt&&w.max_price ? w.cm_price-w.max_price : null;
     var diffStr = diff!==null ? ('<span style="color:'+(diff<=0?'var(--success)':'var(--danger)')+'">('+(diff>=0?'+':'')+diff.toFixed(2)+'€)</span>') : '';
     return '<div class="wish-item'+(buyable2?' buyable':'')+'">'
       +'<div style="display:flex;align-items:flex-start;justify-content:space-between">'
@@ -8652,7 +8708,7 @@ function wishRender(){
       +'<div class="wish-item-meta">'+(w.set_name?esc(w.set_name)+' · ':'')+w.condition+' · '+(w.language||'ITA')+'</div>'
       +'<div class="wish-item-prices">'
         +(w.max_price?'<div class="wish-item-max">Max: <span>€'+w.max_price.toFixed(2)+'</span></div>':'<div class="wish-item-max" style="color:var(--text-subtle)">Nessun limite</div>')
-        +'<div class="wish-item-mkt">Mkt: <span style="color:'+(hasMkt?'var(--warning)':'var(--text-subtle)')+'">'+(hasMkt?'€'+w.cm_avg30.toFixed(2):'—')+'</span></div>'
+        +'<div class="wish-item-mkt">Mkt: <span style="color:'+(hasMkt?'var(--warning)':'var(--text-subtle)')+'">'+(hasMkt?'€'+w.cm_price.toFixed(2):'—')+'</span></div>'
         +diffStr
       +'</div>'
       +(w.notes?'<div style="font-size:11px;color:var(--text-muted)">'+esc(w.notes)+'</div>':'')
@@ -8678,7 +8734,7 @@ function wishToPrev(id){
 
 function wishExport(){
   if(!_wishItems.length){ alert('Wishlist vuota'); return; }
-  var cols = ['id','name','set_name','condition','language','max_price','cm_avg30','notes'];
+  var cols = ['id','name','set_name','condition','language','max_price','cm_price','notes'];
   var csv = [cols.join(',')].concat(_wishItems.map(function(r){
     return cols.map(function(k){ return '"'+String(r[k]||'').replace(/"/g,'""')+'"'; }).join(',');
   })).join('\n');

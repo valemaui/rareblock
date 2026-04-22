@@ -1,5 +1,5 @@
-// Supabase Edge Function: cm-price v3
-// Estrae i singoli annunci con condizione e prezzo (non più solo prezzi aggregati)
+// Supabase Edge Function: cm-price v4
+// Scraping CM con anti-CF avanzato + multi-strategia parsing
 // Deploy: supabase functions deploy cm-price
 
 const CORS = {
@@ -14,13 +14,76 @@ const json = (data: unknown, status = 200) =>
     headers: { ...CORS, 'Content-Type': 'application/json' },
   });
 
-// Mappa CM condition string → ordine numerico (più alto = peggio)
 const COND_ORDER: Record<string,number> = {
   'Mint':1,'Near Mint':2,'Excellent':3,'Good':4,'Light Played':5,'Played':6,'Poor':7,
   'MT':1,'NM':2,'EX':3,'GD':4,'LP':5,'PL':6,'PO':7,
 };
 
 interface Listing { price: number; condition: string; condRank: number; seller?: string; }
+
+// Pool di User-Agent reali aggiornati
+const USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0',
+];
+
+function getRandomUA(): string {
+  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+}
+
+function buildHeaders(url: string, lang = 'it'): Record<string,string> {
+  const ua = getRandomUA();
+  const origin = 'https://www.cardmarket.com';
+  const isIt = lang === 'it';
+  return {
+    'User-Agent': ua,
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language': isIt ? 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7' : 'de-DE,de;q=0.9,en;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Cache-Control': 'max-age=0',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Sec-CH-UA': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    'Sec-CH-UA-Mobile': '?0',
+    'Sec-CH-UA-Platform': '"Windows"',
+    'DNT': '1',
+    'Referer': origin + '/it/Pokemon',
+  };
+}
+
+async function fetchWithRetry(url: string, maxRetries = 2): Promise<{ html: string; ok: boolean; status: number }> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    // Leggero jitter tra tentativi
+    if (attempt > 0) await new Promise(r => setTimeout(r, 800 + Math.random() * 400));
+
+    // Alterna lingua IT/DE per evitare pattern detection
+    const lang = attempt % 2 === 0 ? 'it' : 'de';
+    const langUrl = attempt > 0 ? url.replace('/it/Pokemon', `/${lang}/Pokemon`) : url;
+
+    try {
+      const resp = await fetch(langUrl, { headers: buildHeaders(langUrl, lang) });
+      const html = await resp.text();
+
+      // CF challenge: prova prossimo tentativo
+      if (html.length < 2000 || html.includes('Just a moment') || html.includes('cf-browser-verification')) {
+        if (attempt === maxRetries) return { html, ok: false, status: 403 };
+        continue;
+      }
+
+      return { html, ok: resp.ok, status: resp.status };
+    } catch (e) {
+      if (attempt === maxRetries) return { html: '', ok: false, status: 0 };
+    }
+  }
+  return { html: '', ok: false, status: 0 };
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -32,33 +95,20 @@ Deno.serve(async (req) => {
       return json({ error: 'url non valido', listings: [], prices: [] });
     }
 
-    const resp = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,*/*;q=0.8',
-        'Accept-Language': 'it-IT,it;q=0.9,en;q=0.8',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Cache-Control': 'no-cache',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-      },
-    });
+    const { html, ok, status } = await fetchWithRetry(url);
 
-    if (!resp.ok) {
+    if (!ok || !html) {
       return json({
-        error: `CM HTTP ${resp.status}${resp.status===403?' — Cloudflare WAF':''}`,
-        listings: [], prices: []
+        error: `CM HTTP ${status}${status === 403 ? ' — Cloudflare WAF (normale, riprova)' : ''}`,
+        listings: [], prices: [], status
       });
     }
 
-    const html = await resp.text();
-
-    if (html.length < 2000 || html.includes('cf-browser-verification') || html.includes('Just a moment')) {
-      return json({ error: 'Cloudflare challenge — riprova tra qualche secondo', listings: [], prices: [] });
+    if (html.includes('Just a moment') || html.includes('cf-browser-verification')) {
+      return json({ error: 'Cloudflare challenge attivo', listings: [], prices: [], status: 403 });
     }
 
     const listings = extractListings(html);
-    // Compatibilità retroattiva: prices = array di numeri (come prima)
     const prices = listings.map(l => l.price);
 
     return json({ listings, prices, url, source: 'cardmarket', count: listings.length });
@@ -69,9 +119,7 @@ Deno.serve(async (req) => {
 });
 
 function extractListings(html: string): Listing[] {
-  const listings: Listing[] = [];
-
-  // ── Strategia 1: __NEXT_DATA__ JSON (struttura più affidabile) ─────────────
+  // ── Strategia 1: __NEXT_DATA__ JSON ──────────────────────────────────────
   const nd = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
   if (nd) {
     try {
@@ -81,10 +129,18 @@ function extractListings(html: string): Listing[] {
     } catch { /* continua */ }
   }
 
-  // ── Strategia 2: HTML strutturato — article.article-table-body / .row-offer ─
-  // Cardmarket usa tabelle con righe per ogni annuncio
-  // Condizione: span.badge o span con class condition-*
-  // Prezzo: span.price-container o .color-primary
+  // ── Strategia 2: window.__NEXT_DATA__ inline ──────────────────────────────
+  const wnd = html.match(/window\.__NEXT_DATA__\s*=\s*(\{[\s\S]*?\});?\s*(?:<\/script>|window\.)/);
+  if (wnd) {
+    try {
+      const obj = JSON.parse(wnd[1]);
+      const extracted = extractFromNextData(obj);
+      if (extracted.length > 0) return extracted;
+    } catch { /* continua */ }
+  }
+
+  // ── Strategia 3: pattern article-row HTML ────────────────────────────────
+  const listings: Listing[] = [];
   const rowPattern = /<div[^>]*class="[^"]*article-row[^"]*"[^>]*>([\s\S]*?)(?=<div[^>]*class="[^"]*article-row|<\/table|<\/article)/gi;
   let rowMatch: RegExpExecArray | null;
   while ((rowMatch = rowPattern.exec(html)) !== null) {
@@ -95,33 +151,28 @@ function extractListings(html: string): Listing[] {
       listings.push({ price, condition: cond, condRank: COND_ORDER[cond] || 5 });
     }
   }
-  if (listings.length > 0) return listings.slice(0, 20);
+  if (listings.length > 0) return listings.slice(0, 20).sort((a,b) => a.price - b.price);
 
-  // ── Strategia 3: JSON-LD + prezzi pattern ─────────────────────────────────
-  const jld = /<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
+  // ── Strategia 4: JSON price pattern ─────────────────────────────────────
+  const pricePattern = /"price"\s*:\s*"?(\d{1,4}[,.]?\d{0,3}[,.]\d{2})"?/g;
   let m: RegExpExecArray | null;
-  while ((m = jld.exec(html)) !== null) {
-    try {
-      const o = JSON.parse(m[1]);
-      const lp = o?.offers?.lowPrice ?? o?.offers?.price;
-      if (lp) {
-        const n = parsePrice(String(lp));
-        if (n) listings.push({ price: n, condition: 'NM', condRank: 2 });
-      }
-    } catch { /* */ }
+  const seen = new Set<number>();
+  while ((m = pricePattern.exec(html)) !== null) {
+    const n = parsePrice(m[1]);
+    if (n && n >= 0.1 && n <= 9999 && !seen.has(n)) {
+      seen.add(n);
+      listings.push({ price: n, condition: 'NM', condRank: 2 });
+    }
   }
+  if (listings.length > 0) return listings.slice(0, 20).sort((a,b) => a.price - b.price);
 
-  // ── Strategia 4: fallback pattern numerico ────────────────────────────────
-  if (!listings.length) {
-    const re = /(?:€\s*|"price"\s*:\s*"?|"priceGross"\s*:\s*)(\d{1,4}(?:[.,]\d{3})*[,.]\d{2})(?:"|[^\d])/g;
-    let r: RegExpExecArray | null;
-    const seen = new Set<number>();
-    while ((r = re.exec(html)) !== null) {
-      const n = parsePrice(r[1]);
-      if (n && n >= 0.1 && n <= 9999 && !seen.has(n)) {
-        seen.add(n);
-        listings.push({ price: n, condition: 'NM', condRank: 2 });
-      }
+  // ── Strategia 5: fallback € pattern grezzo ───────────────────────────────
+  const euroPattern = /€\s*(\d{1,4}(?:[.,]\d{3})*[,.]\d{2})/g;
+  while ((m = euroPattern.exec(html)) !== null) {
+    const n = parsePrice(m[1]);
+    if (n && n >= 0.1 && n <= 9999 && !seen.has(n)) {
+      seen.add(n);
+      listings.push({ price: n, condition: 'NM', condRank: 2 });
     }
   }
 
@@ -129,26 +180,22 @@ function extractListings(html: string): Listing[] {
 }
 
 function extractFromNextData(obj: unknown, depth = 0): Listing[] {
-  if (depth > 10 || !obj || typeof obj !== 'object') return [];
+  if (depth > 12 || !obj || typeof obj !== 'object') return [];
   const listings: Listing[] = [];
 
-  // Cerca array di articoli/offerte
-  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-    if (Array.isArray(v) && v.length > 0 && depth < 6) {
-      // Prova a identificare array di listing
+  for (const [, v] of Object.entries(obj as Record<string, unknown>)) {
+    if (Array.isArray(v) && v.length > 0 && depth < 8) {
       const first = v[0] as Record<string, unknown>;
       if (first && typeof first === 'object' &&
-          ('price' in first || 'priceGross' in first || 'sellPrice' in first)) {
+          ('price' in first || 'priceGross' in first || 'sellPrice' in first || 'minPrice' in first)) {
         for (const item of v) {
           const i = item as Record<string, unknown>;
-          const rawPrice = i.price ?? i.priceGross ?? i.sellPrice ?? i.lowPrice;
+          const rawPrice = i.price ?? i.priceGross ?? i.sellPrice ?? i.minPrice;
           const price = typeof rawPrice === 'number' ? rawPrice
             : rawPrice ? parsePrice(String(rawPrice)) : null;
-          if (!price || price < 0.1) continue;
+          if (!price || price < 0.1 || price > 9999) continue;
 
-          // Estrai condizione
-          let cond = 'NM';
-          let condRank = 2;
+          let cond = 'NM', condRank = 2;
           const condField = i.condition ?? i.cardCondition ?? i.minCondition;
           if (condField) {
             const condStr = extractConditionLabel(condField);
@@ -170,35 +217,33 @@ function extractFromNextData(obj: unknown, depth = 0): Listing[] {
 function extractConditionLabel(condField: unknown): string | null {
   if (!condField) return null;
   const s = typeof condField === 'object'
-    ? (condField as Record<string,unknown>).label ?? (condField as Record<string,unknown>).abbreviation ?? ''
+    ? (condField as Record<string,unknown>).label ?? (condField as Record<string,unknown>).abbreviation ?? (condField as Record<string,unknown>).name ?? ''
     : String(condField);
   const str = String(s).trim();
-  // Abbreviazioni
   const abbrev: Record<string,string> = {
-    'MT':'Mint','NM':'Near Mint','EX':'Excellent',
-    'GD':'Good','LP':'Light Played','PL':'Played','PO':'Poor',
+    'MT':'Mint','NM':'Near Mint','EX':'Excellent','GD':'Good',
+    'LP':'Light Played','PL':'Played','PO':'Poor',
     '1':'Mint','2':'Near Mint','3':'Excellent','4':'Good','5':'Light Played','6':'Played','7':'Poor',
   };
   return abbrev[str] ?? (COND_ORDER[str] ? str : null);
 }
 
 function extractConditionFromRow(row: string): string | null {
-  // Cerca badge condizione
-  const condMatch = row.match(/(?:badge-|condition-|cond-)([a-z]+)/i)
+  const condMatch = row.match(/(?:badge-|condition-|cond-)([a-z-]+)/i)
     ?? row.match(/\b(Mint|Near Mint|Excellent|Good|Light Played|Played|Poor|NM|EX|GD|LP|PL|PO|MT)\b/i);
   if (!condMatch) return null;
   const raw = condMatch[1];
   const map: Record<string,string> = {
     'mint':'Mint','near':'Near Mint','near-mint':'Near Mint','nearmint':'Near Mint',
     'excellent':'Excellent','good':'Good','lightplayed':'Light Played',
-    'light':'Light Played','played':'Played','poor':'Poor',
+    'light-played':'Light Played','light':'Light Played','played':'Played','poor':'Poor',
     'nm':'Near Mint','ex':'Excellent','gd':'Good','lp':'Light Played','pl':'Played','po':'Poor','mt':'Mint',
   };
   return map[raw.toLowerCase()] ?? null;
 }
 
 function extractPriceFromRow(row: string): number | null {
-  const m = row.match(/(?:€\s*|price[^"]*"[^"]*"?)(\d{1,4}[,.]?\d{0,3}[,.]\d{2})/i);
+  const m = row.match(/(?:€\s*|"price"\s*:\s*"?)(\d{1,4}[,.]?\d{0,3}[,.]\d{2})/i);
   return m ? parsePrice(m[1]) : null;
 }
 
