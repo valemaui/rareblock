@@ -3710,93 +3710,29 @@ async function verifyPrice(idx){
     } else {
       window._rbUnregisterPriceHandler(idx);
 
-      // Mostra il bookmarklet da trascinare nella barra segnalibri
-      const bkCode = '(function(){var t=document.body.innerText||\'\',re=new RegExp(\'(\\d{1,4}[,.]\\d{2})\\s*\u20ac\\s*[\\r\\n]+\\s*(\\d+)\\s*[\\r\\n]\',\'g\'),p=[],s={},m;while((m=re.exec(t))!==null){var v=parseFloat(m[1].replace(/\./g,\'\').replace(\',\',\'.\'));if(v>=0.01&&v<=50000&&!s[v]){s[v]=true;p.push(v);}}p.sort(function(a,b){return a-b;});if(window.opener&&!window.opener.closed){window.opener.postMessage({type:\'rareblock_cm_prices\',prices:p.slice(0,7),url:location.href},\'*\');setTimeout(function(){window.close();},300);}else{alert(\'Prezzi: \'+p.slice(0,7).map(function(x){return \'\u20ac\'+x.toFixed(2);}).join(\', \'));}})();';
-
+      // Nessun prezzo ricevuto — mostra input manuale nel log
       const ov = document.getElementById('cmLogOverlay');
       if(ov){
         const b = ov.querySelector('.cm-log-body');
         if(b){
-          // Riga istruzione
           const hint = document.createElement('div');
           hint.className = 'cm-log-line';
-          hint.innerHTML = '<span class="cm-log-icon">\u26a0</span>'
-            + '<span class="cm-log-text warn">Bookmarklet non ancora installato — trascina il pulsante nella barra dei segnalibri:</span>';
+          hint.innerHTML = '<span class="cm-log-icon">⚠</span>'
+            + '<span class="cm-log-text warn">Installa lo userscript Tampermonkey per grab automatico. '
+            + 'Inserisci prezzo manualmente:</span>';
           b.appendChild(hint);
 
-          // Pulsante bookmarklet trascinabile
-          const bkWrap = document.createElement('div');
-          bkWrap.style.cssText = 'padding:8px 12px 4px';
-          const bkLink = document.createElement('a');
-          bkLink.href = 'javascript:' + bkCode;
-          bkLink.textContent = '\uD83D\uDD16 RareBlock · Prezzi CM';
-          bkLink.style.cssText = [
-            'display:inline-block','padding:5px 14px','border-radius:6px',
-            'background:#58a6ff','color:#0d1117','font-weight:700',
-            'font-family:var(--font)','font-size:12px','text-decoration:none',
-            'cursor:grab','border:2px dashed rgba(88,166,255,.5)'
-          ].join(';');
-          bkLink.title = 'Trascina nella barra dei segnalibri, poi clicca quando sei su CM';
-          bkWrap.appendChild(bkLink);
-
-          const bkHint = document.createElement('div');
-          bkHint.style.cssText = 'font-size:10px;color:var(--text-subtle);margin-top:4px;padding:0 2px';
-          bkHint.textContent = 'Trascina nella barra segnalibri (una volta sola) · poi clicca quando la tab CM è aperta';
-          bkWrap.appendChild(bkHint);
-          b.appendChild(bkWrap);
-
-          // Input prezzo manuale rapido
           const manWrap = document.createElement('div');
-          manWrap.style.cssText = 'padding:4px 12px 10px;display:flex;align-items:center;gap:8px';
-          manWrap.innerHTML = '<span style="font-size:10px;color:var(--text-muted)">Oppure inserisci prezzo manuale:</span>'
-            + '<input id="rbManualPrice" type="number" step="0.01" min="0" placeholder="0.00"'
-            + ' style="width:80px;font-size:13px;font-family:var(--mono);padding:3px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text)">'
+          manWrap.style.cssText = 'padding:6px 12px 10px;display:flex;align-items:center;gap:8px';
+          manWrap.innerHTML = '<input id="rbManualPrice" type="number" step="0.01" min="0" placeholder="0.00"'
+            + ' style="width:90px;font-size:14px;font-family:var(--mono);padding:4px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text)">'
             + '<button onclick="(function(){var v=parseFloat(document.getElementById(\'rbManualPrice\').value);if(v>0){applyVerifiedPrice('+idx+',v);document.getElementById(\'cmLogOverlay\').remove();}})()"'
-            + ' style="padding:3px 10px;background:var(--success);color:#0d1117;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px">'
-            + '\u2713 Applica</button>';
+            + ' style="padding:4px 12px;background:var(--success);color:#0d1117;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:13px">'
+            + '✓ Applica</button>';
           b.appendChild(manWrap);
+          setTimeout(function(){ var inp=document.getElementById('rbManualPrice'); if(inp) inp.focus(); }, 100);
         }
       }
-      // Fallback Edge Function silenzioso
-      try{
-        const res=await fetch(SUPA_URL+'/functions/v1/smooth-endpoint',{
-          method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(window._rbSession?.access_token||SUPA_KEY)},
-          body:JSON.stringify({url:cmUrl,card_name:c.name,condition:c.condition})
-        });
-        if(res.ok){
-          const data=await res.json();
-          if(data.prices&&data.prices.length>0){
-            const listings2 = data.listings && data.listings.length
-              ? data.listings
-              : data.prices.map(function(p){ return {price:p,condition:'NM',condRank:2}; });
-            const smart2 = smartCMPrice(listings2, c.condition);
-            const bestPrice2 = smart2 ? smart2.price : data.prices[0];
-            const ov2=document.getElementById('cmLogOverlay');
-            if(ov2){
-              const b2=ov2.querySelector('.cm-log-body');
-              if(b2){
-                var listHtml = listings2.slice(0,5).map(function(l){
-                  return (l.condition||'?')+' €'+l.price.toFixed(2);
-                }).join(' · ');
-                const ef=document.createElement('div');ef.className='cm-log-line';
-                ef.innerHTML='<span class="cm-log-icon">✓</span><span class="cm-log-text ok">CM: '+listHtml+'</span>';
-                b2.appendChild(ef);
-                if(smart2&&smart2.outlierRemoved>0){
-                  const wo=document.createElement('div');wo.className='cm-log-line';
-                  wo.innerHTML='<span class="cm-log-icon">⚠</span><span class="cm-log-text warn">'+smart2.outlierRemoved+' outlier rimossi</span>';
-                  b2.appendChild(wo);
-                }
-                const c2=document.createElement('div');c2.className='price-verify-inner';c2.style.cssText='padding:8px 12px;border-top:1px solid var(--border)';
-                let h2='<span class="price-verify-label">Mediana top-3 ('+c.condition+'): <b>€'+bestPrice2.toFixed(2)+'</b></span>';
-                listings2.slice(0,5).forEach(function(l){h2+='<span class="price-chip" onclick="applyVerifiedPrice('+idx+','+l.price.toFixed(2)+');document.getElementById(\'cmLogOverlay\').remove()">'+l.condition+' €'+l.price.toFixed(2)+'</span>';});
-                h2+='<span class="price-chip apply-btn" onclick="applyVerifiedPrice('+idx+','+bestPrice2.toFixed(2)+');document.getElementById(\'cmLogOverlay\').remove()">✓ Applica €'+bestPrice2.toFixed(2)+'</span>';
-                c2.innerHTML=h2; b2.appendChild(c2);
-              }
-            }
-            if(cmTab&&!cmTab.closed) cmTab.close();
-          }
-        }
-      }catch(e2){/*silenzioso*/}
     }
   }catch(e){
     const ov=document.getElementById('cmLogOverlay');
@@ -3902,24 +3838,20 @@ async function autoVerifyPriceAdd(prefix){
 }
 
 async function verifyPriceAdd(prefix){
-  // Determina la carta corrente — 'p' = prevCard (inserimento preventivo)
   const card = (prefix==='q') ? quickCard : (prefix==='s') ? selCard : (prefix==='p') ? prevCard : null;
 
-  // Normalizza IDs per form manuale (m prefix diverso)
   const condId  = prefix==='m' ? 'mcond' : prefix+'Cond';
   const langId  = prefix==='m' ? 'mlang' : prefix+'Lang';
   const varId   = prefix==='m' ? 'mvar'  : prefix+'Var';
   const firstId = prefix==='m' ? 'm1st'  : prefix+'1st';
 
-  const cond   = document.getElementById(condId)?.value  || 'NM';
-  const lang   = document.getElementById(langId)?.value  || 'ITA';
-  const variant= document.getElementById(varId)?.value   || 'Normal';
+  const cond     = document.getElementById(condId)?.value  || 'NM';
+  const lang     = document.getElementById(langId)?.value  || 'ITA';
+  const variant  = document.getElementById(varId)?.value   || 'Normal';
   const first1st = document.getElementById(firstId)?.checked || false;
-
-  // Determina nome e set per URL diretto
-  const name   = card ? (card.name||'') : (document.getElementById('mname')?.value||'');
-  const number = card ? (card.number||'')  : (document.getElementById('mnum')?.value||'');
-  const setId  = card?.set?.id || null;
+  const name     = card ? (card.name||'') : (document.getElementById('mname')?.value||'');
+  const number   = card ? (card.number||'') : (document.getElementById('mnum')?.value||'');
+  const setId    = card?.set?.id || null;
 
   if(!name){ alert('Nessuna carta selezionata'); return; }
 
@@ -3928,51 +3860,73 @@ async function verifyPriceAdd(prefix){
 
   const cmUrl = buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st);
 
-  // Apri tab CM subito (nel contesto del gesto utente)
+  // Apri tab CM nel contesto del click utente
   const cmTab = window.open(cmUrl, '_blank');
 
-  try {
-    const res = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(window._rbSession?.access_token||SUPA_KEY)},
-      body: JSON.stringify({url: cmUrl, card_name: name, condition: cond})
-    });
+  // Chiave unica per questo handler (evita collisioni con verifyPrice tabella)
+  const handlerKey = 'add_'+prefix+'_'+Date.now();
 
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const data = await res.json();
-
-    const listings = data.listings && data.listings.length
-      ? data.listings
-      : (data.prices||[]).map(function(p){ return {price:p, condition:'NM', condRank:2}; });
-
-    if(listings.length){
-      if(cmTab && !cmTab.closed) cmTab.close();
-      const smart = smartCMPrice(listings, cond);
-      const bestPrice = smart ? smart.price : listings[0].price;
-
-      if(prefix==='q'){
-        document.getElementById('qSell').value = bestPrice.toFixed(2);
-        updateQuickPrice();
-        showAddVerifyFeedback('q', listings.map(function(l){return l.price;}), bestPrice, cond, lang);
-      } else if(prefix==='s'){
-        document.getElementById('sSell').value = bestPrice.toFixed(2);
-        updateSelPrice();
-        showAddVerifyFeedback('s', listings.map(function(l){return l.price;}), bestPrice, cond, lang);
-      } else if(prefix==='m'){
-        document.getElementById('mcm').value = bestPrice.toFixed(2);
-        document.getElementById('msell').value = bestPrice.toFixed(2);
-        showAddVerifyFeedback('m', listings.map(function(l){return l.price;}), bestPrice, cond, lang);
-      } else if(prefix==='p'){
-        document.getElementById('pCmPrice').value = bestPrice.toFixed(2);
-        showAddVerifyFeedback('p', listings.map(function(l){return l.price;}), bestPrice, cond, lang);
-      }
+  function applyListings(listings){
+    if(!listings || !listings.length) return false;
+    if(cmTab && !cmTab.closed) cmTab.close();
+    const smart = smartCMPrice(listings, cond);
+    const bestPrice = smart ? smart.price : listings[0].price;
+    if(prefix==='q'){
+      document.getElementById('qSell').value = bestPrice.toFixed(2);
+      updateQuickPrice();
+    } else if(prefix==='s'){
+      document.getElementById('sSell').value = bestPrice.toFixed(2);
+      updateSelPrice();
+    } else if(prefix==='m'){
+      document.getElementById('mcm').value = bestPrice.toFixed(2);
+      document.getElementById('msell').value = bestPrice.toFixed(2);
+    } else if(prefix==='p'){
+      document.getElementById('pCmPrice').value = bestPrice.toFixed(2);
     }
-    // Se nessun prezzo, la tab CM rimane aperta
-  } catch(e){
-    // Edge Function non disponibile: tab CM già aperta, nessun errore
+    showAddVerifyFeedback(prefix, listings.map(function(l){return l.price;}), bestPrice, cond, lang);
+    if(btn){ btn.classList.remove('loading'); btn.textContent='€'; }
+    return true;
   }
 
-  if(btn){ btn.classList.remove('loading'); btn.textContent='€'; }
+  // Attendi postMessage dallo userscript (primario — max 45s)
+  const fromUserscript = new Promise(function(resolve){
+    var timer = setTimeout(function(){ resolve(null); }, 45000);
+    window._rbRegisterPriceHandler(handlerKey, function(prices, data, listings){
+      clearTimeout(timer);
+      resolve(listings && listings.length ? listings
+        : prices.map(function(p){ return {price:p, condition:'NM', condRank:2}; }));
+    });
+  });
+
+  // Avvia Edge Function in parallelo (fallback)
+  const fromEdge = fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+(window._rbSession?.access_token||SUPA_KEY)},
+    body: JSON.stringify({url: cmUrl, card_name: name, condition: cond})
+  }).then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(data){
+      if(!data) return null;
+      if(data.listings && data.listings.length) return data.listings;
+      if(data.prices && data.prices.length) return data.prices.map(function(p){ return {price:p,condition:'NM',condRank:2}; });
+      return null;
+    }).catch(function(){ return null; });
+
+  // Vince chi risponde prima con dati validi
+  const listings = await Promise.race([
+    fromUserscript,
+    // Edge function: se risponde prima con dati, usala
+    fromEdge.then(function(ls){ return ls && ls.length ? ls : new Promise(function(){}); })
+  ]);
+
+  // Cancella handler userscript se ancora attivo
+  window._rbUnregisterPriceHandler && window._rbUnregisterPriceHandler(handlerKey);
+
+  if(listings && listings.length){
+    applyListings(listings);
+  } else {
+    // Nessun dato — lascia tab CM aperta, ripristina bottone
+    if(btn){ btn.classList.remove('loading'); btn.textContent='€'; }
+  }
 }
 
 function showAddVerifyFeedback(prefix, prices, applied, cond, lang){
