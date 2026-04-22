@@ -3535,6 +3535,7 @@ function buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, se
   const globalSearch = number ? name+' '+(number+'').split('/')[0] : name;
   return 'https://www.cardmarket.com/it/Pokemon/Products/Search?category=-1'
     +'&searchString='+encodeURIComponent(globalSearch)+'&searchMode=v2&'+qs;
+}
 
 function openCardmarketAdd(){
   const c = quickCard || selCard;
@@ -4705,7 +4706,7 @@ async function scCallAI(prompt){
           var d3 = await r3.json();
           if(d3.error){ lastErr = 'OR ' + model + ': ' + JSON.stringify(d3.error).substring(0,100); continue; }
           var raw3 = ((d3.choices||[])[0]||{}).message?.content || '';
-          raw3 = raw3.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
+          raw3 = raw3.replace(/[`]{3}json\s*/gi,'').replace(/```\s*/g,'').trim();
           try{ return JSON.parse(raw3); } catch(pe){ lastErr = 'Parse error su ' + model; continue; }
         }
         var e3txt = await r3.text().catch(function(){ return ''; });
@@ -4745,7 +4746,7 @@ async function scCallAI(prompt){
       if(rAnt.ok){
         var d2 = await rAnt.json();
         var raw2 = ((d2.content||[])[0]||{}).text || '';
-        raw2 = raw2.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
+        raw2 = raw2.replace(/[`]{3}json\s*/gi,'').replace(/```\s*/g,'').trim();
         try{ return JSON.parse(raw2); } catch(pe){ throw new Error('Parse error: ' + raw2.substring(0,150)); }
       }
       lastErr = 'Anthropic diretto ' + rAnt.status;
