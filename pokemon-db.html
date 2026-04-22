@@ -1324,7 +1324,7 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
                 <div class="check-row" style="margin-bottom:8px"><input type="checkbox" id="p1st" onchange="updatePrevPrice()"/><span>Prima edizione</span></div>
                 <div class="field" style="margin-bottom:8px">
                   <label>Prezzo CM (€)</label>
-                  <div style="display:flex;gap:6px"><input id="pCmPrice" type="number" placeholder="0.00" step="0.01"/><button class="btn" onclick="openCardmarket()" style="flex-shrink:0;padding:5px 8px">↗</button></div>
+                  <div style="display:flex;gap:6px"><input id="pCmPrice" type="number" placeholder="0.00" step="0.01"/><button class="btn-verify" id="pVerifyBtn" onclick="verifyPriceAdd('p')" title="Verifica prezzo live su Cardmarket">€</button><button class="btn" onclick="openCardmarket()" style="flex-shrink:0;padding:5px 8px">↗</button></div>
                 </div>
                 <div style="display:flex;gap:6px">
                   <button class="btn btn-primary" onclick="addToPrev()" style="flex:1">Aggiungi</button>
@@ -3902,14 +3902,8 @@ async function autoVerifyPriceAdd(prefix){
 }
 
 async function verifyPriceAdd(prefix){
-  // Determina la carta corrente
-  const card = (prefix==='q') ? quickCard : (prefix==='s') ? selCard : null;
-
-  // Leggi i parametri del form
-  const condEl   = document.getElementById(prefix+'Cond') || document.getElementById(prefix==='m'?'mcond':null);
-  const langEl   = document.getElementById(prefix+'Lang') || document.getElementById(prefix==='m'?'mlang':null);
-  const varEl    = document.getElementById(prefix+'Var')  || document.getElementById(prefix==='m'?'mvar':null);
-  const firstEl  = document.getElementById(prefix+'1st') || document.getElementById(prefix==='m'?'m1st':null);
+  // Determina la carta corrente — 'p' = prevCard (inserimento preventivo)
+  const card = (prefix==='q') ? quickCard : (prefix==='s') ? selCard : (prefix==='p') ? prevCard : null;
 
   // Normalizza IDs per form manuale (m prefix diverso)
   const condId  = prefix==='m' ? 'mcond' : prefix+'Cond';
@@ -3968,6 +3962,9 @@ async function verifyPriceAdd(prefix){
         document.getElementById('mcm').value = bestPrice.toFixed(2);
         document.getElementById('msell').value = bestPrice.toFixed(2);
         showAddVerifyFeedback('m', listings.map(function(l){return l.price;}), bestPrice, cond, lang);
+      } else if(prefix==='p'){
+        document.getElementById('pCmPrice').value = bestPrice.toFixed(2);
+        showAddVerifyFeedback('p', listings.map(function(l){return l.price;}), bestPrice, cond, lang);
       }
     }
     // Se nessun prezzo, la tab CM rimane aperta
@@ -3986,7 +3983,7 @@ function showAddVerifyFeedback(prefix, prices, applied, cond, lang){
     el = document.createElement('div');
     el.id = feedbackId;
     el.style.cssText = 'margin-top:8px;padding:8px 10px;background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.25);border-radius:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap';
-    const form = document.getElementById(prefix==='q'?'quickAddForm':prefix==='s'?'selAddForm':'mform');
+    const form = document.getElementById(prefix==='q'?'quickAddForm':prefix==='s'?'selAddForm':prefix==='p'?'prevQuickAdd':'mform');
     if(form) form.appendChild(el);
   }
   el.innerHTML = '<span style="font-size:10px;font-weight:600;color:var(--success);text-transform:uppercase;letter-spacing:.5px">CM live · '+cond+' · '+lang+'</span>'
@@ -4013,6 +4010,8 @@ function applyAddPrice(prefix, price, el){
   } else if(prefix==='m'){
     document.getElementById('mcm').value = price.toFixed(2);
     document.getElementById('msell').value = price.toFixed(2);
+  } else if(prefix==='p'){
+    document.getElementById('pCmPrice').value = price.toFixed(2);
   }
 }
 
