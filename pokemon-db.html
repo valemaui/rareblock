@@ -1561,6 +1561,80 @@ function calcPrice(prices,cond,variant,first1st){
   return{price,factor,condFactor,base,label:src,pct,detail,notQuoted:false};
 }
 
+// ── SMART CM PRICING ─────────────────────────────────────────────────────────
+// Dato un array di listing {price, condition, condRank} dalla Edge Function cm-price v3,
+// calcola il prezzo più rappresentativo per la condizione richiesta.
+//
+// Logica:
+//  1. Ordina per prezzo crescente (CM già li mostra così)
+//  2. Prendi i listing della condizione ESATTA come primo gruppo
+//  3. Se meno di 2 listing esatti, includi condizioni MIGLIORI (condRank minore)
+//  4. Filtra outlier: escludi prezzi > 2.5× la mediana del gruppo principale
+//  5. Restituisce mediana delle prime 3 occorrenze valide (più robusto della media)
+//
+// Esempio: target PO, lista = [PO €10, PO €10, LP €30]
+//  → gruppo esatto = [€10, €10], nessun outlier
+//  → mediana = €10 ✓
+//
+// Esempio: target NM, lista = [NM €5, NM €200, NM €6]
+//  → mediana provvisoria = €6, soglia outlier = 6 × 2.5 = €15
+//  → €200 escluso → mediana finale = €5.50 ✓
+
+const CM_COND_RANK = { 'Mint':1, 'Near Mint':2, 'Excellent':3, 'Good':4, 'Light Played':5, 'Played':6, 'Poor':7,
+                       'MINT':1, 'NM':2, 'EX':3, 'GD':4, 'LP':5, 'PL':6, 'PO':7 };
+
+function smartCMPrice(listings, targetCond){
+  if(!listings || !listings.length) return null;
+  const targetRank = CM_COND_RANK[targetCond] || 2;
+
+  // Ordina per prezzo crescente
+  const sorted = listings.slice().sort(function(a,b){ return a.price - b.price; });
+
+  // Raggruppa: esatto, migliore, peggiore
+  var exact   = sorted.filter(function(l){ return (l.condRank||CM_COND_RANK[l.condition]||5) === targetRank; });
+  var better  = sorted.filter(function(l){ return (l.condRank||CM_COND_RANK[l.condition]||5) < targetRank; });
+  var worse   = sorted.filter(function(l){ return (l.condRank||CM_COND_RANK[l.condition]||5) > targetRank; });
+
+  // Componi il gruppo base: preferiamo exact, poi aggiungiamo better se ne abbiamo pochi
+  var base = exact.slice();
+  if(base.length < 2 && better.length) base = base.concat(better);
+  if(!base.length) base = worse.slice(); // ultimo fallback
+
+  if(!base.length) return null;
+
+  // Calcola mediana provvisoria per soglia outlier
+  function median(arr){
+    if(!arr.length) return 0;
+    var s = arr.slice().sort(function(a,b){return a-b;});
+    var m = Math.floor(s.length/2);
+    return s.length%2 ? s[m] : (s[m-1]+s[m])/2;
+  }
+  var prices = base.map(function(l){ return l.price; });
+  var med = median(prices);
+  var threshold = med * 2.5;
+
+  // Filtra outlier (prezzi > 2.5× la mediana)
+  var filtered = base.filter(function(l){ return l.price <= threshold; });
+  if(!filtered.length) filtered = base; // fallback: nessun outlier rimosso
+
+  // Prendi le prime 3 (già ordinate per prezzo)
+  var top3 = filtered.slice(0, 3);
+  var top3prices = top3.map(function(l){ return l.price; });
+
+  var result = median(top3prices);
+  result = Math.round(result * 100) / 100;
+
+  return {
+    price: result,
+    listings: top3,
+    allListings: sorted.slice(0, 10),
+    targetCond: targetCond,
+    usedConds: [...new Set(top3.map(function(l){ return l.condition; }))],
+    outlierRemoved: base.length - filtered.length,
+    method: 'smart-median'
+  };
+}
+
 // ── ITALIAN → ENGLISH POKEMON NAME MAP ──
 // Nomi italiani non standard (quelli identici all'inglese non servono)
 const IT_EN_MAP = {
@@ -3284,6 +3358,20 @@ const CM_SET_ABBREV={
   // BW — verificati
   'bw1':'BLW','bw2':'EPO','bw3':'NVI','bw4':'NXD','bw5':'DEX','bw6':'DRX',
   'bw7':'BCR','bw8':'PLS','bw9':'PLF','bw10':'PLB','bw11':'LTR',
+  // XY — slug tipo: Charizard-EX-FlashXY11 → non affidabile, usiamo livello 2
+  // SM — slug tipo: Charizard-GX-BurnSM35 → non affidabile, usiamo livello 2
+  // SWSH e SV — versioni V1/V2/V3 → non costruibili deterministicamente
+  // MA i codici servono per il livello 2 (browse set)
+  'xy1':'XY','xy2':'FLF','xy3':'FFI','xy4':'PHF','xy5':'PRC','xy6':'ROS',
+  'xy7':'AOR','xy8':'BKT','xy9':'BKP','xy10':'FCO','xy11':'STS','xy12':'EVO',
+  'sm1':'SUM','sm2':'GRI','sm3':'BUS','sm4':'CIN','sm5':'UPR','sm6':'FLI',
+  'sm7':'CES','sm8':'LOT','sm9':'TEU','sm10':'UNB','sm11':'UNM','sm12':'CEC',
+  'swsh1':'SSH','swsh2':'RCL','swsh3':'DAA','swsh4':'VIV','swsh5':'BST',
+  'swsh6':'CRE','swsh7':'EVS','swsh8':'FST','swsh9':'BRS','swsh10':'ASR',
+  'swsh11':'LOR','swsh12':'SIT','swsh12pt5':'CRZ',
+  'sv1':'SVI','sv2':'PAL','sv3':'OBF','sv3pt5':'MEW','sv4':'PAR','sv4pt5':'PAF',
+  'sv5':'TEF','sv6':'TWM','sv6pt5':'SFA','sv7':'SCR','sv7pt5':'SSP',
+  'sv8':'PRE','sv9':'DRI',
 };
 
 // Set per cui possiamo costruire URL diretto affidabile
@@ -3378,10 +3466,13 @@ function buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, se
     return 'https://www.cardmarket.com/it/Pokemon/Products/Singles/'+setSlug+'/'+cardSlug+'?'+qs;
   }
 
-  // Livello 2: browse set + ricerca per nome (atterra sempre nel set giusto)
+  // Livello 2: browse set + ricerca per nome esatta
+  // Aggiunge anche il numero carta come hint quando disponibile
   if(setSlug && nameSlug){
+    var searchStr = name;
+    if(number){ searchStr = name; } // CM cerca per nome nel set — il numero è visibile nell'elenco
     return 'https://www.cardmarket.com/it/Pokemon/Products/Singles/'+setSlug
-      +'?searchString='+encodeURIComponent(name)+'&'+qs;
+      +'?searchString='+encodeURIComponent(name)+'&exactMatch=true&'+qs;
   }
 
   // Livello 3: ricerca globale con nome (senza numero — più precisa)
@@ -3578,17 +3669,30 @@ async function verifyPrice(idx){
         if(res.ok){
           const data=await res.json();
           if(data.prices&&data.prices.length>0){
+            const listings2 = data.listings && data.listings.length
+              ? data.listings
+              : data.prices.map(function(p){ return {price:p,condition:'NM',condRank:2}; });
+            const smart2 = smartCMPrice(listings2, c.condition);
+            const bestPrice2 = smart2 ? smart2.price : data.prices[0];
             const ov2=document.getElementById('cmLogOverlay');
             if(ov2){
               const b2=ov2.querySelector('.cm-log-body');
               if(b2){
+                var listHtml = listings2.slice(0,5).map(function(l){
+                  return (l.condition||'?')+' €'+l.price.toFixed(2);
+                }).join(' · ');
                 const ef=document.createElement('div');ef.className='cm-log-line';
-                ef.innerHTML='<span class="cm-log-icon">\u2713</span><span class="cm-log-text ok">Edge Function: '+data.prices.map(function(p){return '\u20ac'+p.toFixed(2);}).join(' \u00b7 ')+'</span>';
+                ef.innerHTML='<span class="cm-log-icon">✓</span><span class="cm-log-text ok">CM: '+listHtml+'</span>';
                 b2.appendChild(ef);
+                if(smart2&&smart2.outlierRemoved>0){
+                  const wo=document.createElement('div');wo.className='cm-log-line';
+                  wo.innerHTML='<span class="cm-log-icon">⚠</span><span class="cm-log-text warn">'+smart2.outlierRemoved+' outlier rimossi</span>';
+                  b2.appendChild(wo);
+                }
                 const c2=document.createElement('div');c2.className='price-verify-inner';c2.style.cssText='padding:8px 12px;border-top:1px solid var(--border)';
-                let h2='<span class="price-verify-label">'+c.condition+'</span>';
-                data.prices.slice(0,5).forEach(function(p){h2+='<span class="price-chip" onclick="applyVerifiedPrice('+idx+','+p.toFixed(2)+');document.getElementById(\'cmLogOverlay\').remove()">\u20ac'+p.toFixed(2)+'</span>';});
-                h2+='<span class="price-chip apply-btn" onclick="applyVerifiedPrice('+idx+','+data.prices[0].toFixed(2)+');document.getElementById(\'cmLogOverlay\').remove()">\u2713 Applica min</span>';
+                let h2='<span class="price-verify-label">Mediana top-3 ('+c.condition+'): <b>€'+bestPrice2.toFixed(2)+'</b></span>';
+                listings2.slice(0,5).forEach(function(l){h2+='<span class="price-chip" onclick="applyVerifiedPrice('+idx+','+l.price.toFixed(2)+');document.getElementById(\'cmLogOverlay\').remove()">'+l.condition+' €'+l.price.toFixed(2)+'</span>';});
+                h2+='<span class="price-chip apply-btn" onclick="applyVerifiedPrice('+idx+','+bestPrice2.toFixed(2)+');document.getElementById(\'cmLogOverlay\').remove()">✓ Applica €'+bestPrice2.toFixed(2)+'</span>';
                 c2.innerHTML=h2; b2.appendChild(c2);
               }
             }
@@ -3648,36 +3752,51 @@ async function autoVerifyPriceAdd(prefix){
       body: JSON.stringify({url: cmUrl, card_name: card.name, condition: cond})
     });
     const elapsed = Date.now()-t0;
-    log.log('HTTP <b>'+res.status+'</b> ('+elapsed+'ms)', res.ok?'ok':'err');
-
-    if(!res.ok){
-      if(res.status === 404) log.log('Edge Function non deployata — deploy cm-price su Supabase', 'err');
-      else log.log('Errore HTTP: '+(await res.text()).substring(0,150), 'err');
-    } else {
       const data = await res.json();
-      log.log('Response: '+JSON.stringify(data).substring(0,250), 'data');
-      if(data.error){
-        log.log('Errore: '+data.error, 'err');
-        if(data.debug_snippet) log.log('HTML debug: '+data.debug_snippet.substring(0,150), 'warn');
-      } else if(data.prices && data.prices.length > 0){
-        const minPrice = data.prices[0];
-        log.log('✓ '+data.prices.length+' prezzi → applicato €'+minPrice.toFixed(2), 'ok');
-        if(prefix==='q'){
-          document.getElementById('qSell').value = minPrice.toFixed(2);
-          const priceEl = document.getElementById('qmPriceVal');
-          if(priceEl){ priceEl.textContent = '€'+minPrice.toFixed(2); priceEl.style.color='var(--success)'; }
-          const factEl = document.getElementById('qmPriceFactor');
-          if(factEl){ factEl.textContent = 'CM live · '+cond+' · '+lang; }
-          document.getElementById('qmPriceRow').style.display='flex';
-        } else {
-          document.getElementById('sSell').value = minPrice.toFixed(2);
-        }
-        showAddVerifyFeedback(prefix, data.prices, minPrice, cond, lang);
+      log.log('HTTP <b>'+res.status+'</b> ('+elapsed+'ms)', res.ok?'ok':'err');
+
+      if(!res.ok){
+        if(res.status === 404) log.log('Edge Function cm-price non deployata', 'err');
+        else log.log('Errore HTTP: '+(await res.text()).substring(0,150), 'err');
       } else {
-        log.log('Nessun prezzo estratto dalla pagina', 'warn');
+        if(data.error){
+          log.log('Errore CM: '+data.error, 'err');
+        } else {
+          // Usa listings v3 se disponibili, altrimenti costruisci listing generici da prices
+          const listings = data.listings && data.listings.length
+            ? data.listings
+            : (data.prices||[]).map(function(p){ return {price:p, condition:'NM', condRank:2}; });
+
+          if(listings.length){
+            const smart = smartCMPrice(listings, cond);
+            const bestPrice = smart ? smart.price : listings[0].price;
+
+            // Log dettagliato
+            var logParts = listings.slice(0,5).map(function(l){
+              return (l.condition||'?')+' <b>€'+l.price.toFixed(2)+'</b>';
+            });
+            log.log('CM listing: '+logParts.join(' · '), 'data');
+            if(smart && smart.outlierRemoved > 0)
+              log.log('⚠ '+smart.outlierRemoved+' outlier rimossi', 'warn');
+            log.log('✓ Prezzo smart (mediana top-3): <b>€'+bestPrice.toFixed(2)+'</b>', 'ok');
+
+            if(prefix==='q'){
+              document.getElementById('qSell').value = bestPrice.toFixed(2);
+              const priceEl = document.getElementById('qmPriceVal');
+              if(priceEl){ priceEl.textContent = '€'+bestPrice.toFixed(2); priceEl.style.color='var(--success)'; }
+              const factEl = document.getElementById('qmPriceFactor');
+              if(factEl){ factEl.textContent = 'CM live · '+cond+' · '+lang+' · mediana top-3'; }
+              document.getElementById('qmPriceRow').style.display='flex';
+            } else {
+              document.getElementById('sSell').value = bestPrice.toFixed(2);
+            }
+            showAddVerifyFeedback(prefix, listings.map(function(l){return l.price;}), bestPrice, cond, lang);
+          } else {
+            log.log('Nessun prezzo estratto — CM potrebbe bloccare la richiesta', 'warn');
+          }
+        }
       }
-    }
-  } catch(e){
+    } catch(e){
     log.log('Errore: '+e.message, 'err');
     if(e.message.includes('Failed to fetch')) log.log('Edge Function non raggiungibile', 'warn');
   } finally {
@@ -3731,28 +3850,30 @@ async function verifyPriceAdd(prefix){
     if(!res.ok) throw new Error('HTTP '+res.status);
     const data = await res.json();
 
-    if(data.prices && data.prices.length > 0){
-      // Chiudi tab CM e popola automaticamente i campi
+    const listings = data.listings && data.listings.length
+      ? data.listings
+      : (data.prices||[]).map(function(p){ return {price:p, condition:'NM', condRank:2}; });
+
+    if(listings.length){
       if(cmTab && !cmTab.closed) cmTab.close();
+      const smart = smartCMPrice(listings, cond);
+      const bestPrice = smart ? smart.price : listings[0].price;
 
-      const minPrice = data.prices[0]; // prezzo più basso trovato
-
-      // Popola il campo CM avg30 / Vendita in base al form
       if(prefix==='q'){
-        document.getElementById('qSell').value = minPrice.toFixed(2);
+        document.getElementById('qSell').value = bestPrice.toFixed(2);
         updateQuickPrice();
-        showAddVerifyFeedback('q', data.prices, minPrice, cond, lang);
+        showAddVerifyFeedback('q', listings.map(function(l){return l.price;}), bestPrice, cond, lang);
       } else if(prefix==='s'){
-        document.getElementById('sSell').value = minPrice.toFixed(2);
+        document.getElementById('sSell').value = bestPrice.toFixed(2);
         updateSelPrice();
-        showAddVerifyFeedback('s', data.prices, minPrice, cond, lang);
+        showAddVerifyFeedback('s', listings.map(function(l){return l.price;}), bestPrice, cond, lang);
       } else if(prefix==='m'){
-        document.getElementById('mcm').value = minPrice.toFixed(2);
-        document.getElementById('msell').value = minPrice.toFixed(2);
-        showAddVerifyFeedback('m', data.prices, minPrice, cond, lang);
+        document.getElementById('mcm').value = bestPrice.toFixed(2);
+        document.getElementById('msell').value = bestPrice.toFixed(2);
+        showAddVerifyFeedback('m', listings.map(function(l){return l.price;}), bestPrice, cond, lang);
       }
     }
-    // Se nessun prezzo trovato, la tab CM rimane aperta
+    // Se nessun prezzo, la tab CM rimane aperta
   } catch(e){
     // Edge Function non disponibile: tab CM già aperta, nessun errore
   }
