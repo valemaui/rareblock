@@ -3614,18 +3614,36 @@ function cmLogger(label){
   };
 }
 
-// ── postMessage listener: riceve prezzi dallo userscript Tampermonkey su CM ──
+// ── postMessage + BroadcastChannel: riceve prezzi dallo userscript Tampermonkey su CM ──
 (function(){
   var _pmHandlers = {};
-  window.addEventListener('message', function(e){
-    if(!e.data || e.data.type !== 'rareblock_cm_prices') return;
-    var prices = e.data.prices || [];
-    if(!prices.length) return;
+
+  function dispatch(data){
+    var prices   = data.prices   || [];
+    var listings = data.listings || prices.map(function(p){ return {price:p,condition:'NM',condRank:2}; });
+    if(!prices.length && !listings.length) return;
     Object.keys(_pmHandlers).forEach(function(idx){
-      _pmHandlers[idx](prices, e.data);
+      _pmHandlers[idx](prices, data, listings);
       delete _pmHandlers[idx];
     });
+  }
+
+  // postMessage: da tab CM aperto da RareBlock
+  window.addEventListener('message', function(e){
+    if(!e.data || e.data.type !== 'rareblock_cm_prices') return;
+    dispatch(e.data);
   });
+
+  // BroadcastChannel: da qualsiasi tab CM con lo userscript
+  if(typeof BroadcastChannel !== 'undefined'){
+    try{
+      var bc = new BroadcastChannel('rareblock_prices');
+      bc.addEventListener('message', function(e){
+        if(e.data && e.data.type === 'rareblock_cm_prices') dispatch(e.data);
+      });
+    }catch(e){}
+  }
+
   window._rbRegisterPriceHandler   = function(idx,fn){ _pmHandlers[idx]=fn; };
   window._rbUnregisterPriceHandler = function(idx){ delete _pmHandlers[idx]; };
 })();
@@ -3655,18 +3673,40 @@ async function verifyPrice(idx){
 
     const livePrices = await new Promise(function(resolve){
       var timer = setTimeout(function(){ resolve(null); }, 30000);
-      window._rbRegisterPriceHandler(idx, function(prices){
-        clearTimeout(timer); resolve(prices);
+      window._rbRegisterPriceHandler(idx, function(prices, data, listings){
+        clearTimeout(timer); resolve({prices: prices, listings: listings||[]});
       });
     });
 
-    if(livePrices && livePrices.length > 0){
-      const minPrice = livePrices[0];
-      log.log('\u2713 '+livePrices.length+' prezzi: '+livePrices.map(function(p){return '\u20ac'+p.toFixed(2);}).join(' \u00b7 '),'ok');
-      log.log('\u2713 Applicato min: <b>\u20ac'+minPrice.toFixed(2)+'</b> — chiudo tra 2s','ok');
-      if(cmTab&&!cmTab.closed) cmTab.close();
-      await applyVerifiedPrice(idx, minPrice);
-      setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 2000);
+    if(livePrices && livePrices.prices && livePrices.prices.length > 0){
+      const listings = livePrices.listings;
+      const prices   = livePrices.prices;
+
+      // Log listing con condizione
+      log.log('CM listing ('+listings.length+'):','ok');
+      listings.slice(0,7).forEach(function(l){
+        var condShort = {Mint:'MT','Near Mint':'NM',Excellent:'EX',Good:'GD','Light Played':'LP',Played:'PL',Poor:'PO'};
+        var cs = condShort[l.condition] || l.condition || '?';
+        log.log('  '+cs+' &nbsp;→ <b>€'+l.price.toFixed(2)+'</b>', l.condRank<=2?'ok':l.condRank<=4?'warn':'err');
+      });
+
+      // Usa smartCMPrice per calcolare il prezzo corretto per la condizione richiesta
+      const smart = smartCMPrice(listings, c.condition);
+      var finalPrice;
+      if(smart && smart.price > 0){
+        finalPrice = smart.price;
+        log.log('✓ Smart price ('+c.condition+'): <b>€'+finalPrice.toFixed(2)+'</b>'
+          +(smart.outlierRemoved?' — '+smart.outlierRemoved+' outlier rimossi':''), 'ok');
+        if(smart.usedConds && smart.usedConds.join(',') !== c.condition)
+          log.log('  ⚠ Condizioni usate: '+smart.usedConds.join(', '),'warn');
+      } else {
+        finalPrice = prices[0];
+        log.log('✓ Min price: <b>€'+finalPrice.toFixed(2)+'</b>','ok');
+      }
+
+      if(cmTab && !cmTab.closed) cmTab.close();
+      await applyVerifiedPrice(idx, finalPrice);
+      setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 3000);
     } else {
       window._rbUnregisterPriceHandler(idx);
 
