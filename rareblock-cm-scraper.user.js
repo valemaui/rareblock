@@ -130,13 +130,14 @@
     if (window.opener && !window.opener.closed) {
       try {
         window.opener.postMessage(payload,'*');
-        if(st){st.textContent='✓ Inviato!';st.style.color='#3fb950';}
-        setTimeout(function(){try{window.close();}catch(e){}},1200);
+        if(st){st.textContent='✓ Inviato — chiusura...';st.style.color='#3fb950';}
+        // Retry close: Chrome a volte blocca il primo tentativo su pagine navigate
+        var n=0, t=setInterval(function(){ try{window.close();}catch(e){} if(++n>=6)clearInterval(t); },250);
         return;
       } catch(e){}
     }
     if (typeof BroadcastChannel !== 'undefined') {
-      try{var bc=new BroadcastChannel('rareblock_prices');bc.postMessage(payload);bc.close();if(st){st.textContent='✓ Broadcast inviato';st.style.color='#3fb950';}}catch(e){}
+      try{var bc=new BroadcastChannel('rareblock_prices');bc.postMessage(payload);bc.close();if(st){st.textContent='✓ Inviato (broadcast)';st.style.color='#3fb950';}}catch(e){}
     }
   }
 

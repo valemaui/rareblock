@@ -3705,6 +3705,8 @@ async function verifyPrice(idx){
       }
 
       if(cmTab && !cmTab.closed) cmTab.close();
+      // Retry close se primo tentativo bloccato da browser
+      setTimeout(function(){ try{ if(cmTab && !cmTab.closed) cmTab.close(); }catch(e){} }, 300);
       await applyVerifiedPrice(idx, finalPrice);
       setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 3000);
     } else {
@@ -3868,7 +3870,16 @@ async function verifyPriceAdd(prefix){
 
   function applyListings(listings){
     if(!listings || !listings.length) return false;
-    if(cmTab && !cmTab.closed) cmTab.close();
+    // Chiudi tab CM — retry multiplo perché Chrome può bloccare il primo tentativo
+    var closeAttempts = 0;
+    function tryCmClose(){
+      if(closeAttempts++ > 5) return;
+      try{
+        if(cmTab && !cmTab.closed){ cmTab.close(); }
+        if(cmTab && !cmTab.closed) setTimeout(tryCmClose, 200);
+      }catch(e){}
+    }
+    tryCmClose();
     const smart = smartCMPrice(listings, cond);
     const bestPrice = smart ? smart.price : listings[0].price;
     if(prefix==='q'){
