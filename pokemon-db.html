@@ -2547,16 +2547,14 @@ async function savePrev(p){
       provenienza:p.provenienza||null,
       ...(uid?{user_id:uid}:{})
     };
-    console.log('[savePrev] PATCH preventivo id='+p.id+' items count='+(Array.isArray(p.items)?p.items.length:'?'));
     const r = await fetch(SUPA_URL+'/rest/v1/preventivi',{
       method:'POST',
       headers:upsertHdr,
       body:JSON.stringify(bodyObj)
     });
     const respText = await r.text().catch(function(){ return ''; });
-    console.log('[savePrev] response status='+r.status+' body='+respText.substring(0,200));
     if(!r.ok){
-      throw new Error('Supabase HTTP '+r.status+': '+respText.substring(0,300));
+      throw new Error('Supabase HTTP '+r.status+': '+respText.substring(0,200));
     }
   }catch(e){
     try{ localStorage.setItem('pkm_preventivi',JSON.stringify(preventivi)); }catch(le){}
@@ -2568,6 +2566,16 @@ async function deletePrevFromDB(id){
   try{ await supa('DELETE','preventivi?id=eq.'+id); }
   catch(e){ console.warn('deletePrev error:',e.message); }
 }
+// Helper: restituisce sempre un array, anche se items è una stringa JSON
+function getItems(p){
+  if(!p) return [];
+  if(Array.isArray(p.items)) return p.items;
+  if(typeof p.items === 'string'){
+    try{ return JSON.parse(p.items) || []; }catch(e){ return []; }
+  }
+  return [];
+}
+
 async function loadPrev(){
   try{
     const uid=getCurrentUserId();
@@ -2648,11 +2656,12 @@ async function renderPrevList(){
   const list=document.getElementById('prevList');
   if(!preventivi.length){list.innerHTML='<div style="font-size:12px;color:var(--text-subtle);padding:8px 4px">Nessun preventivo — creane uno</div>';return}
   list.innerHTML=preventivi.map((p,i)=>{
-    const tot=p.items.reduce((a,c)=>a+(c.cm_avg30||0)*(c.qty||1),0);
+    const items = getItems(p);
+    const tot=items.reduce((a,c)=>a+(c.cm_avg30||0)*(c.qty||1),0);
     const provBadge=p.provenienza?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--surface3);color:var(--text-subtle);border:1px solid var(--border);margin-left:4px">${p.provenienza}</span>`:'';
     return '<div class="prev-item'+(activePrev&&activePrev.id===p.id?' active':'')+'" onclick="openPreventivo('+i+')">'
       +'<div style="min-width:0;flex:1"><div class="prev-item-name" style="display:flex;align-items:center">'+p.name+provBadge+'</div>'
-      +'<div class="prev-item-meta">'+p.items.length+' carte · '+new Date(p.created).toLocaleDateString('it')+'</div></div>'
+      +'<div class="prev-item-meta">'+items.length+' carte · '+new Date(p.created).toLocaleDateString('it')+'</div></div>'
       +'<div class="prev-item-val">€'+tot.toFixed(0)+'</div>'
       +'</div>';
   }).join('');
@@ -2738,10 +2747,11 @@ function renderPrevTable(){
   if(!activePrev)return;
   const tbody=document.getElementById('prevTableBody');
   const empty=document.getElementById('prevTableEmpty');
-  if(!activePrev.items.length){tbody.innerHTML='';empty.style.display='block';renderPrevTotals();return}
+  if(!activePrev.items||!getItems(activePrev).length){tbody.innerHTML='';empty.style.display='block';renderPrevTotals();return}
   empty.style.display='none';
-  // Ordina gli items se è stato selezionato un ordinamento
-  let items=activePrev.items.map((c,i)=>({...c,_idx:i})); // mantieni indice originale per edit/remove
+  // Assicura che items sia sempre un array (per-session safety)
+  if(!Array.isArray(activePrev.items)) activePrev.items = getItems(activePrev);
+  let items=activePrev.items.map((c,i)=>({...c,_idx:i}));
   if(prevSortKey){
     items.sort((a,b)=>{
       let va,vb;
@@ -2823,7 +2833,7 @@ function renderPrevTable(){
 
 function renderPrevTotals(){
   if(!activePrev)return;
-  const items=activePrev.items;
+  const items = getItems(activePrev);
   if(!items.length){document.getElementById('prevTotals').innerHTML='';return}
 
   // Totali
@@ -2980,7 +2990,8 @@ async function emDoReplace(){
   const grid=document.getElementById('emReplaceGrid');
   st.textContent='Ricerca…'; grid.innerHTML='';
   try {
-    const cards=await fetchCards(q);
+    const {name:_emName, number:_emNum} = parseQuery(q);
+    const cards=await fetchCards(_emName, _emNum||null);
     if(!cards||!cards.length){ st.textContent='Nessuna carta trovata.'; return; }
     st.textContent=cards.length+' risultati — seleziona la carta corretta:';
     grid.innerHTML='';
@@ -3080,9 +3091,8 @@ async function prevSearch(){
   document.getElementById('prevResults').style.display='none';
   document.getElementById('prevQuickAdd').style.display='none';prevCard=null;
   try{
-    const cards=await fetchCards(name);
+    const cards=await fetchCards(name, number||null);
     if(!cards.length){pst.className='prev-status err';pst.textContent='Nessuna carta trovata per "'+name+'".';return}
-    let filtered=cards;
     if(number){
       const exact=cards.filter(c=>c.number===number);
       const partial=cards.filter(c=>c.number&&c.number.startsWith(number+'/'));
@@ -3820,16 +3830,17 @@ async function addToPrev(){
 }
 
 function exportPrevCSV(){
-  if(!activePrev||!activePrev.items.length){alert('Nessuna carta nel preventivo');return}
+  const _expItems = getItems(activePrev);
+  if(!activePrev||!_expItems.length){alert('Nessuna carta nel preventivo');return}
   const cols=['name','set','number','rarity','condition','variant','first_edition','qty','cm_avg30','totale'];
   const numFmt=v=>isNaN(parseFloat(v))||v===''?`"${String(v||'').replace(/"/g,'""')}"`:parseFloat(v);
   const txtFmt=v=>`"${String(v||'').replace(/"/g,'""')}"`;
-  const rows=activePrev.items.map(c=>[
+  const rows=_expItems.map(c=>[
     txtFmt(c.name),txtFmt(c.set),txtFmt(c.number),txtFmt(c.rarity),
     txtFmt(c.condition),txtFmt(c.variant),txtFmt(c.first_edition),
     numFmt(c.qty),numFmt(c.cm_avg30),numFmt(((c.cm_avg30||0)*(c.qty||1)).toFixed(2))
   ].join(','));
-  const tot=activePrev.items.reduce((a,c)=>a+(c.cm_avg30||0)*(c.qty||1),0);
+  const tot=_expItems.reduce((a,c)=>a+(c.cm_avg30||0)*(c.qty||1),0);
   const offerVal=document.getElementById('prevOfferVal');
   const offer=parseFloat(offerVal?offerVal.value:(tot*0.72).toFixed(2));
   const offerPct=tot>0?Math.round(offer/tot*100):0;
@@ -4285,14 +4296,22 @@ function scRenderSetChips(){
   }
 }
 
-async function scFetchCardsWithFilter(name){
+async function scFetchCardsWithFilter(name, number){
   if(!name) return [];
-  // Percorso senza filtro: Edge Function → TCG diretto → fuzzy
-  async function fetchAllSets(n){
-    try{ var r=await fetchCards(n); if(r&&r.length) return r; }catch(e){}
+  number = number || null;
+  // Percorso senza filtro: Edge Function → TCG diretto (con numero) → fuzzy
+  async function fetchAllSets(n, num){
+    try{ var r=await fetchCards(n, num||null); if(r&&r.length) return r; }catch(e){}
+    // Prova query nome+numero se disponibile
+    if(num){
+      try{
+        var rn=await fetch(TCG_URL+'?q='+encodeURIComponent('name:"'+n.replace(/"/g,'')+'" number:'+num)+'&pageSize=30',{headers:{'X-Api-Key':TCG_KEY}});
+        if(rn.ok){ var dn=await rn.json(); if(dn.data&&dn.data.length) return dn.data; }
+      }catch(e){}
+    }
     try{
       var r2=await fetch(TCG_URL+'?q='+encodeURIComponent('name:"'+n.replace(/"/g,'')+'"')+'&pageSize=30',{headers:{'X-Api-Key':TCG_KEY}});
-      if(rAnt.ok){ var d2=await r2.json(); if(d2.data&&d2.data.length) return d2.data; }
+      if(r2.ok){ var d2=await r2.json(); if(d2.data&&d2.data.length) return d2.data; }
     }catch(e){}
     try{
       var r3=await fetch(TCG_URL+'?q='+encodeURIComponent('name:*'+n.replace(/"/g,'').split(/\s+/)[0]+'*')+'&pageSize=30',{headers:{'X-Api-Key':TCG_KEY}});
@@ -4302,22 +4321,23 @@ async function scFetchCardsWithFilter(name){
   }
 
   // Senza filtro set attivo
-  if(!scState.selectedSets.length) return fetchAllSets(name);
+  if(!scState.selectedSets.length) return fetchAllSets(name, number);
 
-  // Con filtro set: prima prova nei set selezionati
+  // Con filtro set: prima prova nei set selezionati (con numero se disponibile)
   var setFilter = scState.selectedSets.map(function(s){ return 'set.id:'+s.id; }).join(' OR ');
-  var q = 'name:"'+name.replace(/"/g,'')+'" ('+setFilter+')';
+  var qBase = 'name:"'+name.replace(/"/g,'')+'"'+(number?' number:'+number:'');
+  var q = qBase + ' ('+setFilter+')';
   try{
     var rf = await fetch(TCG_URL+'?q='+encodeURIComponent(q)+'&pageSize=30',{headers:{'X-Api-Key':TCG_KEY}});
     if(rf.ok){
       var df = await rf.json();
-      if(df.data && df.data.length > 0) return df.data; // trovata nei set filtrati ✓
+      if(df.data && df.data.length > 0) return df.data;
     }
   }catch(e){}
 
   // Non trovata nei set filtrati → cerca su tutti i set e marca i risultati
-  var fallback = await fetchAllSets(name);
-  fallback.forEach(function(c){ c._outOfSelectedSets = true; }); // flag warning
+  var fallback = await fetchAllSets(name, number);
+  fallback.forEach(function(c){ c._outOfSelectedSets = true; });
   return fallback;
 }
 
@@ -4631,7 +4651,8 @@ async function scResolveTCG(){
       try {
         // Cerca prima con numero esatto se disponibile
         var numClean = (ai.number||'').split('/')[0].trim();
-        var tcgResults = await scFetchCardsWithFilter(ai.name);
+        var aiNum = (ai.number||'').split('/')[0].trim();
+        var tcgResults = await scFetchCardsWithFilter(ai.name, aiNum||null);
         if(tcgResults && tcgResults.length > 0){
           var exact = numClean ? tcgResults.filter(function(c){ return c.number === numClean; }) : [];
           if(exact.length === 1){
@@ -4851,12 +4872,15 @@ async function scManualSearch(name, idx){
   if(!name) return;
   var row = document.getElementById('scRow_'+idx);
   if(!row) return;
-  // Trova il bottone corretto tramite marker (non il primo trovato nella riga)
   var btn = row.querySelector('button[data-role="manual-search-btn"]') || row.querySelector('button');
   var inp = row.querySelector('input[data-role="manual-search-input"]') || row.querySelector('input');
   if(btn){ btn.disabled=true; btn.textContent='...'; }
+  // Estrai numero dal query se presente (es. "Charizard 4" o "Pikachu 35/102")
+  var parsed = (typeof parseQuery === 'function') ? parseQuery(name) : {name:name, number:null};
+  var searchName = parsed.name || name;
+  var searchNum  = parsed.number || null;
   try{
-    var results = await scFetchCardsWithFilter(name);
+    var results = await scFetchCardsWithFilter(searchName, searchNum);
     var resolved = scState.resolvedCards[idx];
     if(results && results.length > 0){
       resolved.tcgOptions = results.slice(0,12);
@@ -6209,7 +6233,7 @@ window.auDoSearch=async function(){
   document.getElementById('au-btn-s1next').disabled=true;S.card=null;
   try{
     var parsed=parseQuery(q),pName=parsed.name,pNum=parsed.number;
-    var all=await fetchCards(pName);
+    var all=await fetchCards(pName, pNum||null);
     var cards=all;
     if(pNum&&all.length){
       var ex=all.filter(function(c){return c.number===pNum;});
@@ -7287,7 +7311,7 @@ window.anlSearch = async function(){
   document.getElementById('anlPanels').style.display='none';
 
   try{
-    var cards = await fetchCards(cardName);
+    var cards = await fetchCards(cardName, cardNum||null);
     if(!cards||!cards.length){ anlShowMsg('Nessuna carta trovata per "'+raw+'"'); return; }
 
     // filtra per numero se specificato
@@ -7869,6 +7893,13 @@ window.authLogout = async function(){
     }).catch(function(){});
   }
   rbClearSession();
+  // Reset stale state per sessioni cross-utente
+  _vendInited = false;
+  _wishInited = false;
+  _dashData = null;
+  preventivi = [];
+  activePrev = null;
+  _rbAuthInitDone = false;
   location.reload();
 };
 

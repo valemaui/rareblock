@@ -537,7 +537,7 @@ textarea{resize:vertical;min-height:60px}
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeBuyModal()">Annulla</button>
-      <button class="btn primary" onclick="buyConfirm()">📨 Invia richiesta acquisto</button>
+      <button class="btn primary" id="buyConfirmBtn" onclick="buyConfirm()">📨 Invia richiesta acquisto</button>
     </div>
   </div>
 </div>
@@ -761,9 +761,9 @@ var _session = null;
 var _profile = null;
 var _isAdmin = false;
 
-function getHDR(){
+function getHDR(prefer){
   var token = (_session && _session.access_token) || SUPA_KEY;
-  return { 'Content-Type':'application/json', 'apikey':SUPA_KEY, 'Authorization':'Bearer '+token, 'Prefer':'return=representation' };
+  return { 'Content-Type':'application/json', 'apikey':SUPA_KEY, 'Authorization':'Bearer '+token, 'Prefer': prefer||'return=representation' };
 }
 
 function saveSessionToStorage(s){
@@ -777,7 +777,8 @@ function clearSessionFromStorage(){
 }
 
 async function supa(method, path, body){
-  var r = await fetch(SUPA_URL+'/rest/v1/'+path, { method, headers:getHDR(), body:body?JSON.stringify(body):undefined });
+  var prefer = (method==='PATCH'||method==='DELETE') ? 'return=minimal' : 'return=representation';
+  var r = await fetch(SUPA_URL+'/rest/v1/'+path, { method, headers:getHDR(prefer), body:body?JSON.stringify(body):undefined });
   if(!r.ok){ var e=await r.text(); throw new Error(e); }
   var t = await r.text();
   return t ? JSON.parse(t) : null;
@@ -839,36 +840,34 @@ async function onSession(data){
   saveSessionToStorage(_session);
   window._rbSession = _session;
 
-  // Load/create profile — NON fa throw: se fallisce usiamo solo ADMIN_EMAILS
+  // Load/create profile
   try {
     var profiles = await supa('GET','profiles?id=eq.'+user.id);
     _profile = profiles && profiles[0];
     if(!_profile){
       var initialRole = _isAdmin ? 'admin' : 'investor';
       try {
-        await supa('POST','profiles',{ id:user.id, nome:user.user_metadata&&user.user_metadata.full_name||'', full_name:user.user_metadata&&user.user_metadata.full_name||'', role:initialRole });
+        await supa('POST','profiles',{ id:user.id, nome:(user.user_metadata&&user.user_metadata.full_name)||'', full_name:(user.user_metadata&&user.user_metadata.full_name)||'', role:initialRole });
       } catch(e2) {
         try { await supa('POST','profiles',{ id:user.id, role:initialRole }); } catch(e3){}
       }
-      try {
-        var profiles2 = await supa('GET','profiles?id=eq.'+user.id);
-        _profile = profiles2 && profiles2[0];
-      } catch(e4){}
+      try { var p2 = await supa('GET','profiles?id=eq.'+user.id); _profile = p2&&p2[0]; } catch(e4){}
     }
     if(_profile && _profile.role==='admin') _isAdmin = true;
     else if(_profile && _profile.role && _profile.role!=='admin') _isAdmin = false;
-  } catch(e){ console.warn('profile load non-fatal:', e.message); }
+  } catch(e){ console.warn('profile non-fatal:', e.message); }
 
   // Show UI
-  document.getElementById('authOverlay') && (document.getElementById('authOverlay').style.display = 'none');
-  document.getElementById('userBadge').style.display = 'flex';
-  document.getElementById('userEmail').textContent = user.email;
+  var badge = document.getElementById('userBadge');
+  if(badge) badge.style.display = 'flex';
+  var emailEl = document.getElementById('userEmail');
+  if(emailEl) emailEl.textContent = user.email;
   var roleEl = document.getElementById('userRoleBadge');
-  roleEl.textContent = _isAdmin ? 'ADMIN' : 'investor';
-  roleEl.classList.toggle('admin', _isAdmin);
-  document.getElementById('adminNavBtn').style.display = _isAdmin ? '' : 'none';
+  if(roleEl){ roleEl.textContent = _isAdmin ? 'ADMIN' : 'investor'; roleEl.classList.toggle('admin', _isAdmin); }
+  var adminBtn = document.getElementById('adminNavBtn');
+  if(adminBtn) adminBtn.style.display = _isAdmin ? '' : 'none';
 
-  // Initial loads — non fa throw
+  // Initial load
   try { await mktLoad(); } catch(e){ console.warn('mktLoad:', e.message); }
 }
 
@@ -930,11 +929,30 @@ var _mktStats = {};
 async function mktLoad(){
   try {
     _mktProducts = (await supa('GET','inv_products?order=created_at.desc&limit=200')) || [];
-    // Load stats
+    // Load stats — prima prova la VIEW, fallback su query holdings
     try {
       var stats = await supa('GET','inv_product_stats');
-      if(stats) stats.forEach(function(s){ _mktStats[s.id]=s; });
-    } catch(e){}
+      if(stats && stats.length) {
+        stats.forEach(function(s){ _mktStats[s.id]=s; });
+      } else { throw new Error('empty'); }
+    } catch(e){
+      // Fallback: calcola da inv_holdings
+      try {
+        var allH = await supa('GET','inv_holdings?select=product_id,qty,price_per_quote&limit=10000');
+        if(allH) {
+          var byProd = {};
+          allH.forEach(function(h){
+            if(!byProd[h.product_id]) byProd[h.product_id]={sold:0,raised:0};
+            byProd[h.product_id].sold += (h.qty||0);
+            byProd[h.product_id].raised += (h.qty||0)*(h.price_per_quote||0);
+          });
+          _mktProducts.forEach(function(p){
+            var d = byProd[p.id]||{sold:0,raised:0};
+            _mktStats[p.id] = { id:p.id, total_quotes:p.total_quotes, sold_quotes:d.sold, available_quotes:p.total_quotes-d.sold, total_raised:d.raised };
+          });
+        }
+      } catch(e2){}
+    }
     mktRender();
   } catch(e) {
     document.getElementById('mktGrid').innerHTML = '<div style="color:var(--danger);padding:20px">Errore caricamento: '+esc(e.message)+'</div>';
@@ -1040,43 +1058,51 @@ function buyUpdateTotal(){
 
 async function buyConfirm(){
   if(!_buyProduct || !_session) return;
+  var user = _session.user || {};
+  if(!user.id){ setSt('buySt','Sessione non valida. Ricarica la pagina.','err'); return; }
+
   var qty   = parseInt(document.getElementById('buyQty').value)||1;
   var ref   = document.getElementById('buyBankRef').value.trim();
   var notes = document.getElementById('buyNotes').value.trim();
   var st    = _mktStats[_buyProduct.id] || { sold_quotes:0 };
-  var avail = Math.max(0, _buyProduct.total_quotes - st.sold_quotes);
-  if(qty < 1 || qty > avail){ setSt('buySt','Quote non disponibili: max '+avail,'err'); return; }
+  var avail = Math.max(0, _buyProduct.total_quotes - (st.sold_quotes||0));
+  if(qty < 1){ setSt('buySt','Inserisci almeno 1 quota','err'); return; }
+  if(avail > 0 && qty > avail){ setSt('buySt','Massimo disponibile: '+avail+' quote','err'); return; }
+
+  var btn = document.getElementById('buyConfirmBtn');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Invio...'; }
   setSt('buySt','Invio richiesta…','info');
+
   try {
-    var user = _session.user || {};
-    // 1. Crea holding (in attesa di conferma pagamento)
+    // 1. Crea holding
     var holding = await supa('POST','inv_holdings',{
-      product_id: _buyProduct.id,
-      user_id: user.id,
-      qty: qty,
-      price_per_quote: _buyProduct.price_per_quote,
-      origin: 'primary',
-      notes: notes
+      product_id:       _buyProduct.id,
+      user_id:          user.id,
+      qty:              qty,
+      price_per_quote:  parseFloat(_buyProduct.price_per_quote),
+      origin:           'primary',
+      notes:            notes||null
     });
     var hid = holding && holding[0] && holding[0].id;
     // 2. Crea pagamento
     await supa('POST','inv_payments',{
-      user_id: user.id,
-      product_id: _buyProduct.id,
-      holding_id: hid||null,
-      type: 'purchase',
-      amount: qty * _buyProduct.price_per_quote,
-      qty: qty,
-      method: 'bonifico',
-      status: 'pending',
+      user_id:        user.id,
+      product_id:     _buyProduct.id,
+      holding_id:     hid||null,
+      type:           'purchase',
+      amount:         qty * parseFloat(_buyProduct.price_per_quote),
+      qty:            qty,
+      method:         'bonifico',
+      status:         'pending',
       bank_reference: ref||null,
-      admin_notes: notes||null
+      admin_notes:    notes||null
     });
-    setSt('buySt','✅ Richiesta inviata! Effettua il bonifico e l\'admin confermerà entro 24-48h.','ok');
-    // Refresh stats
-    setTimeout(function(){ mktLoad(); },500);
+    setSt('buySt','✅ Richiesta inviata! Effettua il bonifico con la causale indicata. L\'admin confermerà entro 24-48h.','ok');
+    setTimeout(function(){ mktLoad(); }, 800);
   } catch(e) {
     setSt('buySt','Errore: '+e.message,'err');
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = '📨 Invia richiesta acquisto'; }
   }
 }
 
@@ -1103,11 +1129,18 @@ async function portLoad(){
   var uid = _session.user && _session.user.id;
   if(!uid) return;
   try {
-    _portHoldings    = (await supa('GET','inv_holdings?user_id=eq.'+uid+'&order=acquired_at.desc')) || [];
-    _portPayments    = (await supa('GET','inv_payments?user_id=eq.'+uid)) || [];
-    _portAccruals    = (await supa('GET','inv_accruals?order=accrual_date.desc')) || [];
-    _portLiquidations= (await supa('GET','inv_liquidations?order=planned_date.desc')) || [];
-  } catch(e){ _portHoldings=[]; }
+    _portHoldings     = (await supa('GET','inv_holdings?user_id=eq.'+uid+'&order=acquired_at.desc')) || [];
+    _portPayments     = (await supa('GET','inv_payments?user_id=eq.'+uid)) || [];
+    _portLiquidations = (await supa('GET','inv_liquidations?order=planned_date.desc')) || [];
+    // Accruals: solo per i prodotti in cui l'utente ha quote
+    var productIds = [...new Set(_portHoldings.map(function(h){ return h.product_id; }))];
+    if(productIds.length){
+      var accrualQ = 'inv_accruals?product_id=in.('+productIds.join(',')+')'+'&order=accrual_date.desc';
+      _portAccruals = (await supa('GET', accrualQ)) || [];
+    } else {
+      _portAccruals = [];
+    }
+  } catch(e){ console.warn('portLoad:', e.message); _portHoldings=[]; }
   portRender();
 }
 
@@ -1407,12 +1440,15 @@ function adminSection(s){
 
 async function adminLoad(){
   if(!_isAdmin) return;
-  adminLoadProducts();
+  await adminLoadProducts();
   // Populate product selectors for accrual and liq modals
   var opts = _mktProducts.map(function(p){ return '<option value="'+p.id+'">'+esc(p.name)+'</option>'; }).join('');
-  document.getElementById('accrualProduct').innerHTML = opts;
-  document.getElementById('liqProduct').innerHTML = opts;
-  document.getElementById('accrualDate').value = new Date().toISOString().slice(0,10);
+  var ap = document.getElementById('accrualProduct');
+  var lp = document.getElementById('liqProduct');
+  if(ap) ap.innerHTML = opts || '<option value="">Nessun prodotto</option>';
+  if(lp) lp.innerHTML = opts || '<option value="">Nessun prodotto</option>';
+  var ad = document.getElementById('accrualDate');
+  if(ad) ad.value = new Date().toISOString().slice(0,10);
 }
 
 async function adminLoadProducts(){
@@ -1424,8 +1460,14 @@ async function adminLoadProducts(){
     empty.style.display='none';
     try {
       var stats = await supa('GET','inv_product_stats');
-      if(stats) stats.forEach(function(s){ _mktStats[s.id]=s; });
-    } catch(e){}
+      if(stats && stats.length) stats.forEach(function(s){ _mktStats[s.id]=s; });
+      else throw new Error('empty');
+    } catch(e){
+      try {
+        var allH2 = await supa('GET','inv_holdings?select=product_id,qty,price_per_quote&limit=10000');
+        if(allH2){ var bp={}; allH2.forEach(function(h){ if(!bp[h.product_id])bp[h.product_id]={sold:0,raised:0}; bp[h.product_id].sold+=(h.qty||0); bp[h.product_id].raised+=(h.qty||0)*(h.price_per_quote||0); }); _mktProducts.forEach(function(p){ var d=bp[p.id]||{sold:0,raised:0}; _mktStats[p.id]={id:p.id,total_quotes:p.total_quotes,sold_quotes:d.sold,available_quotes:p.total_quotes-d.sold,total_raised:d.raised}; }); }
+      } catch(e2){}
+    }
     tbody.innerHTML = _mktProducts.map(function(p){
       var st = _mktStats[p.id]||{sold_quotes:0};
       return '<tr>'
