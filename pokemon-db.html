@@ -2614,7 +2614,7 @@ async function loadCollection(){
             <button class="btn-ghost" style="padding:1px 5px" onclick="event.stopPropagation();delCard('${c.id}','${c.name.replace(/'/g,"\'")}')">✕</button>
           </div>
           ${c.sell_price>0?`<div class="ccard-price">€${parseFloat(c.sell_price).toFixed(2)}</div>`:''}
-          ${c.cm_price>0?`<div class="ccard-cm">CM: €${parseFloat(c.cm_avg30).toFixed(2)}</div>`:''}
+          ${c.cm_avg30>0?`<div class="ccard-cm">CM: €${parseFloat(c.cm_avg30).toFixed(2)}</div>`:''}
         </div>
       </div>`).join('');
   }catch(e){
@@ -2786,7 +2786,7 @@ async function renderPrevList(){
   if(!preventivi.length){list.innerHTML='<div style="font-size:12px;color:var(--text-subtle);padding:8px 4px">Nessun preventivo — creane uno</div>';return}
   list.innerHTML=preventivi.map((p,i)=>{
     const items = getItems(p);
-    const tot=items.reduce((a,c)=>a+(c.cm_price||0)*(c.qty||1),0);
+    const tot=items.reduce((a,c)=>a+(c.cm_avg30||0)*(c.qty||1),0);
     const provBadge=p.provenienza?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--surface3);color:var(--text-subtle);border:1px solid var(--border);margin-left:4px">${p.provenienza}</span>`:'';
     return '<div class="prev-item'+(activePrev&&activePrev.id===p.id?' active':'')+'" onclick="openPreventivo('+i+')">'
       +'<div style="min-width:0;flex:1"><div class="prev-item-name" style="display:flex;align-items:center">'+p.name+provBadge+'</div>'
@@ -2885,12 +2885,12 @@ function renderPrevTable(){
     items.sort((a,b)=>{
       let va,vb;
       if(prevSortKey==='total'){
-        va=(a.cm_price||0)*(a.qty||1);
-        vb=(b.cm_price||0)*(b.qty||1);
+        va=(a.cm_avg30||0)*(a.qty||1);
+        vb=(b.cm_avg30||0)*(b.qty||1);
       } else if(prevSortKey==='condition'){
         va=COND_ORDER[a.condition]||99;
         vb=COND_ORDER[b.condition]||99;
-      } else if(prevSortKey==='cm_price'||prevSortKey==='qty'){
+      } else if(prevSortKey==='cm_avg30'||prevSortKey==='qty'){
         va=parseFloat(a[prevSortKey])||0;
         vb=parseFloat(b[prevSortKey])||0;
       } else {
@@ -2946,8 +2946,8 @@ function renderPrevTable(){
       +'<td style="font-size:11px;color:var(--text-subtle)">'+(c.language||'ITA')+'</td>'
       +'<td style="font-size:11px;color:var(--text-subtle)">'+(c.variant||'Normal')+'</td>'
       +'<td style="font-size:12px">×'+c.qty+'</td>'
-      +'<td class="td-cm">€'+(c.cm_price||0).toFixed(2)+'</td>'
-      +'<td class="td-price">€'+((c.cm_price||0)*(c.qty||1)).toFixed(2)+'</td>'
+      +'<td class="td-cm">€'+((c.cm_avg30||0).toFixed(2))+'</td>'
+      +'<td class="td-price">€'+((c.cm_avg30||0)*(c.qty||1)).toFixed(2)+'</td>'
       +'<td style="white-space:nowrap">'
         +'<button class="btn-ghost" title="Modifica" onclick="openEditModal('+i+')" style="color:var(--blue);font-size:15px;margin-right:2px">✎</button>'
         +'<button class="btn-verify" id="vbtn_'+i+'" title="Verifica prezzo live su Cardmarket" onclick="verifyPrice('+i+')">€</button>'
@@ -2967,7 +2967,7 @@ function renderPrevTotals(){
 
   // Totali
   const n=items.reduce((a,c)=>a+(c.qty||1),0);
-  const tot=items.reduce((a,c)=>a+(c.cm_price||0)*(c.qty||1),0);
+  const tot=items.reduce((a,c)=>a+(c.cm_avg30||0)*(c.qty||1),0);
 
   // Condizione media: conta le occorrenze e prendi le 2 più frequenti
   const ORDER=['MINT','NM','EX','GD','LP','PL','PO','INK/ALT'];
@@ -3069,7 +3069,7 @@ function openEditModal(idx){
   document.getElementById('emLang').value=c.language||'ITA';
   document.getElementById('emVar').value=c.variant||'Normal';
   document.getElementById('emQty').value=c.qty||1;
-  document.getElementById('emCm').value=(c.cm_price||0).toFixed(2);
+  document.getElementById('emCm').value=(c.cm_avg30||0).toFixed(2);
   document.getElementById('em1st').checked=c.first_edition||false;
   // Close replace panel on reopen
   document.getElementById('emReplacePanel').classList.remove('open');
@@ -3202,7 +3202,7 @@ async function saveEditModal(){
   c.language=document.getElementById('emLang').value;
   c.variant=document.getElementById('emVar').value;
   c.qty=parseInt(document.getElementById('emQty').value)||1;
-  c.cm_price=parseFloat(document.getElementById('emCm').value)||0;
+  c.cm_avg30=parseFloat(document.getElementById('emCm').value)||0;
   c.first_edition=document.getElementById('em1st').checked;
   await savePrev(activePrev);
   renderPrevTable();renderPrevList();
@@ -3565,7 +3565,7 @@ async function applyVerifiedPrice(idx, price){
   if(!activePrev) return;
   const item = activePrev.items[idx];
   if(!item) return;
-  item.cm_price = Math.round(price * 100) / 100;
+  item.cm_avg30 = Math.round(price * 100) / 100;
   await savePrev(activePrev);
   const ov = document.getElementById('cmLogOverlay');
   if(ov) ov.remove();
@@ -4050,15 +4050,15 @@ async function addToPrev(){
 function exportPrevCSV(){
   const _expItems = getItems(activePrev);
   if(!activePrev||!_expItems.length){alert('Nessuna carta nel preventivo');return}
-  const cols=['name','set','number','rarity','condition','variant','first_edition','qty','cm_price','totale'];
+  const cols=['name','set','number','rarity','condition','variant','first_edition','qty','cm_avg30','totale'];
   const numFmt=v=>isNaN(parseFloat(v))||v===''?`"${String(v||'').replace(/"/g,'""')}"`:parseFloat(v);
   const txtFmt=v=>`"${String(v||'').replace(/"/g,'""')}"`;
   const rows=_expItems.map(c=>[
     txtFmt(c.name),txtFmt(c.set),txtFmt(c.number),txtFmt(c.rarity),
     txtFmt(c.condition),txtFmt(c.variant),txtFmt(c.first_edition),
-    numFmt(c.qty),numFmt(c.cm_price),numFmt(((c.cm_price||0)*(c.qty||1)).toFixed(2))
+    numFmt(c.qty),numFmt(c.cm_avg30),numFmt(((c.cm_avg30||0)*(c.qty||1)).toFixed(2))
   ].join(','));
-  const tot=_expItems.reduce((a,c)=>a+(c.cm_price||0)*(c.qty||1),0);
+  const tot=_expItems.reduce((a,c)=>a+(c.cm_avg30||0)*(c.qty||1),0);
   const offerVal=document.getElementById('prevOfferVal');
   const offer=parseFloat(offerVal?offerVal.value:(tot*0.72).toFixed(2));
   const offerPct=tot>0?Math.round(offer/tot*100):0;
@@ -4088,7 +4088,7 @@ async function importCSV(ev){
     for(let j=i;j<Math.min(i+BATCH,lines.length);j++){
       const vals=lines[j].match(/("(?:[^"]|"")*"|[^,]*)/g)||[];
       const name=get(vals,'name');if(!name){skipped++;continue}
-      batch.push({name,set_name:get(vals,'set_name'),condition:get(vals,'condition')||'NM',language:get(vals,'language')||'ITA',variant:get(vals,'variant')||'Normal',first_edition:get(vals,'first_edition')==='true',qty:parseInt(get(vals,'qty'))||1,buy_price:parseFloat(get(vals,'buy_price'))||0,sell_price:parseFloat(get(vals,'sell_price'))||0,cm_avg30:parseFloat(get(vals,'cm_avg30')||get(vals,'cm_price'))||0,notes:get(vals,'notes'),is_manual:true});
+      batch.push({name,set_name:get(vals,'set_name'),condition:get(vals,'condition')||'NM',language:get(vals,'language')||'ITA',variant:get(vals,'variant')||'Normal',first_edition:get(vals,'first_edition')==='true',qty:parseInt(get(vals,'qty'))||1,buy_price:parseFloat(get(vals,'buy_price'))||0,sell_price:parseFloat(get(vals,'sell_price'))||0,cm_avg30:parseFloat(get(vals,'cm_avg30')||get(vals,'cm_price')||0)||0,notes:get(vals,'notes'),is_manual:true});
     }
     if(batch.length){try{const uid=getCurrentUserId();if(uid)batch.forEach(b=>{b.user_id=uid;});await supa('POST','cards',batch);added+=batch.length}catch(e){skipped+=batch.length}}
     pf.style.width=Math.round(((i+BATCH)/lines.length)*100)+'%';
@@ -5329,16 +5329,16 @@ function scUpdateCondPrice(i){
   var p = calcPrice(cc.tcgCard.cardmarket&&cc.tcgCard.cardmarket.prices, cond, variant, first1st);
   var el = document.getElementById('scCC_price_'+i);
   if(p){
-    if(p.notQuoted){ el.textContent='n.q.'; el.className='sc-cond-price-big nq'; cc.cm_price=0; }
-    else { el.textContent='€'+p.price.toFixed(2); el.className='sc-cond-price-big'; cc.cm_price=p.price; }
+    if(p.notQuoted){ el.textContent='n.q.'; el.className='sc-cond-price-big nq'; cc.cm_avg30=0; }
+    else { el.textContent='€'+p.price.toFixed(2); el.className='sc-cond-price-big'; cc.cm_avg30=p.price; }
   } else {
-    el.textContent='—'; el.className='sc-cond-price-big nq'; cc.cm_price=0;
+    el.textContent='—'; el.className='sc-cond-price-big nq'; cc.cm_avg30=0;
   }
   scUpdateCondTotal();
 }
 
 function scUpdateCondTotal(){
-  var tot = scState.condCards.reduce(function(a,cc){ return a+(cc.cm_price||0)*(cc.qty||1); }, 0);
+  var tot = scState.condCards.reduce(function(a,cc){ return a+(cc.cm_avg30||0)*(cc.qty||1); }, 0);
   document.getElementById('scCondTotal').textContent = '€'+tot.toFixed(2);
   document.getElementById('scCondCount').textContent = scState.condCards.length + ' carte';
 }
@@ -5381,13 +5381,13 @@ async function scAddToPreventivo(){
       } catch(e){ readErr = 'elemento UI scCC_*_'+i+' non trovato: '+e.message; }
       try {
         var pr = calcPrice(cc.tcgCard.cardmarket&&cc.tcgCard.cardmarket.prices, cc.condition, cc.variant, cc.first1st);
-        cc.cm_price = (pr&&!pr.notQuoted) ? pr.price : 0;
-      } catch(e){ cc.cm_price = 0; }
+        cc.cm_avg30 = (pr&&!pr.notQuoted) ? pr.price : 0;
+      } catch(e){ cc.cm_avg30 = 0; }
     });
     if(readErr){ throw new Error('Lettura UI: ' + readErr); }
 
     var prevId = document.getElementById('scPrevSelect').value;
-    var tot = scState.condCards.reduce(function(a,cc){ return a+(cc.cm_price||0); }, 0);
+    var tot = scState.condCards.reduce(function(a,cc){ return a+(cc.cm_avg30||0); }, 0);
     var n   = scState.condCards.length;
 
     if(!prevId){
@@ -5426,7 +5426,7 @@ async function scAddToPreventivo(){
         variant:      cc.variant,
         first_edition: cc.first1st,
         qty:          cc.qty||1,
-        price:        cc.cm_price||0,
+        price:        cc.cm_avg30||0,
         cm_avg30:     cc.cm_avg30||0
       };
     });
@@ -5475,7 +5475,7 @@ function scShowResultList(tot, n){
         +'<div class="sc-result-item-name">'+tc.name+'</div>'
         +'<div class="sc-result-item-meta">'+(tc.set&&tc.set.name||'—')+' · '+cc.condition+'</div>'
       +'</div>'
-      +'<div class="sc-result-item-price">'+(cc.cm_price>0?'€'+cc.cm_price.toFixed(2):'n.q.')+'</div>'
+      +'<div class="sc-result-item-price">'+(cc.cm_avg30>0?'€'+cc.cm_avg30.toFixed(2):'n.q.')+'</div>'
     +'</div>';
   }).join('');
   listEl.style.display = 'block';
@@ -8223,7 +8223,7 @@ async function dashLoad(){
 function dashRender(cards, sales, wish){
   // ── KPIs ──
   var invested = cards.reduce(function(a,c){ return a+((c.buy_price||0)*(c.qty||1)); },0);
-  var market   = cards.reduce(function(a,c){ return a+(((c.cm_price||c.sell_price)||0)*(c.qty||1)); },0);
+  var market   = cards.reduce(function(a,c){ return a+(((c.cm_avg30||c.sell_price)||0)*(c.qty||1)); },0);
   var unreal   = market - invested;
   var unrealPct = invested>0 ? ((unreal/invested)*100) : 0;
   var totCards = cards.reduce(function(a,c){ return a+(c.qty||1); },0);
@@ -8258,10 +8258,10 @@ function dashRender(cards, sales, wish){
 
   // ── Top 5 carte per valore mercato ──
   var sorted = cards.slice().sort(function(a,b){
-    return ((b.cm_price||b.sell_price||0)*(b.qty||1)) - ((a.cm_price||a.sell_price||0)*(a.qty||1));
+    return ((b.cm_avg30||b.sell_price||0)*(b.qty||1)) - ((a.cm_avg30||a.sell_price||0)*(a.qty||1));
   }).slice(0,5);
   var topHtml = sorted.length ? sorted.map(function(c){
-    var val = ((c.cm_price||c.sell_price)||0)*(c.qty||1);
+    var val = ((c.cm_avg30||c.sell_price)||0)*(c.qty||1);
     return '<div class="dash-top-card">'
       +(c.image_url?'<img class="dash-top-img" src="'+c.image_url+'" loading="lazy"/>'
         :'<div class="dash-top-img-ph">🃏</div>')
@@ -8298,7 +8298,7 @@ function dashRender(cards, sales, wish){
   var setMap = {};
   cards.forEach(function(c){
     var k = c.set_name||'Senza set';
-    setMap[k] = (setMap[k]||0) + ((c.cm_price||c.sell_price||0)*(c.qty||1));
+    setMap[k] = (setMap[k]||0) + ((c.cm_avg30||c.sell_price||0)*(c.qty||1));
   });
   var setEntries = Object.entries(setMap).sort(function(a,b){ return b[1]-a[1]; }).slice(0,8);
   var setMax = Math.max.apply(null, setEntries.map(function(e){ return e[1]; }).concat([1]));
