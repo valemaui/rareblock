@@ -7188,8 +7188,6 @@ window.auSaveRef=async function(){
   var warped=await auWarp(S.refImg,S.refCorners,S.refDims.w,S.refDims.h,OW,OH);
   // Normalize: crop to card bounds → rescale to OW×OH
   warped=await auNormalize(warped);
-  // Canonicalize: frame interno → posizione assoluta fissa
-  warped=await auCanonicalize(warped);
   S.refWarped=warped;
   var url=warped.toDataURL('image/jpeg',0.93);
   if(S.card){
@@ -7375,28 +7373,20 @@ function auFindInnerFrame(canvas){
   return {L:L, R:R, T:T, B:B, width:fw, height:fh, aspect:aspect};
 }
 
-// ── Canonicalize: allinea frame interno rilevato a posizione fissa OW×OH ────
-// Target canonico: frame interno occupa [PAD, OW-PAD] × [PAD, OH-PAD]
-// → ref e ver finiscono entrambe con frame interno nelle STESSE coordinate assolute
-async function auCanonicalize(src){
-  if(!src) return src;
-  var W=src.width, H=src.height;
-  var frame=auFindInnerFrame(src);
-  if(!frame) return src; // fallback: invariato
-  // Target padding canonico (proporzionale al bordo giallo Pokémon: ~5-7%)
-  var padX=Math.round(OW*0.058);
-  var padY=Math.round(OH*0.058);
-  var targetL=padX, targetR=OW-padX;
-  var targetT=padY, targetB=OH-padY;
-  // Scala+shift affine: mappa [L,R,T,B] rilevato → [targetL,targetR,targetT,targetB]
-  var sx=(targetR-targetL)/frame.width;
-  var sy=(targetB-targetT)/frame.height;
-  var tx=targetL-frame.L*sx;
-  var ty=targetT-frame.T*sy;
+// ── Canonicalize: mappa frame interno SRC → frame target arbitrario ──
+// Target può essere frame di un'altra immagine (es. ref) o box fisso.
+async function auCanonicalizeToFrame(src, target){
+  if(!src||!target) return src;
+  var srcFrame=auFindInnerFrame(src);
+  if(!srcFrame) return src; // fallback: invariato
+  // Scala+shift affine: mappa [srcL,srcR,srcT,srcB] → [target.L,target.R,target.T,target.B]
+  var sx=(target.R-target.L)/srcFrame.width;
+  var sy=(target.B-target.T)/srcFrame.height;
+  var tx=target.L-srcFrame.L*sx;
+  var ty=target.T-srcFrame.T*sy;
   var out=document.createElement('canvas');
   out.width=OW; out.height=OH;
   var ctx=out.getContext('2d');
-  // Background neutro (in caso scale introduca bordi vuoti)
   ctx.fillStyle='#1a1a1a';
   ctx.fillRect(0,0,OW,OH);
   ctx.save();
@@ -7406,11 +7396,19 @@ async function auCanonicalize(src){
   ctx.imageSmoothingQuality='high';
   ctx.drawImage(src,0,0);
   ctx.restore();
-  // Memorizza frame rilevato per debug/telemetry
-  out._innerFrame=frame;
+  out._innerFrame={L:target.L,R:target.R,T:target.T,B:target.B,width:target.R-target.L,height:target.B-target.T};
   out._canonicalized=true;
   await new Promise(function(r){setTimeout(r,0);});
   return out;
+}
+
+// Legacy: canonicalize a box fisso (non più usato nel flow, mantenuto per compat)
+async function auCanonicalize(src){
+  if(!src) return src;
+  var frame=auFindInnerFrame(src);
+  if(!frame) return src;
+  var padX=Math.round(OW*0.058), padY=Math.round(OH*0.058);
+  return auCanonicalizeToFrame(src, {L:padX, R:OW-padX, T:padY, B:OH-padY});
 }
 
 // Determine if a card has holographic artwork based on TCG API rarity
@@ -7517,12 +7515,13 @@ window.auProc=async function(){
   document.getElementById('au-pfill').style.width='42%';
   S.verWarped=await auNormalize(S.verWarped);
   if(_procAbort)return;
-  // Canonicalize: allinea frame INTERNO a posizione assoluta fissa (millimetrico)
-  document.getElementById('au-pstep').textContent='Centramento sui bordi interni...';
+  // Canonicalize: allinea ver al frame interno di ref (ref intatta, solo ver si adatta)
+  document.getElementById('au-pstep').textContent='Allineamento bordi interni ver → ref...';
   document.getElementById('au-pfill').style.width='46%';
-  S.refWarped=await auCanonicalize(S.refWarped);
-  if(_procAbort)return;
-  S.verWarped=await auCanonicalize(S.verWarped);
+  var refFrame=auFindInnerFrame(S.refWarped);
+  if(refFrame){
+    S.verWarped=await auCanonicalizeToFrame(S.verWarped, refFrame);
+  }
   if(_procAbort)return;
   // Diff
   await auPG(50,'COMPUTING','Calcolo differenziale...');
