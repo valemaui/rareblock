@@ -7207,6 +7207,31 @@ window.auSaveRef=async function(){
 };
 
 // ── Warp (async chunked — never blocks UI) ────────────────────────
+// Omografia square [0,1]² → quadrilatero pts (TL,TR,BR,BL)
+// Heckbert "Fundamentals of Texture Mapping and Image Warping" (1989)
+// Restituisce coeff {a..h} tali che: x=(au+bv+c)/(gu+hv+1), y=(du+ev+f)/(gu+hv+1)
+function _auHomographyParams(pts){
+  var x0=pts[0].x, y0=pts[0].y, x1=pts[1].x, y1=pts[1].y;
+  var x2=pts[2].x, y2=pts[2].y, x3=pts[3].x, y3=pts[3].y;
+  var sx=x0-x1+x2-x3, sy=y0-y1+y2-y3;
+  var a,b,c,d,e,f,g,h;
+  if(Math.abs(sx)<1e-10 && Math.abs(sy)<1e-10){
+    // Affine (parallelogramma)
+    a=x1-x0; b=x2-x1; c=x0;
+    d=y1-y0; e=y2-y1; f=y0;
+    g=0; h=0;
+  } else {
+    var dx1=x1-x2, dx2=x3-x2, dy1=y1-y2, dy2=y3-y2;
+    var denom=dx1*dy2-dx2*dy1;
+    if(Math.abs(denom)<1e-10) return null; // degenere → caller fa fallback
+    g=(sx*dy2-dx2*sy)/denom;
+    h=(dx1*sy-sx*dy1)/denom;
+    a=x1-x0+g*x1; b=x3-x0+h*x3; c=x0;
+    d=y1-y0+g*y1; e=y3-y0+h*y3; f=y0;
+  }
+  return {a:a,b:b,c:c,d:d,e:e,f:f,g:g,h:h};
+}
+
 async function auWarp(img,corners,cvW,cvH,oW,oH){
   var HCAP=4000,sc=Math.min(1,HCAP/Math.max(img.width,img.height));
   var sw=Math.round(img.width*sc),sh=Math.round(img.height*sc);
@@ -7214,14 +7239,24 @@ async function auWarp(img,corners,cvW,cvH,oW,oH){
   s.getContext('2d').drawImage(img,0,0,sw,sh);
   var sd=s.getContext('2d').getImageData(0,0,sw,sh).data;
   var sxr=sw/cvW,syr=sh/cvH,pts=corners.map(function(c){return{x:c.x*sxr,y:c.y*syr};});
+  // Calcola omografia (prospettica corretta). Fallback bilineare se degenere.
+  var H=_auHomographyParams(pts);
   var out=document.createElement('canvas');out.width=oW;out.height=oH;
   var octx=out.getContext('2d'),od=octx.createImageData(oW,oH),dd=od.data;
   for(var dy=0;dy<oH;dy+=50){
     var end=Math.min(dy+50,oH);
     for(var row=dy;row<end;row++){var v=row/(oH-1);
       for(var dx=0;dx<oW;dx++){var u=dx/(oW-1);
-        var qx=(1-u)*(1-v)*pts[0].x+u*(1-v)*pts[1].x+u*v*pts[2].x+(1-u)*v*pts[3].x;
-        var qy=(1-u)*(1-v)*pts[0].y+u*(1-v)*pts[1].y+u*v*pts[2].y+(1-u)*v*pts[3].y;
+        var qx,qy;
+        if(H){
+          var w=H.g*u+H.h*v+1;
+          qx=(H.a*u+H.b*v+H.c)/w;
+          qy=(H.d*u+H.e*v+H.f)/w;
+        } else {
+          // Fallback bilineare (warp degenere, raro)
+          qx=(1-u)*(1-v)*pts[0].x+u*(1-v)*pts[1].x+u*v*pts[2].x+(1-u)*v*pts[3].x;
+          qy=(1-u)*(1-v)*pts[0].y+u*(1-v)*pts[1].y+u*v*pts[2].y+(1-u)*v*pts[3].y;
+        }
         var fx=Math.floor(qx),fy=Math.floor(qy),cx2=Math.min(fx+1,sw-1),cy2=Math.min(fy+1,sh-1);
         if(fx<0||fy<0||fx>=sw||fy>=sh)continue;
         var wx=qx-fx,wy=qy-fy,i00=(fy*sw+fx)*4,i10=(fy*sw+cx2)*4,i01=(cy2*sw+fx)*4,i11=(cy2*sw+cx2)*4,di=(row*oW+dx)*4;
