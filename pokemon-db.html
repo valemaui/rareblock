@@ -6180,9 +6180,14 @@ function msFetchSetCards(setId,page,acc,done,fail){
     <div class="au-hint">Cerca la carta nel database Pokemon TCG. Badge verde = riferimento gi&agrave; salvato (salti allo step 4).</div>
     <div class="au-sbar" style="flex-wrap:wrap;gap:6px">
       <input type="text" id="au-q" placeholder="Nome carta (es. Chansey 3, Charizard)" style="flex:1 1 180px;min-width:180px;font-size:13px" onkeydown="if(event.key==='Enter')auDoSearch()"/>
-      <input type="text" id="au-qset" list="au-setlist" placeholder="Set (opzionale) — filtra" style="flex:1 1 180px;min-width:180px;font-size:13px" onkeydown="if(event.key==='Enter')auDoSearch()" oninput="auOnSetInput()"/>
-      <datalist id="au-setlist"></datalist>
-      <button class="btn" id="au-qset-clear" onclick="auClearSetFilter()" title="Pulisci filtro set" style="padding:0 10px;display:none">&times;</button>
+      <div id="au-setpicker" style="position:relative;flex:1 1 200px;min-width:200px">
+        <input type="text" id="au-qset" placeholder="Filtra per set (opzionale)" style="width:100%;font-size:13px;box-sizing:border-box" onfocus="auSetOpen()" oninput="auSetOpen();auSetRender()" onkeydown="auSetKey(event)" autocomplete="off"/>
+        <button type="button" id="au-qset-clear" onclick="auClearSetFilter()" title="Pulisci" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;padding:0 6px;display:none">&times;</button>
+        <div id="au-setpanel" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:50;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);max-height:300px;overflow-y:auto;margin-top:2px;box-shadow:0 4px 12px rgba(0,0,0,.3)">
+          <div id="au-setpanel-count" style="padding:6px 10px;font-size:10px;color:var(--text-subtle);border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface)"></div>
+          <div id="au-setpanel-list"></div>
+        </div>
+      </div>
       <button class="btn btn-primary" onclick="auDoSearch()">Cerca</button>
     </div>
     <div id="au-set-hint" style="font-size:10px;color:var(--text-subtle);text-align:center;margin-bottom:6px;min-height:12px"></div>
@@ -6437,17 +6442,100 @@ window.auResolveSet=function(){
   return {id:null,name:raw,unresolved:true};
 };
 
-// Etichetta leggibile per set nel datalist
+// Etichetta leggibile per set nel picker
 window.auSetLabel=function(s){
   var yr=(s.releaseDate||'').slice(0,4);
   return (s.name||'') + (yr?' · '+yr:'') + (s.series?' · '+s.series:'');
 };
 
-// Popola datalist set (idempotente, si auto-aggiorna quando msFetchSets carica nuove pagine)
+// Stato picker: set selezionato (oggetto completo) e tutti i set disponibili
+window._auSelectedSet = null;
+window._auSetHighlight = -1;
+
+window.auSetOpen=function(){
+  var p=document.getElementById('au-setpanel');
+  if(p) p.style.display='block';
+  auSetRender();
+};
+window.auSetClose=function(){
+  var p=document.getElementById('au-setpanel');
+  if(p) p.style.display='none';
+  window._auSetHighlight=-1;
+};
+document.addEventListener('click',function(e){
+  var pk=document.getElementById('au-setpicker');
+  if(pk && !pk.contains(e.target)) auSetClose();
+});
+
+window.auSetRender=function(){
+  var list=document.getElementById('au-setpanel-list');
+  var count=document.getElementById('au-setpanel-count');
+  if(!list||!count) return;
+  if(!Array.isArray(window.msSetsAll)||!window.msSetsAll.length){
+    count.textContent='Caricamento set...';
+    list.innerHTML='<div style="padding:10px;color:var(--text-subtle);font-size:11px">In caricamento dalla TCG API...</div>';
+    return;
+  }
+  var q=(document.getElementById('au-qset').value||'').trim().toLowerCase();
+  var filtered=q
+    ? window.msSetsAll.filter(function(s){
+        return (s.name||'').toLowerCase().indexOf(q)>-1
+            || (s.series||'').toLowerCase().indexOf(q)>-1
+            || (s.ptcgoCode||'').toLowerCase().indexOf(q)>-1
+            || (s.id||'').toLowerCase().indexOf(q)>-1;
+      })
+    : window.msSetsAll.slice();
+  count.textContent=filtered.length+' / '+window.msSetsAll.length+' set'+(q?' (filtro: "'+q+'")':'');
+  if(!filtered.length){
+    list.innerHTML='<div style="padding:10px;color:var(--warning);font-size:11px">Nessun set corrisponde</div>';
+    return;
+  }
+  list.innerHTML='';
+  filtered.slice(0,200).forEach(function(s,i){
+    var row=document.createElement('div');
+    row.className='au-setrow';
+    row.style.cssText='padding:6px 10px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:8px;align-items:center';
+    row.onmouseover=function(){this.style.background='var(--surface2)';};
+    row.onmouseout=function(){this.style.background='';};
+    var yr=(s.releaseDate||'').slice(0,4);
+    row.innerHTML='<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+      +(s.name||'(senza nome)')+'</span>'
+      +'<span style="font-size:10px;color:var(--text-subtle);font-family:var(--mono);flex-shrink:0">'
+      +yr+(s.ptcgoCode?' · '+s.ptcgoCode:'')+'</span>';
+    row.addEventListener('click',(function(set){return function(){
+      auSetPick(set);
+    };})(s));
+    list.appendChild(row);
+  });
+  if(filtered.length>200){
+    var more=document.createElement('div');
+    more.style.cssText='padding:6px 10px;font-size:10px;color:var(--text-subtle);text-align:center;font-style:italic';
+    more.textContent='... +'+(filtered.length-200)+' altri (scrivi per filtrare)';
+    list.appendChild(more);
+  }
+};
+
+window.auSetPick=function(set){
+  window._auSelectedSet=set;
+  document.getElementById('au-qset').value=auSetLabel(set);
+  document.getElementById('au-qset-clear').style.display='block';
+  document.getElementById('au-set-hint').style.color='var(--accent)';
+  document.getElementById('au-set-hint').textContent='✓ '+set.name+' ['+set.id+']';
+  auSetClose();
+};
+
+window.auSetKey=function(e){
+  if(e.key==='Enter'){
+    e.preventDefault();
+    auDoSearch();
+    auSetClose();
+  } else if(e.key==='Escape'){
+    auSetClose();
+  }
+};
+
+// Popola/aggiorna picker (invocato al mount tab e ad ogni update msSetsAll)
 window.auPopulateSets=function(){
-  var dl=document.getElementById('au-setlist');
-  if(!dl) return;
-  // Registra listener una sola volta
   if(!window._auSetsListenerAdded){
     window._auSetsListenerAdded=true;
     window._msSetsListeners=window._msSetsListeners||[];
@@ -6460,37 +6548,51 @@ window.auPopulateSets=function(){
     }
     return;
   }
-  // Ripopola (msSetsAll può crescere durante paginazione)
-  dl.innerHTML='';
-  window.msSetsAll.forEach(function(s){
-    var o=document.createElement('option');
-    o.value=auSetLabel(s);
-    dl.appendChild(o);
-  });
+  // Se panel aperto, re-render
+  var p=document.getElementById('au-setpanel');
+  if(p && p.style.display==='block') auSetRender();
+};
+
+// Resolve set da input (usa selezione esplicita, altrimenti match testuale)
+window.auResolveSet=function(){
+  if(window._auSelectedSet) return {id:window._auSelectedSet.id,name:window._auSelectedSet.name};
+  var raw=(document.getElementById('au-qset').value||'').trim();
+  if(!raw) return null;
+  if(!Array.isArray(window.msSetsAll)||!window.msSetsAll.length) return {id:null,name:raw,unresolved:true};
+  var lo=raw.toLowerCase();
+  var byLabel=window.msSetsAll.find(function(s){return auSetLabel(s)===raw;});
+  if(byLabel) return {id:byLabel.id,name:byLabel.name};
+  var byName=window.msSetsAll.find(function(s){return (s.name||'').toLowerCase()===lo;});
+  if(byName) return {id:byName.id,name:byName.name};
+  var byPartial=window.msSetsAll.find(function(s){return (s.name||'').toLowerCase().indexOf(lo)>=0;});
+  if(byPartial) return {id:byPartial.id,name:byPartial.name};
+  return {id:null,name:raw,unresolved:true};
 };
 
 window.auClearSetFilter=function(){
+  window._auSelectedSet=null;
   document.getElementById('au-qset').value='';
   document.getElementById('au-qset-clear').style.display='none';
   document.getElementById('au-set-hint').textContent='';
+  auSetClose();
 };
 
-window.auOnSetInput=function(){
-  var v=document.getElementById('au-qset').value.trim();
-  document.getElementById('au-qset-clear').style.display=v?'inline-block':'none';
-  var hint=document.getElementById('au-set-hint');
-  if(!v){ hint.textContent=''; return; }
-  var r=auResolveSet();
-  if(r && !r.unresolved){
-    hint.style.color='var(--accent)';
-    hint.textContent='✓ Filtro: '+r.name;
-  } else {
-    hint.style.color='var(--warning)';
-    hint.textContent='Set non riconosciuto — scegli dalla lista';
-  }
+// Tool debug accessibile da console
+window.auDebugSets=function(){
+  var info={
+    msSetsAll_loaded: Array.isArray(window.msSetsAll),
+    msSetsAll_count: (window.msSetsAll||[]).length,
+    has_skyridge: (window.msSetsAll||[]).some(function(s){return (s.name||'').toLowerCase()==='skyridge';}),
+    has_ecard3: (window.msSetsAll||[]).some(function(s){return s.id==='ecard3';}),
+    oldest_5: (window.msSetsAll||[]).slice(-5).map(function(s){return s.id+' / '+s.name+' / '+s.releaseDate;}),
+    newest_5: (window.msSetsAll||[]).slice(0,5).map(function(s){return s.id+' / '+s.name+' / '+s.releaseDate;}),
+    selected: window._auSelectedSet
+  };
+  console.table(info);
+  return info;
 };
 
-// Hook: popola set quando tab auth è mostrato
+// Hook: mount tab auth → popola picker
 (function(){
   var prev=window.showTab;
   if(typeof prev==='function' && !window._auTabHooked){
