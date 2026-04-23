@@ -56,9 +56,8 @@ supabase functions deploy hunt-ingest
 ```
 RESEND_API_KEY          # per email
 TELEGRAM_BOT_TOKEN      # per Telegram (crea bot con @BotFather)
-TWILIO_ACCOUNT_SID      # per WhatsApp
-TWILIO_AUTH_TOKEN
-TWILIO_WHATSAPP_FROM    # es. whatsapp:+14155238886
+WHATSAPP_TOKEN          # WhatsApp Cloud API (Meta) — access token permanente
+WHATSAPP_PHONE_ID       # Phone Number ID dell'app WhatsApp Business
 ```
 
 ### 4. Installa userscript
