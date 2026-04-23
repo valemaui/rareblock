@@ -6593,7 +6593,7 @@ var _K_='ANTHROPIC_API_KEY_PLACEHOLDER';
 window._SC_AK = _K_;
 var _OR_='OPENROUTER_API_KEY_PLACEHOLDER';
 window._SC_OR = _OR_;
-var _OR_MODELS=['google/gemini-2.0-flash-001','google/gemini-2.5-pro','google/gemma-4-26b-a4b-it:free'];
+var _OR_MODELS=['google/gemini-2.5-flash','google/gemini-flash-1.5','google/gemini-2.0-flash-001','google/gemini-2.5-pro'];
 var _sx=0.5,_sd=false;
 var _procAbort=false,_et=null,_tt=null;
 var _animTimer=null;
@@ -7602,21 +7602,34 @@ async function auCallAPI(rB64,vB64,coh){
     var model=_OR_MODELS[mi];
     try{document.getElementById('au-pstep').textContent='Provo: '+model.split('/')[1];}catch(e){}
     var resp;
+    // Timeout 60s per modello (504 = il provider monta timeout interno, preferiamo abortire e passare oltre)
+    var ctrl=new AbortController();
+    var tm=setTimeout(function(){ctrl.abort();},60000);
     try{
       resp=await fetch('https://openrouter.ai/api/v1/chat/completions',{
         method:'POST',
+        signal:ctrl.signal,
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+_OR_,'HTTP-Referer':'https://www.rareblock.eu','X-Title':'RareBlock'},
         body:JSON.stringify({model:model,messages:[{role:'user',content:[
           {type:'image_url',image_url:{url:'data:image/jpeg;base64,'+rB64}},
           {type:'image_url',image_url:{url:'data:image/jpeg;base64,'+vB64}},
           {type:'text',text:prompt}]}],max_tokens:2000,temperature:0.1})
       });
-    }catch(e){lastErr='Rete: '+e.message;continue;}
+    }catch(e){
+      clearTimeout(tm);
+      lastErr=e.name==='AbortError'?'Timeout 60s su '+model:'Rete: '+e.message;
+      continue;
+    }
+    clearTimeout(tm);
     if(!resp.ok){
       var ej2=await resp.json().catch(function(){return{};});
       lastErr='['+model+'] '+resp.status+': '+((ej2.error&&ej2.error.message)||resp.statusText);
+      // 502/503/504 = provider transient → skip al prossimo modello senza alert
       if(resp.status===429){await new Promise(function(res){setTimeout(res,4000);});continue;}
-      if(resp.status===404)continue;
+      if(resp.status===404||resp.status===502||resp.status===503||resp.status===504){
+        try{document.getElementById('au-pstep').textContent=model.split('/')[1]+' non risponde ('+resp.status+'), provo altro...';}catch(e){}
+        continue;
+      }
       throw new Error(lastErr);
     }
     var data=await resp.json();
