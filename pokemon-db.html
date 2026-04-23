@@ -8631,13 +8631,31 @@ async function anlGetUsdEur(){
 }
 
 async function anlFetchSmooth(body){
-  var token=(window._rbSession&&window._rbSession.access_token)||SUPA_KEY;
-  var res=await fetch(SUPA_URL+'/functions/v1/smooth-endpoint',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,'apikey':SUPA_KEY},
-    body:JSON.stringify(body)
-  });
-  if(!res.ok) throw new Error('HTTP '+res.status);
+  // 1° tentativo: usa token sessione utente (se loggato), altrimenti anon SUPA_KEY
+  var sessionToken=window._rbSession&&window._rbSession.access_token;
+  var firstToken=sessionToken||SUPA_KEY;
+
+  async function doCall(bearer){
+    return fetch(SUPA_URL+'/functions/v1/smooth-endpoint',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+bearer},
+      body:JSON.stringify(body)
+    });
+  }
+
+  var res=await doCall(firstToken);
+
+  // Se 401 con token sessione (probabilmente scaduto) → retry con anon key
+  if(res.status===401 && sessionToken && firstToken!==SUPA_KEY){
+    res=await doCall(SUPA_KEY);
+  }
+
+  if(!res.ok){
+    // Leggi il body per messaggio chiaro
+    var detail='';
+    try{ var t=await res.text(); detail=t?(' — '+t.substring(0,120)):''; }catch(e){}
+    throw new Error('HTTP '+res.status+detail);
+  }
   return await res.json();
 }
 
