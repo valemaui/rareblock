@@ -56,9 +56,10 @@ supabase functions deploy hunt-ingest
 ```
 RESEND_API_KEY          # per email
 TELEGRAM_BOT_TOKEN      # per Telegram (crea bot con @BotFather)
-WHATSAPP_TOKEN          # WhatsApp Cloud API (Meta) — access token permanente
-WHATSAPP_PHONE_ID       # Phone Number ID dell'app WhatsApp Business
 ```
+
+Canali notifica disponibili: **push browser**, **email**, **Telegram**.
+WhatsApp rimosso (setup Meta troppo oneroso per questa use case).
 
 ### 4. Installa userscript
 Apri `rareblock-hunter-scraper.user.js` in Tampermonkey/Violentmonkey.

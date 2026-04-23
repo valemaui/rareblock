@@ -292,9 +292,6 @@ async function fireAlerts(supa: any, userId: string, listings: any[]) {
       if (rule.channel_telegram && cfg?.telegram_chat_id) {
         await sendTelegram(cfg.telegram_chat_id, payload, supa, userId, rule.id, l.id);
       }
-      if (rule.channel_whatsapp && cfg?.whatsapp_number) {
-        await sendWhatsApp(cfg.whatsapp_number, payload, supa, userId, rule.id, l.id);
-      }
       // Push browser: salvato nel log, consumato lato client via realtime
       if (rule.channel_push) {
         await supa.from("hunt_alert_log").insert({
@@ -350,73 +347,5 @@ async function sendTelegram(chatId: string, p: any, supa: any, userId: string, r
     await supa.from("hunt_alert_log").insert({ user_id: userId, rule_id: ruleId, listing_id: listingId, channel: "telegram", status: r.ok ? "sent" : "failed", error: r.ok ? null : await r.text(), payload: p });
   } catch (e) {
     await supa.from("hunt_alert_log").insert({ user_id: userId, rule_id: ruleId, listing_id: listingId, channel: "telegram", status: "failed", error: String(e) });
-  }
-}
-
-async function sendWhatsApp(number: string, p: any, supa: any, userId: string, ruleId: string, listingId: string) {
-  const WA_TOKEN = Deno.env.get("WHATSAPP_TOKEN");
-  const WA_PHONE_ID = Deno.env.get("WHATSAPP_PHONE_ID");
-  if (!WA_TOKEN || !WA_PHONE_ID) {
-    await supa.from("hunt_alert_log").insert({ user_id: userId, rule_id: ruleId, listing_id: listingId, channel: "whatsapp", status: "skipped", error: "WhatsApp Cloud env missing" });
-    return;
-  }
-
-  // Normalizza numero: togli + iniziale (Meta richiede formato internazionale senza +)
-  const toNumber = String(number).replace(/^\+/, "").replace(/\s+/g, "");
-
-  const bodyText = `🎯 Deal ${p.deal_score}/100 - ${p.platform.toUpperCase()}\n\n${p.listing_title.slice(0, 120)}\n\n💰 €${p.price}\n🔗 ${p.listing_url}`;
-
-  // Messaggio free-form (funziona solo dentro finestra 24h dopo ultimo msg utente al bot)
-  const freeFormPayload = {
-    messaging_product: "whatsapp",
-    to: toNumber,
-    type: "text",
-    text: { preview_url: true, body: bodyText },
-  };
-
-  try {
-    const r = await fetch(`https://graph.facebook.com/v20.0/${WA_PHONE_ID}/messages`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${WA_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(freeFormPayload),
-    });
-
-    if (r.ok) {
-      await supa.from("hunt_alert_log").insert({ user_id: userId, rule_id: ruleId, listing_id: listingId, channel: "whatsapp", status: "sent", payload: p });
-      return;
-    }
-
-    // Fallback: prova template hello_world (sempre disponibile di default)
-    // Utile fuori finestra 24h. Per produzione: creare template custom approvato.
-    const errText = await r.text();
-    const isOutsideWindow = /24|template|outside|expired|not_open/i.test(errText);
-
-    if (isOutsideWindow) {
-      const templatePayload = {
-        messaging_product: "whatsapp",
-        to: toNumber,
-        type: "template",
-        template: { name: "hello_world", language: { code: "en_US" } },
-      };
-      const r2 = await fetch(`https://graph.facebook.com/v20.0/${WA_PHONE_ID}/messages`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${WA_TOKEN}`, "Content-Type": "application/json" },
-        body: JSON.stringify(templatePayload),
-      });
-      if (r2.ok) {
-        await supa.from("hunt_alert_log").insert({ user_id: userId, rule_id: ruleId, listing_id: listingId, channel: "whatsapp", status: "sent", error: "fallback template hello_world (scrivi al bot per riaprire finestra 24h)", payload: p });
-        return;
-      }
-      const err2 = await r2.text();
-      await supa.from("hunt_alert_log").insert({ user_id: userId, rule_id: ruleId, listing_id: listingId, channel: "whatsapp", status: "failed", error: `freeform: ${errText.slice(0, 200)} | template: ${err2.slice(0, 200)}`, payload: p });
-      return;
-    }
-
-    await supa.from("hunt_alert_log").insert({ user_id: userId, rule_id: ruleId, listing_id: listingId, channel: "whatsapp", status: "failed", error: errText.slice(0, 400), payload: p });
-  } catch (e) {
-    await supa.from("hunt_alert_log").insert({ user_id: userId, rule_id: ruleId, listing_id: listingId, channel: "whatsapp", status: "failed", error: String(e) });
   }
 }

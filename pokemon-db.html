@@ -9942,7 +9942,6 @@ function huntRenderAlertRules(){
     var chans = [];
     if(r.channel_push) chans.push('🔔 push');
     if(r.channel_email) chans.push('📧 email');
-    if(r.channel_whatsapp) chans.push('💬 WA');
     if(r.channel_telegram) chans.push('✈ Tg');
     return '<div class="hunt-target">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
@@ -10080,11 +10079,10 @@ window.huntScanAll = huntScanAll;
 function huntOpenAdminPanel(){
   var cfg = _huntState.config || {};
   var email = prompt('📧 Email per notifiche:', cfg.email_address||'') || cfg.email_address;
-  var wa = prompt('💬 WhatsApp (es: +39333...):', cfg.whatsapp_number||'') || cfg.whatsapp_number;
   var tg = prompt('✈ Telegram chat_id:', cfg.telegram_chat_id||'') || cfg.telegram_chat_id;
   var freq = prompt('Frequenza digest (never/daily/hourly):', cfg.digest_frequency||'daily') || 'daily';
   var hr = parseInt(prompt('Ora invio digest (0-23):', cfg.digest_hour||'9')) || 9;
-  huntSaveChannelConfig({ email_address: email, whatsapp_number: wa, telegram_chat_id: tg, digest_frequency: freq, digest_hour: hr });
+  huntSaveChannelConfig({ email_address: email, telegram_chat_id: tg, digest_frequency: freq, digest_hour: hr });
 }
 window.huntOpenAdminPanel = huntOpenAdminPanel;
 
@@ -10116,7 +10114,6 @@ function huntOpenAddRule(){
   var auctionOnly = confirm('Solo aste?');
   var push = confirm('🔔 Notifica push browser?');
   var email = confirm('📧 Notifica email?');
-  var wa = confirm('💬 Notifica WhatsApp?');
   var tg = confirm('✈ Notifica Telegram?');
   huntSaveRule({
     name: name.trim(),
@@ -10124,7 +10121,7 @@ function huntOpenAddRule(){
     max_price: maxPrice,
     platforms: pfs.length ? pfs : null,
     auction_only: auctionOnly,
-    channel_push: push, channel_email: email, channel_whatsapp: wa, channel_telegram: tg,
+    channel_push: push, channel_email: email, channel_telegram: tg,
     is_active: true
   });
 }
