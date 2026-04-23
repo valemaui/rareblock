@@ -1116,8 +1116,9 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
         </div>
         <div class="add-layout" style="flex:1;overflow:hidden">
           <div class="add-left">
-            <div class="search-bar">
-              <input id="q" type="text" placeholder="Nome carta + numero (es. Charizard 4)" onkeydown="if(event.key==='Enter')doSearch()"/>
+            <div class="search-bar" style="flex-wrap:wrap;gap:6px">
+              <input id="q" type="text" placeholder="Nome carta + numero (es. Charizard 4)" style="flex:1 1 180px;min-width:180px" onkeydown="if(event.key==='Enter')doSearch()"/>
+              <div id="q-setpicker" style="flex:1 1 200px;min-width:200px;position:relative"></div>
               <button class="btn btn-primary" onclick="doSearch()">Cerca</button>
             </div>
             <div class="status info" id="st" style="padding:4px 16px"></div>
@@ -1308,8 +1309,9 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
               <button class="btn-icon" onclick="togglePrevSearch()">✕</button>
             </div>
             <div class="prev-panel-body">
-              <div style="display:flex;gap:6px">
-                <input id="pq" type="text" placeholder="Nome + numero..." onkeydown="if(event.key==='Enter')prevSearch()"/>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <input id="pq" type="text" placeholder="Nome + numero..." style="flex:1 1 140px;min-width:140px" onkeydown="if(event.key==='Enter')prevSearch()"/>
+                <div id="pq-setpicker" style="flex:1 1 160px;min-width:160px;position:relative"></div>
                 <button class="btn btn-primary" onclick="prevSearch()" style="flex-shrink:0">Cerca</button>
               </div>
               <div class="status info" id="pst" style="padding:0"></div>
@@ -1390,8 +1392,9 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
     </div>
     <!-- Replace panel -->
     <div class="modal-replace-panel" id="emReplacePanel">
-      <div class="modal-replace-search">
-        <input type="text" id="emReplaceQ" placeholder="Nome carta..." style="font-size:12px;flex:1" onkeydown="if(event.key==='Enter')emDoReplace()"/>
+      <div class="modal-replace-search" style="flex-wrap:wrap;gap:4px">
+        <input type="text" id="emReplaceQ" placeholder="Nome carta..." style="font-size:12px;flex:1 1 140px;min-width:120px" onkeydown="if(event.key==='Enter')emDoReplace()"/>
+        <div id="emReplaceQ-setpicker" style="flex:1 1 140px;min-width:140px;position:relative"></div>
         <button class="btn btn-primary" onclick="emDoReplace()" style="font-size:11px;padding:5px 12px">Cerca</button>
       </div>
       <div class="modal-replace-status" id="emReplaceSt"></div>
@@ -2338,7 +2341,176 @@ async function fetchCards(name, number){
   return results;
 }
 
-// ── SEARCH (tab aggiungi) ──
+// ══════════════════════════════════════════════════════════════
+// RB-CARD-SEARCH · modulo riusabile (estratto da auDoSearch)
+// Espone:
+//   rbSearchCards(name, number, setId)   → Promise<cards[]>
+//   rbMountSetPicker(opts)               → attacca set picker a input
+//   rbResolveSetFromInput(inputEl)       → {id,name,unresolved?}|null
+// ══════════════════════════════════════════════════════════════
+window.rbSearchCards = async function(name, number, setId){
+  // Con setId: TCG API diretta, molto precisa, bypass Edge Function
+  if(setId){
+    var parts=['set.id:'+setId];
+    if(name) parts.push('name:"'+String(name).replace(/"/g,'')+'"');
+    if(number) parts.push('number:'+number);
+    var cards=[];
+    try{ cards=await _fetchTCGDirect(parts.join(' '),250); }catch(e){}
+    if(!cards.length && name){
+      // Fallback wildcard primo token
+      try{
+        var p2=['set.id:'+setId,'name:*'+String(name).split(/\s+/)[0].replace(/"/g,'')+'*'];
+        if(number) p2.push('number:'+number);
+        cards=await _fetchTCGDirect(p2.join(' '),250);
+      }catch(e){}
+    }
+    // Ordina per numero (utile con filtro set)
+    cards.sort(function(a,b){
+      var na=parseInt((a.number||'').replace(/\D/g,''),10)||0;
+      var nb=parseInt((b.number||'').replace(/\D/g,''),10)||0;
+      if(na!==nb) return na-nb;
+      return (a.number||'').localeCompare(b.number||'');
+    });
+    return cards;
+  }
+  // Senza setId: usa fetchCards (engine classico con fuzzy+translate+cache)
+  if(!name) return [];
+  var all = await fetchCards(name, number||null);
+  if(number && all.length){
+    var ex=all.filter(function(c){return c.number===number;});
+    var pa=all.filter(function(c){return c.number&&c.number.startsWith(number+'/');});
+    return ex.length?ex:(pa.length?pa:all);
+  }
+  return all;
+};
+
+// Risolve set da un qualsiasi input testuale (fallback msSetsAll > SC_SETS_STATIC)
+window.rbResolveSetFromInput = function(inputEl){
+  if(!inputEl) return null;
+  // Selezione esplicita salvata sull'elemento
+  if(inputEl._rbSelectedSet) return {id:inputEl._rbSelectedSet.id,name:inputEl._rbSelectedSet.name};
+  var raw=(inputEl.value||'').trim();
+  if(!raw) return null;
+  var src=(Array.isArray(window.msSetsAll)&&window.msSetsAll.length)
+          ? window.msSetsAll
+          : (typeof SC_SETS_STATIC!=='undefined'?SC_SETS_STATIC:[]);
+  if(!src.length) return {id:null,name:raw,unresolved:true};
+  var lo=raw.toLowerCase();
+  var hit = src.find(function(s){return auSetLabel(s)===raw;})
+         || src.find(function(s){return (s.name||'').toLowerCase()===lo;})
+         || src.find(function(s){return (s.ptcgoCode||'').toLowerCase()===lo;})
+         || src.find(function(s){return (s.id||'').toLowerCase()===lo;})
+         || src.find(function(s){return (s.name||'').toLowerCase().indexOf(lo)>=0;});
+  if(hit) return {id:hit.id,name:hit.name};
+  return {id:null,name:raw,unresolved:true};
+};
+
+// Monta set picker su un container. Genera HTML picker + wire-up eventi.
+// opts: { containerId, inputId, placeholder, onSelect?, onClear? }
+// Richiede container vuoto; riempie con input + dropdown panel.
+window.rbMountSetPicker = function(opts){
+  var container = document.getElementById(opts.containerId);
+  if(!container || container._rbPickerMounted) return;
+  container._rbPickerMounted = true;
+  container.style.position = container.style.position || 'relative';
+  var iid = opts.inputId || (opts.containerId+'-input');
+  var pid = iid+'-panel';
+  var lid = iid+'-list';
+  var cid = iid+'-count';
+  var xid = iid+'-clear';
+  container.innerHTML =
+    '<input type="text" id="'+iid+'" placeholder="'+(opts.placeholder||'Filtra per set (opzionale)')+'" style="width:100%;font-size:13px;box-sizing:border-box;padding-right:22px" autocomplete="off"/>'
+    +'<button type="button" id="'+xid+'" title="Pulisci" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;padding:0 6px;display:none">&times;</button>'
+    +'<div id="'+pid+'" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:50;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);max-height:300px;overflow-y:auto;margin-top:2px;box-shadow:0 4px 12px rgba(0,0,0,.3)">'
+    +'<div id="'+cid+'" style="padding:6px 10px;font-size:10px;color:var(--text-subtle);border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface)"></div>'
+    +'<div id="'+lid+'"></div>'
+    +'</div>';
+  var inp = document.getElementById(iid);
+  var panel = document.getElementById(pid);
+  var listEl = document.getElementById(lid);
+  var countEl = document.getElementById(cid);
+  var clearBtn = document.getElementById(xid);
+
+  function render(){
+    // Trigger load una volta se necessario
+    if(!Array.isArray(window.msSetsAll)||!window.msSetsAll.length){
+      try{ auPopulateSets(); }catch(e){}
+    }
+    if(!Array.isArray(window.msSetsAll)||!window.msSetsAll.length){
+      countEl.textContent='Caricamento set...';
+      listEl.innerHTML='<div style="padding:10px;color:var(--text-subtle);font-size:11px">Init...</div>';
+      return;
+    }
+    var q=(inp.value||'').trim().toLowerCase();
+    var filtered=q
+      ? window.msSetsAll.filter(function(s){
+          return (s.name||'').toLowerCase().indexOf(q)>-1
+              || (s.series||'').toLowerCase().indexOf(q)>-1
+              || (s.ptcgoCode||'').toLowerCase().indexOf(q)>-1
+              || (s.id||'').toLowerCase().indexOf(q)>-1;
+        })
+      : window.msSetsAll.slice();
+    countEl.textContent=filtered.length+' / '+window.msSetsAll.length+' set'+(q?' · "'+q+'"':'');
+    if(!filtered.length){
+      listEl.innerHTML='<div style="padding:10px;color:var(--warning);font-size:11px">Nessun set</div>';
+      return;
+    }
+    listEl.innerHTML='';
+    filtered.slice(0,200).forEach(function(s){
+      var row=document.createElement('div');
+      row.style.cssText='padding:6px 10px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:8px;align-items:center';
+      row.onmouseover=function(){this.style.background='var(--surface2)';};
+      row.onmouseout=function(){this.style.background='';};
+      var yr=(s.releaseDate||'').slice(0,4);
+      row.innerHTML='<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+        +(s.name||'(senza nome)')+'</span>'
+        +'<span style="font-size:10px;color:var(--text-subtle);font-family:var(--mono);flex-shrink:0">'
+        +yr+(s.ptcgoCode?' · '+s.ptcgoCode:'')+'</span>';
+      row.addEventListener('click',(function(set){return function(){ pick(set); };})(s));
+      listEl.appendChild(row);
+    });
+    if(filtered.length>200){
+      var more=document.createElement('div');
+      more.style.cssText='padding:6px 10px;font-size:10px;color:var(--text-subtle);text-align:center;font-style:italic';
+      more.textContent='... +'+(filtered.length-200)+' altri (scrivi per filtrare)';
+      listEl.appendChild(more);
+    }
+  }
+  function open(){ panel.style.display='block'; render(); }
+  function close(){ panel.style.display='none'; }
+  function pick(set){
+    inp._rbSelectedSet = set;
+    inp.value = auSetLabel(set);
+    clearBtn.style.display='block';
+    close();
+    if(typeof opts.onSelect==='function') opts.onSelect(set);
+  }
+  function clear(){
+    inp._rbSelectedSet = null;
+    inp.value='';
+    clearBtn.style.display='none';
+    close();
+    if(typeof opts.onClear==='function') opts.onClear();
+  }
+
+  inp.addEventListener('focus', open);
+  inp.addEventListener('input', function(){ open(); render(); });
+  inp.addEventListener('keydown', function(e){
+    if(e.key==='Escape') close();
+  });
+  clearBtn.addEventListener('click', clear);
+  document.addEventListener('click', function(e){
+    if(!container.contains(e.target)) close();
+  });
+  // Registra listener su update msSetsAll per ri-render
+  window._msSetsListeners = window._msSetsListeners||[];
+  window._msSetsListeners.push(function(){
+    if(panel.style.display==='block') render();
+  });
+
+  return { input: inp, resolve: function(){ return rbResolveSetFromInput(inp); }, clear: clear };
+};
+
 async function cancelQuick(){
   document.getElementById('quickMatch').style.display='none';
   document.getElementById('quickAddForm').style.display='none';
@@ -2355,22 +2527,29 @@ function cancelSel(){
 }
 async function doSearch(){
   const raw=document.getElementById('q').value.trim();
-  if(!raw)return;
-  const{name,number}=parseQuery(raw);
+  const setInp=document.getElementById('q-setpicker-input');
+  const setSel=setInp?rbResolveSetFromInput(setInp):null;
+  if(!raw && !setSel){ return; }
+  if(setSel&&setSel.unresolved){
+    const st=document.getElementById('st');
+    st.className='status warn';st.textContent='Set "'+setSel.name+'" non riconosciuto. Seleziona dalla lista.';
+    return;
+  }
+  const{name,number}=raw?parseQuery(raw):{name:'',number:null};
   const st=document.getElementById('st');
-  const _cached=Array.isArray(cache[name.toLowerCase().trim()]);
-  st.className='status info';st.textContent='Ricerca "'+name+'"'+(number?' #'+number:'')+(_cached?' (cache)':'...');
+  const _cached=Array.isArray(cache[(name||'').toLowerCase().trim()]);
+  st.className='status info';st.textContent='Ricerca "'+(name||'(set)')+'"'+(number?' #'+number:'')+(setSel?' · '+setSel.name:'')+(_cached&&!setSel?' (cache)':'...');
   document.getElementById('quickMatch').style.display='none';document.getElementById('quickAddForm').style.display='none';
   document.getElementById('multiWrap').style.display='none';
   document.getElementById('selForm').style.display='none';document.getElementById('selAddForm').style.display='none';
   document.getElementById('mform').style.display='none';
   quickCard=null;selCard=null;
   try{
-    const cards=await fetchCards(name, number||null);
-    if(!cards.length){st.className='status warn';st.textContent='Nessuna carta trovata — aggiungila manualmente.';showManualForm(name,number);return}
-    const isFuzzy=foundName.toLowerCase()!==name.toLowerCase()&&foundName.length>0;
+    const cards=await rbSearchCards(name, number||null, setSel?setSel.id:null);
+    if(!cards.length){st.className='status warn';st.textContent='Nessuna carta trovata'+(setSel?' in "'+setSel.name+'"':'')+' — aggiungila manualmente.';showManualForm(name,number);return}
+    const isFuzzy=!setSel && foundName.toLowerCase()!==(name||'').toLowerCase()&&foundName.length>0;
     let filtered=cards;
-    if(number){
+    if(number && !setSel){
       const exact=cards.filter(c=>c.number===number);
       const partial=cards.filter(c=>c.number&&c.number.startsWith(number+'/'));
       filtered=exact.length?exact:(partial.length?partial:cards);
@@ -2380,7 +2559,7 @@ async function doSearch(){
       quickCard=filtered[0];showQuickMatch(quickCard);
       st.className='status ok';st.textContent='Carta trovata: '+quickCard.name+' — '+quickCard.set?.name+' #'+quickCard.number+fuzzyNote;
     } else {
-      st.className='status ok';st.textContent=filtered.length+' carte trovate'+fuzzyNote+' — seleziona quella giusta.';
+      st.className='status ok';st.textContent=filtered.length+' carte trovate'+fuzzyNote+(setSel?' · '+setSel.name:'')+' — seleziona quella giusta.';
       showMulti(filtered);
     }
   }catch(e){
@@ -3116,17 +3295,20 @@ function emToggleReplace(){
 
 async function emDoReplace(){
   const q=document.getElementById('emReplaceQ').value.trim();
-  if(!q) return;
+  const setInp=document.getElementById('emReplaceQ-setpicker-input');
+  const setSel=setInp?rbResolveSetFromInput(setInp):null;
+  if(!q && !setSel) return;
   const st=document.getElementById('emReplaceSt');
   const grid=document.getElementById('emReplaceGrid');
+  if(setSel&&setSel.unresolved){ st.textContent='Set "'+setSel.name+'" non riconosciuto.'; return; }
   st.textContent='Ricerca…'; grid.innerHTML='';
   try {
-    const {name:_emName, number:_emNum} = parseQuery(q);
-    const cards=await fetchCards(_emName, _emNum||null);
-    if(!cards||!cards.length){ st.textContent='Nessuna carta trovata.'; return; }
-    st.textContent=cards.length+' risultati — seleziona la carta corretta:';
+    const {name:_emName, number:_emNum} = q?parseQuery(q):{name:'',number:null};
+    const cards=await rbSearchCards(_emName, _emNum||null, setSel?setSel.id:null);
+    if(!cards||!cards.length){ st.textContent='Nessuna carta trovata'+(setSel?' in "'+setSel.name+'"':'')+'.'; return; }
+    st.textContent=cards.length+' risultati'+(setSel?' · '+setSel.name:'')+' — seleziona la carta corretta:';
     grid.innerHTML='';
-    cards.slice(0,12).forEach(c=>{
+    cards.slice(0,24).forEach(c=>{
       const div=document.createElement('div');
       div.className='modal-replace-thumb';
       const sm=c.images&&c.images.small;
@@ -3213,18 +3395,25 @@ async function saveEditModal(){
 
 // Ricerca carte nel preventivo
 async function prevSearch(){
-  const raw=document.getElementById('pq').value.trim();if(!raw)return;
-  const{name,number}=parseQuery(raw);
+  const raw=document.getElementById('pq').value.trim();
+  const setInp=document.getElementById('pq-setpicker-input');
+  const setSel=setInp?rbResolveSetFromInput(setInp):null;
+  if(!raw && !setSel) return;
   const pst=document.getElementById('pst');
-  const isPCached=Array.isArray(cache[name.toLowerCase().trim()]);
+  if(setSel&&setSel.unresolved){
+    pst.className='prev-status err';pst.textContent='Set "'+setSel.name+'" non riconosciuto.';return;
+  }
+  const{name,number}=raw?parseQuery(raw):{name:'',number:null};
+  const isPCached=!setSel && Array.isArray(cache[(name||'').toLowerCase().trim()]);
   pst.className='prev-status';
-  pst.textContent='Ricerca "'+name+'"'+(isPCached?' (dalla cache)':'...');
+  pst.textContent='Ricerca "'+(name||'(set)')+'"'+(setSel?' · '+setSel.name:'')+(isPCached?' (dalla cache)':'...');
   document.getElementById('prevResults').style.display='none';
   document.getElementById('prevQuickAdd').style.display='none';prevCard=null;
   try{
-    const cards=await fetchCards(name, number||null);
-    if(!cards.length){pst.className='prev-status err';pst.textContent='Nessuna carta trovata per "'+name+'".';return}
-    if(number){
+    const cards=await rbSearchCards(name, number||null, setSel?setSel.id:null);
+    if(!cards.length){pst.className='prev-status err';pst.textContent='Nessuna carta trovata'+(setSel?' in "'+setSel.name+'"':'')+'.';return}
+    let filtered=cards;
+    if(number && !setSel){
       const exact=cards.filter(c=>c.number===number);
       const partial=cards.filter(c=>c.number&&c.number.startsWith(number+'/'));
       filtered=exact.length?exact:(partial.length?partial:cards);
@@ -3233,7 +3422,7 @@ async function prevSearch(){
       prevCard=filtered[0];showPrevQuickAdd(prevCard);
       pst.className='prev-status ok';pst.textContent='Trovata: '+prevCard.name+' — '+prevCard.set?.name;
     } else {
-      pst.className='prev-status ok';pst.textContent=filtered.length+' risultati — seleziona:';
+      pst.className='prev-status ok';pst.textContent=filtered.length+' risultati'+(setSel?' · '+setSel.name:'')+' — seleziona:';
       showPrevResults(filtered);
     }
   }catch(e){pst.className='prev-status err';pst.textContent='Errore: '+e.message}
@@ -6651,6 +6840,18 @@ window.auDebugSets=function(){
   }
   // Seed iniziale subito al load del file (indipendente dal tab)
   setTimeout(function(){ try{ auPopulateSets(); }catch(e){} },50);
+  // Mount picker in tutti i punti di ricerca (quando i DOM container esistono)
+  setTimeout(function(){
+    var mounts=[
+      {c:'q-setpicker',         i:'q-setpicker-input',         p:'Filtra per set'},
+      {c:'pq-setpicker',        i:'pq-setpicker-input',        p:'Filtra set'},
+      {c:'emReplaceQ-setpicker',i:'emReplaceQ-setpicker-input',p:'Set'},
+      {c:'anlCardName-setpicker',i:'anlCardName-setpicker-input',p:'Scegli set'}
+    ];
+    mounts.forEach(function(m){
+      try{ rbMountSetPicker({containerId:m.c, inputId:m.i, placeholder:m.p}); }catch(e){}
+    });
+  },100);
 })();
 
 window.auDoSearch=async function(){
@@ -7408,6 +7609,10 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
       <label>Nome carta</label>
       <input type="text" id="anlCardName" placeholder="es. Charizard 4, Kissara 296" onkeydown="if(event.key==='Enter')anlSearch()"/>
     </div>
+    <div class="anl-field anl-field-name">
+      <label>Set (opzionale)</label>
+      <div id="anlCardName-setpicker" style="position:relative"></div>
+    </div>
     <div class="anl-field">
       <label>Condizione</label>
       <select id="anlCond">
@@ -7861,10 +8066,13 @@ window.anlInitTab = anlInitTab;
 // ─── SEARCH ──────────────────────────────────────────────────────────────────
 window.anlSearch = async function(){
   var raw = (document.getElementById('anlCardName').value||'').trim();
-  if(!raw || anlSearching) return;
+  var setInp=document.getElementById('anlCardName-setpicker-input');
+  var setSel=setInp?rbResolveSetFromInput(setInp):null;
+  if((!raw && !setSel) || anlSearching) return;
+  if(setSel&&setSel.unresolved){ anlShowMsg('Set "'+setSel.name+'" non riconosciuto'); return; }
 
   // parse "Charizard 4" → name="Charizard", num="4"
-  var pm = raw.match(/^(.+?)\s+(\d+[\/\d]*)$/);
+  var pm = raw?raw.match(/^(.+?)\s+(\d+[\/\d]*)$/):null;
   var cardName = pm ? pm[1].trim() : raw;
   var cardNum  = pm ? pm[2] : null;
 
@@ -7875,19 +8083,19 @@ window.anlSearch = async function(){
   document.getElementById('anlPanels').style.display='none';
 
   try{
-    var cards = await fetchCards(cardName, cardNum||null);
-    if(!cards||!cards.length){ anlShowMsg('Nessuna carta trovata per "'+raw+'"'); return; }
+    var cards = await rbSearchCards(cardName, cardNum||null, setSel?setSel.id:null);
+    if(!cards||!cards.length){ anlShowMsg('Nessuna carta trovata'+(setSel?' in "'+setSel.name+'"':' per "'+raw+'"')); return; }
 
-    // filtra per numero se specificato
+    // filtra per numero se specificato (solo senza setId, perché rbSearchCards già filtra con setId)
     var filtered = cards;
-    if(cardNum){
+    if(cardNum && !setSel){
       var nc = cardNum.split('/')[0];
       var byNum = cards.filter(function(c){ return (c.number||'').split('/')[0]===nc; });
       if(byNum.length) filtered = byNum;
     }
 
     if(filtered.length===1){ anlSelectCard(filtered[0]); }
-    else { anlShowMulti(filtered.slice(0,12)); }
+    else { anlShowMulti(filtered.slice(0,24)); }
   }catch(e){
     anlShowMsg('Errore ricerca: '+e.message);
   }finally{
