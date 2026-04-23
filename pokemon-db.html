@@ -1077,6 +1077,7 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
     <button class="nav-btn" onclick="showTab('dash')">📊 Dashboard</button>
     <button class="nav-btn" onclick="showTab('vend')">💸 Vendite</button>
     <button class="nav-btn" onclick="showTab('wish')">⭐ Wishlist</button>
+    <button class="nav-btn" onclick="showTab('hunt')">🎯 Hunter</button>
   </nav>
   <div class="led-wrap">
     <div class="led checking" id="apiLed"></div>
@@ -1525,6 +1526,7 @@ function showTab(t){
   try{ if(t==='dash') dashLoad();        }catch(e){ console.error('dashLoad:',e); }
   try{ if(t==='vend') vendInit();        }catch(e){ console.error('vendInit:',e); }
   try{ if(t==='wish') wishInit();        }catch(e){ console.error('wishInit:',e); }
+  try{ if(t==='hunt') huntInit();        }catch(e){ console.error('huntInit:',e); }
 }
 
 function parseQuery(q){
@@ -7439,6 +7441,105 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
   </div>
 </div>
 
+<!-- ════════════════════════════════════════════════════════════
+     🎯 TAB HUNTER — scouting inserzioni multi-portale
+     ════════════════════════════════════════════════════════════ -->
+<div class="tab" id="tab-hunt" style="display:none;flex-direction:column;overflow:hidden">
+  <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div style="font-size:18px;font-weight:600">🎯 Hunter</div>
+    <div style="font-size:11px;color:var(--muted)">scouting inserzioni multi-portale · alert · report</div>
+    <div style="flex:1"></div>
+    <button class="btn btn-primary" onclick="huntOpenAddTarget()" style="font-size:12px">+ Nuovo target</button>
+    <button class="btn" onclick="huntOpenAdminPanel()" style="font-size:12px">⚙ Canali notifica</button>
+    <button class="btn" onclick="huntScanAll()" title="Apre tutti i portali nelle nuove tab per scan manuale" style="font-size:12px">🔍 Scan tutto</button>
+  </div>
+
+  <!-- Sub-nav: Feed | Targets | Alerts | Admin -->
+  <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;gap:6px;flex-wrap:wrap">
+    <button class="hunt-subtab active" data-sub="feed"     onclick="huntShowSub('feed')">🔥 Feed opportunità <span id="huntFeedCount" style="opacity:.6"></span></button>
+    <button class="hunt-subtab"        data-sub="targets"  onclick="huntShowSub('targets')">🎯 Target <span id="huntTargetsCount" style="opacity:.6"></span></button>
+    <button class="hunt-subtab"        data-sub="auctions" onclick="huntShowSub('auctions')">⏰ Aste in scadenza</button>
+    <button class="hunt-subtab"        data-sub="alerts"   onclick="huntShowSub('alerts')">🔔 Regole alert</button>
+    <button class="hunt-subtab"        data-sub="report"   onclick="huntShowSub('report')">📊 Report</button>
+  </div>
+
+  <!-- Filtri portale -->
+  <div id="huntPlatformFilter" style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+    <span style="font-size:11px;color:var(--muted);margin-right:4px">Filtra:</span>
+    <button class="hunt-pf-btn active" data-pf="all"        onclick="huntSetPlatform('all')">Tutti</button>
+    <button class="hunt-pf-btn"        data-pf="ebay"       onclick="huntSetPlatform('ebay')">eBay</button>
+    <button class="hunt-pf-btn"        data-pf="catawiki"   onclick="huntSetPlatform('catawiki')">Catawiki</button>
+    <button class="hunt-pf-btn"        data-pf="subito"     onclick="huntSetPlatform('subito')">Subito</button>
+    <button class="hunt-pf-btn"        data-pf="vinted"     onclick="huntSetPlatform('vinted')">Vinted</button>
+    <button class="hunt-pf-btn"        data-pf="tcgplayer"  onclick="huntSetPlatform('tcgplayer')">TCGPlayer</button>
+    <button class="hunt-pf-btn"        data-pf="delver"     onclick="huntSetPlatform('delver')">Delver</button>
+  </div>
+
+  <!-- CONTENITORI SUBTAB -->
+  <div id="huntSub-feed" class="hunt-sub" style="flex:1;overflow:auto;padding:14px 16px">
+    <div id="huntFeedList"></div>
+    <div id="huntFeedEmpty" style="text-align:center;padding:40px 20px;color:var(--muted);display:none">
+      <div style="font-size:32px;margin-bottom:10px">🎯</div>
+      <div style="font-size:14px">Nessuna opportunità ancora rilevata</div>
+      <div style="font-size:11px;margin-top:6px">Aggiungi un target e avvia scan sui portali</div>
+    </div>
+  </div>
+
+  <div id="huntSub-targets" class="hunt-sub" style="flex:1;overflow:auto;padding:14px 16px;display:none">
+    <div id="huntTargetsList"></div>
+  </div>
+
+  <div id="huntSub-auctions" class="hunt-sub" style="flex:1;overflow:auto;padding:14px 16px;display:none">
+    <div id="huntAuctionsList"></div>
+  </div>
+
+  <div id="huntSub-alerts" class="hunt-sub" style="flex:1;overflow:auto;padding:14px 16px;display:none">
+    <div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:13px;color:var(--muted)">Regole che decidono quando inviarti una notifica</div>
+      <button class="btn btn-primary" onclick="huntOpenAddRule()" style="font-size:12px">+ Nuova regola</button>
+    </div>
+    <div id="huntAlertRulesList"></div>
+  </div>
+
+  <div id="huntSub-report" class="hunt-sub" style="flex:1;overflow:auto;padding:14px 16px;display:none">
+    <div id="huntReportSummary"></div>
+    <div style="margin-top:16px">
+      <h3 style="font-size:14px;margin-bottom:8px">Ultimi 20 alert inviati</h3>
+      <div id="huntAlertLog"></div>
+    </div>
+  </div>
+</div>
+<!-- ════════════════════ FINE TAB HUNTER ════════════════════ -->
+
+
+<style>
+.hunt-subtab{background:var(--bg);border:1px solid var(--border);color:var(--fg);padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;transition:.15s}
+.hunt-subtab:hover{border-color:var(--accent)}
+.hunt-subtab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.hunt-pf-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:14px;font-size:11px;cursor:pointer;transition:.15s}
+.hunt-pf-btn:hover{border-color:var(--accent);color:var(--fg)}
+.hunt-pf-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.hunt-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;display:flex;gap:14px;align-items:flex-start;transition:.15s}
+.hunt-card:hover{border-color:var(--accent)}
+.hunt-card.score-hot{border-left:4px solid #ff4444}
+.hunt-card.score-high{border-left:4px solid #ff9500}
+.hunt-card.score-mid{border-left:4px solid #ffcc00}
+.hunt-score-badge{position:absolute;top:8px;right:8px;background:#000;color:#fff;font-weight:700;font-size:16px;padding:4px 10px;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.hunt-platform-chip{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.hunt-pf-ebay{background:#e53238;color:#fff}
+.hunt-pf-catawiki{background:#144b9c;color:#fff}
+.hunt-pf-subito{background:#ff6700;color:#fff}
+.hunt-pf-vinted{background:#007782;color:#fff}
+.hunt-pf-tcgplayer{background:#EB7D1B;color:#fff}
+.hunt-pf-delver{background:#222;color:#fff}
+.hunt-pf-other{background:#777;color:#fff}
+.hunt-target{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.hunt-target-title{font-weight:600;font-size:13px;margin-bottom:4px}
+.hunt-target-attrs{font-size:11px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap}
+.hunt-target-attr{background:var(--bg);border:1px solid var(--border);padding:2px 6px;border-radius:4px}
+.hunt-countdown{font-variant-numeric:tabular-nums;font-weight:600;color:#ff4444}
+</style>
+
 
 <script>
 // ═══════════════════════════════════════════════════════════
@@ -7957,6 +8058,11 @@ function aoTogglePwd(){
 // ── Sessione in localStorage ─────────────────────────────────
 function rbSaveSession(s){
   try{ localStorage.setItem(RB_SESSION_KEY, JSON.stringify(s)); }catch(e){}
+  // Esporta JWT per userscript Hunter (chiave 'rbJWT')
+  try{
+    if(s && s.access_token) localStorage.setItem('rbJWT', s.access_token);
+    else localStorage.removeItem('rbJWT');
+  }catch(e){}
   window._rbSession = s;
   var badge=document.getElementById('userBadge');
   var emailEl=document.getElementById('userEmail');
@@ -7967,7 +8073,7 @@ function rbLoadSession(){
   try{ var raw=localStorage.getItem(RB_SESSION_KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; }
 }
 function rbClearSession(){
-  try{ localStorage.removeItem(RB_SESSION_KEY); }catch(e){}
+  try{ localStorage.removeItem(RB_SESSION_KEY); localStorage.removeItem('rbJWT'); }catch(e){}
   window._rbSession=null;
 }
 
@@ -8748,6 +8854,671 @@ function wishExport(){
   a.download='wishlist_'+new Date().toISOString().slice(0,10)+'.csv';
   a.click();
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+//  🎯 HUNTER — scouting inserzioni multi-portale
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── URL BUILDERS per ogni portale ───────────────────────────────────────
+// Ogni builder accetta un target {card_name, card_number, language, variant,
+// first_edition, shadowless, grading_house, min_grade, extra_keywords}
+// e ritorna una query URL pre-compilata.
+
+var HUNT_URL_BUILDERS = {
+
+  ebay: function(t){
+    var terms = [];
+    terms.push(t.card_name);
+    if(t.card_number) terms.push(t.card_number.replace(/\/.*$/,''));  // solo il primo numero
+    if(t.grading_house) terms.push(t.grading_house);
+    if(t.min_grade) terms.push(String(t.min_grade));
+    if(t.first_edition) terms.push('1st edition');
+    if(t.shadowless) terms.push('shadowless');
+    if(t.language==='ITA') terms.push('italiano');
+    if(t.language==='JPN') terms.push('japanese');
+    if(t.extra_keywords) t.extra_keywords.forEach(function(k){ terms.push(k); });
+    var q = terms.join(' ');
+    // Pokémon category (sp. EU) = 2611. Site = ebay.it
+    return 'https://www.ebay.it/sch/i.html?_nkw='+encodeURIComponent(q)
+      +'&_sacat=2611&LH_TitleDesc=0&_sop=10'; // sop=10 = time ending soonest
+  },
+
+  ebay_sold: function(t){
+    // Variante per consultare SOLD listings (utile per prezzo reale)
+    var u = HUNT_URL_BUILDERS.ebay(t);
+    return u + '&LH_Sold=1&LH_Complete=1';
+  },
+
+  catawiki: function(t){
+    var terms = [t.card_name];
+    if(t.card_number) terms.push(t.card_number.replace(/\/.*$/,''));
+    if(t.grading_house) terms.push(t.grading_house);
+    if(t.first_edition) terms.push('1st edition');
+    if(t.shadowless) terms.push('shadowless');
+    return 'https://www.catawiki.com/it/s?q='+encodeURIComponent(terms.join(' '))
+      +'&category_id=321';  // 321 = Carte collezionabili singole
+  },
+
+  subito: function(t){
+    var terms = [t.card_name];
+    if(t.card_number) terms.push(t.card_number.replace(/\/.*$/,''));
+    if(t.grading_house) terms.push(t.grading_house);
+    if(t.first_edition) terms.push('prima edizione');
+    if(t.shadowless) terms.push('shadowless');
+    var q = terms.join(' ');
+    // t=s = solo vendita, c=23 = Collezionismo
+    return 'https://www.subito.it/annunci-italia/vendita/collezionismo/?q='
+      +encodeURIComponent(q)+'&t=s&shp=false&sort=relevance';
+  },
+
+  vinted: function(t){
+    var terms = [t.card_name, 'pokemon'];
+    if(t.card_number) terms.push(t.card_number.replace(/\/.*$/,''));
+    if(t.grading_house) terms.push(t.grading_house);
+    if(t.first_edition) terms.push('1st edition');
+    return 'https://www.vinted.it/catalog?search_text='
+      +encodeURIComponent(terms.join(' '))+'&order=newest_first';
+  },
+
+  tcgplayer: function(t){
+    // TCGPlayer non ha bel search diretto → ripieghiamo su search generica
+    var terms = [t.card_name];
+    if(t.card_number) terms.push(t.card_number.replace(/\/.*$/,''));
+    return 'https://www.tcgplayer.com/search/pokemon/product?q='
+      +encodeURIComponent(terms.join(' '))+'&view=grid&productLineName=pokemon';
+  },
+
+  delver: function(t){
+    // Delverlens marketplace (Italia)
+    var terms = [t.card_name];
+    if(t.card_number) terms.push(t.card_number.replace(/\/.*$/,''));
+    return 'https://www.delverlens.com/search?q='+encodeURIComponent(terms.join(' '));
+  },
+
+  mercari_it: function(t){
+    var terms = [t.card_name, 'pokemon'];
+    if(t.card_number) terms.push(t.card_number.replace(/\/.*$/,''));
+    if(t.grading_house) terms.push(t.grading_house);
+    return 'https://jp.mercari.com/search?keyword='+encodeURIComponent(terms.join(' '));
+  },
+
+  // Tutte le piattaforme in parallelo
+  all: function(t){
+    return {
+      ebay:       HUNT_URL_BUILDERS.ebay(t),
+      catawiki:   HUNT_URL_BUILDERS.catawiki(t),
+      subito:     HUNT_URL_BUILDERS.subito(t),
+      vinted:     HUNT_URL_BUILDERS.vinted(t),
+      tcgplayer:  HUNT_URL_BUILDERS.tcgplayer(t),
+      delver:     HUNT_URL_BUILDERS.delver(t)
+    };
+  }
+};
+window.HUNT_URL_BUILDERS = HUNT_URL_BUILDERS;
+
+var HUNT_PLATFORMS = [
+  {id:'ebay',      label:'eBay',      color:'#e53238', icon:'🛒'},
+  {id:'catawiki',  label:'Catawiki',  color:'#144b9c', icon:'🏛'},
+  {id:'subito',    label:'Subito',    color:'#ff6700', icon:'📦'},
+  {id:'vinted',    label:'Vinted',    color:'#007782', icon:'👕'},
+  {id:'tcgplayer', label:'TCGPlayer', color:'#EB7D1B', icon:'🎴'},
+  {id:'delver',    label:'Delver',    color:'#222',    icon:'🔍'}
+];
+window.HUNT_PLATFORMS = HUNT_PLATFORMS;
+
+
+// ── DEAL SCORE ENGINE ───────────────────────────────────────────────────
+// Input: listing object + target (con ref_price_cm)
+// Output: {score: 0-100, reasons: [string]}
+function huntCalcDealScore(listing, target){
+  var score = 0;
+  var reasons = [];
+  var ref = target && target.ref_price_cm;
+
+  // 1) Sconto vs prezzo CM (max 50 punti)
+  if(ref && listing.price){
+    var disc = (ref - listing.price) / ref;
+    if(disc >= 0.50){ score += 50; reasons.push('below_cm_50pct'); }
+    else if(disc >= 0.35){ score += 40; reasons.push('below_cm_35pct'); }
+    else if(disc >= 0.20){ score += 25; reasons.push('below_cm_20pct'); }
+    else if(disc >= 0.10){ score += 12; reasons.push('below_cm_10pct'); }
+    else if(disc > 0){ score += 5; }
+    else if(disc < -0.15){ reasons.push('above_cm_overpriced'); }
+  }
+
+  // 2) Asta in scadenza senza offerte (max 25 punti)
+  if(listing.listing_type==='auction' && listing.auction_ends_at){
+    var hoursLeft = (new Date(listing.auction_ends_at) - new Date()) / 3600000;
+    if(hoursLeft > 0 && hoursLeft < 24){
+      if((listing.bid_count||0) === 0){ score += 25; reasons.push('auction_no_bids_ending'); }
+      else if(hoursLeft < 6){ score += 15; reasons.push('auction_ending_6h'); }
+      else { score += 8; reasons.push('auction_ending_24h'); }
+    }
+  }
+
+  // 3) Venditore reputato (max 10)
+  if(listing.seller_rating && listing.seller_rating >= 99){ score += 5; reasons.push('top_seller'); }
+  if(listing.seller_feedbacks && listing.seller_feedbacks >= 1000){ score += 5; reasons.push('high_volume_seller'); }
+
+  // 4) Match attributi (max 15)
+  if(target){
+    if(target.grading_house && listing.parsed_grader === target.grading_house){ score += 5; reasons.push('grader_match'); }
+    if(target.min_grade && listing.parsed_grade && listing.parsed_grade >= target.min_grade){ score += 5; reasons.push('grade_match'); }
+    if(target.first_edition && listing.parsed_is_1st){ score += 5; reasons.push('1st_ed_match'); }
+  }
+
+  return { score: Math.min(100, Math.max(0, Math.round(score))), reasons: reasons };
+}
+window.huntCalcDealScore = huntCalcDealScore;
+
+
+// ── PARSER TITOLO LISTING ───────────────────────────────────────────────
+// Estrae grade/grader/1st/lingua dal titolo di un annuncio
+function huntParseTitle(title){
+  if(!title) return {};
+  var t = title.toLowerCase();
+  var out = {};
+
+  var graderMatch = t.match(/\b(psa|bgs|cgc|ace|cgs)\s*(10|9\.5|9|8\.5|8|7)\b/i);
+  if(graderMatch){
+    out.parsed_grader = graderMatch[1].toUpperCase();
+    out.parsed_grade  = parseFloat(graderMatch[2]);
+  }
+
+  if(/\b(1st\s*ed|1st\s*edition|prima\s*edizione|first\s*edition)\b/i.test(t)) out.parsed_is_1st = true;
+  if(/\bshadowless\b/i.test(t)) out.parsed_shadowless = true;
+
+  if(/\b(italiano|italian|ita)\b/i.test(t)) out.parsed_lang = 'ITA';
+  else if(/\b(japanese|japan|jap|jpn|giappon)\b/i.test(t)) out.parsed_lang = 'JPN';
+  else if(/\b(english|eng|inglese)\b/i.test(t)) out.parsed_lang = 'ENG';
+  else if(/\b(deutsch|german|tedesco)\b/i.test(t)) out.parsed_lang = 'GER';
+
+  if(/\b(mint|near\s*mint|nm)\b/i.test(t)) out.parsed_cond = 'NM';
+  else if(/\b(excellent|ex)\b/i.test(t)) out.parsed_cond = 'EX';
+  else if(/\b(good|gd)\b/i.test(t)) out.parsed_cond = 'GD';
+
+  return out;
+}
+window.huntParseTitle = huntParseTitle;
+
+
+// ── STATO ───────────────────────────────────────────────────────────────
+var _huntState = {
+  inited: false,
+  subtab: 'feed',
+  platform: 'all',
+  targets: [],
+  listings: [],
+  rules: [],
+  config: null
+};
+window._huntState = _huntState;
+
+
+// ── INIT ────────────────────────────────────────────────────────────────
+async function huntInit(){
+  if(!_huntState.inited){
+    _huntState.inited = true;
+    await huntLoadAll();
+  }
+  huntRenderAll();
+}
+window.huntInit = huntInit;
+
+async function huntLoadAll(){
+  try{
+    var uid = getCurrentUserId();
+    if(!uid){
+      var h = document.getElementById('huntFeedList');
+      if(h) h.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">Accedi per usare Hunter</div>';
+      return;
+    }
+
+    var [tRes, lRes, rRes, cRes] = await Promise.all([
+      supa('GET','hunt_targets?user_id=eq.'+uid+'&order=created_at.desc').catch(function(){return[];}),
+      supa('GET','hunt_listings?user_id=eq.'+uid+'&status=in.(new,seen,watched)&order=deal_score.desc.nullslast&limit=200').catch(function(){return[];}),
+      supa('GET','hunt_alert_rules?user_id=eq.'+uid+'&order=created_at.desc').catch(function(){return[];}),
+      supa('GET','hunt_channel_config?user_id=eq.'+uid+'&limit=1').catch(function(){return[];})
+    ]);
+
+    _huntState.targets  = tRes || [];
+    _huntState.listings = lRes || [];
+    _huntState.rules    = rRes || [];
+    _huntState.config   = (cRes && cRes[0]) || null;
+  }catch(e){
+    console.error('huntLoadAll:', e);
+  }
+}
+
+// ── RENDER ──────────────────────────────────────────────────────────────
+function huntShowSub(sub){
+  _huntState.subtab = sub;
+  document.querySelectorAll('.hunt-subtab').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-sub')===sub);
+  });
+  document.querySelectorAll('.hunt-sub').forEach(function(d){
+    d.style.display = (d.id==='huntSub-'+sub) ? 'block' : 'none';
+  });
+  document.getElementById('huntPlatformFilter').style.display =
+    (sub==='feed' || sub==='auctions') ? 'flex' : 'none';
+  huntRenderAll();
+}
+window.huntShowSub = huntShowSub;
+
+function huntSetPlatform(pf){
+  _huntState.platform = pf;
+  document.querySelectorAll('.hunt-pf-btn').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-pf')===pf);
+  });
+  huntRenderAll();
+}
+window.huntSetPlatform = huntSetPlatform;
+
+function huntRenderAll(){
+  huntRenderFeed();
+  huntRenderTargets();
+  huntRenderAuctions();
+  huntRenderAlertRules();
+  huntRenderReport();
+  // Contatori
+  var fc = document.getElementById('huntFeedCount');
+  if(fc) fc.textContent = _huntState.listings.length ? '('+_huntState.listings.length+')' : '';
+  var tc = document.getElementById('huntTargetsCount');
+  if(tc) tc.textContent = _huntState.targets.length ? '('+_huntState.targets.length+')' : '';
+}
+
+function huntRenderFeed(){
+  var host = document.getElementById('huntFeedList');
+  var empty = document.getElementById('huntFeedEmpty');
+  if(!host) return;
+  var pf = _huntState.platform;
+  var list = _huntState.listings.filter(function(l){
+    return pf==='all' || l.platform===pf;
+  });
+  if(!list.length){
+    host.innerHTML = '';
+    if(empty) empty.style.display = 'block';
+    return;
+  }
+  if(empty) empty.style.display = 'none';
+  host.innerHTML = list.map(huntListingCardHtml).join('');
+}
+
+function huntListingCardHtml(l){
+  var t = _huntState.targets.find(function(x){ return x.id===l.target_id; });
+  var score = l.deal_score || 0;
+  var scoreClass = score>=80 ? 'score-hot' : (score>=60 ? 'score-high' : (score>=40 ? 'score-mid' : ''));
+  var pfLabel = (HUNT_PLATFORMS.find(function(p){return p.id===l.platform;})||{}).label || l.platform;
+  var priceStr = l.price ? (l.currency||'€') + l.price.toFixed(2) : '—';
+  var discStr = '';
+  if(t && t.ref_price_cm && l.price){
+    var d = ((t.ref_price_cm - l.price) / t.ref_price_cm * 100);
+    discStr = (d>0 ? '-' : '+') + Math.abs(d).toFixed(0)+'% vs CM';
+  }
+  var countdownStr = '';
+  if(l.auction_ends_at){
+    countdownStr = '<span class="hunt-countdown">⏰ fine '+huntFmtCountdown(l.auction_ends_at)+'</span>';
+  }
+  return '<div class="hunt-card '+scoreClass+'" style="position:relative">'
+    +'<div class="hunt-score-badge" style="background:'+huntScoreColor(score)+'">'+score+'</div>'
+    +(l.image_url ? '<img src="'+l.image_url+'" style="width:80px;height:100px;object-fit:cover;border-radius:6px"/>' : '')
+    +'<div style="flex:1;min-width:0">'
+    +'  <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">'
+    +'    <span class="hunt-platform-chip hunt-pf-'+l.platform+'">'+pfLabel+'</span>'
+    +(l.listing_type==='auction' ? '<span class="hunt-platform-chip" style="background:#aa00aa;color:#fff">ASTA</span>' : '')
+    +(t ? '<span style="font-size:11px;color:var(--muted)">target: '+escapeHtml(t.card_name)+'</span>' : '')
+    +'  </div>'
+    +'  <div style="font-size:13px;margin-bottom:6px;line-height:1.3">'+escapeHtml(l.title||'(senza titolo)')+'</div>'
+    +'  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:12px">'
+    +'    <span style="font-weight:700;font-size:15px">'+priceStr+'</span>'
+    +(discStr ? '<span style="color:'+(discStr[0]==='-'?'#00c853':'#ff4444')+'">'+discStr+'</span>' : '')
+    +(l.bid_count!=null ? '<span>🔨 '+l.bid_count+' off.</span>' : '')
+    +'    '+countdownStr
+    +(l.seller_rating ? '<span style="color:var(--muted)">⭐ '+l.seller_rating+'</span>' : '')
+    +'  </div>'
+    +(l.deal_reasons && l.deal_reasons.length ? '<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">'
+        +l.deal_reasons.map(function(r){ return '<span style="font-size:10px;background:var(--bg);padding:2px 6px;border-radius:3px;color:var(--muted)">'+r+'</span>'; }).join('')
+        +'</div>' : '')
+    +'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:4px">'
+    +'  <a class="btn btn-primary" href="'+l.listing_url+'" target="_blank" style="font-size:11px;text-decoration:none;text-align:center">Apri →</a>'
+    +'  <button class="btn" onclick="huntMarkStatus(\''+l.id+'\',\'watched\')" style="font-size:11px">👁 Watch</button>'
+    +'  <button class="btn" onclick="huntMarkStatus(\''+l.id+'\',\'dismissed\')" style="font-size:11px">✖ Nascondi</button>'
+    +'</div>'
+    +'</div>';
+}
+
+function huntScoreColor(s){
+  if(s>=80) return '#ff4444';
+  if(s>=60) return '#ff9500';
+  if(s>=40) return '#ffcc00';
+  return '#888';
+}
+
+function huntFmtCountdown(iso){
+  var ms = new Date(iso) - new Date();
+  if(ms <= 0) return 'scaduta';
+  var h = Math.floor(ms/3600000);
+  var m = Math.floor((ms%3600000)/60000);
+  if(h < 24) return h+'h '+m+'m';
+  var d = Math.floor(h/24);
+  return d+'g '+(h%24)+'h';
+}
+
+function huntRenderTargets(){
+  var host = document.getElementById('huntTargetsList');
+  if(!host) return;
+  if(!_huntState.targets.length){
+    host.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">'
+      +'<div style="font-size:32px;margin-bottom:10px">🎯</div>'
+      +'<div style="font-size:14px">Nessun target configurato</div>'
+      +'<button class="btn btn-primary" onclick="huntOpenAddTarget()" style="margin-top:12px">+ Aggiungi il primo</button>'
+      +'</div>';
+    return;
+  }
+  host.innerHTML = _huntState.targets.map(huntTargetCardHtml).join('');
+}
+
+function huntTargetCardHtml(t){
+  var attrs = [];
+  if(t.card_number) attrs.push('#'+t.card_number);
+  if(t.set_name) attrs.push(t.set_name);
+  if(t.grading_house) attrs.push(t.grading_house+(t.min_grade?' '+t.min_grade:''));
+  if(t.first_edition) attrs.push('1st Ed');
+  if(t.shadowless) attrs.push('Shadowless');
+  if(t.language && t.language!=='ANY') attrs.push(t.language);
+  if(t.variant && t.variant!=='Normal') attrs.push(t.variant);
+
+  var urls = HUNT_URL_BUILDERS.all(t);
+  var btns = HUNT_PLATFORMS.map(function(p){
+    return '<a class="btn" target="_blank" href="'+urls[p.id]+'" style="font-size:11px;text-decoration:none">'+p.icon+' '+p.label+'</a>';
+  }).join('');
+
+  return '<div class="hunt-target">'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">'
+    +'  <div style="flex:1">'
+    +'    <div class="hunt-target-title">'+escapeHtml(t.card_name)+'</div>'
+    +'    <div class="hunt-target-attrs">'
+          +attrs.map(function(a){return '<span class="hunt-target-attr">'+escapeHtml(a)+'</span>';}).join('')
+    +'    </div>'
+    +'  </div>'
+    +'  <div style="display:flex;gap:4px">'
+    +'    <button class="btn" onclick="huntEditTarget(\''+t.id+'\')" style="font-size:11px">✎</button>'
+    +'    <button class="btn" onclick="huntDeleteTarget(\''+t.id+'\')" style="font-size:11px">🗑</button>'
+    +'    <button class="btn" onclick="huntToggleTarget(\''+t.id+'\')" style="font-size:11px">'+(t.is_active?'⏸':'▶')+'</button>'
+    +'  </div>'
+    +'</div>'
+    +'<div style="display:flex;gap:12px;font-size:11px;color:var(--muted);margin-bottom:8px">'
+    +(t.ref_price_cm ? '<span>Ref CM: <b style="color:var(--fg)">€'+t.ref_price_cm.toFixed(2)+'</b></span>' : '')
+    +(t.max_price ? '<span>Max: €'+t.max_price.toFixed(2)+'</span>' : '')
+    +(t.deal_threshold ? '<span>Soglia alert: '+t.deal_threshold+'</span>' : '')
+    +(t.total_found ? '<span>🎣 '+t.total_found+' trovate</span>' : '')
+    +'</div>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap">'+btns+'</div>'
+    +'</div>';
+}
+
+function huntRenderAuctions(){
+  var host = document.getElementById('huntAuctionsList');
+  if(!host) return;
+  var now = new Date();
+  var auctions = _huntState.listings
+    .filter(function(l){ return l.listing_type==='auction' && l.auction_ends_at && new Date(l.auction_ends_at)>now; })
+    .sort(function(a,b){ return new Date(a.auction_ends_at) - new Date(b.auction_ends_at); });
+  if(!auctions.length){
+    host.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">Nessuna asta in scadenza</div>';
+    return;
+  }
+  host.innerHTML = auctions.map(huntListingCardHtml).join('');
+}
+
+function huntRenderAlertRules(){
+  var host = document.getElementById('huntAlertRulesList');
+  if(!host) return;
+  if(!_huntState.rules.length){
+    host.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">'
+      +'Nessuna regola attiva. Crea la prima per ricevere notifiche automatiche.</div>';
+    return;
+  }
+  host.innerHTML = _huntState.rules.map(function(r){
+    var conds = [];
+    if(r.min_deal_score) conds.push('score≥'+r.min_deal_score);
+    if(r.max_price) conds.push('prezzo≤€'+r.max_price);
+    if(r.auction_only) conds.push('solo aste');
+    if(r.ending_within_hours) conds.push('scad. <'+r.ending_within_hours+'h');
+    if(r.platforms && r.platforms.length) conds.push(r.platforms.join('+'));
+    var chans = [];
+    if(r.channel_push) chans.push('🔔 push');
+    if(r.channel_email) chans.push('📧 email');
+    if(r.channel_whatsapp) chans.push('💬 WA');
+    if(r.channel_telegram) chans.push('✈ Tg');
+    return '<div class="hunt-target">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+      +'<div style="font-weight:600">'+(r.is_active?'🟢':'⚪ ')+escapeHtml(r.name)+'</div>'
+      +'<div style="display:flex;gap:4px">'
+      +'<button class="btn" onclick="huntToggleRule(\''+r.id+'\')" style="font-size:11px">'+(r.is_active?'⏸':'▶')+'</button>'
+      +'<button class="btn" onclick="huntDeleteRule(\''+r.id+'\')" style="font-size:11px">🗑</button>'
+      +'</div></div>'
+      +'<div style="font-size:11px;color:var(--muted)">Condizioni: '+(conds.join(' · ')||'nessuna')+'</div>'
+      +'<div style="font-size:11px;color:var(--muted);margin-top:3px">Canali: '+(chans.join(' ')||'nessuno')+'</div>'
+      +(r.fire_count ? '<div style="font-size:10px;color:var(--muted);margin-top:4px">Inviati: '+r.fire_count+'</div>' : '')
+      +'</div>';
+  }).join('');
+}
+
+function huntRenderReport(){
+  var host = document.getElementById('huntReportSummary');
+  if(!host) return;
+  var byPf = {};
+  _huntState.listings.forEach(function(l){
+    byPf[l.platform] = (byPf[l.platform]||0) + 1;
+  });
+  var hot = _huntState.listings.filter(function(l){ return (l.deal_score||0)>=80; }).length;
+  host.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">'
+    +'<div class="hunt-target" style="text-align:center"><div style="font-size:26px;font-weight:700">'+_huntState.listings.length+'</div><div style="font-size:11px;color:var(--muted)">Inserzioni attive</div></div>'
+    +'<div class="hunt-target" style="text-align:center"><div style="font-size:26px;font-weight:700;color:#ff4444">'+hot+'</div><div style="font-size:11px;color:var(--muted)">🔥 Deal HOT (80+)</div></div>'
+    +'<div class="hunt-target" style="text-align:center"><div style="font-size:26px;font-weight:700">'+_huntState.targets.filter(function(t){return t.is_active;}).length+'</div><div style="font-size:11px;color:var(--muted)">Target attivi</div></div>'
+    +'<div class="hunt-target" style="text-align:center"><div style="font-size:26px;font-weight:700">'+_huntState.rules.filter(function(r){return r.is_active;}).length+'</div><div style="font-size:11px;color:var(--muted)">Regole alert</div></div>'
+    +'</div>'
+    +'<h3 style="font-size:13px;margin:12px 0 6px">Ripartizione per portale</h3>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    +HUNT_PLATFORMS.map(function(p){
+      var n = byPf[p.id]||0;
+      return '<div class="hunt-platform-chip hunt-pf-'+p.id+'" style="padding:6px 12px;font-size:12px">'+p.label+': '+n+'</div>';
+    }).join('')
+    +'</div>';
+}
+
+// ── AZIONI TARGET ───────────────────────────────────────────────────────
+function huntOpenAddTarget(){
+  var name = prompt('Nome carta (es: "Charizard"):');
+  if(!name) return;
+  var num = prompt('Numero (es: "4/102") — opzionale:','') || null;
+  var grader = prompt('Grading house (PSA/BGS/CGC/vuoto):','') || null;
+  var minGrade = grader ? parseFloat(prompt('Grade minimo (es: 9, 9.5, 10):','10')) : null;
+  var first1 = confirm('È 1st Edition?');
+  var shadow = confirm('È Shadowless?');
+  var lang = prompt('Lingua (ITA/ENG/JPN/ANY):','ANY') || 'ANY';
+  var max = parseFloat(prompt('Prezzo max per alert (€, vuoto=nessun limite):','')) || null;
+  var thresh = parseInt(prompt('Soglia deal_score per notifica (0-100):','70')) || 70;
+
+  huntSaveTarget({
+    card_name: name.trim(),
+    card_number: num,
+    grading_house: grader ? grader.toUpperCase() : null,
+    min_grade: minGrade || null,
+    first_edition: first1,
+    shadowless: shadow,
+    language: lang,
+    max_price: max,
+    deal_threshold: thresh,
+    is_active: true
+  });
+}
+window.huntOpenAddTarget = huntOpenAddTarget;
+
+async function huntSaveTarget(data){
+  var uid = getCurrentUserId();
+  if(!uid){ alert('Accedi prima'); return; }
+  data.user_id = uid;
+  try{
+    var rows = await supa('POST','hunt_targets', data);
+    var row = Array.isArray(rows) ? rows[0] : rows;
+    _huntState.targets.unshift(row);
+    huntRenderAll();
+  }catch(e){ alert('Errore: '+e.message); }
+}
+
+async function huntDeleteTarget(id){
+  if(!confirm('Eliminare questo target?')) return;
+  try{
+    await supa('DELETE','hunt_targets?id=eq.'+id);
+    _huntState.targets = _huntState.targets.filter(function(t){ return t.id!==id; });
+    huntRenderAll();
+  }catch(e){ alert('Errore: '+e.message); }
+}
+window.huntDeleteTarget = huntDeleteTarget;
+
+async function huntToggleTarget(id){
+  var t = _huntState.targets.find(function(x){return x.id===id;});
+  if(!t) return;
+  try{
+    await supa('PATCH','hunt_targets?id=eq.'+id, {is_active: !t.is_active});
+    t.is_active = !t.is_active;
+    huntRenderAll();
+  }catch(e){ alert('Errore: '+e.message); }
+}
+window.huntToggleTarget = huntToggleTarget;
+
+function huntEditTarget(id){
+  alert('Edit target: coming soon (usa elimina + ricrea per ora)');
+}
+window.huntEditTarget = huntEditTarget;
+
+async function huntMarkStatus(id, status){
+  try{
+    await supa('PATCH','hunt_listings?id=eq.'+id, {status: status});
+    if(status==='watched'){
+      var l = _huntState.listings.find(function(x){return x.id===id;});
+      if(l) l.status = 'watched';
+    } else {
+      _huntState.listings = _huntState.listings.filter(function(l){ return l.id!==id; });
+    }
+    huntRenderAll();
+  }catch(e){ alert('Errore: '+e.message); }
+}
+window.huntMarkStatus = huntMarkStatus;
+
+// ── SCAN TUTTO ──────────────────────────────────────────────────────────
+// Apre tutti i portali in tab separate per un target scelto.
+function huntScanAll(){
+  if(!_huntState.targets.length){ alert('Aggiungi prima almeno un target'); return; }
+  var names = _huntState.targets.filter(function(t){return t.is_active;}).map(function(t,i){ return (i+1)+'. '+t.card_name+(t.card_number?' #'+t.card_number:''); });
+  var idx = prompt('Quale target scannare?\n\n'+names.join('\n')+'\n\nInserisci numero:', '1');
+  var n = parseInt(idx);
+  if(!n || n<1 || n>_huntState.targets.filter(function(t){return t.is_active;}).length) return;
+  var t = _huntState.targets.filter(function(x){return x.is_active;})[n-1];
+  var urls = HUNT_URL_BUILDERS.all(t);
+  if(!confirm('Aprirò '+Object.keys(urls).length+' tab del browser per scan manuale di "'+t.card_name+'". Procedo?')) return;
+  Object.values(urls).forEach(function(u){ window.open(u, '_blank'); });
+}
+window.huntScanAll = huntScanAll;
+
+// ── ADMIN PANEL CANALI ──────────────────────────────────────────────────
+function huntOpenAdminPanel(){
+  var cfg = _huntState.config || {};
+  var email = prompt('📧 Email per notifiche:', cfg.email_address||'') || cfg.email_address;
+  var wa = prompt('💬 WhatsApp (es: +39333...):', cfg.whatsapp_number||'') || cfg.whatsapp_number;
+  var tg = prompt('✈ Telegram chat_id:', cfg.telegram_chat_id||'') || cfg.telegram_chat_id;
+  var freq = prompt('Frequenza digest (never/daily/hourly):', cfg.digest_frequency||'daily') || 'daily';
+  var hr = parseInt(prompt('Ora invio digest (0-23):', cfg.digest_hour||'9')) || 9;
+  huntSaveChannelConfig({ email_address: email, whatsapp_number: wa, telegram_chat_id: tg, digest_frequency: freq, digest_hour: hr });
+}
+window.huntOpenAdminPanel = huntOpenAdminPanel;
+
+async function huntSaveChannelConfig(data){
+  var uid = getCurrentUserId();
+  if(!uid) return;
+  data.user_id = uid;
+  data.updated_at = new Date().toISOString();
+  try{
+    // PostgREST upsert: POST con header Prefer: resolution=merge-duplicates
+    var r = await fetch(SUPA_URL+'/rest/v1/hunt_channel_config?on_conflict=user_id', {
+      method:'POST',
+      headers: Object.assign({}, getHDR(), {'Prefer':'resolution=merge-duplicates,return=representation'}),
+      body: JSON.stringify(data)
+    });
+    if(!r.ok){ throw new Error(await r.text()); }
+    var rows = await r.json();
+    _huntState.config = rows[0];
+    alert('Config salvata. Verifica i canali separatamente (link di test).');
+  }catch(e){ alert('Errore: '+e.message); }
+}
+
+// ── ALERT RULES ─────────────────────────────────────────────────────────
+function huntOpenAddRule(){
+  var name = prompt('Nome regola (es: "PSA 10 sotto €500"):'); if(!name) return;
+  var minScore = parseInt(prompt('Deal score minimo (0-100):','70')) || 70;
+  var maxPrice = parseFloat(prompt('Prezzo max (€, vuoto=no limite):','')) || null;
+  var pfs = (prompt('Piattaforme (es: ebay,subito) vuoto=tutte:','')||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
+  var auctionOnly = confirm('Solo aste?');
+  var push = confirm('🔔 Notifica push browser?');
+  var email = confirm('📧 Notifica email?');
+  var wa = confirm('💬 Notifica WhatsApp?');
+  var tg = confirm('✈ Notifica Telegram?');
+  huntSaveRule({
+    name: name.trim(),
+    min_deal_score: minScore,
+    max_price: maxPrice,
+    platforms: pfs.length ? pfs : null,
+    auction_only: auctionOnly,
+    channel_push: push, channel_email: email, channel_whatsapp: wa, channel_telegram: tg,
+    is_active: true
+  });
+}
+window.huntOpenAddRule = huntOpenAddRule;
+
+async function huntSaveRule(data){
+  var uid = getCurrentUserId();
+  if(!uid){ alert('Accedi prima'); return; }
+  data.user_id = uid;
+  try{
+    var rows = await supa('POST','hunt_alert_rules', data);
+    var row = Array.isArray(rows) ? rows[0] : rows;
+    _huntState.rules.unshift(row);
+    huntRenderAll();
+  }catch(e){ alert('Errore: '+e.message); }
+}
+
+async function huntToggleRule(id){
+  var r = _huntState.rules.find(function(x){return x.id===id;});
+  if(!r) return;
+  try{
+    await supa('PATCH','hunt_alert_rules?id=eq.'+id, {is_active: !r.is_active});
+    r.is_active = !r.is_active;
+    huntRenderAll();
+  }catch(e){ alert('Errore: '+e.message); }
+}
+window.huntToggleRule = huntToggleRule;
+
+async function huntDeleteRule(id){
+  if(!confirm('Eliminare questa regola?')) return;
+  try{
+    await supa('DELETE','hunt_alert_rules?id=eq.'+id);
+    _huntState.rules = _huntState.rules.filter(function(r){return r.id!==id;});
+    huntRenderAll();
+  }catch(e){ alert('Errore: '+e.message); }
+}
+window.huntDeleteRule = huntDeleteRule;
+
+// ── escapeHtml helper (fallback se non esiste già) ──────────────────────
+if(typeof escapeHtml === 'undefined'){
+  window.escapeHtml = function(s){
+    return String(s||'').replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  };
+}
 </script>
 </body>
-</html><!-- v20260420 -->
+</html><!-- v20260422 -->
