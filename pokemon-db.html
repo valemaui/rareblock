@@ -6041,39 +6041,56 @@ window.msToggleChip = function(lbl, vid){
 };
 
 function msFetchSets(){
-  // Carica TUTTI i set con paginazione completa (TCG API >250 set nel 2026)
+  // Carica TUTTI i set. Strategy: usa SC_SETS_STATIC come BASE IMMEDIATA,
+  // poi arricchisci/aggiorna con TCG API in background.
   var pageSize=250;
   var accumulated=[];
+
   function notify(){
     msSetsAll = accumulated.slice().sort(function(a,b){
       return (b.releaseDate||'').localeCompare(a.releaseDate||'');
     });
-    // Notifica consumer (es. auPopulateSets)
     if(Array.isArray(window._msSetsListeners)){
       window._msSetsListeners.forEach(function(fn){ try{fn();}catch(e){} });
     }
   }
+
+  // STEP 1: popola SUBITO con lista statica (include Skyridge + tutti WOTC/EX/DP/PL/HGSS/BW/XY/SM/SWSH base)
+  if(typeof SC_SETS_STATIC !== 'undefined' && Array.isArray(SC_SETS_STATIC)){
+    accumulated = SC_SETS_STATIC.map(function(s){
+      return { id:s.id, name:s.name, series:s.series||'', releaseDate:s.releaseDate||'',
+               ptcgoCode:s.ptcgoCode||'', total:s.total||0, printedTotal:s.printedTotal||0, images:s.images||{} };
+    });
+    notify();
+  }
+
+  // STEP 2: in background, scarica TUTTI i set da API e fa MERGE (set API sovrascrivono static per id)
   function loadPage(page){
     fetch(TCG_BASE+'/sets?orderBy=-releaseDate&pageSize='+pageSize+'&page='+page,{headers:{'X-Api-Key':TCG_KEY}})
-      .then(function(r){return r.json();})
+      .then(function(r){
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        return r.json();
+      })
       .then(function(d){
         var sets=d.data||[];
         var total=d.totalCount||sets.length;
-        accumulated=accumulated.concat(sets);
+        if(!sets.length) return;
+        // Merge per id: API vince su static
+        var byId={};
+        accumulated.forEach(function(s){ byId[s.id]=s; });
+        sets.forEach(function(s){ byId[s.id]=s; });
+        accumulated=Object.keys(byId).map(function(k){return byId[k];});
         notify();
-        // Continua finché non ho tutti i set
-        if(accumulated.length<total && sets.length===pageSize){
+        if(page*pageSize<total){
           loadPage(page+1);
         }
-      }).catch(function(e){
-        console.warn('sets error page '+page,e);
-        if(page===1){
-          // Fallback statico solo se primo fetch fallisce completamente
-          accumulated=(typeof SC_SETS_STATIC !== 'undefined' ? SC_SETS_STATIC : []).map(function(s){
-            return { id:s.id, name:s.name, series:s.series, releaseDate:s.releaseDate,
-                     total:0, printedTotal:0, images:{} };
-          });
-          notify();
+      })
+      .catch(function(e){
+        console.warn('msFetchSets page '+page+' failed:',e && e.message);
+        // Static già in accumulated, niente panic. Ritento page 1 una volta dopo 5s.
+        if(page===1 && !window._msFetchRetried){
+          window._msFetchRetried=true;
+          setTimeout(function(){ loadPage(1); },5000);
         }
       });
   }
@@ -6471,9 +6488,16 @@ window.auSetRender=function(){
   var list=document.getElementById('au-setpanel-list');
   var count=document.getElementById('au-setpanel-count');
   if(!list||!count) return;
+  // Trigger load se non ancora partito
+  if(!Array.isArray(window.msSetsAll)||!window.msSetsAll.length){
+    if(typeof msFetchSets==='function' && !window._auSetsLoading){
+      window._auSetsLoading=true;
+      try{ msFetchSets(); }catch(e){ console.warn('msFetchSets err',e); }
+    }
+  }
   if(!Array.isArray(window.msSetsAll)||!window.msSetsAll.length){
     count.textContent='Caricamento set...';
-    list.innerHTML='<div style="padding:10px;color:var(--text-subtle);font-size:11px">In caricamento dalla TCG API...</div>';
+    list.innerHTML='<div style="padding:10px;color:var(--text-subtle);font-size:11px">Inizializzazione lista set...<br><button class="btn" style="margin-top:6px;font-size:10px" onclick="window.msSetsAll=null;window._auSetsLoading=false;msFetchSets();auSetRender()">Riprova</button></div>';
     return;
   }
   var q=(document.getElementById('au-qset').value||'').trim().toLowerCase();
