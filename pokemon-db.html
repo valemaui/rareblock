@@ -6041,37 +6041,43 @@ window.msToggleChip = function(lbl, vid){
 };
 
 function msFetchSets(){
-  // Carica tutti i set con paginazione — TCG API ha ~170+ set, pageSize max 250
-  // Prima pagina
-  fetch(TCG_BASE+'/sets?orderBy=-releaseDate&pageSize=250&page=1',{headers:{'X-Api-Key':TCG_KEY}})
-    .then(function(r){return r.json();})
-    .then(function(d){
-      var sets = d.data||[];
-      var total = d.totalCount||sets.length;
-      msSetsAll = sets.sort(function(a,b){
-        return (b.releaseDate||'').localeCompare(a.releaseDate||'');
-      });
-      // Se ci sono più pagine, caricale
-      if(total > 250){
-        fetch(TCG_BASE+'/sets?orderBy=-releaseDate&pageSize=250&page=2',{headers:{'X-Api-Key':TCG_KEY}})
-          .then(function(r2){return r2.json();})
-          .then(function(d2){
-            var more = d2.data||[];
-            msSetsAll = msSetsAll.concat(more).sort(function(a,b){
-              return (b.releaseDate||'').localeCompare(a.releaseDate||'');
-            });
-          }).catch(function(){});
-      }
-    }).catch(function(e){
-      console.warn('sets error',e);
-      // Fallback: usa lista statica del scan filter come base
-      msSetsAll = (typeof SC_SETS_STATIC !== 'undefined' ? SC_SETS_STATIC : []).map(function(s){
-        return { id:s.id, name:s.name, series:s.series, releaseDate:s.releaseDate,
-                 total:0, printedTotal:0, images:{} };
-      }).sort(function(a,b){
-        return (b.releaseDate||'').localeCompare(a.releaseDate||'');
-      });
+  // Carica TUTTI i set con paginazione completa (TCG API >250 set nel 2026)
+  var pageSize=250;
+  var accumulated=[];
+  function notify(){
+    msSetsAll = accumulated.slice().sort(function(a,b){
+      return (b.releaseDate||'').localeCompare(a.releaseDate||'');
     });
+    // Notifica consumer (es. auPopulateSets)
+    if(Array.isArray(window._msSetsListeners)){
+      window._msSetsListeners.forEach(function(fn){ try{fn();}catch(e){} });
+    }
+  }
+  function loadPage(page){
+    fetch(TCG_BASE+'/sets?orderBy=-releaseDate&pageSize='+pageSize+'&page='+page,{headers:{'X-Api-Key':TCG_KEY}})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        var sets=d.data||[];
+        var total=d.totalCount||sets.length;
+        accumulated=accumulated.concat(sets);
+        notify();
+        // Continua finché non ho tutti i set
+        if(accumulated.length<total && sets.length===pageSize){
+          loadPage(page+1);
+        }
+      }).catch(function(e){
+        console.warn('sets error page '+page,e);
+        if(page===1){
+          // Fallback statico solo se primo fetch fallisce completamente
+          accumulated=(typeof SC_SETS_STATIC !== 'undefined' ? SC_SETS_STATIC : []).map(function(s){
+            return { id:s.id, name:s.name, series:s.series, releaseDate:s.releaseDate,
+                     total:0, printedTotal:0, images:{} };
+          });
+          notify();
+        }
+      });
+  }
+  loadPage(1);
 }
 
 window.msSearchSets = function(q){
@@ -6437,20 +6443,24 @@ window.auSetLabel=function(s){
   return (s.name||'') + (yr?' · '+yr:'') + (s.series?' · '+s.series:'');
 };
 
-// Popola datalist set (idempotente)
+// Popola datalist set (idempotente, si auto-aggiorna quando msFetchSets carica nuove pagine)
 window.auPopulateSets=function(){
   var dl=document.getElementById('au-setlist');
   if(!dl) return;
+  // Registra listener una sola volta
+  if(!window._auSetsListenerAdded){
+    window._auSetsListenerAdded=true;
+    window._msSetsListeners=window._msSetsListeners||[];
+    window._msSetsListeners.push(window.auPopulateSets);
+  }
   if(!Array.isArray(window.msSetsAll)||!window.msSetsAll.length){
-    // Trigger load e riprova
     if(typeof msFetchSets==='function' && !window._auSetsLoading){
       window._auSetsLoading=true;
       msFetchSets();
     }
-    setTimeout(window.auPopulateSets,800);
     return;
   }
-  if(dl.childElementCount===window.msSetsAll.length) return; // già popolato
+  // Ripopola (msSetsAll può crescere durante paginazione)
   dl.innerHTML='';
   window.msSetsAll.forEach(function(s){
     var o=document.createElement('option');
