@@ -8341,6 +8341,9 @@ function anlSelectCard(card){
   anlRenderMarketplace(card);
   anlRenderGrading(card);
   anlRenderScore(card);
+
+  // avvia fetch live PC + eBay Sold (async, aggiorna il DOM quando pronti)
+  anlStartLiveFetches(card);
 }
 
 window.anlReset = function(){
@@ -8376,6 +8379,8 @@ function anlRenderMarketplace(card){
   var suUrl ='https://www.subito.it/annunci-italia/vendita/hobby-collezionismo/?q='+encodeURIComponent('pokemon '+card.name+' '+cond);
   var viUrl ='https://www.vinted.it/catalog?search_text='+encodeURIComponent('pokemon '+card.name);
   var pcUrl ='https://www.pricecharting.com/search-products?q='+encodeURIComponent(card.name+(setNm?' '+setNm:''))+'&type=pokemon';
+  var ebQuery =(card.name+' '+(card.number||'')+(setNm?' '+setNm:'')+' pokemon').trim();
+  var ebUrl ='https://www.ebay.it/sch/i.html?_nkw='+encodeURIComponent(ebQuery)+'&LH_Sold=1&LH_Complete=1&_sacat=2611';
 
   var h='';
 
@@ -8396,9 +8401,14 @@ function anlRenderMarketplace(card){
              :'Dati prezzo non disponibili per questa carta',
      price:est?'~€'+est.toFixed(2):null, link:cmUrl, lt:'Vai a CardMarket →'},
     {abbr:'CT', name:'CardTrader',  color:'#059669', note:'Filtra per lingua e condizione sul sito', link:ctUrl, lt:'Cerca su CardTrader →'},
+    {abbr:'EB', name:'eBay Sold',   color:'#e53238',
+     note:'<span id="anlEbaySoldNote" style="color:var(--text-muted)">caricamento venduti…</span>',
+     priceId:'anlEbaySoldPrice', link:ebUrl, lt:'Vedi su eBay →'},
     {abbr:'SU', name:'Subito.it',   color:'#d97706', note:'Annunci privati italiani — ottimo per WotC/Base Set', link:suUrl, lt:'Cerca su Subito →'},
     {abbr:'VI', name:'Vinted',      color:'#7c3aed', note:'Second-hand — prezzi generalmente più bassi', link:viUrl, lt:'Cerca su Vinted →'},
-    {abbr:'PC', name:'PriceCharting',color:'#0891b2',note:'Storico prezzi graded (PSA/BGS/CGC)', link:pcUrl, lt:'Cerca su PriceCharting →'},
+    {abbr:'PC', name:'PriceCharting',color:'#0891b2',
+     note:'Storico prezzi graded (PSA/BGS/CGC) · <span id="anlPcUngraded" style="color:var(--text-muted)">caricamento ungraded…</span>',
+     link:pcUrl, lt:'Cerca su PriceCharting →'},
   ];
 
   rows.forEach(function(r){
@@ -8408,7 +8418,7 @@ function anlRenderMarketplace(card){
       +'<div class="anl-mkt-name">'+r.name+'</div>'
       +'<div class="anl-mkt-note">'+r.note+'</div>'
       +'</div>'
-      +(r.price?'<div class="anl-mkt-price">'+r.price+'</div>':'')
+      +(r.price||r.priceId?'<div class="anl-mkt-price"'+(r.priceId?' id="'+r.priceId+'"':'')+'>'+(r.price||'')+'</div>':'')
       +'<a class="anl-mkt-link" href="'+r.link+'" target="_blank">'+r.lt+'</a>'
       +'</div>';
   });
@@ -8439,8 +8449,8 @@ function anlRenderGrading(card){
        +'<b style="color:var(--text)">'+cond+'</b> → score atteso <b style="color:var(--accent)">'+range.label+'</b><br>'
        +'<span style="opacity:.8">'+range.desc+'</span></div>';
 
-  h+='<table class="anl-grade-table"><thead><tr>'
-    +'<th>Casa</th><th>Score</th><th>Val. stimato</th><th>Costo</th><th>ROI lordo</th><th></th>'
+  h+='<div style="overflow-x:auto;margin:0 -4px"><table class="anl-grade-table"><thead><tr>'
+    +'<th>Casa</th><th>Score</th><th>Val. stimato</th><th>PC reale</th><th>Costo</th><th>ROI lordo</th><th></th>'
     +'</tr></thead><tbody>';
 
   ['PSA','BGS','CGC'].forEach(function(house,hi){
@@ -8464,6 +8474,7 @@ function anlRenderGrading(card){
         +'<td style="font-weight:600;font-family:var(--mono);font-size:11px">'+house+'</td>'
         +'<td><span class="anl-grade-score '+sc_cls+'">'+sc+'</span></td>'
         +'<td style="font-family:var(--mono);font-size:12px">'+(val?'~€'+val.toFixed(2):'—')+'</td>'
+        +'<td class="anl-pc-real" data-anl-pc-house="'+house+'" data-anl-pc-score="'+sc+'" style="font-family:var(--mono);font-size:12px;color:var(--text-muted)">⏳</td>'
         +'<td style="font-family:var(--mono);font-size:11px;color:var(--text-muted)">€'+gradeCost+'</td>'
         +'<td style="font-family:var(--mono);font-size:12px;font-weight:600;'+roiClr+'">'+roiStr+'</td>'
         +'<td><a class="anl-pc-link" href="'+pcUrl+'" target="_blank">PC →</a></td>'
@@ -8471,7 +8482,7 @@ function anlRenderGrading(card){
     });
   });
 
-  h+='</tbody></table>';
+  h+='</tbody></table></div>';
   h+='<div style="margin-top:10px;font-size:10px;color:var(--text-muted);font-family:var(--mono)">'
     +'⚠ Stime su moltiplicatori storici. ROI lordo = valore graded − costo grad. − €'+ANL_EXTRA_COST+' logistica. '
     +'Non include prezzo acquisto.</div>';
@@ -8584,6 +8595,193 @@ function anlBar(lbl,pct,color){
         +'<div class="anl-score-bar-track">'
         +'<div class="anl-score-bar-fill" style="width:'+pct+'%;background:'+color+'"></div>'
         +'</div></div>';
+}
+
+// ─── LIVE DATA: PRICECHARTING + EBAY SOLD ────────────────────────────────────
+//  Chiama smooth-endpoint e aggiorna il DOM in modo asincrono.
+//  - PC: valori graded reali (PSA10/BGS10/CGC10, Grade 7/8/9/9.5) in USD → convertiti in EUR
+//  - eBay Sold: mediana/media dei venduti completati (IQR outlier removal lato edge)
+var anlLiveCache = {};       // cardId → { pc, ebay }
+var ANL_USD_EUR_FALLBACK = 0.92;
+
+async function anlGetUsdEur(){
+  if(window._anlUsdEur) return window._anlUsdEur;
+  try{
+    var cached=sessionStorage.getItem('anl_usd_eur');
+    var cachedT=sessionStorage.getItem('anl_usd_eur_t');
+    if(cached&&cachedT&&Date.now()-parseInt(cachedT)<3600000){
+      window._anlUsdEur=parseFloat(cached);
+      return window._anlUsdEur;
+    }
+  }catch(e){}
+  try{
+    var r=await fetch('https://api.frankfurter.app/latest?from=USD&to=EUR');
+    var d=await r.json();
+    if(d&&d.rates&&d.rates.EUR){
+      window._anlUsdEur=d.rates.EUR;
+      try{
+        sessionStorage.setItem('anl_usd_eur',String(d.rates.EUR));
+        sessionStorage.setItem('anl_usd_eur_t',String(Date.now()));
+      }catch(e){}
+      return window._anlUsdEur;
+    }
+  }catch(e){}
+  window._anlUsdEur=ANL_USD_EUR_FALLBACK;
+  return window._anlUsdEur;
+}
+
+async function anlFetchSmooth(body){
+  var token=(window._rbSession&&window._rbSession.access_token)||SUPA_KEY;
+  var res=await fetch(SUPA_URL+'/functions/v1/smooth-endpoint',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,'apikey':SUPA_KEY},
+    body:JSON.stringify(body)
+  });
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  return await res.json();
+}
+
+function anlStartLiveFetches(card){
+  if(!card||!card.id) return;
+  anlLiveCache[card.id]=anlLiveCache[card.id]||{};
+
+  // eBay Sold
+  (async function(){
+    var setNm=card.set?card.set.name:'';
+    var q=(card.name+' '+(card.number||'')+(setNm?' '+setNm:'')+' pokemon').trim();
+    var url='https://www.ebay.it/sch/i.html?_nkw='+encodeURIComponent(q)+'&LH_Sold=1&LH_Complete=1&_sacat=2611';
+    try{
+      var data=await anlFetchSmooth({url:url,source:'ebay_sold'});
+      if(data.error){ anlPopulateEbaySold(null,data.error); return; }
+      anlLiveCache[card.id].ebay=data;
+      anlPopulateEbaySold(data);
+    }catch(e){
+      anlPopulateEbaySold(null,e.message||'errore rete');
+    }
+  })();
+
+  // PriceCharting
+  (async function(){
+    var setNm=card.set?card.set.name:'';
+    var q=(card.name+(setNm?' '+setNm:'')).trim();
+    var url='https://www.pricecharting.com/search-products?q='+encodeURIComponent(q)+'&type=pokemon';
+    var cardName=card.name+(card.number?' '+card.number:'');
+    try{
+      var data=await anlFetchSmooth({url:url,source:'pricecharting',card_name:cardName});
+      if(data.error){ anlPopulatePC(null,data.error); return; }
+      anlLiveCache[card.id].pc=data.prices;
+      var rate=await anlGetUsdEur();
+      anlPopulatePC(data.prices,null,rate);
+    }catch(e){
+      anlPopulatePC(null,e.message||'errore rete');
+    }
+  })();
+}
+
+function anlPopulateEbaySold(data,err){
+  var priceEl=document.getElementById('anlEbaySoldPrice');
+  var noteEl=document.getElementById('anlEbaySoldNote');
+  if(err||!data||!data.count){
+    if(priceEl) priceEl.textContent='';
+    if(noteEl){
+      noteEl.textContent=err?'Errore: '+String(err).substring(0,80):'Nessun venduto trovato';
+      noteEl.style.color='var(--danger)';
+    }
+    return;
+  }
+  var cur=data.currency==='EUR'?'€':(data.currency==='USD'?'$':'£');
+  if(priceEl){
+    priceEl.textContent=cur+data.median.toFixed(2);
+    priceEl.style.color='var(--success)';
+  }
+  if(noteEl){
+    var parts=['mediana su '+data.count+' venduti'];
+    if(data.avg&&Math.abs(data.avg-data.median)>0.01) parts.push('media '+cur+data.avg.toFixed(2));
+    if(data.min!=null&&data.max!=null) parts.push('range '+cur+Math.round(data.min)+'–'+cur+Math.round(data.max));
+    if(data.outliersRemoved) parts.push(data.outliersRemoved+' outlier rimossi');
+    noteEl.textContent=parts.join(' · ');
+    noteEl.style.color='var(--text-muted)';
+  }
+}
+
+function anlPcKeyForGrade(house,score){
+  if(house==='PSA'){
+    if(score===10) return 'psa10';
+    if(score===9)  return 'grade9';
+    if(score===8)  return 'grade8';
+    if(score===7)  return 'grade7';
+  }
+  if(house==='BGS'){
+    if(score===10)  return 'bgs10';
+    if(score===9.5) return 'grade9_5';
+    if(score===9)   return 'grade9';
+    if(score===8)   return 'grade8';
+  }
+  if(house==='CGC'){
+    if(score===10)  return 'cgc10';
+    if(score===9.5) return 'grade9_5';
+    if(score===9)   return 'grade9';
+    if(score===8)   return 'grade8';
+  }
+  return null;
+}
+
+function anlPopulatePC(prices,err,rate){
+  var cells=document.querySelectorAll('.anl-pc-real');
+  var ug=document.getElementById('anlPcUngraded');
+
+  if(err||!prices){
+    cells.forEach(function(el){
+      el.textContent='—';
+      el.title=err||'PC non disponibile';
+      el.style.color='var(--text-muted)';
+    });
+    if(ug){
+      ug.textContent=err?('err: '+String(err).substring(0,40)):'n.d.';
+      ug.style.color='var(--danger)';
+    }
+    return;
+  }
+  rate=rate||ANL_USD_EUR_FALLBACK;
+
+  cells.forEach(function(cell){
+    var house=cell.getAttribute('data-anl-pc-house');
+    var score=parseFloat(cell.getAttribute('data-anl-pc-score'));
+    var key=anlPcKeyForGrade(house,score);
+    if(!key){
+      cell.textContent='n.d.';
+      cell.title='PC non fornisce '+house+' '+score;
+      cell.style.color='var(--text-muted)';
+      return;
+    }
+    var usd=prices[key];
+    if(usd==null){
+      cell.textContent='—';
+      cell.title='PC: '+key+' non trovato';
+      cell.style.color='var(--text-muted)';
+      return;
+    }
+    var eur=usd*rate;
+    cell.innerHTML='€'+eur.toFixed(2)+' <span style="font-size:9px;color:var(--text-muted);font-weight:400">($'+usd.toFixed(0)+')</span>';
+    cell.title='PC reale: $'+usd.toFixed(2)+' USD @ tasso '+rate.toFixed(4);
+    cell.style.color='var(--success)';
+  });
+
+  if(ug){
+    if(prices.ungraded!=null){
+      var eurU=prices.ungraded*rate;
+      ug.innerHTML='ungraded PC: <b style="color:var(--accent)">€'+eurU.toFixed(2)+'</b>';
+      ug.style.color='var(--text-muted)';
+    } else {
+      ug.textContent='ungraded n.d.';
+    }
+  }
+
+  // Aggiorna sub del pannello grading
+  var sub=document.getElementById('anlGradeSub');
+  if(sub&&!sub.textContent.includes('PC live')){
+    sub.textContent=sub.textContent+' · PC live';
+  }
 }
 
 // ─── AI ANALYSIS ─────────────────────────────────────────────────────────────
