@@ -6484,6 +6484,16 @@ document.addEventListener('click',function(e){
   if(pk && !pk.contains(e.target)) auSetClose();
 });
 
+// Retry manuale caricamento set (chiamabile da onclick inline)
+window.auSetRetry=function(){
+  window.msSetsAll=null;
+  window._auSetsLoading=false;
+  window._msFetchRetried=false;
+  // msFetchSets è dentro IIFE, ma auPopulateSets la raggiunge
+  try{ auPopulateSets(); }catch(e){ console.warn('auSetRetry',e); }
+  auSetRender();
+};
+
 window.auSetRender=function(){
   var list=document.getElementById('au-setpanel-list');
   var count=document.getElementById('au-setpanel-count');
@@ -6497,7 +6507,7 @@ window.auSetRender=function(){
   }
   if(!Array.isArray(window.msSetsAll)||!window.msSetsAll.length){
     count.textContent='Caricamento set...';
-    list.innerHTML='<div style="padding:10px;color:var(--text-subtle);font-size:11px">Inizializzazione lista set...<br><button class="btn" style="margin-top:6px;font-size:10px" onclick="window.msSetsAll=null;window._auSetsLoading=false;msFetchSets();auSetRender()">Riprova</button></div>';
+    list.innerHTML='<div style="padding:10px;color:var(--text-subtle);font-size:11px">Inizializzazione lista set...<br><button class="btn" style="margin-top:6px;font-size:10px" onclick="auSetRetry()">Riprova</button></div>';
     return;
   }
   var q=(document.getElementById('au-qset').value||'').trim().toLowerCase();
