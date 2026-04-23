@@ -6172,10 +6172,14 @@ function msFetchSetCards(setId,page,acc,done,fail){
   <!-- S1 -->
   <div class="au-ph on" id="au-ph-s1">
     <div class="au-hint">Cerca la carta nel database Pokemon TCG. Badge verde = riferimento gi&agrave; salvato (salti allo step 4).</div>
-    <div class="au-sbar">
-      <input type="text" id="au-q" placeholder="Nome carta (es. Chansey 3, Charizard)" style="flex:1;font-size:13px" onkeydown="if(event.key==='Enter')auDoSearch()"/>
+    <div class="au-sbar" style="flex-wrap:wrap;gap:6px">
+      <input type="text" id="au-q" placeholder="Nome carta (es. Chansey 3, Charizard)" style="flex:1 1 180px;min-width:180px;font-size:13px" onkeydown="if(event.key==='Enter')auDoSearch()"/>
+      <input type="text" id="au-qset" list="au-setlist" placeholder="Set (opzionale) — filtra" style="flex:1 1 180px;min-width:180px;font-size:13px" onkeydown="if(event.key==='Enter')auDoSearch()" oninput="auOnSetInput()"/>
+      <datalist id="au-setlist"></datalist>
+      <button class="btn" id="au-qset-clear" onclick="auClearSetFilter()" title="Pulisci filtro set" style="padding:0 10px;display:none">&times;</button>
       <button class="btn btn-primary" onclick="auDoSearch()">Cerca</button>
     </div>
+    <div id="au-set-hint" style="font-size:10px;color:var(--text-subtle);text-align:center;margin-bottom:6px;min-height:12px"></div>
     <div id="au-st" class="status info" style="min-height:16px;margin-bottom:8px;max-width:640px;margin-left:auto;margin-right:auto"></div>
     <div id="au-sresults" class="au-sresults" style="display:none"></div>
     <div class="au-actions"><button class="btn btn-primary" id="au-btn-s1next" disabled onclick="auS1Next()">Avanti &rarr;</button></div>
@@ -6409,25 +6413,142 @@ window.auInitTab=function(){
 };
 
 // ── S1: Search ───────────────────────────────────────────────────
+// Resolver: input set -> {id,name} (null se nessun filtro)
+window.auResolveSet=function(){
+  var raw=(document.getElementById('au-qset').value||'').trim();
+  if(!raw) return null;
+  if(!Array.isArray(window.msSetsAll)||!window.msSetsAll.length) return {id:null,name:raw,unresolved:true};
+  // Match esatto su label formattato
+  var byLabel=window.msSetsAll.find(function(s){return auSetLabel(s)===raw;});
+  if(byLabel) return {id:byLabel.id,name:byLabel.name};
+  // Match case-insensitive su nome
+  var lo=raw.toLowerCase();
+  var byName=window.msSetsAll.find(function(s){return (s.name||'').toLowerCase()===lo;});
+  if(byName) return {id:byName.id,name:byName.name};
+  // Match parziale (primo risultato)
+  var byPartial=window.msSetsAll.find(function(s){return (s.name||'').toLowerCase().indexOf(lo)>=0;});
+  if(byPartial) return {id:byPartial.id,name:byPartial.name};
+  return {id:null,name:raw,unresolved:true};
+};
+
+// Etichetta leggibile per set nel datalist
+window.auSetLabel=function(s){
+  var yr=(s.releaseDate||'').slice(0,4);
+  return (s.name||'') + (yr?' · '+yr:'') + (s.series?' · '+s.series:'');
+};
+
+// Popola datalist set (idempotente)
+window.auPopulateSets=function(){
+  var dl=document.getElementById('au-setlist');
+  if(!dl) return;
+  if(!Array.isArray(window.msSetsAll)||!window.msSetsAll.length){
+    // Trigger load e riprova
+    if(typeof msFetchSets==='function' && !window._auSetsLoading){
+      window._auSetsLoading=true;
+      msFetchSets();
+    }
+    setTimeout(window.auPopulateSets,800);
+    return;
+  }
+  if(dl.childElementCount===window.msSetsAll.length) return; // già popolato
+  dl.innerHTML='';
+  window.msSetsAll.forEach(function(s){
+    var o=document.createElement('option');
+    o.value=auSetLabel(s);
+    dl.appendChild(o);
+  });
+};
+
+window.auClearSetFilter=function(){
+  document.getElementById('au-qset').value='';
+  document.getElementById('au-qset-clear').style.display='none';
+  document.getElementById('au-set-hint').textContent='';
+};
+
+window.auOnSetInput=function(){
+  var v=document.getElementById('au-qset').value.trim();
+  document.getElementById('au-qset-clear').style.display=v?'inline-block':'none';
+  var hint=document.getElementById('au-set-hint');
+  if(!v){ hint.textContent=''; return; }
+  var r=auResolveSet();
+  if(r && !r.unresolved){
+    hint.style.color='var(--accent)';
+    hint.textContent='✓ Filtro: '+r.name;
+  } else {
+    hint.style.color='var(--warning)';
+    hint.textContent='Set non riconosciuto — scegli dalla lista';
+  }
+};
+
+// Hook: popola set quando tab auth è mostrato
+(function(){
+  var prev=window.showTab;
+  if(typeof prev==='function' && !window._auTabHooked){
+    window._auTabHooked=true;
+    window.showTab=function(name){
+      var r=prev.apply(this,arguments);
+      if(name==='auth') try{ auPopulateSets(); }catch(e){}
+      return r;
+    };
+  }
+})();
+
 window.auDoSearch=async function(){
-  var q=document.getElementById('au-q').value.trim();if(!q)return;
+  var q=document.getElementById('au-q').value.trim();
+  var setSel=auResolveSet();
+  if(!q && !setSel){ document.getElementById('au-st').className='status warn'; document.getElementById('au-st').textContent='Inserisci nome carta o set.'; return; }
+  if(setSel&&setSel.unresolved){
+    document.getElementById('au-st').className='status warn';
+    document.getElementById('au-st').textContent='Set "'+setSel.name+'" non riconosciuto. Seleziona dalla lista.';
+    return;
+  }
   var st=document.getElementById('au-st');
   st.className='status info';st.textContent='Ricerca...';
   var sr=document.getElementById('au-sresults');sr.style.display='none';sr.innerHTML='';
   document.getElementById('au-btn-s1next').disabled=true;S.card=null;
   try{
-    var parsed=parseQuery(q),pName=parsed.name,pNum=parsed.number;
-    var all=await fetchCards(pName, pNum||null);
-    var cards=all;
-    if(pNum&&all.length){
-      var ex=all.filter(function(c){return c.number===pNum;});
-      var pa=all.filter(function(c){return c.number&&c.number.startsWith(pNum+'/');});
-      cards=ex.length?ex:pa.length?pa:all;
+    var parsed=q?parseQuery(q):{name:'',number:null};
+    var pName=parsed.name,pNum=parsed.number;
+    var cards=[];
+    if(setSel && setSel.id){
+      // Con set: query TCG diretta precisa (bypass Edge Function)
+      var qParts=['set.id:'+setSel.id];
+      if(pName) qParts.push('name:"'+pName.replace(/"/g,'')+'"');
+      if(pNum) qParts.push('number:'+pNum);
+      try{
+        cards=await _fetchTCGDirect(qParts.join(' '),250);
+      }catch(e){}
+      // Fallback wildcard se esatto fallisce e c'è nome
+      if(!cards.length && pName){
+        try{
+          var qp2=['set.id:'+setSel.id,'name:*'+pName.split(' ')[0].replace(/"/g,'')+'*'];
+          if(pNum) qp2.push('number:'+pNum);
+          cards=await _fetchTCGDirect(qp2.join(' '),250);
+        }catch(e){}
+      }
+    } else {
+      // Senza set: comportamento classico via fetchCards
+      var all=await fetchCards(pName, pNum||null);
+      cards=all;
+      if(pNum&&all.length){
+        var ex=all.filter(function(c){return c.number===pNum;});
+        var pa=all.filter(function(c){return c.number&&c.number.startsWith(pNum+'/');});
+        cards=ex.length?ex:pa.length?pa:all;
+      }
     }
-    if(!cards.length){st.className='status warn';st.textContent='Nessuna carta trovata.';return;}
-    st.className='status ok';st.textContent=cards.length+' carte trovate'+(pNum?' (#'+pNum+')':'');
+    if(!cards.length){st.className='status warn';st.textContent='Nessuna carta trovata'+(setSel?' in "'+setSel.name+'"':'')+'.';return;}
+    // Ordina per numero crescente (utile con filtro set)
+    if(setSel && setSel.id){
+      cards.sort(function(a,b){
+        var na=parseInt((a.number||'').replace(/\D/g,''),10)||0;
+        var nb=parseInt((b.number||'').replace(/\D/g,''),10)||0;
+        if(na!==nb) return na-nb;
+        return (a.number||'').localeCompare(b.number||'');
+      });
+    }
+    st.className='status ok';st.textContent=cards.length+' carte trovate'+(pNum?' (#'+pNum+')':'')+(setSel?' · '+setSel.name:'');
     var db=lsGet();sr.style.display='block';
-    cards.slice(0,15).forEach(function(c){
+    cards.slice(0,60).forEach(function(c){
       var key=refKey(c),has=!!db[key];
       var row=document.createElement('div');row.className='au-crow';
       row.innerHTML=(c.images&&c.images.small?'<img src="'+c.images.small+'" loading="lazy"/>':'<div style="width:36px;height:50px;background:var(--surface2);border-radius:3px;flex-shrink:0"></div>')+
