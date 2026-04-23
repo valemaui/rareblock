@@ -6568,37 +6568,49 @@ window.auSetKey=function(e){
   }
 };
 
-// Popola/aggiorna picker (invocato al mount tab e ad ogni update msSetsAll)
+// Popola/aggiorna picker. Seed sync da SC_SETS_STATIC, API in background.
 window.auPopulateSets=function(){
   if(!window._auSetsListenerAdded){
     window._auSetsListenerAdded=true;
     window._msSetsListeners=window._msSetsListeners||[];
     window._msSetsListeners.push(window.auPopulateSets);
   }
-  if(!Array.isArray(window.msSetsAll)||!window.msSetsAll.length){
-    if(typeof msFetchSets==='function' && !window._auSetsLoading){
-      window._auSetsLoading=true;
-      msFetchSets();
-    }
-    return;
+  // SEED sync: se msSetsAll vuoto, popola subito da static (così resolve funziona anche senza API)
+  if((!Array.isArray(window.msSetsAll)||!window.msSetsAll.length)
+     && typeof SC_SETS_STATIC!=='undefined' && Array.isArray(SC_SETS_STATIC)){
+    window.msSetsAll = SC_SETS_STATIC.slice().sort(function(a,b){
+      return (b.releaseDate||'').localeCompare(a.releaseDate||'');
+    });
   }
-  // Se panel aperto, re-render
+  // Trigger API load in background
+  if(typeof msFetchSets==='function' && !window._auSetsLoading){
+    window._auSetsLoading=true;
+    try{ msFetchSets(); }catch(e){ console.warn('msFetchSets err',e); }
+  }
   var p=document.getElementById('au-setpanel');
   if(p && p.style.display==='block') auSetRender();
 };
 
-// Resolve set da input (usa selezione esplicita, altrimenti match testuale)
+// Resolve set da input. Fallback multi-livello: msSetsAll > SC_SETS_STATIC.
 window.auResolveSet=function(){
   if(window._auSelectedSet) return {id:window._auSelectedSet.id,name:window._auSelectedSet.name};
   var raw=(document.getElementById('au-qset').value||'').trim();
   if(!raw) return null;
-  if(!Array.isArray(window.msSetsAll)||!window.msSetsAll.length) return {id:null,name:raw,unresolved:true};
+  // Fonte: msSetsAll se popolato, altrimenti SC_SETS_STATIC (sempre disponibile sync)
+  var src = (Array.isArray(window.msSetsAll)&&window.msSetsAll.length)
+            ? window.msSetsAll
+            : (typeof SC_SETS_STATIC!=='undefined'?SC_SETS_STATIC:[]);
+  if(!src.length) return {id:null,name:raw,unresolved:true};
   var lo=raw.toLowerCase();
-  var byLabel=window.msSetsAll.find(function(s){return auSetLabel(s)===raw;});
+  var byLabel=src.find(function(s){return auSetLabel(s)===raw;});
   if(byLabel) return {id:byLabel.id,name:byLabel.name};
-  var byName=window.msSetsAll.find(function(s){return (s.name||'').toLowerCase()===lo;});
+  var byName=src.find(function(s){return (s.name||'').toLowerCase()===lo;});
   if(byName) return {id:byName.id,name:byName.name};
-  var byPartial=window.msSetsAll.find(function(s){return (s.name||'').toLowerCase().indexOf(lo)>=0;});
+  var byPtcgo=src.find(function(s){return (s.ptcgoCode||'').toLowerCase()===lo;});
+  if(byPtcgo) return {id:byPtcgo.id,name:byPtcgo.name};
+  var byId=src.find(function(s){return (s.id||'').toLowerCase()===lo;});
+  if(byId) return {id:byId.id,name:byId.name};
+  var byPartial=src.find(function(s){return (s.name||'').toLowerCase().indexOf(lo)>=0;});
   if(byPartial) return {id:byPartial.id,name:byPartial.name};
   return {id:null,name:raw,unresolved:true};
 };
@@ -6637,6 +6649,8 @@ window.auDebugSets=function(){
       return r;
     };
   }
+  // Seed iniziale subito al load del file (indipendente dal tab)
+  setTimeout(function(){ try{ auPopulateSets(); }catch(e){} },50);
 })();
 
 window.auDoSearch=async function(){
