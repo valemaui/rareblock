@@ -8109,6 +8109,7 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
     <button class="hunt-subtab"        data-sub="targets"  onclick="huntShowSub('targets')">🎯 Target <span id="huntTargetsCount" style="opacity:.6"></span></button>
     <button class="hunt-subtab"        data-sub="auctions" onclick="huntShowSub('auctions')">⏰ Aste in scadenza</button>
     <button class="hunt-subtab"        data-sub="alerts"   onclick="huntShowSub('alerts')">🔔 Regole alert</button>
+    <button class="hunt-subtab"        data-sub="arbitrage" onclick="huntShowSub('arbitrage')">💹 Arbitraggio</button>
     <button class="hunt-subtab"        data-sub="report"   onclick="huntShowSub('report')">📊 Report</button>
   </div>
 
@@ -8150,6 +8151,11 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
     <div id="huntAlertRulesList"></div>
   </div>
 
+  <div id="huntSub-arbitrage" class="hunt-sub" style="flex:1;overflow:auto;padding:14px 16px;display:none">
+    <div style="margin-bottom:10px;font-size:13px;color:var(--muted)">Carte con stesso target su più portali con delta prezzo ≥20%. Occasioni di arbitraggio: compra basso, rivendi alto.</div>
+    <div id="huntArbitrageList"></div>
+  </div>
+
   <div id="huntSub-report" class="hunt-sub" style="flex:1;overflow:auto;padding:14px 16px;display:none">
     <div id="huntReportSummary"></div>
     <div style="margin-top:16px">
@@ -8187,6 +8193,7 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
 .hunt-target-attrs{font-size:11px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap}
 .hunt-target-attr{background:var(--bg);border:1px solid var(--border);padding:2px 6px;border-radius:4px}
 .hunt-countdown{font-variant-numeric:tabular-nums;font-weight:600;color:#ff4444}
+@keyframes rbSlideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
 </style>
 
 
@@ -9712,10 +9719,135 @@ async function huntInit(){
   if(!_huntState.inited){
     _huntState.inited = true;
     await huntLoadAll();
+    huntStartRealtime();
+    huntRequestBrowserPush();
   }
   huntRenderAll();
 }
 window.huntInit = huntInit;
+
+// ── REALTIME: subscribe a nuovi listing dell'utente ─────────────────────
+var _huntRealtime = null;
+function huntStartRealtime(){
+  if(_huntRealtime) return;
+  var uid = getCurrentUserId();
+  var token = window._rbSession && window._rbSession.access_token;
+  if(!uid || !token) return;
+
+  try{
+    // Supabase Realtime via WebSocket — niente client SDK, usiamo direttamente WS
+    var wsUrl = SUPA_URL.replace(/^https?:/,'wss:') + '/realtime/v1/websocket?apikey='+SUPA_KEY+'&vsn=1.0.0';
+    var ws = new WebSocket(wsUrl);
+    _huntRealtime = ws;
+    var ref = 1;
+    var joinRef = String(ref++);
+
+    ws.onopen = function(){
+      // Join topic per la tabella hunt_listings filtrata sull'utente
+      ws.send(JSON.stringify({
+        topic: 'realtime:public:hunt_listings:user_id=eq.'+uid,
+        event: 'phx_join',
+        payload: {
+          config: {
+            postgres_changes: [
+              { event: 'INSERT', schema: 'public', table: 'hunt_listings', filter: 'user_id=eq.'+uid },
+              { event: 'UPDATE', schema: 'public', table: 'hunt_listings', filter: 'user_id=eq.'+uid }
+            ]
+          },
+          access_token: token
+        },
+        ref: joinRef
+      }));
+      // Heartbeat ogni 30s per mantenere connessione
+      _huntRealtime._hb = setInterval(function(){
+        if(ws.readyState===1) ws.send(JSON.stringify({topic:'phoenix',event:'heartbeat',payload:{},ref:String(ref++)}));
+      }, 30000);
+    };
+
+    ws.onmessage = function(e){
+      try{
+        var msg = JSON.parse(e.data);
+        if(msg.event === 'postgres_changes'){
+          var rec = msg.payload && msg.payload.data && msg.payload.data.record;
+          if(!rec) return;
+          if(msg.payload.data.type === 'INSERT'){
+            huntHandleNewListing(rec);
+          } else if(msg.payload.data.type === 'UPDATE'){
+            // aggiorna listing esistente nello state
+            var idx = _huntState.listings.findIndex(function(x){return x.id===rec.id;});
+            if(idx>=0) _huntState.listings[idx] = rec;
+            huntRenderAll();
+          }
+        }
+      }catch(err){ console.warn('[hunt realtime]', err); }
+    };
+
+    ws.onerror = function(){ console.warn('[hunt realtime] error'); };
+    ws.onclose = function(){
+      if(_huntRealtime && _huntRealtime._hb) clearInterval(_huntRealtime._hb);
+      _huntRealtime = null;
+      // Reconnect dopo 5s se tab ancora aperta
+      setTimeout(function(){ if(document.getElementById('tab-hunt') && _huntState.inited) huntStartRealtime(); }, 5000);
+    };
+  }catch(e){ console.warn('[hunt realtime setup]', e); }
+}
+
+// Gestisce arrivo nuova inserzione: aggiunge state + toast + push
+function huntHandleNewListing(rec){
+  // evita duplicato se già in lista
+  if(_huntState.listings.some(function(x){return x.id===rec.id;})) return;
+  _huntState.listings.unshift(rec);
+  huntRenderAll();
+
+  var score = rec.deal_score || 0;
+  var title = (rec.title||'').slice(0,60);
+  var body  = (rec.platform||'?').toUpperCase()+' · €'+(rec.price||'?')+' · deal '+score+'/100';
+
+  // Toast in-app
+  huntShowToast('🎯 '+title, body, rec.listing_url, score);
+
+  // Push browser nativo se permesso + score >= 60
+  if(score >= 60 && 'Notification' in window && Notification.permission === 'granted'){
+    try{
+      var n = new Notification('🎯 RareBlock — '+score+'/100', {
+        body: title+'\n'+body,
+        icon: rec.image_url || undefined,
+        tag: 'rb-hunt-'+rec.id,
+        requireInteraction: score >= 80
+      });
+      n.onclick = function(){ window.open(rec.listing_url, '_blank'); n.close(); };
+    }catch(e){}
+  }
+}
+
+function huntShowToast(title, body, url, score){
+  var host = document.getElementById('huntToastHost');
+  if(!host){
+    host = document.createElement('div');
+    host.id = 'huntToastHost';
+    host.style.cssText = 'position:fixed;top:70px;right:20px;z-index:99997;display:flex;flex-direction:column;gap:8px;max-width:360px';
+    document.body.appendChild(host);
+  }
+  var color = score>=80 ? '#ff4444' : (score>=60 ? '#ff9500' : (score>=40 ? '#ffcc00' : '#888'));
+  var t = document.createElement('div');
+  t.style.cssText = 'background:var(--card);border:1px solid var(--border);border-left:4px solid '+color+';border-radius:8px;padding:12px 14px;box-shadow:0 4px 16px rgba(0,0,0,.3);cursor:pointer;animation:rbSlideIn .3s ease-out';
+  t.innerHTML = '<div style="font-weight:600;font-size:13px;margin-bottom:4px">'+escapeHtml(title)+'</div>'
+    +'<div style="font-size:11px;color:var(--muted)">'+escapeHtml(body)+'</div>'
+    +'<div style="font-size:10px;color:var(--muted);margin-top:4px">click per aprire →</div>';
+  t.onclick = function(){ if(url) window.open(url,'_blank'); t.remove(); };
+  host.appendChild(t);
+  setTimeout(function(){ t.style.opacity='0'; setTimeout(function(){t.remove();}, 300); }, 8000);
+}
+
+function huntRequestBrowserPush(){
+  if(!('Notification' in window)) return;
+  if(Notification.permission === 'default'){
+    // Attendi 3s per non essere invadente all'apertura tab
+    setTimeout(function(){
+      Notification.requestPermission().catch(function(){});
+    }, 3000);
+  }
+}
 
 async function huntLoadAll(){
   try{
@@ -9771,6 +9903,7 @@ function huntRenderAll(){
   huntRenderTargets();
   huntRenderAuctions();
   huntRenderAlertRules();
+  huntRenderArbitrage();
   huntRenderReport();
   // Contatori
   var fc = document.getElementById('huntFeedCount');
@@ -9957,6 +10090,80 @@ function huntRenderAlertRules(){
   }).join('');
 }
 
+function huntRenderArbitrage(){
+  var host = document.getElementById('huntArbitrageList');
+  if(!host) return;
+  // Raggruppa per target_id solo listing con target matchato
+  var byTarget = {};
+  _huntState.listings.forEach(function(l){
+    if(!l.target_id || !l.price) return;
+    (byTarget[l.target_id] = byTarget[l.target_id] || []).push(l);
+  });
+
+  // Per ogni gruppo: se ci sono 2+ piattaforme diverse, calcola min/max/delta
+  var opportunities = [];
+  Object.keys(byTarget).forEach(function(tid){
+    var items = byTarget[tid];
+    var platforms = {};
+    items.forEach(function(l){
+      var cur = platforms[l.platform];
+      if(!cur || l.price < cur.price) platforms[l.platform] = l;
+    });
+    var pfKeys = Object.keys(platforms);
+    if(pfKeys.length < 2) return;
+    var sorted = pfKeys.map(function(k){return platforms[k];}).sort(function(a,b){return a.price-b.price;});
+    var low = sorted[0];
+    var high = sorted[sorted.length-1];
+    var deltaPct = ((high.price - low.price) / low.price) * 100;
+    if(deltaPct < 20) return;  // soglia minima
+    var t = _huntState.targets.find(function(x){return x.id===tid;});
+    opportunities.push({ target: t, low: low, high: high, allItems: sorted, deltaPct: deltaPct, profitEur: high.price - low.price });
+  });
+
+  opportunities.sort(function(a,b){ return b.deltaPct - a.deltaPct; });
+
+  if(!opportunities.length){
+    host.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">'
+      +'<div style="font-size:32px;margin-bottom:10px">💹</div>'
+      +'<div style="font-size:14px">Nessuna opportunità di arbitraggio rilevata</div>'
+      +'<div style="font-size:11px;margin-top:6px">Servono inserzioni della stessa carta su almeno 2 portali con delta ≥20%</div>'
+      +'</div>';
+    return;
+  }
+
+  host.innerHTML = opportunities.map(function(o){
+    var pfLow = (HUNT_PLATFORMS.find(function(p){return p.id===o.low.platform;})||{}).label || o.low.platform;
+    var pfHigh = (HUNT_PLATFORMS.find(function(p){return p.id===o.high.platform;})||{}).label || o.high.platform;
+    var roi = o.deltaPct.toFixed(1);
+    return '<div class="hunt-card" style="border-left:4px solid #00c853;position:relative">'
+      +'<div style="position:absolute;top:8px;right:8px;background:#00c853;color:#fff;font-weight:700;font-size:14px;padding:4px 10px;border-radius:20px">+'+roi+'%</div>'
+      +'<div style="flex:1">'
+      +'  <div style="font-weight:600;font-size:14px;margin-bottom:8px">'+escapeHtml(o.target ? o.target.card_name : 'Carta sconosciuta')+(o.target && o.target.card_number?' #'+o.target.card_number:'')+'</div>'
+      +'  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px">'
+      +'    <div style="background:var(--bg);padding:10px;border-radius:6px;border:1px solid #00c853">'
+      +'      <div style="font-size:10px;color:#00c853;font-weight:600;text-transform:uppercase;margin-bottom:4px">🟢 Compra</div>'
+      +'      <div class="hunt-platform-chip hunt-pf-'+o.low.platform+'" style="margin-bottom:6px">'+pfLow+'</div>'
+      +'      <div style="font-weight:700;font-size:16px">€'+o.low.price.toFixed(2)+'</div>'
+      +'      <div style="font-size:10px;color:var(--muted);margin-top:4px">'+escapeHtml((o.low.title||'').slice(0,50))+'</div>'
+      +'      <a class="btn btn-primary" href="'+o.low.listing_url+'" target="_blank" style="display:inline-block;margin-top:6px;font-size:11px;text-decoration:none">Apri →</a>'
+      +'    </div>'
+      +'    <div style="background:var(--bg);padding:10px;border-radius:6px;border:1px solid #ff9500">'
+      +'      <div style="font-size:10px;color:#ff9500;font-weight:600;text-transform:uppercase;margin-bottom:4px">🔴 Vendi</div>'
+      +'      <div class="hunt-platform-chip hunt-pf-'+o.high.platform+'" style="margin-bottom:6px">'+pfHigh+'</div>'
+      +'      <div style="font-weight:700;font-size:16px">€'+o.high.price.toFixed(2)+'</div>'
+      +'      <div style="font-size:10px;color:var(--muted);margin-top:4px">'+escapeHtml((o.high.title||'').slice(0,50))+'</div>'
+      +'      <a class="btn" href="'+o.high.listing_url+'" target="_blank" style="display:inline-block;margin-top:6px;font-size:11px;text-decoration:none">Vedi →</a>'
+      +'    </div>'
+      +'  </div>'
+      +'  <div style="display:flex;gap:12px;align-items:center;font-size:12px;padding-top:8px;border-top:1px solid var(--border)">'
+      +'    <span>Profitto lordo: <b style="color:#00c853">+€'+o.profitEur.toFixed(2)+'</b></span>'
+      +(o.allItems.length>2 ? '<span style="color:var(--muted)">+'+(o.allItems.length-2)+' altri</span>' : '')
+      +'  </div>'
+      +'</div>'
+      +'</div>';
+  }).join('');
+}
+
 function huntRenderReport(){
   var host = document.getElementById('huntReportSummary');
   if(!host) return;
@@ -9982,43 +10189,191 @@ function huntRenderReport(){
 
 // ── AZIONI TARGET ───────────────────────────────────────────────────────
 function huntOpenAddTarget(){
-  var name = prompt('Nome carta (es: "Charizard"):');
-  if(!name) return;
-  var num = prompt('Numero (es: "4/102") — opzionale:','') || null;
-  var grader = prompt('Grading house (PSA/BGS/CGC/vuoto):','') || null;
-  var minGrade = grader ? parseFloat(prompt('Grade minimo (es: 9, 9.5, 10):','10')) : null;
-  var first1 = confirm('È 1st Edition?');
-  var shadow = confirm('È Shadowless?');
-  var lang = prompt('Lingua (ITA/ENG/JPN/ANY):','ANY') || 'ANY';
-  var max = parseFloat(prompt('Prezzo max per alert (€, vuoto=nessun limite):','')) || null;
-  var thresh = parseInt(prompt('Soglia deal_score per notifica (0-100):','70')) || 70;
-
-  huntSaveTarget({
-    card_name: name.trim(),
-    card_number: num,
-    grading_house: grader ? grader.toUpperCase() : null,
-    min_grade: minGrade || null,
-    first_edition: first1,
-    shadowless: shadow,
-    language: lang,
-    max_price: max,
-    deal_threshold: thresh,
-    is_active: true
-  });
+  huntOpenTargetModal(null);
 }
 window.huntOpenAddTarget = huntOpenAddTarget;
 
-async function huntSaveTarget(data){
-  var uid = getCurrentUserId();
-  if(!uid){ alert('Accedi prima'); return; }
-  data.user_id = uid;
+function huntEditTarget(id){
+  var t = _huntState.targets.find(function(x){return x.id===id;});
+  if(!t){ alert('Target non trovato'); return; }
+  huntOpenTargetModal(t);
+}
+window.huntEditTarget = huntEditTarget;
+
+// Modal unico per add/edit target
+function huntOpenTargetModal(target){
+  var isEdit = !!target;
+  var t = target || {};
+  var modalId = 'huntTargetModal';
+  var old = document.getElementById(modalId);
+  if(old) old.remove();
+
+  var m = document.createElement('div');
+  m.id = modalId;
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
+  m.innerHTML =
+    '<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;max-width:520px;width:100%;max-height:90vh;overflow:auto">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+    +'  <h3 style="margin:0;font-size:16px">'+(isEdit?'✎ Modifica target':'🎯 Nuovo target')+'</h3>'
+    +'  <button onclick="document.getElementById(\''+modalId+'\').remove()" style="background:none;border:none;color:var(--fg);font-size:22px;cursor:pointer;line-height:1">×</button>'
+    +'</div>'
+
+    // Card identity
+    +'<div style="margin-bottom:14px">'
+    +'  <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Nome carta *</label>'
+    +'  <div style="display:flex;gap:6px">'
+    +'    <input id="htmCardName" value="'+escapeHtml(t.card_name||'')+'" placeholder="es. Charizard" style="flex:1;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--fg)"/>'
+    +'    <button class="btn" onclick="huntAutoLookup()" title="Cerca su TCG API per autopopolare prezzo CM" style="font-size:11px">🔍 Auto</button>'
+    +'  </div>'
+    +'</div>'
+
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">'
+    +'  <div>'
+    +'    <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Numero</label>'
+    +'    <input id="htmCardNumber" value="'+escapeHtml(t.card_number||'')+'" placeholder="4/102" style="width:100%;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--fg)"/>'
+    +'  </div>'
+    +'  <div>'
+    +'    <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Set (nome)</label>'
+    +'    <input id="htmSetName" value="'+escapeHtml(t.set_name||'')+'" placeholder="Base Set" style="width:100%;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--fg)"/>'
+    +'  </div>'
+    +'</div>'
+
+    // Grading
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">'
+    +'  <div>'
+    +'    <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Grading</label>'
+    +'    <select id="htmGrader" style="width:100%;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--fg)">'
+    +'      <option value="">Nessuno</option>'
+    +'      '+['PSA','BGS','CGC','ACE','CGS'].map(function(g){return '<option '+(t.grading_house===g?'selected':'')+'>'+g+'</option>';}).join('')
+    +'    </select>'
+    +'  </div>'
+    +'  <div>'
+    +'    <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Grade min</label>'
+    +'    <select id="htmMinGrade" style="width:100%;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--fg)">'
+    +'      <option value="">—</option>'
+    +'      '+[10,9.5,9,8.5,8,7].map(function(g){return '<option '+(t.min_grade==g?'selected':'')+' value="'+g+'">'+g+'</option>';}).join('')
+    +'    </select>'
+    +'  </div>'
+    +'  <div>'
+    +'    <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Lingua</label>'
+    +'    <select id="htmLang" style="width:100%;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--fg)">'
+    +'      '+['ANY','ITA','ENG','JPN','GER','FRA','SPA'].map(function(l){return '<option '+((t.language||'ANY')===l?'selected':'')+'>'+l+'</option>';}).join('')
+    +'    </select>'
+    +'  </div>'
+    +'</div>'
+
+    // Attributi speciali
+    +'<div style="display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap">'
+    +'  <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="htmFirstEd" '+(t.first_edition?'checked':'')+'/> 1st Edition</label>'
+    +'  <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="htmShadowless" '+(t.shadowless?'checked':'')+'/> Shadowless</label>'
+    +'  <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="htmActive" '+((t.is_active!==false)?'checked':'')+'/> Attivo</label>'
+    +'</div>'
+
+    // Keywords extra
+    +'<div style="margin-bottom:14px">'
+    +'  <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Keyword extra (separate da virgola)</label>'
+    +'  <input id="htmKeywords" value="'+escapeHtml((t.extra_keywords||[]).join(', '))+'" placeholder="staff, promo, sealed" style="width:100%;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--fg)"/>'
+    +'</div>'
+
+    // Prezzi
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">'
+    +'  <div>'
+    +'    <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Prezzo ref CM (€)</label>'
+    +'    <input id="htmRefCm" type="number" step="0.01" value="'+(t.ref_price_cm||'')+'" placeholder="auto" style="width:100%;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--fg)"/>'
+    +'  </div>'
+    +'  <div>'
+    +'    <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Prezzo max (€)</label>'
+    +'    <input id="htmMaxPrice" type="number" step="0.01" value="'+(t.max_price||'')+'" placeholder="no limite" style="width:100%;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--fg)"/>'
+    +'  </div>'
+    +'  <div>'
+    +'    <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Soglia alert</label>'
+    +'    <input id="htmThreshold" type="number" min="0" max="100" value="'+(t.deal_threshold||70)+'" style="width:100%;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--fg)"/>'
+    +'  </div>'
+    +'</div>'
+
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">'
+    +'  <button class="btn" onclick="document.getElementById(\''+modalId+'\').remove()">Annulla</button>'
+    +'  <button class="btn btn-primary" onclick="huntSubmitTarget(\''+(t.id||'')+'\')">'+(isEdit?'Salva modifiche':'Crea target')+'</button>'
+    +'</div>'
+    +'</div>';
+
+  document.body.appendChild(m);
+  setTimeout(function(){ document.getElementById('htmCardName').focus(); }, 50);
+  // ESC per chiudere
+  m.addEventListener('click', function(e){ if(e.target===m) m.remove(); });
+}
+window.huntOpenTargetModal = huntOpenTargetModal;
+
+async function huntSubmitTarget(existingId){
+  var name = document.getElementById('htmCardName').value.trim();
+  if(!name){ alert('Nome carta richiesto'); return; }
+
+  var kwRaw = document.getElementById('htmKeywords').value.trim();
+  var kw = kwRaw ? kwRaw.split(',').map(function(s){return s.trim();}).filter(Boolean) : null;
+
+  var data = {
+    card_name: name,
+    card_number: document.getElementById('htmCardNumber').value.trim() || null,
+    set_name: document.getElementById('htmSetName').value.trim() || null,
+    grading_house: document.getElementById('htmGrader').value || null,
+    min_grade: parseFloat(document.getElementById('htmMinGrade').value) || null,
+    language: document.getElementById('htmLang').value || 'ANY',
+    first_edition: document.getElementById('htmFirstEd').checked,
+    shadowless: document.getElementById('htmShadowless').checked,
+    is_active: document.getElementById('htmActive').checked,
+    extra_keywords: kw,
+    ref_price_cm: parseFloat(document.getElementById('htmRefCm').value) || null,
+    max_price: parseFloat(document.getElementById('htmMaxPrice').value) || null,
+    deal_threshold: parseInt(document.getElementById('htmThreshold').value) || 70,
+    updated_at: new Date().toISOString()
+  };
+
   try{
-    var rows = await supa('POST','hunt_targets', data);
-    var row = Array.isArray(rows) ? rows[0] : rows;
-    _huntState.targets.unshift(row);
+    if(existingId){
+      await supa('PATCH','hunt_targets?id=eq.'+existingId, data);
+      var idx = _huntState.targets.findIndex(function(x){return x.id===existingId;});
+      if(idx>=0) _huntState.targets[idx] = Object.assign({}, _huntState.targets[idx], data);
+    } else {
+      data.user_id = getCurrentUserId();
+      if(!data.user_id){ alert('Accedi prima'); return; }
+      var rows = await supa('POST','hunt_targets', data);
+      var row = Array.isArray(rows) ? rows[0] : rows;
+      _huntState.targets.unshift(row);
+    }
+    document.getElementById('huntTargetModal').remove();
     huntRenderAll();
   }catch(e){ alert('Errore: '+e.message); }
 }
+window.huntSubmitTarget = huntSubmitTarget;
+
+// Auto-lookup prezzo CM da TCG API usando nome+numero
+async function huntAutoLookup(){
+  var name = document.getElementById('htmCardName').value.trim();
+  var num  = document.getElementById('htmCardNumber').value.trim();
+  if(!name){ alert('Inserisci prima il nome carta'); return; }
+  var q = 'name:"'+name+'"'+(num?' number:'+num.split('/')[0]:'');
+  try{
+    var r = await fetch('https://api.pokemontcg.io/v2/cards?q='+encodeURIComponent(q)+'&pageSize=1', {
+      headers: {'X-Api-Key':'ca385a14-d149-4a9f-a275-3bda5b7b1555'}
+    });
+    var j = await r.json();
+    var c = (j.data||[])[0];
+    if(!c){ alert('Carta non trovata su TCG API'); return; }
+    var p = c.cardmarket && c.cardmarket.prices;
+    var ref = p ? (p.trendPrice || p.avg30 || p.averageSellPrice || 0) : 0;
+    if(ref) document.getElementById('htmRefCm').value = ref.toFixed(2);
+    if(c.set && c.set.name && !document.getElementById('htmSetName').value){
+      document.getElementById('htmSetName').value = c.set.name;
+    }
+    if(c.number && !document.getElementById('htmCardNumber').value){
+      document.getElementById('htmCardNumber').value = c.number + (c.set.printedTotal?'/'+c.set.printedTotal:'');
+    }
+    alert(ref ? ('Prezzo CM trovato: €'+ref.toFixed(2)) : 'Carta trovata ma senza prezzo CM disponibile');
+  }catch(e){
+    alert('Errore lookup: '+e.message);
+  }
+}
+window.huntAutoLookup = huntAutoLookup;
 
 async function huntDeleteTarget(id){
   if(!confirm('Eliminare questo target?')) return;
@@ -10040,11 +10395,6 @@ async function huntToggleTarget(id){
   }catch(e){ alert('Errore: '+e.message); }
 }
 window.huntToggleTarget = huntToggleTarget;
-
-function huntEditTarget(id){
-  alert('Edit target: coming soon (usa elimina + ricrea per ora)');
-}
-window.huntEditTarget = huntEditTarget;
 
 async function huntMarkStatus(id, status){
   try{
