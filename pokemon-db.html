@@ -7188,6 +7188,8 @@ window.auSaveRef=async function(){
   var warped=await auWarp(S.refImg,S.refCorners,S.refDims.w,S.refDims.h,OW,OH);
   // Normalize: crop to card bounds → rescale to OW×OH
   warped=await auNormalize(warped);
+  // Canonicalize: frame interno → posizione assoluta fissa
+  warped=await auCanonicalize(warped);
   S.refWarped=warped;
   var url=warped.toDataURL('image/jpeg',0.93);
   if(S.card){
@@ -7295,7 +7297,122 @@ async function auNormalize(src){
   return out;
 }
 
-// ── Cyan diff (async chunked) ─────────────────────────────────────
+// ── Inner frame detection ───────────────────────────────────────────
+// Trova bordi interni (fine del bordo giallo, inizio dell'artwork/frame interno).
+// Bordo interno ha transizione netta → detection affidabile vs bordo esterno arrotondato.
+// Scansiona da ciascun lato, raccoglie fine-del-giallo per molte linee, prende mediana.
+// Ritorna {L,R,T,B} in pixel o null se detection fallisce.
+function auFindInnerFrame(canvas){
+  var w=canvas.width, h=canvas.height;
+  var data=canvas.getContext('2d').getImageData(0,0,w,h).data;
+  function isYellow(r,g,b){
+    // Stesso criterio di auNormalize (bordo carta WOTC/EX/HGSS/BW)
+    return (r>128 && g>82 && b<148 && r>b+18 && r>g*0.73) ||
+           (r>152 && g>118 && b<168 && r>=g && g>b && r-b>10);
+  }
+  // Scan zone: 20%-80% di ogni lato (evita angoli arrotondati)
+  // Max search depth: 20% del lato
+  var tops=[], bots=[], lefts=[], rights=[];
+  var maxDepthY=Math.round(h*0.22), maxDepthX=Math.round(w*0.22);
+
+  // TOP + BOTTOM
+  var xStart=Math.round(w*0.20), xEnd=Math.round(w*0.80);
+  var xStep=Math.max(1,Math.round(w*0.005));
+  for(var x=xStart; x<xEnd; x+=xStep){
+    // TOP: da y=0 scende, cerca giallo poi fine-giallo
+    var startedYellow=false, innerY=-1;
+    for(var y=0; y<maxDepthY; y++){
+      var i=(y*w+x)*4;
+      var isY=isYellow(data[i],data[i+1],data[i+2]);
+      if(isY && !startedYellow) startedYellow=true;
+      else if(!isY && startedYellow){ innerY=y; break; }
+    }
+    if(innerY>0) tops.push(innerY);
+    // BOTTOM: da y=h-1 sale
+    startedYellow=false; innerY=-1;
+    for(var y2=h-1; y2>h-1-maxDepthY; y2--){
+      var i2=(y2*w+x)*4;
+      var isY2=isYellow(data[i2],data[i2+1],data[i2+2]);
+      if(isY2 && !startedYellow) startedYellow=true;
+      else if(!isY2 && startedYellow){ innerY=y2; break; }
+    }
+    if(innerY>0) bots.push(innerY);
+  }
+  // LEFT + RIGHT
+  var yStart=Math.round(h*0.20), yEnd=Math.round(h*0.80);
+  var yStep=Math.max(1,Math.round(h*0.005));
+  for(var y3=yStart; y3<yEnd; y3+=yStep){
+    var startedYellowL=false, innerX=-1;
+    for(var x2=0; x2<maxDepthX; x2++){
+      var i3=(y3*w+x2)*4;
+      var isY3=isYellow(data[i3],data[i3+1],data[i3+2]);
+      if(isY3 && !startedYellowL) startedYellowL=true;
+      else if(!isY3 && startedYellowL){ innerX=x2; break; }
+    }
+    if(innerX>0) lefts.push(innerX);
+    var startedYellowR=false; innerX=-1;
+    for(var x3=w-1; x3>w-1-maxDepthX; x3--){
+      var i4=(y3*w+x3)*4;
+      var isY4=isYellow(data[i4],data[i4+1],data[i4+2]);
+      if(isY4 && !startedYellowR) startedYellowR=true;
+      else if(!isY4 && startedYellowR){ innerX=x3; break; }
+    }
+    if(innerX>0) rights.push(innerX);
+  }
+  function median(arr){
+    if(arr.length<5) return null;
+    var s=arr.slice().sort(function(a,b){return a-b;});
+    return s[Math.floor(s.length/2)];
+  }
+  var T=median(tops), B=median(bots), L=median(lefts), R=median(rights);
+  if(T==null||B==null||L==null||R==null) return null;
+  // Sanity check: frame interno deve avere size minima e aspect ratio coerente
+  var fw=R-L, fh=B-T;
+  if(fw<w*0.5 || fh<h*0.5) return null;
+  var aspect=fw/fh;
+  // Carta Pokémon ha aspect ~0.715. Tolleranza ampia.
+  if(aspect<0.55 || aspect>0.85) return null;
+  return {L:L, R:R, T:T, B:B, width:fw, height:fh, aspect:aspect};
+}
+
+// ── Canonicalize: allinea frame interno rilevato a posizione fissa OW×OH ────
+// Target canonico: frame interno occupa [PAD, OW-PAD] × [PAD, OH-PAD]
+// → ref e ver finiscono entrambe con frame interno nelle STESSE coordinate assolute
+async function auCanonicalize(src){
+  if(!src) return src;
+  var W=src.width, H=src.height;
+  var frame=auFindInnerFrame(src);
+  if(!frame) return src; // fallback: invariato
+  // Target padding canonico (proporzionale al bordo giallo Pokémon: ~5-7%)
+  var padX=Math.round(OW*0.058);
+  var padY=Math.round(OH*0.058);
+  var targetL=padX, targetR=OW-padX;
+  var targetT=padY, targetB=OH-padY;
+  // Scala+shift affine: mappa [L,R,T,B] rilevato → [targetL,targetR,targetT,targetB]
+  var sx=(targetR-targetL)/frame.width;
+  var sy=(targetB-targetT)/frame.height;
+  var tx=targetL-frame.L*sx;
+  var ty=targetT-frame.T*sy;
+  var out=document.createElement('canvas');
+  out.width=OW; out.height=OH;
+  var ctx=out.getContext('2d');
+  // Background neutro (in caso scale introduca bordi vuoti)
+  ctx.fillStyle='#1a1a1a';
+  ctx.fillRect(0,0,OW,OH);
+  ctx.save();
+  ctx.translate(tx,ty);
+  ctx.scale(sx,sy);
+  ctx.imageSmoothingEnabled=true;
+  ctx.imageSmoothingQuality='high';
+  ctx.drawImage(src,0,0);
+  ctx.restore();
+  // Memorizza frame rilevato per debug/telemetry
+  out._innerFrame=frame;
+  out._canonicalized=true;
+  await new Promise(function(r){setTimeout(r,0);});
+  return out;
+}
+
 // Determine if a card has holographic artwork based on TCG API rarity
 function auCardHasHolo(card){
   if(!card) return null; // unknown
@@ -7399,6 +7516,13 @@ window.auProc=async function(){
   document.getElementById('au-pstep').textContent='Allineamento automatico carta verificata...';
   document.getElementById('au-pfill').style.width='42%';
   S.verWarped=await auNormalize(S.verWarped);
+  if(_procAbort)return;
+  // Canonicalize: allinea frame INTERNO a posizione assoluta fissa (millimetrico)
+  document.getElementById('au-pstep').textContent='Centramento sui bordi interni...';
+  document.getElementById('au-pfill').style.width='46%';
+  S.refWarped=await auCanonicalize(S.refWarped);
+  if(_procAbort)return;
+  S.verWarped=await auCanonicalize(S.verWarped);
   if(_procAbort)return;
   // Diff
   await auPG(50,'COMPUTING','Calcolo differenziale...');
