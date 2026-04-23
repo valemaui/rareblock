@@ -5,7 +5,7 @@ Feature di scouting inserzioni multi-portale per investitori TCG.
 ## Cosa fa
 
 1. **Monitora** carte target configurate dall'utente (nome, numero, grading, 1st Ed, shadowless, lingua)
-2. **Genera URL pre-compilati** per eBay, Catawiki, Subito, Vinted, TCGPlayer, Delver, Mercari
+2. **Genera URL pre-compilati** per eBay, Catawiki, Subito, Vinted, TCGPlayer, Mercari
 3. **Raccoglie listing** tramite userscript `rareblock-hunter-scraper.user.js` (multi-dominio)
 4. **Calcola Deal Score 0-100** che combina: sconto vs CM, timing asta, reputazione venditore, match attributi
 5. **Invia alert** configurabili (push, email, WhatsApp, Telegram) con regole per utente
