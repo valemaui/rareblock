@@ -1,0 +1,27 @@
+name: Deploy smooth-endpoint to Supabase
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'supabase/functions/smooth-endpoint/**'
+  workflow_dispatch: {}  # consente trigger manuale dall'UI di GitHub
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy smooth-endpoint
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: rbjaaeyjeeqfpbzyavag
+        run: |
+          supabase functions deploy smooth-endpoint \
+            --project-ref "$SUPABASE_PROJECT_REF"
