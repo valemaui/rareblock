@@ -458,30 +458,23 @@ function extractFirstPCProduct(html: string, nameHint?: string): { url: string; 
 
 type PCPriceKey = 'ungraded'|'grade7'|'grade8'|'grade9'|'grade9_5'|'psa10'|'bgs10'|'cgc10';
 
+// Estrae prezzi da pagina prodotto PC.
+//
+// IMPORTANTE: PriceCharting usa ID HTML ereditati dalla sua origine video-games
+// (used_price, complete_price, new_price, graded_price, box_only_price,
+// manual_only_price, bgs_10_price). Per le carte Pokémon questi ID sono
+// semanticamente DIVERSI — il label sopra la cella dice "PSA 10", "Grade 9", ecc.
+// Diagnostica 2026-04-24 ha dimostrato che mapping ID→grade produce valori errati
+// (es. manual_only_price=$15000 per Groudon-EX, ma label-based PSA 10=$16400).
+//
+// Strategia corretta: usare SOLO i pattern label-based. Il label sopra la cella
+// ("PSA 10", "BGS 10", "Grade 9"...) è affidabile perché riflette la semantica
+// reale della colonna nella pagina Pokémon.
 function extractPCPrices(html: string): PCPrices {
   const out: PCPrices = {};
-  const idMap: Record<string, PCPriceKey> = {
-    'used_price':    'ungraded',
-    'complete_price':'grade7',
-    'new_price':     'grade8',
-    'graded_price':  'grade9',
-    'box_only_price':'grade9_5',
-    'manual_only_price':'psa10',
-    'bgs_10_price':  'bgs10',
-  };
 
-  for (const [id, key] of Object.entries(idMap)) {
-    const re = new RegExp(
-      `<(?:td|span|div)[^>]*id="${id}"[^>]*>([\\s\\S]{0,400}?)<\\/(?:td|span|div)>`,
-      'i'
-    );
-    const m = html.match(re);
-    if (m) {
-      const price = extractFirstUSD(m[1]);
-      if (price) out[key] = price;
-    }
-  }
-
+  // Ordine IMPORTANTE: grade 9.5 prima di grade 9 (altrimenti regex grade9 prende entrambi)
+  // PSA/BGS/CGC 10 prima di grade 8/9 per evitare match ambigui
   const labelPatterns: Array<{ rx: RegExp; key: PCPriceKey }> = [
     { rx: /PSA\s*10[\s\S]{0,200}?\$([\d,]+\.\d{2})/i, key: 'psa10' },
     { rx: /BGS\s*10[\s\S]{0,200}?\$([\d,]+\.\d{2})/i, key: 'bgs10' },
@@ -493,7 +486,6 @@ function extractPCPrices(html: string): PCPrices {
     { rx: /Ungraded[\s\S]{0,200}?\$([\d,]+\.\d{2})/i, key: 'ungraded' },
   ];
   for (const { rx, key } of labelPatterns) {
-    if (out[key]) continue;
     const m = html.match(rx);
     if (m) {
       const n = parsePrice(m[1]);
@@ -797,4 +789,3 @@ async function handleDiag(inputCards: DiagCardInput[] | null): Promise<Response>
 
   return json({ source: 'diag', generated_at: new Date().toISOString(), cards: report });
 }
-// redeploy trigger 1777025631
