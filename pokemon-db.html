@@ -1098,7 +1098,7 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
     <button class="nav-btn" onclick="showTab('dash')">📊 Dashboard</button>
     <button class="nav-btn" onclick="showTab('vend')">💸 Vendite</button>
     <button class="nav-btn" onclick="showTab('wish')">⭐ Wishlist</button>
-    <button class="nav-btn" onclick="showTab('hunt')">🎯 Hunter</button>
+    <button class="nav-btn" onclick="showTab('hunt')">📡 Radar</button>
   </nav>
   <div class="led-wrap">
     <div class="led checking" id="apiLed"></div>
@@ -8110,107 +8110,281 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
 </div>
 
 <!-- ════════════════════════════════════════════════════════════
-     🎯 TAB HUNTER — scouting inserzioni multi-portale
+     📡 TAB RADAR — scouting inserzioni multi-portale
+     (id + funzioni interne mantengono prefisso hunt* per
+      retrocompatibilità con userscript/Supabase Realtime)
      ════════════════════════════════════════════════════════════ -->
 <div class="tab" id="tab-hunt" style="display:none;flex-direction:column;overflow:hidden">
-  <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-    <div style="font-size:18px;font-weight:600">🎯 Hunter</div>
-    <div style="font-size:11px;color:var(--muted)">scouting inserzioni multi-portale · alert · report</div>
-    <div style="flex:1"></div>
-    <button class="btn btn-primary" onclick="huntOpenAddTarget()" style="font-size:12px">+ Nuovo target</button>
-    <button class="btn" onclick="huntOpenAdminPanel()" style="font-size:12px">⚙ Canali notifica</button>
-    <button class="btn" onclick="huntScanAll()" title="Apre tutti i portali nelle nuove tab per scan manuale" style="font-size:12px">🔍 Scan tutto</button>
+
+  <!-- Stats strip -->
+  <div class="rad-stats">
+    <div class="rad-stat"><div class="rad-stat-val" id="radStatListings">—</div><div class="rad-stat-lbl">Inserzioni attive</div></div>
+    <div class="rad-stat"><div class="rad-stat-val" id="radStatHot" style="color:var(--danger)">—</div><div class="rad-stat-lbl">🔥 Hot deal</div></div>
+    <div class="rad-stat"><div class="rad-stat-val" id="radStatAuctions" style="color:var(--warning)">—</div><div class="rad-stat-lbl">Aste ≤24h</div></div>
+    <div class="rad-stat"><div class="rad-stat-val" id="radStatTargets">—</div><div class="rad-stat-lbl">Target attivi</div></div>
+    <div class="rad-stat"><div class="rad-stat-val" id="radStatRules">—</div><div class="rad-stat-lbl">Regole alert</div></div>
   </div>
 
-  <!-- Sub-nav: Feed | Targets | Alerts | Admin -->
-  <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;gap:6px;flex-wrap:wrap">
-    <button class="hunt-subtab active" data-sub="feed"     onclick="huntShowSub('feed')">🔥 Feed opportunità <span id="huntFeedCount" style="opacity:.6"></span></button>
-    <button class="hunt-subtab"        data-sub="targets"  onclick="huntShowSub('targets')">🎯 Target <span id="huntTargetsCount" style="opacity:.6"></span></button>
-    <button class="hunt-subtab"        data-sub="auctions" onclick="huntShowSub('auctions')">⏰ Aste in scadenza</button>
-    <button class="hunt-subtab"        data-sub="alerts"   onclick="huntShowSub('alerts')">🔔 Regole alert</button>
-    <button class="hunt-subtab"        data-sub="arbitrage" onclick="huntShowSub('arbitrage')">💹 Arbitraggio</button>
-    <button class="hunt-subtab"        data-sub="report"   onclick="huntShowSub('report')">📊 Report</button>
-  </div>
+  <div class="rad-layout">
 
-  <!-- Filtri portale -->
-  <div id="huntPlatformFilter" style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-    <span style="font-size:11px;color:var(--muted);margin-right:4px">Filtra:</span>
-    <button class="hunt-pf-btn active" data-pf="all"        onclick="huntSetPlatform('all')">Tutti</button>
-    <button class="hunt-pf-btn"        data-pf="ebay"       onclick="huntSetPlatform('ebay')">eBay</button>
-    <button class="hunt-pf-btn"        data-pf="catawiki"   onclick="huntSetPlatform('catawiki')">Catawiki</button>
-    <button class="hunt-pf-btn"        data-pf="subito"     onclick="huntSetPlatform('subito')">Subito</button>
-    <button class="hunt-pf-btn"        data-pf="vinted"     onclick="huntSetPlatform('vinted')">Vinted</button>
-    <button class="hunt-pf-btn"        data-pf="tcgplayer"  onclick="huntSetPlatform('tcgplayer')">TCGPlayer</button>
-  </div>
+    <!-- ═══ SIDEBAR ═══ -->
+    <div class="rad-sidebar">
 
-  <!-- CONTENITORI SUBTAB -->
-  <div id="huntSub-feed" class="hunt-sub" style="flex:1;overflow:auto;padding:14px 16px">
-    <div id="huntFeedList"></div>
-    <div id="huntFeedEmpty" style="text-align:center;padding:40px 20px;color:var(--muted);display:none">
-      <div style="font-size:32px;margin-bottom:10px">🎯</div>
-      <div style="font-size:14px">Nessuna opportunità ancora rilevata</div>
-      <div style="font-size:11px;margin-top:6px">Aggiungi un target e avvia scan sui portali</div>
+      <!-- Quick: nuovo target -->
+      <div class="rad-sidebar-block">
+        <h3>🎯 Nuovo target</h3>
+        <div class="rad-form-field">
+          <label>Nome carta *</label>
+          <input type="text" id="radQuickName" placeholder="es. Charizard"/>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <div class="rad-form-field">
+            <label>Numero</label>
+            <input type="text" id="radQuickNum" placeholder="4/102"/>
+          </div>
+          <div class="rad-form-field">
+            <label>Set</label>
+            <input type="text" id="radQuickSet" placeholder="Base Set"/>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <div class="rad-form-field">
+            <label>Grading</label>
+            <select id="radQuickGrader"><option value="">—</option><option>PSA</option><option>BGS</option><option>CGC</option><option>ACE</option></select>
+          </div>
+          <div class="rad-form-field">
+            <label>Grade min</label>
+            <select id="radQuickGrade"><option value="">—</option><option>10</option><option>9.5</option><option>9</option><option>8</option></select>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="radQuickAddTarget()" style="width:100%;margin-top:4px;font-size:12px">+ Crea target</button>
+        <button class="btn" onclick="huntOpenAddTarget()" style="width:100%;margin-top:6px;font-size:11px">↗ Form completo (con prezzo ref + keywords)</button>
+        <div id="radQuickStatus" style="margin-top:6px;font-size:11px;color:var(--text-muted);min-height:14px"></div>
+      </div>
+
+      <!-- Quick: monitora URL asta manuale -->
+      <div class="rad-sidebar-block">
+        <h3>🔗 Monitora asta manuale</h3>
+        <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;line-height:1.4">Incolla URL Catawiki o eBay da tenere d'occhio. Verrà mostrata in "Aste attive".</div>
+        <div class="rad-form-field">
+          <label>URL annuncio *</label>
+          <input type="text" id="radWatchUrl" placeholder="https://www.catawiki.com/..."/>
+        </div>
+        <div class="rad-form-field">
+          <label>Titolo/Nota</label>
+          <input type="text" id="radWatchTitle" placeholder="es. Charizard PSA 9"/>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <div class="rad-form-field">
+            <label>Prezzo €</label>
+            <input type="number" id="radWatchPrice" step="0.01" placeholder="0.00"/>
+          </div>
+          <div class="rad-form-field">
+            <label>Fine asta</label>
+            <input type="datetime-local" id="radWatchEnd"/>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="radWatchSubmit()" style="width:100%;margin-top:4px;font-size:12px">+ Aggiungi in watchlist</button>
+        <div id="radWatchStatus" style="margin-top:6px;font-size:11px;color:var(--text-muted);min-height:14px"></div>
+      </div>
+
+      <!-- Actions -->
+      <div class="rad-sidebar-block rad-sidebar-actions">
+        <button class="btn" onclick="huntOpenAdminPanel()" style="width:100%;font-size:12px">⚙ Canali notifica</button>
+        <button class="btn" onclick="radOpenAddRuleModal()" style="width:100%;margin-top:6px;font-size:12px">🔔 Nuova regola alert</button>
+        <button class="btn" onclick="radScanMenu()" style="width:100%;margin-top:6px;font-size:12px">🔍 Apri portali (scan)</button>
+      </div>
     </div>
-  </div>
 
-  <div id="huntSub-targets" class="hunt-sub" style="flex:1;overflow:auto;padding:14px 16px;display:none">
-    <div id="huntTargetsList"></div>
-  </div>
+    <!-- ═══ MAIN ═══ -->
+    <div class="rad-main">
 
-  <div id="huntSub-auctions" class="hunt-sub" style="flex:1;overflow:auto;padding:14px 16px;display:none">
-    <div id="huntAuctionsList"></div>
-  </div>
+      <!-- Sub-nav + filtro piattaforma -->
+      <div class="rad-toolbar">
+        <div class="rad-subtabs">
+          <button class="rad-subtab active" data-sub="feed"     onclick="huntShowSub('feed')">🔥 Feed <span id="huntFeedCount"></span></button>
+          <button class="rad-subtab"        data-sub="auctions" onclick="huntShowSub('auctions')">⏰ Aste</button>
+          <button class="rad-subtab"        data-sub="targets"  onclick="huntShowSub('targets')">🎯 Target <span id="huntTargetsCount"></span></button>
+          <button class="rad-subtab"        data-sub="alerts"   onclick="huntShowSub('alerts')">🔔 Regole</button>
+          <button class="rad-subtab"        data-sub="report"   onclick="huntShowSub('report')">📊 Report</button>
+        </div>
+        <div id="huntPlatformFilter" class="rad-pf-filter">
+          <button class="rad-pf-btn active" data-pf="all"        onclick="huntSetPlatform('all')">Tutti</button>
+          <button class="rad-pf-btn"        data-pf="ebay"       onclick="huntSetPlatform('ebay')">eBay</button>
+          <button class="rad-pf-btn"        data-pf="catawiki"   onclick="huntSetPlatform('catawiki')">Catawiki</button>
+          <button class="rad-pf-btn"        data-pf="subito"     onclick="huntSetPlatform('subito')">Subito</button>
+          <button class="rad-pf-btn"        data-pf="vinted"     onclick="huntSetPlatform('vinted')">Vinted</button>
+          <button class="rad-pf-btn"        data-pf="tcgplayer"  onclick="huntSetPlatform('tcgplayer')">TCG</button>
+          <span style="flex:1"></span>
+          <label style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-muted);cursor:pointer"><input type="checkbox" id="radArbOnly" onchange="huntRenderAll()" style="margin:0"/> solo arbitraggio</label>
+        </div>
+      </div>
 
-  <div id="huntSub-alerts" class="hunt-sub" style="flex:1;overflow:auto;padding:14px 16px;display:none">
-    <div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
-      <div style="font-size:13px;color:var(--muted)">Regole che decidono quando inviarti una notifica</div>
-      <button class="btn btn-primary" onclick="huntOpenAddRule()" style="font-size:12px">+ Nuova regola</button>
-    </div>
-    <div id="huntAlertRulesList"></div>
-  </div>
+      <!-- FEED -->
+      <div id="huntSub-feed" class="rad-sub rad-sub-active">
+        <div id="huntFeedList"></div>
+        <div id="huntFeedEmpty" class="rad-empty" style="display:none">
+          <div class="rad-empty-icon">📡</div>
+          <div class="rad-empty-title">Radar in ascolto</div>
+          <div class="rad-empty-sub">Nessuna inserzione ancora raccolta per i tuoi target.</div>
+          <div class="rad-onboarding">
+            <div class="rad-ob-step"><span class="rad-ob-num">1</span> Crea un <b>target</b> dalla sidebar (es. Charizard PSA 10).</div>
+            <div class="rad-ob-step"><span class="rad-ob-num">2</span> Installa lo userscript <code>rareblock-hunter-scraper.user.js</code> in Tampermonkey.</div>
+            <div class="rad-ob-step"><span class="rad-ob-num">3</span> Clicca <b>🔍 Apri portali</b> e naviga eBay/Subito/Vinted: lo scraper manda qui le inserzioni.</div>
+            <div class="rad-ob-step"><span class="rad-ob-num">4</span> Per Catawiki (niente scraper) → usa <b>🔗 Monitora asta manuale</b> incollando l'URL.</div>
+          </div>
+        </div>
+      </div>
 
-  <div id="huntSub-arbitrage" class="hunt-sub" style="flex:1;overflow:auto;padding:14px 16px;display:none">
-    <div style="margin-bottom:10px;font-size:13px;color:var(--muted)">Carte con stesso target su più portali con delta prezzo ≥20%. Occasioni di arbitraggio: compra basso, rivendi alto.</div>
-    <div id="huntArbitrageList"></div>
-  </div>
+      <!-- ASTE -->
+      <div id="huntSub-auctions" class="rad-sub" style="display:none">
+        <div style="margin-bottom:10px;font-size:12px;color:var(--text-muted)">Aste con countdown (scraped + monitorate manualmente). Ordinate per scadenza più vicina.</div>
+        <div id="huntAuctionsList"></div>
+      </div>
 
-  <div id="huntSub-report" class="hunt-sub" style="flex:1;overflow:auto;padding:14px 16px;display:none">
-    <div id="huntReportSummary"></div>
-    <div style="margin-top:16px">
-      <h3 style="font-size:14px;margin-bottom:8px">Ultimi 20 alert inviati</h3>
-      <div id="huntAlertLog"></div>
+      <!-- TARGET -->
+      <div id="huntSub-targets" class="rad-sub" style="display:none">
+        <div id="huntTargetsList"></div>
+      </div>
+
+      <!-- REGOLE ALERT -->
+      <div id="huntSub-alerts" class="rad-sub" style="display:none">
+        <div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <div style="font-size:12px;color:var(--text-muted)">Regole che decidono quando inviarti una notifica.</div>
+          <button class="btn btn-primary" onclick="radOpenAddRuleModal()" style="font-size:12px">+ Nuova regola</button>
+        </div>
+        <div id="huntAlertRulesList"></div>
+      </div>
+
+      <!-- REPORT -->
+      <div id="huntSub-report" class="rad-sub" style="display:none">
+        <div id="huntReportSummary"></div>
+        <div style="margin-top:20px">
+          <h3 style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Ultimi alert</h3>
+          <div id="huntAlertLog" style="font-size:12px;color:var(--text-muted)">—</div>
+        </div>
+      </div>
+
+      <!-- ARBITRAGGIO legacy container (non visibile come sub-tab, ma referenziato se viene attivato) -->
+      <div id="huntSub-arbitrage" class="rad-sub" style="display:none">
+        <div id="huntArbitrageList"></div>
+      </div>
     </div>
   </div>
 </div>
-<!-- ════════════════════ FINE TAB HUNTER ════════════════════ -->
+<!-- ════════════════════ FINE TAB RADAR ════════════════════ -->
 
 
 <style>
-.hunt-subtab{background:var(--bg);border:1px solid var(--border);color:var(--fg);padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;transition:.15s}
-.hunt-subtab:hover{border-color:var(--accent)}
-.hunt-subtab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-.hunt-pf-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:14px;font-size:11px;cursor:pointer;transition:.15s}
-.hunt-pf-btn:hover{border-color:var(--accent);color:var(--fg)}
-.hunt-pf-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
-.hunt-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;display:flex;gap:14px;align-items:flex-start;transition:.15s}
-.hunt-card:hover{border-color:var(--accent)}
-.hunt-card.score-hot{border-left:4px solid #ff4444}
-.hunt-card.score-high{border-left:4px solid #ff9500}
-.hunt-card.score-mid{border-left:4px solid #ffcc00}
-.hunt-score-badge{position:absolute;top:8px;right:8px;background:#000;color:#fff;font-weight:700;font-size:16px;padding:4px 10px;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
-.hunt-platform-chip{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
-.hunt-pf-ebay{background:#e53238;color:#fff}
-.hunt-pf-catawiki{background:#144b9c;color:#fff}
-.hunt-pf-subito{background:#ff6700;color:#fff}
-.hunt-pf-vinted{background:#007782;color:#fff}
-.hunt-pf-tcgplayer{background:#EB7D1B;color:#fff}
-.hunt-pf-other{background:#777;color:#fff}
-.hunt-target{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px}
-.hunt-target-title{font-weight:600;font-size:13px;margin-bottom:4px}
-.hunt-target-attrs{font-size:11px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap}
-.hunt-target-attr{background:var(--bg);border:1px solid var(--border);padding:2px 6px;border-radius:4px}
-.hunt-countdown{font-variant-numeric:tabular-nums;font-weight:600;color:#ff4444}
+/* ═══ RADAR (ex Hunter) ═══ */
+#tab-hunt{background:var(--bg);min-height:0}
+.rad-stats{display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)}
+.rad-stat{flex:1;padding:10px 12px;text-align:center;border-right:1px solid var(--border)}
+.rad-stat:last-child{border-right:none}
+.rad-stat-val{font-size:16px;font-weight:600;font-family:var(--mono)}
+.rad-stat-lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+
+.rad-layout{display:flex;flex:1;overflow:hidden;min-height:0}
+.rad-sidebar{width:290px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);overflow-y:auto;display:flex;flex-direction:column}
+.rad-sidebar-block{padding:14px;border-bottom:1px solid var(--border)}
+.rad-sidebar-block h3{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin:0 0 10px 0}
+.rad-sidebar-actions{margin-top:auto}
+.rad-form-field{margin-bottom:7px}
+.rad-form-field label{display:block;font-size:10px;color:var(--text-muted);margin-bottom:3px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em}
+.rad-form-field input,.rad-form-field select{width:100%;font-size:12px;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);outline:none;height:30px;box-sizing:border-box}
+.rad-form-field input:focus,.rad-form-field select:focus{border-color:var(--accent)}
+
+.rad-main{flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.rad-toolbar{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px;background:var(--surface);flex-shrink:0}
+.rad-subtabs{display:flex;gap:4px;flex-wrap:wrap}
+.rad-subtab{background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:5px 11px;border-radius:var(--r);font-size:12px;cursor:pointer;transition:.12s;font-family:var(--font)}
+.rad-subtab:hover{border-color:var(--accent);color:var(--text)}
+.rad-subtab.active{background:var(--accent);color:#0d1117;border-color:var(--accent);font-weight:600}
+.rad-subtab span{opacity:.7;font-size:10px;margin-left:3px}
+.rad-pf-filter{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.rad-pf-btn{background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:3px 9px;border-radius:12px;font-size:10px;cursor:pointer;transition:.12s;font-family:var(--mono);letter-spacing:.03em}
+.rad-pf-btn:hover{border-color:var(--accent);color:var(--text)}
+.rad-pf-btn.active{background:var(--accent);border-color:var(--accent);color:#0d1117;font-weight:600}
+
+.rad-sub{flex:1;overflow-y:auto;padding:14px 16px;display:none}
+.rad-sub.rad-sub-active{display:block}
+
+.rad-empty{text-align:center;padding:50px 24px;color:var(--text-muted)}
+.rad-empty-icon{font-size:40px;margin-bottom:10px;opacity:.7}
+.rad-empty-title{font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px}
+.rad-empty-sub{font-size:12px;margin-bottom:18px}
+.rad-onboarding{max-width:500px;margin:0 auto;text-align:left;display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.rad-ob-step{font-size:12px;color:var(--text);line-height:1.5;display:flex;align-items:flex-start;gap:10px}
+.rad-ob-num{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#0d1117;font-weight:600;display:flex;align-items:center;justify-content:center;font-size:11px;font-family:var(--mono)}
+.rad-ob-step code{font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 5px}
+
+/* CARD listing (inserzione) */
+.rad-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;position:relative;transition:border-color .15s}
+.rad-card:hover{border-color:var(--accent)}
+.rad-card.score-hot{border-left:3px solid var(--danger)}
+.rad-card.score-high{border-left:3px solid var(--warning)}
+.rad-card.score-mid{border-left:3px solid #ffcc00}
+.rad-card.manual-watch{border-left:3px solid #0088ff;background:rgba(0,136,255,.03)}
+.rad-score-badge{position:absolute;top:8px;right:8px;color:#fff;font-weight:700;font-size:13px;padding:3px 8px;border-radius:10px;font-family:var(--mono);letter-spacing:.02em}
+.rad-card-img{width:64px;height:86px;object-fit:cover;border-radius:4px;border:1px solid var(--border);flex-shrink:0;background:var(--surface2)}
+.rad-card-img-ph{width:64px;height:86px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text-subtle);flex-shrink:0}
+.rad-card-body{flex:1;min-width:0;padding-right:44px}
+.rad-card-head{display:flex;gap:6px;align-items:center;margin-bottom:5px;flex-wrap:wrap}
+.rad-card-title{font-size:13px;line-height:1.35;margin-bottom:6px;font-weight:500}
+.rad-card-meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--text-muted)}
+.rad-card-price{font-weight:700;font-size:15px;color:var(--text);font-family:var(--mono)}
+.rad-card-reasons{margin-top:6px;display:flex;gap:3px;flex-wrap:wrap}
+.rad-card-reason{font-size:9px;background:var(--surface2);padding:1px 6px;border-radius:3px;color:var(--text-muted);font-family:var(--mono);letter-spacing:.03em;text-transform:uppercase}
+.rad-card-actions{display:flex;flex-direction:column;gap:4px;flex-shrink:0}
+.rad-pf-chip{display:inline-block;padding:2px 7px;border-radius:3px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;font-family:var(--mono)}
+.rad-pf-ebay{background:#e53238;color:#fff}
+.rad-pf-catawiki{background:#144b9c;color:#fff}
+.rad-pf-subito{background:#ff6700;color:#fff}
+.rad-pf-vinted{background:#007782;color:#fff}
+.rad-pf-tcgplayer{background:#EB7D1B;color:#fff}
+.rad-pf-other{background:#777;color:#fff}
+.rad-pf-auction{background:#aa00aa;color:#fff}
+.rad-pf-manual{background:#0088ff;color:#fff}
+.rad-countdown{font-variant-numeric:tabular-nums;font-weight:600;color:var(--danger);font-family:var(--mono)}
+.rad-delta-pos{color:var(--success);font-weight:600}
+.rad-delta-neg{color:var(--danger);font-weight:600}
+
+/* CARD target */
+.rad-target{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:8px}
+.rad-target-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px}
+.rad-target-title{font-size:13px;font-weight:600}
+.rad-target-attrs{font-size:11px;color:var(--text-muted);display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+.rad-target-attr{background:var(--surface2);border:1px solid var(--border);padding:1px 7px;border-radius:3px;font-family:var(--mono);font-size:10px}
+.rad-target-links{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
+.rad-target-links a{font-size:10px;padding:3px 9px;border-radius:3px;text-decoration:none;font-family:var(--mono);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+
+/* Rule card */
+.rad-rule{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:8px}
+
+/* Arbitrage */
+.rad-arb{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--success);border-radius:var(--r);padding:12px;margin-bottom:10px;position:relative}
+.rad-arb-roi{position:absolute;top:8px;right:10px;background:var(--success);color:#0d1117;font-weight:700;font-size:12px;padding:3px 9px;border-radius:10px;font-family:var(--mono)}
+.rad-arb-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.rad-arb-side{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:10px}
+.rad-arb-side.buy{border-color:var(--success)}
+.rad-arb-side.sell{border-color:var(--warning)}
+
 @keyframes rbSlideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* Modal generico radar */
+.rad-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px}
+.rad-modal{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;max-width:480px;width:100%;max-height:90vh;overflow:auto}
+.rad-modal h3{margin:0 0 14px 0;font-size:14px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.rad-modal-close{background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;line-height:1;padding:0 4px}
+.rad-modal .rad-form-field{margin-bottom:10px}
+
+/* Responsive */
+@media (max-width: 900px){
+  .rad-layout{flex-direction:column}
+  .rad-sidebar{width:100%;max-height:none;border-right:none;border-bottom:1px solid var(--border)}
+  .rad-stats{flex-wrap:wrap}
+  .rad-stat{min-width:33%}
+}
 </style>
 
 
@@ -10239,6 +10413,7 @@ function huntStartRealtime(){
 function huntHandleNewListing(rec){
   // evita duplicato se già in lista
   if(_huntState.listings.some(function(x){return x.id===rec.id;})) return;
+  if(rec.deal_reasons && rec.deal_reasons.indexOf('manual_watch')>=0) rec.is_manual_watch = true;
   _huntState.listings.unshift(rec);
   huntRenderAll();
 
@@ -10312,6 +10487,7 @@ async function huntLoadAll(){
     _huntState.listings = lRes || [];
     _huntState.rules    = rRes || [];
     _huntState.config   = (cRes && cRes[0]) || null;
+    radDecorateManualListings();
   }catch(e){
     console.error('huntLoadAll:', e);
   }
@@ -10320,21 +10496,23 @@ async function huntLoadAll(){
 // ── RENDER ──────────────────────────────────────────────────────────────
 function huntShowSub(sub){
   _huntState.subtab = sub;
-  document.querySelectorAll('.hunt-subtab').forEach(function(b){
+  document.querySelectorAll('.rad-subtab').forEach(function(b){
     b.classList.toggle('active', b.getAttribute('data-sub')===sub);
   });
-  document.querySelectorAll('.hunt-sub').forEach(function(d){
-    d.style.display = (d.id==='huntSub-'+sub) ? 'block' : 'none';
+  document.querySelectorAll('.rad-sub').forEach(function(d){
+    var on = (d.id==='huntSub-'+sub);
+    d.classList.toggle('rad-sub-active', on);
+    d.style.display = on ? 'block' : 'none';
   });
-  document.getElementById('huntPlatformFilter').style.display =
-    (sub==='feed' || sub==='auctions') ? 'flex' : 'none';
+  var pfFilter = document.getElementById('huntPlatformFilter');
+  if(pfFilter) pfFilter.style.display = (sub==='feed' || sub==='auctions') ? 'flex' : 'none';
   huntRenderAll();
 }
 window.huntShowSub = huntShowSub;
 
 function huntSetPlatform(pf){
   _huntState.platform = pf;
-  document.querySelectorAll('.hunt-pf-btn').forEach(function(b){
+  document.querySelectorAll('.rad-pf-btn').forEach(function(b){
     b.classList.toggle('active', b.getAttribute('data-pf')===pf);
   });
   huntRenderAll();
@@ -10348,11 +10526,31 @@ function huntRenderAll(){
   huntRenderAlertRules();
   huntRenderArbitrage();
   huntRenderReport();
-  // Contatori
+  huntRenderStatsStrip();
+  // Contatori sub-tab
   var fc = document.getElementById('huntFeedCount');
   if(fc) fc.textContent = _huntState.listings.length ? '('+_huntState.listings.length+')' : '';
   var tc = document.getElementById('huntTargetsCount');
   if(tc) tc.textContent = _huntState.targets.length ? '('+_huntState.targets.length+')' : '';
+}
+
+function huntRenderStatsStrip(){
+  var sL = document.getElementById('radStatListings'); if(sL) sL.textContent = _huntState.listings.length;
+  var sH = document.getElementById('radStatHot');
+  if(sH) sH.textContent = _huntState.listings.filter(function(l){return (l.deal_score||0)>=80;}).length;
+  var sA = document.getElementById('radStatAuctions');
+  if(sA){
+    var now = Date.now();
+    sA.textContent = _huntState.listings.filter(function(l){
+      if(!l.auction_ends_at) return false;
+      var ms = new Date(l.auction_ends_at) - now;
+      return ms>0 && ms < 24*3600000;
+    }).length;
+  }
+  var sT = document.getElementById('radStatTargets');
+  if(sT) sT.textContent = _huntState.targets.filter(function(t){return t.is_active;}).length;
+  var sR = document.getElementById('radStatRules');
+  if(sR) sR.textContent = _huntState.rules.filter(function(r){return r.is_active;}).length;
 }
 
 function huntRenderFeed(){
@@ -10360,9 +10558,17 @@ function huntRenderFeed(){
   var empty = document.getElementById('huntFeedEmpty');
   if(!host) return;
   var pf = _huntState.platform;
+  var arbOnly = document.getElementById('radArbOnly');
+  var arbActive = arbOnly && arbOnly.checked;
   var list = _huntState.listings.filter(function(l){
     return pf==='all' || l.platform===pf;
   });
+  // Modalità "solo arbitraggio": mostra solo carte che hanno offerte su 2+ portali
+  if(arbActive){
+    var byTid = {};
+    list.forEach(function(l){ if(l.target_id){(byTid[l.target_id]=byTid[l.target_id]||new Set()).add(l.platform);} });
+    list = list.filter(function(l){ return l.target_id && byTid[l.target_id] && byTid[l.target_id].size >= 2; });
+  }
   if(!list.length){
     host.innerHTML = '';
     if(empty) empty.style.display = 'block';
@@ -10375,43 +10581,58 @@ function huntRenderFeed(){
 function huntListingCardHtml(l){
   var t = _huntState.targets.find(function(x){ return x.id===l.target_id; });
   var score = l.deal_score || 0;
-  var scoreClass = score>=80 ? 'score-hot' : (score>=60 ? 'score-high' : (score>=40 ? 'score-mid' : ''));
+  var isManual = !!l.is_manual_watch;
+  var scoreClass = isManual ? 'manual-watch'
+                 : (score>=80 ? 'score-hot' : (score>=60 ? 'score-high' : (score>=40 ? 'score-mid' : '')));
   var pfLabel = (HUNT_PLATFORMS.find(function(p){return p.id===l.platform;})||{}).label || l.platform;
-  var priceStr = l.price ? (l.currency||'€') + l.price.toFixed(2) : '—';
+  var priceStr = l.price ? (l.currency||'€') + Number(l.price).toFixed(2) : '—';
   var discStr = '';
   if(t && t.ref_price_cm && l.price){
     var d = ((t.ref_price_cm - l.price) / t.ref_price_cm * 100);
-    discStr = (d>0 ? '-' : '+') + Math.abs(d).toFixed(0)+'% vs CM';
+    var cls = d>0 ? 'rad-delta-pos' : 'rad-delta-neg';
+    discStr = '<span class="'+cls+'">'+(d>0 ? '-' : '+') + Math.abs(d).toFixed(0)+'% vs CM</span>';
   }
   var countdownStr = '';
   if(l.auction_ends_at){
-    countdownStr = '<span class="hunt-countdown">⏰ fine '+huntFmtCountdown(l.auction_ends_at)+'</span>';
+    countdownStr = '<span class="rad-countdown">⏰ '+huntFmtCountdown(l.auction_ends_at)+'</span>';
   }
-  return '<div class="hunt-card '+scoreClass+'" style="position:relative">'
-    +'<div class="hunt-score-badge" style="background:'+huntScoreColor(score)+'">'+score+'</div>'
-    +(l.image_url ? '<img src="'+l.image_url+'" style="width:80px;height:100px;object-fit:cover;border-radius:6px"/>' : '')
-    +'<div style="flex:1;min-width:0">'
-    +'  <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">'
-    +'    <span class="hunt-platform-chip hunt-pf-'+l.platform+'">'+pfLabel+'</span>'
-    +(l.listing_type==='auction' ? '<span class="hunt-platform-chip" style="background:#aa00aa;color:#fff">ASTA</span>' : '')
-    +(t ? '<span style="font-size:11px;color:var(--muted)">target: '+escapeHtml(t.card_name)+'</span>' : '')
+  var imgHtml = l.image_url
+    ? '<img class="rad-card-img" src="'+l.image_url+'" loading="lazy"/>'
+    : '<div class="rad-card-img-ph">🎴</div>';
+  var badge = !isManual
+    ? '<div class="rad-score-badge" style="background:'+huntScoreColor(score)+'">'+score+'</div>'
+    : '<div class="rad-score-badge" style="background:#0088ff">WATCH</div>';
+
+  return '<div class="rad-card '+scoreClass+'">'
+    + badge
+    + imgHtml
+    +'<div class="rad-card-body">'
+    +'  <div class="rad-card-head">'
+    +'    <span class="rad-pf-chip rad-pf-'+l.platform+'">'+pfLabel+'</span>'
+    +(l.listing_type==='auction' ? '<span class="rad-pf-chip rad-pf-auction">ASTA</span>' : '')
+    +(isManual ? '<span class="rad-pf-chip rad-pf-manual">MANUALE</span>' : '')
+    +(t ? '<span style="font-size:10px;color:var(--text-muted);font-family:var(--mono)">→ '+escapeHtml(t.card_name)+'</span>' : '')
     +'  </div>'
-    +'  <div style="font-size:13px;margin-bottom:6px;line-height:1.3">'+escapeHtml(l.title||'(senza titolo)')+'</div>'
-    +'  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:12px">'
-    +'    <span style="font-weight:700;font-size:15px">'+priceStr+'</span>'
-    +(discStr ? '<span style="color:'+(discStr[0]==='-'?'#00c853':'#ff4444')+'">'+discStr+'</span>' : '')
+    +'  <div class="rad-card-title">'+escapeHtml(l.title||'(senza titolo)')+'</div>'
+    +'  <div class="rad-card-meta">'
+    +'    <span class="rad-card-price">'+priceStr+'</span>'
+    + discStr
     +(l.bid_count!=null ? '<span>🔨 '+l.bid_count+' off.</span>' : '')
     +'    '+countdownStr
-    +(l.seller_rating ? '<span style="color:var(--muted)">⭐ '+l.seller_rating+'</span>' : '')
+    +(l.seller_rating ? '<span>⭐ '+l.seller_rating+'</span>' : '')
     +'  </div>'
-    +(l.deal_reasons && l.deal_reasons.length ? '<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">'
-        +l.deal_reasons.map(function(r){ return '<span style="font-size:10px;background:var(--bg);padding:2px 6px;border-radius:3px;color:var(--muted)">'+r+'</span>'; }).join('')
-        +'</div>' : '')
+    +(l.deal_reasons && l.deal_reasons.length
+      ? '<div class="rad-card-reasons">'
+        + l.deal_reasons.map(function(r){ return '<span class="rad-card-reason">'+r+'</span>'; }).join('')
+        + '</div>'
+      : '')
     +'</div>'
-    +'<div style="display:flex;flex-direction:column;gap:4px">'
+    +'<div class="rad-card-actions">'
     +'  <a class="btn btn-primary" href="'+l.listing_url+'" target="_blank" style="font-size:11px;text-decoration:none;text-align:center">Apri →</a>'
-    +'  <button class="btn" onclick="huntMarkStatus(\''+l.id+'\',\'watched\')" style="font-size:11px">👁 Watch</button>'
-    +'  <button class="btn" onclick="huntMarkStatus(\''+l.id+'\',\'dismissed\')" style="font-size:11px">✖ Nascondi</button>'
+    +(isManual
+       ? '<button class="btn" onclick="huntMarkStatus(\''+l.id+'\',\'dismissed\')" style="font-size:11px">🗑 Rimuovi</button>'
+       : '<button class="btn" onclick="huntMarkStatus(\''+l.id+'\',\'watched\')" style="font-size:11px">👁 Watch</button>'
+         +'<button class="btn" onclick="huntMarkStatus(\''+l.id+'\',\'dismissed\')" style="font-size:11px">✖ Nascondi</button>')
     +'</div>'
     +'</div>';
 }
@@ -10437,10 +10658,11 @@ function huntRenderTargets(){
   var host = document.getElementById('huntTargetsList');
   if(!host) return;
   if(!_huntState.targets.length){
-    host.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">'
-      +'<div style="font-size:32px;margin-bottom:10px">🎯</div>'
-      +'<div style="font-size:14px">Nessun target configurato</div>'
-      +'<button class="btn btn-primary" onclick="huntOpenAddTarget()" style="margin-top:12px">+ Aggiungi il primo</button>'
+    host.innerHTML = '<div class="rad-empty">'
+      +'<div class="rad-empty-icon">🎯</div>'
+      +'<div class="rad-empty-title">Nessun target configurato</div>'
+      +'<div class="rad-empty-sub">Crea il primo target dalla sidebar oppure usa il form completo.</div>'
+      +'<button class="btn btn-primary" onclick="huntOpenAddTarget()" style="margin-top:6px">+ Nuovo target (form completo)</button>'
       +'</div>';
     return;
   }
@@ -10456,33 +10678,28 @@ function huntTargetCardHtml(t){
   if(t.shadowless) attrs.push('Shadowless');
   if(t.language && t.language!=='ANY') attrs.push(t.language);
   if(t.variant && t.variant!=='Normal') attrs.push(t.variant);
+  if(t.ref_price_cm) attrs.push('CM €'+Number(t.ref_price_cm).toFixed(2));
 
   var urls = HUNT_URL_BUILDERS.all(t);
   var btns = HUNT_PLATFORMS.map(function(p){
-    return '<a class="btn" target="_blank" href="'+urls[p.id]+'" style="font-size:11px;text-decoration:none">'+p.icon+' '+p.label+'</a>';
+    return '<a class="rad-pf-chip rad-pf-'+p.id+'" target="_blank" href="'+urls[p.id]+'" style="text-decoration:none">'+p.icon+' '+p.label+'</a>';
   }).join('');
 
-  return '<div class="hunt-target">'
-    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">'
-    +'  <div style="flex:1">'
-    +'    <div class="hunt-target-title">'+escapeHtml(t.card_name)+'</div>'
-    +'    <div class="hunt-target-attrs">'
-          +attrs.map(function(a){return '<span class="hunt-target-attr">'+escapeHtml(a)+'</span>';}).join('')
+  return '<div class="rad-target" '+(t.is_active===false?'style="opacity:.55"':'')+'>'
+    +'<div class="rad-target-head">'
+    +'  <div style="flex:1;min-width:0">'
+    +'    <div class="rad-target-title">'+(t.is_active===false?'⏸ ':'')+escapeHtml(t.card_name)+'</div>'
+    +'    <div class="rad-target-attrs">'
+          +attrs.map(function(a){return '<span class="rad-target-attr">'+escapeHtml(a)+'</span>';}).join('')
     +'    </div>'
     +'  </div>'
-    +'  <div style="display:flex;gap:4px">'
-    +'    <button class="btn" onclick="huntEditTarget(\''+t.id+'\')" style="font-size:11px">✎</button>'
-    +'    <button class="btn" onclick="huntDeleteTarget(\''+t.id+'\')" style="font-size:11px">🗑</button>'
-    +'    <button class="btn" onclick="huntToggleTarget(\''+t.id+'\')" style="font-size:11px">'+(t.is_active?'⏸':'▶')+'</button>'
+    +'  <div style="display:flex;gap:4px;flex-shrink:0">'
+    +'    <button class="btn" onclick="huntEditTarget(\''+t.id+'\')" style="font-size:11px;padding:3px 8px" title="Modifica">✎</button>'
+    +'    <button class="btn" onclick="huntToggleTarget(\''+t.id+'\')" style="font-size:11px;padding:3px 8px" title="'+(t.is_active?'Pausa':'Attiva')+'">'+(t.is_active?'⏸':'▶')+'</button>'
+    +'    <button class="btn" onclick="huntDeleteTarget(\''+t.id+'\')" style="font-size:11px;padding:3px 8px" title="Elimina">🗑</button>'
     +'  </div>'
     +'</div>'
-    +'<div style="display:flex;gap:12px;font-size:11px;color:var(--muted);margin-bottom:8px">'
-    +(t.ref_price_cm ? '<span>Ref CM: <b style="color:var(--fg)">€'+t.ref_price_cm.toFixed(2)+'</b></span>' : '')
-    +(t.max_price ? '<span>Max: €'+t.max_price.toFixed(2)+'</span>' : '')
-    +(t.deal_threshold ? '<span>Soglia alert: '+t.deal_threshold+'</span>' : '')
-    +(t.total_found ? '<span>🎣 '+t.total_found+' trovate</span>' : '')
-    +'</div>'
-    +'<div style="display:flex;gap:6px;flex-wrap:wrap">'+btns+'</div>'
+    +'<div class="rad-target-links">'+btns+'</div>'
     +'</div>';
 }
 
@@ -10490,11 +10707,24 @@ function huntRenderAuctions(){
   var host = document.getElementById('huntAuctionsList');
   if(!host) return;
   var now = new Date();
+  // Include: aste scraped (listing_type=auction + auction_ends_at) + watch manuali con auction_ends_at
   var auctions = _huntState.listings
-    .filter(function(l){ return l.listing_type==='auction' && l.auction_ends_at && new Date(l.auction_ends_at)>now; })
+    .filter(function(l){
+      if(!l.auction_ends_at) return false;
+      if(new Date(l.auction_ends_at) < now) return false;
+      return l.listing_type==='auction' || l.is_manual_watch;
+    })
     .sort(function(a,b){ return new Date(a.auction_ends_at) - new Date(b.auction_ends_at); });
   if(!auctions.length){
-    host.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">Nessuna asta in scadenza</div>';
+    host.innerHTML = '<div class="rad-empty">'
+      +'<div class="rad-empty-icon">⏰</div>'
+      +'<div class="rad-empty-title">Nessuna asta attiva</div>'
+      +'<div class="rad-empty-sub">Le aste arrivano da due fonti:</div>'
+      +'<div class="rad-onboarding">'
+      +'<div class="rad-ob-step"><span class="rad-ob-num">A</span> <b>Automatiche</b>: userscript su eBay/Subito/Vinted → invia aste rilevate in tempo reale.</div>'
+      +'<div class="rad-ob-step"><span class="rad-ob-num">B</span> <b>Manuali</b>: incolla URL Catawiki o qualsiasi asta dalla <b>sidebar → 🔗 Monitora asta manuale</b>. Inserisci data fine e prezzo di partenza.</div>'
+      +'</div>'
+      +'</div>';
     return;
   }
   host.innerHTML = auctions.map(huntListingCardHtml).join('');
@@ -10504,8 +10734,12 @@ function huntRenderAlertRules(){
   var host = document.getElementById('huntAlertRulesList');
   if(!host) return;
   if(!_huntState.rules.length){
-    host.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">'
-      +'Nessuna regola attiva. Crea la prima per ricevere notifiche automatiche.</div>';
+    host.innerHTML = '<div class="rad-empty">'
+      +'<div class="rad-empty-icon">🔔</div>'
+      +'<div class="rad-empty-title">Nessuna regola attiva</div>'
+      +'<div class="rad-empty-sub">Crea regole per ricevere notifiche solo quando vale la pena.</div>'
+      +'<button class="btn btn-primary" onclick="radOpenAddRuleModal()">+ Prima regola</button>'
+      +'</div>';
     return;
   }
   host.innerHTML = _huntState.rules.map(function(r){
@@ -10519,16 +10753,16 @@ function huntRenderAlertRules(){
     if(r.channel_push) chans.push('🔔 push');
     if(r.channel_email) chans.push('📧 email');
     if(r.channel_telegram) chans.push('✈ Tg');
-    return '<div class="hunt-target">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
-      +'<div style="font-weight:600">'+(r.is_active?'🟢':'⚪ ')+escapeHtml(r.name)+'</div>'
-      +'<div style="display:flex;gap:4px">'
-      +'<button class="btn" onclick="huntToggleRule(\''+r.id+'\')" style="font-size:11px">'+(r.is_active?'⏸':'▶')+'</button>'
-      +'<button class="btn" onclick="huntDeleteRule(\''+r.id+'\')" style="font-size:11px">🗑</button>'
+    return '<div class="rad-rule">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px">'
+      +'<div style="font-weight:600;font-size:13px">'+(r.is_active?'🟢 ':'⚪ ')+escapeHtml(r.name)+'</div>'
+      +'<div style="display:flex;gap:4px;flex-shrink:0">'
+      +'<button class="btn" onclick="huntToggleRule(\''+r.id+'\')" style="font-size:11px;padding:3px 8px">'+(r.is_active?'⏸':'▶')+'</button>'
+      +'<button class="btn" onclick="huntDeleteRule(\''+r.id+'\')" style="font-size:11px;padding:3px 8px">🗑</button>'
       +'</div></div>'
-      +'<div style="font-size:11px;color:var(--muted)">Condizioni: '+(conds.join(' · ')||'nessuna')+'</div>'
-      +'<div style="font-size:11px;color:var(--muted);margin-top:3px">Canali: '+(chans.join(' ')||'nessuno')+'</div>'
-      +(r.fire_count ? '<div style="font-size:10px;color:var(--muted);margin-top:4px">Inviati: '+r.fire_count+'</div>' : '')
+      +'<div style="font-size:11px;color:var(--text-muted);font-family:var(--mono)">Se: '+(conds.join(' · ')||'qualunque match')+'</div>'
+      +'<div style="font-size:11px;color:var(--text-muted);font-family:var(--mono);margin-top:3px">Canali: '+(chans.join(' ')||'nessuno')+'</div>'
+      +(r.fire_count ? '<div style="font-size:10px;color:var(--text-subtle);margin-top:4px">Inviati finora: '+r.fire_count+'</div>' : '')
       +'</div>';
   }).join('');
 }
@@ -10566,10 +10800,10 @@ function huntRenderArbitrage(){
   opportunities.sort(function(a,b){ return b.deltaPct - a.deltaPct; });
 
   if(!opportunities.length){
-    host.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">'
-      +'<div style="font-size:32px;margin-bottom:10px">💹</div>'
-      +'<div style="font-size:14px">Nessuna opportunità di arbitraggio rilevata</div>'
-      +'<div style="font-size:11px;margin-top:6px">Servono inserzioni della stessa carta su almeno 2 portali con delta ≥20%</div>'
+    host.innerHTML = '<div class="rad-empty">'
+      +'<div class="rad-empty-icon">💹</div>'
+      +'<div class="rad-empty-title">Nessun arbitraggio rilevato</div>'
+      +'<div class="rad-empty-sub">Servono inserzioni della stessa carta su almeno 2 portali con delta ≥20%.</div>'
       +'</div>';
     return;
   }
@@ -10578,30 +10812,28 @@ function huntRenderArbitrage(){
     var pfLow = (HUNT_PLATFORMS.find(function(p){return p.id===o.low.platform;})||{}).label || o.low.platform;
     var pfHigh = (HUNT_PLATFORMS.find(function(p){return p.id===o.high.platform;})||{}).label || o.high.platform;
     var roi = o.deltaPct.toFixed(1);
-    return '<div class="hunt-card" style="border-left:4px solid #00c853;position:relative">'
-      +'<div style="position:absolute;top:8px;right:8px;background:#00c853;color:#fff;font-weight:700;font-size:14px;padding:4px 10px;border-radius:20px">+'+roi+'%</div>'
-      +'<div style="flex:1">'
-      +'  <div style="font-weight:600;font-size:14px;margin-bottom:8px">'+escapeHtml(o.target ? o.target.card_name : 'Carta sconosciuta')+(o.target && o.target.card_number?' #'+o.target.card_number:'')+'</div>'
-      +'  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px">'
-      +'    <div style="background:var(--bg);padding:10px;border-radius:6px;border:1px solid #00c853">'
-      +'      <div style="font-size:10px;color:#00c853;font-weight:600;text-transform:uppercase;margin-bottom:4px">🟢 Compra</div>'
-      +'      <div class="hunt-platform-chip hunt-pf-'+o.low.platform+'" style="margin-bottom:6px">'+pfLow+'</div>'
-      +'      <div style="font-weight:700;font-size:16px">€'+o.low.price.toFixed(2)+'</div>'
-      +'      <div style="font-size:10px;color:var(--muted);margin-top:4px">'+escapeHtml((o.low.title||'').slice(0,50))+'</div>'
-      +'      <a class="btn btn-primary" href="'+o.low.listing_url+'" target="_blank" style="display:inline-block;margin-top:6px;font-size:11px;text-decoration:none">Apri →</a>'
-      +'    </div>'
-      +'    <div style="background:var(--bg);padding:10px;border-radius:6px;border:1px solid #ff9500">'
-      +'      <div style="font-size:10px;color:#ff9500;font-weight:600;text-transform:uppercase;margin-bottom:4px">🔴 Vendi</div>'
-      +'      <div class="hunt-platform-chip hunt-pf-'+o.high.platform+'" style="margin-bottom:6px">'+pfHigh+'</div>'
-      +'      <div style="font-weight:700;font-size:16px">€'+o.high.price.toFixed(2)+'</div>'
-      +'      <div style="font-size:10px;color:var(--muted);margin-top:4px">'+escapeHtml((o.high.title||'').slice(0,50))+'</div>'
-      +'      <a class="btn" href="'+o.high.listing_url+'" target="_blank" style="display:inline-block;margin-top:6px;font-size:11px;text-decoration:none">Vedi →</a>'
-      +'    </div>'
+    return '<div class="rad-arb">'
+      +'<div class="rad-arb-roi">+'+roi+'%</div>'
+      +'<div style="font-weight:600;font-size:13px;margin-bottom:6px;padding-right:60px">'+escapeHtml(o.target ? o.target.card_name : 'Carta sconosciuta')+(o.target && o.target.card_number?' #'+o.target.card_number:'')+'</div>'
+      +'<div class="rad-arb-grid">'
+      +'  <div class="rad-arb-side buy">'
+      +'    <div style="font-size:10px;color:var(--success);font-weight:600;text-transform:uppercase;margin-bottom:4px;letter-spacing:.05em">🟢 Compra</div>'
+      +'    <span class="rad-pf-chip rad-pf-'+o.low.platform+'" style="margin-bottom:6px;display:inline-block">'+pfLow+'</span>'
+      +'    <div style="font-weight:700;font-size:15px;font-family:var(--mono);margin-top:4px">€'+o.low.price.toFixed(2)+'</div>'
+      +'    <div style="font-size:10px;color:var(--text-muted);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml((o.low.title||'').slice(0,60))+'</div>'
+      +'    <a class="btn btn-primary" href="'+o.low.listing_url+'" target="_blank" style="display:inline-block;margin-top:6px;font-size:11px;text-decoration:none">Apri →</a>'
       +'  </div>'
-      +'  <div style="display:flex;gap:12px;align-items:center;font-size:12px;padding-top:8px;border-top:1px solid var(--border)">'
-      +'    <span>Profitto lordo: <b style="color:#00c853">+€'+o.profitEur.toFixed(2)+'</b></span>'
-      +(o.allItems.length>2 ? '<span style="color:var(--muted)">+'+(o.allItems.length-2)+' altri</span>' : '')
+      +'  <div class="rad-arb-side sell">'
+      +'    <div style="font-size:10px;color:var(--warning);font-weight:600;text-transform:uppercase;margin-bottom:4px;letter-spacing:.05em">🔴 Rivendi</div>'
+      +'    <span class="rad-pf-chip rad-pf-'+o.high.platform+'" style="margin-bottom:6px;display:inline-block">'+pfHigh+'</span>'
+      +'    <div style="font-weight:700;font-size:15px;font-family:var(--mono);margin-top:4px">€'+o.high.price.toFixed(2)+'</div>'
+      +'    <div style="font-size:10px;color:var(--text-muted);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml((o.high.title||'').slice(0,60))+'</div>'
+      +'    <a class="btn" href="'+o.high.listing_url+'" target="_blank" style="display:inline-block;margin-top:6px;font-size:11px;text-decoration:none">Vedi →</a>'
       +'  </div>'
+      +'</div>'
+      +'<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);font-size:12px;display:flex;gap:12px">'
+      +'  <span>Margine lordo: <b class="rad-delta-pos">+€'+o.profitEur.toFixed(2)+'</b></span>'
+      +(o.allItems.length>2 ? '<span style="color:var(--text-muted)">+'+(o.allItems.length-2)+' altre offerte</span>' : '')
       +'</div>'
       +'</div>';
   }).join('');
@@ -10615,17 +10847,21 @@ function huntRenderReport(){
     byPf[l.platform] = (byPf[l.platform]||0) + 1;
   });
   var hot = _huntState.listings.filter(function(l){ return (l.deal_score||0)>=80; }).length;
-  host.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">'
-    +'<div class="hunt-target" style="text-align:center"><div style="font-size:26px;font-weight:700">'+_huntState.listings.length+'</div><div style="font-size:11px;color:var(--muted)">Inserzioni attive</div></div>'
-    +'<div class="hunt-target" style="text-align:center"><div style="font-size:26px;font-weight:700;color:#ff4444">'+hot+'</div><div style="font-size:11px;color:var(--muted)">🔥 Deal HOT (80+)</div></div>'
-    +'<div class="hunt-target" style="text-align:center"><div style="font-size:26px;font-weight:700">'+_huntState.targets.filter(function(t){return t.is_active;}).length+'</div><div style="font-size:11px;color:var(--muted)">Target attivi</div></div>'
-    +'<div class="hunt-target" style="text-align:center"><div style="font-size:26px;font-weight:700">'+_huntState.rules.filter(function(r){return r.is_active;}).length+'</div><div style="font-size:11px;color:var(--muted)">Regole alert</div></div>'
+  var manualCount = _huntState.listings.filter(function(l){ return l.is_manual_watch; }).length;
+
+  host.innerHTML = '<h3 style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin:0 0 10px 0">Panoramica</h3>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:18px">'
+    +'<div class="rad-target" style="text-align:center;margin:0"><div style="font-size:22px;font-weight:700;font-family:var(--mono)">'+_huntState.listings.length+'</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Inserzioni</div></div>'
+    +'<div class="rad-target" style="text-align:center;margin:0"><div style="font-size:22px;font-weight:700;color:var(--danger);font-family:var(--mono)">'+hot+'</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Hot 80+</div></div>'
+    +'<div class="rad-target" style="text-align:center;margin:0"><div style="font-size:22px;font-weight:700;color:#0088ff;font-family:var(--mono)">'+manualCount+'</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Watch manuali</div></div>'
+    +'<div class="rad-target" style="text-align:center;margin:0"><div style="font-size:22px;font-weight:700;font-family:var(--mono)">'+_huntState.targets.filter(function(t){return t.is_active;}).length+'</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Target attivi</div></div>'
+    +'<div class="rad-target" style="text-align:center;margin:0"><div style="font-size:22px;font-weight:700;font-family:var(--mono)">'+_huntState.rules.filter(function(r){return r.is_active;}).length+'</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Regole</div></div>'
     +'</div>'
-    +'<h3 style="font-size:13px;margin:12px 0 6px">Ripartizione per portale</h3>'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    +'<h3 style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin:0 0 10px 0">Ripartizione per portale</h3>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
     +HUNT_PLATFORMS.map(function(p){
       var n = byPf[p.id]||0;
-      return '<div class="hunt-platform-chip hunt-pf-'+p.id+'" style="padding:6px 12px;font-size:12px">'+p.label+': '+n+'</div>';
+      return '<span class="rad-pf-chip rad-pf-'+p.id+'" style="padding:5px 10px;font-size:11px">'+p.label+': '+n+'</span>';
     }).join('')
     +'</div>';
 }
@@ -10853,31 +11089,259 @@ async function huntMarkStatus(id, status){
 }
 window.huntMarkStatus = huntMarkStatus;
 
-// ── SCAN TUTTO ──────────────────────────────────────────────────────────
-// Apre tutti i portali in tab separate per un target scelto.
-function huntScanAll(){
-  if(!_huntState.targets.length){ alert('Aggiungi prima almeno un target'); return; }
-  var names = _huntState.targets.filter(function(t){return t.is_active;}).map(function(t,i){ return (i+1)+'. '+t.card_name+(t.card_number?' #'+t.card_number:''); });
-  var idx = prompt('Quale target scannare?\n\n'+names.join('\n')+'\n\nInserisci numero:', '1');
-  var n = parseInt(idx);
-  if(!n || n<1 || n>_huntState.targets.filter(function(t){return t.is_active;}).length) return;
-  var t = _huntState.targets.filter(function(x){return x.is_active;})[n-1];
+// ── SCAN PORTALI ────────────────────────────────────────────────────────
+// Mostra modal con lista target attivi; click → apre tutte le tab per quel target
+function radScanMenu(){
+  if(!_huntState.targets.length){
+    alert('Crea prima almeno un target dalla sidebar.');
+    return;
+  }
+  var active = _huntState.targets.filter(function(t){return t.is_active;});
+  if(!active.length){
+    alert('Nessun target attivo. Riattiva almeno un target con ▶.');
+    return;
+  }
+  radCloseModal();
+  var m = document.createElement('div');
+  m.className = 'rad-modal-bg';
+  m.id = 'radScanModal';
+  var rows = active.map(function(t){
+    var attrs = [];
+    if(t.card_number) attrs.push('#'+t.card_number);
+    if(t.grading_house) attrs.push(t.grading_house+(t.min_grade?' '+t.min_grade:''));
+    if(t.first_edition) attrs.push('1st');
+    if(t.language && t.language!=='ANY') attrs.push(t.language);
+    return '<button class="btn" onclick="radDoScan(\''+t.id+'\')" style="width:100%;text-align:left;margin-bottom:6px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center">'
+      +'<span><b>'+escapeHtml(t.card_name)+'</b> <span style="color:var(--text-muted);font-size:11px">'+attrs.join(' · ')+'</span></span>'
+      +'<span style="font-size:11px;color:var(--accent)">apri 5 tab →</span>'
+      +'</button>';
+  }).join('');
+  m.innerHTML = '<div class="rad-modal">'
+    +'<h3>🔍 Scan target <button class="rad-modal-close" onclick="radCloseModal()">×</button></h3>'
+    +'<div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Seleziona un target: apro eBay, Catawiki, Subito, Vinted, TCGPlayer in 5 tab separate.</div>'
+    + rows
+    +'<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);text-align:right">'
+    +'<button class="btn" onclick="radScanAllActive()">🌐 Apri TUTTI ('+active.length+' × 5 tab)</button>'
+    +'</div>'
+    +'</div>';
+  m.addEventListener('click', function(e){ if(e.target===m) radCloseModal(); });
+  document.body.appendChild(m);
+}
+window.radScanMenu = radScanMenu;
+// backward-compat: pulsante legacy chiama radScanMenu
+window.huntScanAll = radScanMenu;
+
+function radDoScan(targetId){
+  var t = _huntState.targets.find(function(x){return x.id===targetId;});
+  if(!t) return;
   var urls = HUNT_URL_BUILDERS.all(t);
-  if(!confirm('Aprirò '+Object.keys(urls).length+' tab del browser per scan manuale di "'+t.card_name+'". Procedo?')) return;
+  radCloseModal();
   Object.values(urls).forEach(function(u){ window.open(u, '_blank'); });
 }
-window.huntScanAll = huntScanAll;
+window.radDoScan = radDoScan;
 
-// ── ADMIN PANEL CANALI ──────────────────────────────────────────────────
+function radScanAllActive(){
+  var active = _huntState.targets.filter(function(t){return t.is_active;});
+  var n = active.length * 5;
+  if(!confirm('Sto per aprire '+n+' tab del browser ('+active.length+' target × 5 portali). Procedo?')) return;
+  radCloseModal();
+  active.forEach(function(t){
+    var urls = HUNT_URL_BUILDERS.all(t);
+    Object.values(urls).forEach(function(u){ window.open(u, '_blank'); });
+  });
+}
+window.radScanAllActive = radScanAllActive;
+
+
+// ── QUICK TARGET (sidebar) ──────────────────────────────────────────────
+async function radQuickAddTarget(){
+  var name = document.getElementById('radQuickName').value.trim();
+  var statusEl = document.getElementById('radQuickStatus');
+  if(!name){ statusEl.textContent = '⚠ Nome carta richiesto'; statusEl.style.color='var(--danger)'; return; }
+  var uid = getCurrentUserId();
+  if(!uid){ statusEl.textContent = '⚠ Accedi prima'; statusEl.style.color='var(--danger)'; return; }
+
+  var data = {
+    user_id: uid,
+    card_name: name,
+    card_number: document.getElementById('radQuickNum').value.trim() || null,
+    set_name: document.getElementById('radQuickSet').value.trim() || null,
+    grading_house: document.getElementById('radQuickGrader').value || null,
+    min_grade: parseFloat(document.getElementById('radQuickGrade').value) || null,
+    language: 'ANY',
+    first_edition: false,
+    shadowless: false,
+    is_active: true,
+    deal_threshold: 70
+  };
+  try{
+    statusEl.textContent = 'Creo…'; statusEl.style.color='var(--text-muted)';
+    var rows = await supa('POST','hunt_targets', data);
+    var row = Array.isArray(rows) ? rows[0] : rows;
+    _huntState.targets.unshift(row);
+    // reset form
+    ['radQuickName','radQuickNum','radQuickSet'].forEach(function(id){ document.getElementById(id).value=''; });
+    document.getElementById('radQuickGrader').value = '';
+    document.getElementById('radQuickGrade').value = '';
+    statusEl.textContent = '✓ Target creato: '+name;
+    statusEl.style.color = 'var(--success)';
+    setTimeout(function(){ statusEl.textContent=''; }, 3000);
+    huntRenderAll();
+  }catch(e){
+    statusEl.textContent = '✖ Errore: '+e.message;
+    statusEl.style.color = 'var(--danger)';
+  }
+}
+window.radQuickAddTarget = radQuickAddTarget;
+
+
+// ── WATCH URL MANUALE (Catawiki, eBay, qualsiasi) ───────────────────────
+// Crea una entry in hunt_listings con flag is_manual_watch=true (via status+note)
+// Schema non ha un campo dedicato, riusiamo status='watched' + deal_reasons=['manual_watch']
+// Esponiamo poi is_manual_watch come property derivata lato client.
+async function radWatchSubmit(){
+  var url = document.getElementById('radWatchUrl').value.trim();
+  var title = document.getElementById('radWatchTitle').value.trim();
+  var price = parseFloat(document.getElementById('radWatchPrice').value);
+  var endLocal = document.getElementById('radWatchEnd').value;
+  var statusEl = document.getElementById('radWatchStatus');
+
+  if(!url){ statusEl.textContent = '⚠ URL richiesto'; statusEl.style.color='var(--danger)'; return; }
+  if(!/^https?:\/\//i.test(url)){ statusEl.textContent = '⚠ URL non valido'; statusEl.style.color='var(--danger)'; return; }
+  var uid = getCurrentUserId();
+  if(!uid){ statusEl.textContent = '⚠ Accedi prima'; statusEl.style.color='var(--danger)'; return; }
+
+  // Auto-detect piattaforma da hostname
+  var platform = 'other';
+  try{
+    var host = new URL(url).hostname.toLowerCase();
+    if(host.indexOf('ebay')>=0) platform = 'ebay';
+    else if(host.indexOf('catawiki')>=0) platform = 'catawiki';
+    else if(host.indexOf('subito')>=0) platform = 'subito';
+    else if(host.indexOf('vinted')>=0) platform = 'vinted';
+    else if(host.indexOf('tcgplayer')>=0) platform = 'tcgplayer';
+    else if(host.indexOf('mercari')>=0) platform = 'mercari_it';
+  }catch(e){}
+
+  // external_id: hash-friendly dall'URL (per rispettare UNIQUE(user,platform,external_id))
+  var extId = 'manual_' + Math.abs(url.split('').reduce(function(a,c){return ((a<<5)-a)+c.charCodeAt(0);},0)).toString(36) + '_' + Date.now().toString(36);
+
+  var endIso = null;
+  if(endLocal){
+    try{ endIso = new Date(endLocal).toISOString(); }catch(e){}
+  }
+
+  var data = {
+    user_id: uid,
+    platform: platform,
+    listing_url: url,
+    external_id: extId,
+    title: title || '(watch manuale)',
+    price: isNaN(price) ? null : price,
+    currency: 'EUR',
+    listing_type: endIso ? 'auction' : 'fixed',
+    auction_ends_at: endIso,
+    status: 'watched',
+    deal_reasons: ['manual_watch'],
+    deal_score: null
+  };
+
+  try{
+    statusEl.textContent = 'Salvo…'; statusEl.style.color='var(--text-muted)';
+    var rows = await supa('POST','hunt_listings', data);
+    var row = Array.isArray(rows) ? rows[0] : rows;
+    row.is_manual_watch = true;  // flag client-side
+    _huntState.listings.unshift(row);
+    ['radWatchUrl','radWatchTitle','radWatchPrice','radWatchEnd'].forEach(function(id){ document.getElementById(id).value=''; });
+    statusEl.textContent = '✓ Asta aggiunta ('+platform+')';
+    statusEl.style.color = 'var(--success)';
+    setTimeout(function(){ statusEl.textContent=''; }, 3000);
+    // passa a sub-tab Aste se aveva senso
+    if(endIso) huntShowSub('auctions'); else huntRenderAll();
+  }catch(e){
+    statusEl.textContent = '✖ Errore: '+e.message;
+    statusEl.style.color = 'var(--danger)';
+  }
+}
+window.radWatchSubmit = radWatchSubmit;
+
+// Helper: flagga i listing manuali al load (basato su deal_reasons)
+function radDecorateManualListings(){
+  _huntState.listings.forEach(function(l){
+    if(l.deal_reasons && l.deal_reasons.indexOf('manual_watch')>=0) l.is_manual_watch = true;
+  });
+}
+
+
+// ── ADMIN PANEL CANALI NOTIFICA (modal) ─────────────────────────────────
 function huntOpenAdminPanel(){
   var cfg = _huntState.config || {};
-  var email = prompt('📧 Email per notifiche:', cfg.email_address||'') || cfg.email_address;
-  var tg = prompt('✈ Telegram chat_id:', cfg.telegram_chat_id||'') || cfg.telegram_chat_id;
-  var freq = prompt('Frequenza digest (never/daily/hourly):', cfg.digest_frequency||'daily') || 'daily';
-  var hr = parseInt(prompt('Ora invio digest (0-23):', cfg.digest_hour||'9')) || 9;
-  huntSaveChannelConfig({ email_address: email, telegram_chat_id: tg, digest_frequency: freq, digest_hour: hr });
+  radCloseModal();
+  var m = document.createElement('div');
+  m.className = 'rad-modal-bg';
+  m.id = 'radChannelModal';
+  m.innerHTML = '<div class="rad-modal">'
+    +'<h3>⚙ Canali notifica <button class="rad-modal-close" onclick="radCloseModal()">×</button></h3>'
+    +'<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Dove ricevere gli alert generati dalle regole.</div>'
+
+    +'<div class="rad-form-field">'
+    +'  <label>📧 Email</label>'
+    +'  <input type="email" id="radCfgEmail" value="'+escapeHtml(cfg.email_address||'')+'" placeholder="nome@email.com"/>'
+    +'</div>'
+
+    +'<div class="rad-form-field">'
+    +'  <label>✈ Telegram chat_id</label>'
+    +'  <input type="text" id="radCfgTg" value="'+escapeHtml(cfg.telegram_chat_id||'')+'" placeholder="es. 123456789"/>'
+    +'  <div style="font-size:10px;color:var(--text-muted);margin-top:3px">Chatta con @userinfobot su Telegram per ottenere il tuo chat_id.</div>'
+    +'</div>'
+
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+    +'  <div class="rad-form-field">'
+    +'    <label>Frequenza digest</label>'
+    +'    <select id="radCfgFreq">'
+    +      ['never','daily','hourly'].map(function(f){return '<option '+((cfg.digest_frequency||'daily')===f?'selected':'')+'>'+f+'</option>';}).join('')
+    +'    </select>'
+    +'  </div>'
+    +'  <div class="rad-form-field">'
+    +'    <label>Ora digest (0-23)</label>'
+    +'    <input type="number" id="radCfgHour" min="0" max="23" value="'+(cfg.digest_hour!=null?cfg.digest_hour:9)+'"/>'
+    +'  </div>'
+    +'</div>'
+
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+    +'  <div class="rad-form-field">'
+    +'    <label>Quiet hours start</label>'
+    +'    <input type="time" id="radCfgQs" value="'+(cfg.quiet_hours_start||'')+'"/>'
+    +'  </div>'
+    +'  <div class="rad-form-field">'
+    +'    <label>Quiet hours end</label>'
+    +'    <input type="time" id="radCfgQe" value="'+(cfg.quiet_hours_end||'')+'"/>'
+    +'  </div>'
+    +'</div>'
+
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">'
+    +'  <button class="btn" onclick="radCloseModal()">Annulla</button>'
+    +'  <button class="btn btn-primary" onclick="radSaveChannelConfig()">Salva config</button>'
+    +'</div>'
+    +'</div>';
+  m.addEventListener('click', function(e){ if(e.target===m) radCloseModal(); });
+  document.body.appendChild(m);
 }
 window.huntOpenAdminPanel = huntOpenAdminPanel;
+
+async function radSaveChannelConfig(){
+  var data = {
+    email_address: document.getElementById('radCfgEmail').value.trim() || null,
+    telegram_chat_id: document.getElementById('radCfgTg').value.trim() || null,
+    digest_frequency: document.getElementById('radCfgFreq').value || 'daily',
+    digest_hour: parseInt(document.getElementById('radCfgHour').value) || 9,
+    quiet_hours_start: document.getElementById('radCfgQs').value || null,
+    quiet_hours_end: document.getElementById('radCfgQe').value || null
+  };
+  await huntSaveChannelConfig(data);
+  radCloseModal();
+}
+window.radSaveChannelConfig = radSaveChannelConfig;
 
 async function huntSaveChannelConfig(data){
   var uid = getCurrentUserId();
@@ -10885,7 +11349,6 @@ async function huntSaveChannelConfig(data){
   data.user_id = uid;
   data.updated_at = new Date().toISOString();
   try{
-    // PostgREST upsert: POST con header Prefer: resolution=merge-duplicates
     var r = await fetch(SUPA_URL+'/rest/v1/hunt_channel_config?on_conflict=user_id', {
       method:'POST',
       headers: Object.assign({}, getHDR(), {'Prefer':'resolution=merge-duplicates,return=representation'}),
@@ -10894,31 +11357,99 @@ async function huntSaveChannelConfig(data){
     if(!r.ok){ throw new Error(await r.text()); }
     var rows = await r.json();
     _huntState.config = rows[0];
-    alert('Config salvata. Verifica i canali separatamente (link di test).');
+    alert('Config salvata. I test dei canali vanno fatti lato edge function.');
   }catch(e){ alert('Errore: '+e.message); }
 }
 
-// ── ALERT RULES ─────────────────────────────────────────────────────────
-function huntOpenAddRule(){
-  var name = prompt('Nome regola (es: "PSA 10 sotto €500"):'); if(!name) return;
-  var minScore = parseInt(prompt('Deal score minimo (0-100):','70')) || 70;
-  var maxPrice = parseFloat(prompt('Prezzo max (€, vuoto=no limite):','')) || null;
-  var pfs = (prompt('Piattaforme (es: ebay,subito) vuoto=tutte:','')||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
-  var auctionOnly = confirm('Solo aste?');
-  var push = confirm('🔔 Notifica push browser?');
-  var email = confirm('📧 Notifica email?');
-  var tg = confirm('✈ Notifica Telegram?');
-  huntSaveRule({
-    name: name.trim(),
-    min_deal_score: minScore,
-    max_price: maxPrice,
-    platforms: pfs.length ? pfs : null,
-    auction_only: auctionOnly,
-    channel_push: push, channel_email: email, channel_telegram: tg,
-    is_active: true
-  });
+
+// ── ALERT RULES (modal custom) ──────────────────────────────────────────
+function radOpenAddRuleModal(){
+  radCloseModal();
+  var m = document.createElement('div');
+  m.className = 'rad-modal-bg';
+  m.id = 'radRuleModal';
+  m.innerHTML = '<div class="rad-modal">'
+    +'<h3>🔔 Nuova regola alert <button class="rad-modal-close" onclick="radCloseModal()">×</button></h3>'
+    +'<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">La regola scatta quando arriva un\'inserzione che rispetta <b>tutte</b> le condizioni.</div>'
+
+    +'<div class="rad-form-field">'
+    +'  <label>Nome regola *</label>'
+    +'  <input type="text" id="radRuleName" placeholder="es. PSA 10 sotto €500"/>'
+    +'</div>'
+
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+    +'  <div class="rad-form-field">'
+    +'    <label>Deal score ≥</label>'
+    +'    <input type="number" id="radRuleScore" min="0" max="100" value="70"/>'
+    +'  </div>'
+    +'  <div class="rad-form-field">'
+    +'    <label>Prezzo max €</label>'
+    +'    <input type="number" id="radRuleMaxPrice" step="0.01" placeholder="no limite"/>'
+    +'  </div>'
+    +'</div>'
+
+    +'<div class="rad-form-field">'
+    +'  <label>Piattaforme (vuoto = tutte)</label>'
+    +'  <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:12px;margin-top:4px">'
+    +    HUNT_PLATFORMS.map(function(p){
+         return '<label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" class="radRulePf" value="'+p.id+'" style="margin:0"/> '+p.label+'</label>';
+       }).join('')
+    +'  </div>'
+    +'</div>'
+
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+    +'  <div class="rad-form-field">'
+    +'    <label>Scad. entro (h)</label>'
+    +'    <input type="number" id="radRuleEnd" placeholder="es. 24"/>'
+    +'  </div>'
+    +'  <div class="rad-form-field" style="display:flex;align-items:flex-end">'
+    +'    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;margin:0"><input type="checkbox" id="radRuleAuctionOnly"/> Solo aste</label>'
+    +'  </div>'
+    +'</div>'
+
+    +'<div class="rad-form-field">'
+    +'  <label>Canali notifica</label>'
+    +'  <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin-top:4px">'
+    +'    <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="radRuleChPush" checked/> 🔔 Push browser</label>'
+    +'    <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="radRuleChEmail"/> 📧 Email</label>'
+    +'    <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="radRuleChTg"/> ✈ Telegram</label>'
+    +'  </div>'
+    +'</div>'
+
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">'
+    +'  <button class="btn" onclick="radCloseModal()">Annulla</button>'
+    +'  <button class="btn btn-primary" onclick="radSubmitRule()">Crea regola</button>'
+    +'</div>'
+    +'</div>';
+  m.addEventListener('click', function(e){ if(e.target===m) radCloseModal(); });
+  document.body.appendChild(m);
+  setTimeout(function(){ var el = document.getElementById('radRuleName'); if(el) el.focus(); }, 50);
 }
-window.huntOpenAddRule = huntOpenAddRule;
+window.radOpenAddRuleModal = radOpenAddRuleModal;
+// legacy alias
+window.huntOpenAddRule = radOpenAddRuleModal;
+
+async function radSubmitRule(){
+  var name = document.getElementById('radRuleName').value.trim();
+  if(!name){ alert('Nome regola richiesto'); return; }
+  var pfs = Array.prototype.slice.call(document.querySelectorAll('.radRulePf'))
+    .filter(function(c){return c.checked;}).map(function(c){return c.value;});
+  var data = {
+    name: name,
+    min_deal_score: parseInt(document.getElementById('radRuleScore').value) || null,
+    max_price: parseFloat(document.getElementById('radRuleMaxPrice').value) || null,
+    platforms: pfs.length ? pfs : null,
+    ending_within_hours: parseInt(document.getElementById('radRuleEnd').value) || null,
+    auction_only: document.getElementById('radRuleAuctionOnly').checked,
+    channel_push: document.getElementById('radRuleChPush').checked,
+    channel_email: document.getElementById('radRuleChEmail').checked,
+    channel_telegram: document.getElementById('radRuleChTg').checked,
+    is_active: true
+  };
+  await huntSaveRule(data);
+  radCloseModal();
+}
+window.radSubmitRule = radSubmitRule;
 
 async function huntSaveRule(data){
   var uid = getCurrentUserId();
@@ -10953,6 +11484,24 @@ async function huntDeleteRule(id){
 }
 window.huntDeleteRule = huntDeleteRule;
 
+
+// ── MODAL HELPERS ───────────────────────────────────────────────────────
+function radCloseModal(){
+  ['radScanModal','radChannelModal','radRuleModal','huntTargetModal'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.remove();
+  });
+}
+window.radCloseModal = radCloseModal;
+
+// ESC globale chiude qualunque modal radar
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape'){
+    if(document.querySelector('.rad-modal-bg')) radCloseModal();
+  }
+});
+
+
 // ── escapeHtml helper (fallback se non esiste già) ──────────────────────
 if(typeof escapeHtml === 'undefined'){
   window.escapeHtml = function(s){
@@ -10963,4 +11512,4 @@ if(typeof escapeHtml === 'undefined'){
 }
 </script>
 </body>
-</html><!-- v20260422 -->
+</html><!-- v20260424 -->
