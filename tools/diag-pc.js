@@ -59,6 +59,13 @@ function formatReport(diag) {
       }
     }
 
+    if (c.price_dump && c.price_dump.length) {
+      out += '\n  ─── Dump prezzi HTML (primi 40 $) ───\n';
+      c.price_dump.forEach((p, i) => {
+        out += `  [${String(i).padStart(2)}] $${String(p.price).padStart(10)}  ← "${(p.before || '').slice(-60)}" … "${(p.after || '').slice(0, 30)}"\n`;
+      });
+    }
+
     if (c.anomalies && c.anomalies.length) {
       out += '\n  ⚠  ANOMALIE:\n';
       c.anomalies.forEach(a => out += `     - ${a}\n`);

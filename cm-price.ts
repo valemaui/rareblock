@@ -774,6 +774,19 @@ async function handleDiag(inputCards: DiagCardInput[] | null): Promise<Response>
     // Prezzo "estratto" ufficiale (quello che ritornerebbe la funzione)
     cardReport.extracted = extractPCPrices(prod.html);
 
+    // Dump: elenca TUTTI i $XXX.XX del HTML con contesto, per vedere dove stanno davvero i prezzi
+    const priceMatches: { price: number; before: string; after: string }[] = [];
+    const pricePat = /\$\s*([\d,]+\.\d{2})/g;
+    let pm: RegExpExecArray | null;
+    while ((pm = pricePat.exec(prod.html)) !== null && priceMatches.length < 40) {
+      const before = prod.html.substring(Math.max(0, pm.index - 140), pm.index)
+        .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(-80);
+      const after = prod.html.substring(pm.index + pm[0].length, pm.index + pm[0].length + 80)
+        .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 50);
+      priceMatches.push({ price: parseFloat(pm[1].replace(/,/g, '')), before, after });
+    }
+    cardReport.price_dump = priceMatches;
+
     // Rileva anomalie
     const ex = cardReport.extracted;
     const anomalies = [];
