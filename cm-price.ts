@@ -791,6 +791,8 @@ async function handleDiag(inputCards: DiagCardInput[] | null): Promise<Response>
     if (ex.bgs10 > 5000) anomalies.push(`BGS 10 > $5000 (sospetto)`);
     if (ex.cgc10 > 5000) anomalies.push(`CGC 10 > $5000 (sospetto)`);
     cardReport.anomalies = anomalies;
+
+    report.push(cardReport);
   }
 
   return json({ source: 'diag', generated_at: new Date().toISOString(), cards: report });
