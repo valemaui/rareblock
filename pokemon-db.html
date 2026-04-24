@@ -8540,7 +8540,14 @@ function anlComputeToday(){
   var cm   = anlLiveData.cm;
   var rate = anlLiveData.usdEur || ANL_USD_EUR_FALLBACK;
 
-  var ebP = (ebay && ebay.count>=3 && ebay.median) ? ebay.median : null;
+  // eBay: converti in EUR se currency è USD/GBP
+  var ebP = null, ebNote = '';
+  if(ebay && ebay.count>=3 && ebay.median){
+    var rawMed = ebay.median;
+    if(ebay.currency==='USD')      { ebP = rawMed * rate;       ebNote = 'conv USD→EUR'; }
+    else if(ebay.currency==='GBP') { ebP = rawMed * 1.17 * rate; ebNote = 'conv GBP→EUR approx'; }
+    else                           { ebP = rawMed; }
+  }
   var pcP = null;
   if(pc){
     if(graded){
@@ -8554,7 +8561,7 @@ function anlComputeToday(){
 
   // Consolida: mediana tra le fonti disponibili, con pesatura semplice
   var sources = [];
-  if(ebP) sources.push({v:ebP, w:3, src:'eBay Sold', n:ebay.count});
+  if(ebP) sources.push({v:ebP, w:3, src:'eBay Sold'+(ebNote?' ['+ebNote+']':''), n:ebay.count});
   if(pcP) sources.push({v:pcP, w:2, src:'PriceCharting'});
   if(cmP) sources.push({v:cmP, w:1, src:'CardMarket'});
   if(!sources.length) return { price:null, method:'dati insufficienti', sources:sources };
@@ -8564,7 +8571,7 @@ function anlComputeToday(){
   var price = totV/totW;
   var method;
   if(sources.length===1) method = 'solo '+sources[0].src+(sources[0].n?' ('+sources[0].n+' vend.)':'');
-  else method = 'media pesata · '+sources.map(function(s){return s.src;}).join(' + ');
+  else method = 'media pesata · '+sources.map(function(s){return s.src.replace(/ \[.*?\]/,'');}).join(' + ');
 
   return { price: Math.round(price*100)/100, method: method, sources: sources };
 }
@@ -8895,21 +8902,39 @@ function anlPopEbay(data, err){
   var noteEl=document.getElementById('anlSrcEbNote');
   if(err || !data || !data.count){
     if(priceEl){ priceEl.textContent='—'; priceEl.classList.remove('loading'); priceEl.classList.add('na'); }
-    if(noteEl){ noteEl.textContent = err ? ('errore: '+String(err).substring(0,60)) : 'nessun venduto'; }
+    if(noteEl){
+      var hint='';
+      if(data&&data.attempts){
+        hint = ' (' + data.attempts.length + ' query tentate, 0 hit)';
+      }
+      noteEl.textContent = err ? ('errore: '+String(err).substring(0,60)) : ('nessun venduto'+hint);
+    }
     anlRenderToday();
     anlRenderProjection();
     return;
   }
   var cur=data.currency==='EUR'?'€':(data.currency==='USD'?'$':'£');
+  var rate = anlLiveData.usdEur || ANL_USD_EUR_FALLBACK;
+  var isNonEur = data.currency && data.currency!=='EUR';
   if(priceEl){
-    priceEl.textContent=cur+data.median.toFixed(2);
+    if(isNonEur && data.currency==='USD'){
+      var eurMed = data.median * rate;
+      priceEl.innerHTML = '€'+eurMed.toFixed(2)+' <span style="font-size:9px;color:var(--text-subtle);font-family:var(--mono)">$'+data.median.toFixed(0)+'</span>';
+    } else {
+      priceEl.textContent=cur+data.median.toFixed(2);
+    }
     priceEl.classList.remove('loading');
     priceEl.classList.remove('na');
   }
   if(noteEl){
     var parts=[data.count+' venduti'];
+    if(isNonEur) parts.push('mercato '+(data.currency==='USD'?'US':'UK'));
     if(data.avg&&Math.abs(data.avg-data.median)>0.01) parts.push('media '+cur+data.avg.toFixed(2));
     if(data.min!=null&&data.max!=null) parts.push(''+cur+Math.round(data.min)+'–'+cur+Math.round(data.max));
+    if(data.below_threshold) parts.push('campione piccolo');
+    if(data.query_index!=null && data.attempts && data.attempts.length>1){
+      parts.push('query '+(data.query_index+1)+'/'+data.attempts.length);
+    }
     noteEl.textContent = parts.join(' · ');
   }
   anlRenderToday();
