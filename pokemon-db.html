@@ -3548,10 +3548,13 @@ async function confirmDealConversion(){
   try{
     const uid=getCurrentUserId();
     const baseNote=activePrev.seller_name?('Acquistato da '+activePrev.seller_name+' il '+new Date(dateStr).toLocaleDateString('it')):('Acquistato il '+new Date(dateStr).toLocaleDateString('it'));
+    const nowIso=new Date().toISOString();
     const payload=items.map(function(c){
-      const cm=c.cm_avg30||0;
+      const cm=parseFloat(c.cm_avg30)||0;
       const buyPerUnit=Math.round(cm*coef*100)/100;
       const cardNote=appendNote?(baseNote+(c.note?(' — '+c.note):'')):(c.note||'');
+      // Normalizza qty: preventivi potrebbe averlo salvato come stringa "3"
+      const qtyNum=parseInt(c.qty,10);
       const row={
         name:c.name,
         set_name:c.set||'',
@@ -3563,26 +3566,46 @@ async function confirmDealConversion(){
         language:c.language||'ITA',
         variant:c.variant||'Normal',
         first_edition:!!c.first_edition,
-        qty:c.qty||1,
+        qty:(qtyNum>0?qtyNum:1),
         buy_price:buyPerUnit,
         sell_price:0,
         cm_avg30:cm,
         notes:cardNote,
-        is_manual:false
+        is_manual:false,
+        created_at:nowIso // esplicito per garantire ordinamento corretto in collezione
       };
       if(uid) row.user_id=uid;
       return row;
     });
 
+    console.info('[DEAL] Inserimento payload:', {count:payload.length, uid:uid, sample:payload[0]});
+
     // Inserisci in batch da 50
     statusEl.textContent='Inserimento in collezione ('+payload.length+' voci)...';
     const BATCH=50;
     let inserted=0;
+    let returnedIds=[];
     for(let i=0;i<payload.length;i+=BATCH){
       const slice=payload.slice(i,i+BATCH);
-      await supa('POST','cards',slice);
-      inserted+=slice.length;
+      const resp=await supa('POST','cards',slice);
+      // Con Prefer:return=representation, resp è l'array dei record inseriti
+      if(Array.isArray(resp)){
+        inserted+=resp.length;
+        resp.forEach(function(r){ if(r&&r.id) returnedIds.push(r.id); });
+      } else {
+        // Fallback: se il server non ritorna representation, contiamo comunque il batch come inserito
+        inserted+=slice.length;
+      }
       statusEl.textContent='Inserite '+inserted+'/'+payload.length+'...';
+    }
+    console.info('[DEAL] Inseriti ' + inserted + ' record cards. IDs ritornati:', returnedIds.length);
+
+    // Safety check: se inserted=0 o molto meno del previsto, avvisa
+    if(inserted===0){
+      throw new Error('Nessuna carta inserita — risposta vuota da Supabase. Verifica policy RLS della tabella cards.');
+    }
+    if(inserted<payload.length){
+      console.warn('[DEAL] Inserite solo '+inserted+' su '+payload.length+' — possibili duplicati o constraint violations');
     }
 
     // Salva deal_info sul preventivo
@@ -3608,8 +3631,10 @@ async function confirmDealConversion(){
     statusEl.style.color='var(--success)';
     statusEl.textContent='✓ '+inserted+' carte aggiunte in collezione';
 
-    // Ricarica la collezione se disponibile
-    if(typeof loadCollection==='function'){ try{ loadCollection(); }catch(e){} }
+    // Ricarica la collezione (aspettiamo che finisca per evitare race con il successo)
+    if(typeof loadCollection==='function'){
+      try{ await loadCollection(); }catch(e){ console.warn('loadCollection post-deal error:',e.message); }
+    }
     // Aggiorna lista preventivi e stato bottone
     await renderPrevList();
     const idx=preventivi.findIndex(p=>p.id===activePrev.id);
@@ -3627,7 +3652,8 @@ async function confirmDealConversion(){
       closeDealModal();
       const missingCols=(_prevSchemaStatus&&_prevSchemaStatus.missing)||[];
       const schemaWarn=missingCols.length?('\n\n⚠️ ATTENZIONE: le colonne '+missingCols.join(', ')+' non sono presenti nella tabella preventivi. Le carte sono state aggiunte correttamente in collezione, ma lo stato "confermato" del preventivo non è stato persistito. Esegui le ALTER TABLE mostrate nel banner in alto e riconferma il deal per salvare lo storico.'):'';
-      alert('✓ Deal confermato!\n\n'+inserted+' carte sono state aggiunte in collezione con il prezzo di acquisto allocato proporzionalmente al loro valore CM.\n\nCosto totale: €'+totalPaid.toFixed(2)+'\nCoefficiente di allocazione: '+coef.toFixed(4)+' (paghi €'+coef.toFixed(2)+' per ogni € di CM)'+schemaWarn);
+      const viewHint='\n\n💡 Per vedere le carte nella tab "Collezione" assicurati che i filtri (Set, Condizione, Lingua, ricerca) siano vuoti — altrimenti le nuove carte potrebbero essere nascoste.';
+      alert('✓ Deal confermato!\n\n'+inserted+' carte sono state aggiunte in collezione con il prezzo di acquisto allocato proporzionalmente al loro valore CM.\n\nCosto totale: €'+totalPaid.toFixed(2)+'\nCoefficiente di allocazione: '+coef.toFixed(4)+' (paghi €'+coef.toFixed(2)+' per ogni € di CM)'+viewHint+schemaWarn);
     },800);
 
   }catch(e){
