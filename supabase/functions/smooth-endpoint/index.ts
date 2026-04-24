@@ -179,6 +179,11 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
       } catch { /* */ }
     }
 
+    // Estrai un sample della prima article-row trovata (max 1500 chars)
+    // per permettere di verificare il markup reale senza re-scrape manuale
+    const rowSampleMatch = html.match(/<div[^>]*class="[^"]*article-row[^"]*"[^>]*>([\s\S]{0,1500})/i);
+    const rowSample = rowSampleMatch ? rowSampleMatch[0].substring(0, 1500) : null;
+
     baseResp.debug = {
       http_status: status,
       html_length: html.length,
@@ -191,6 +196,7 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
       has_consent_wall: hasConsentWall,
       is_geo_block: isGeoBlock,
       html_head_500: html.substring(0, 500),
+      article_row_sample: rowSample,
     };
   }
 
@@ -215,13 +221,20 @@ function extractCMListings(html: string): Listing[] {
     } catch { /* */ }
   }
   const listings: Listing[] = [];
-  const rowPattern = /<div[^>]*class="[^"]*article-row[^"]*"[^>]*>([\s\S]*?)(?=<div[^>]*class="[^"]*article-row|<\/table|<\/article)/gi;
+  // Pattern più robusto per CM 2024+: non dipende da <table>/<article> come
+  // boundary. Usa lookahead alla prossima article-row OR fine di un container
+  // noto (article-table / col-offer-close / section / main).
+  const rowPattern = /<div[^>]*class="[^"]*article-row[^"]*"[^>]*>([\s\S]*?)(?=<div[^>]*class="[^"]*article-row|<\/section|<\/main|<div[^>]*class="[^"]*(?:article-table-footer|pagination|loadMore))/gi;
   let rowMatch: RegExpExecArray | null;
   while ((rowMatch = rowPattern.exec(html)) !== null) {
     const row = rowMatch[1];
     const cond = extractConditionFromRow(row);
     const price = extractPriceFromRow(row);
-    if (cond && price) listings.push({ price, condition: cond, condRank: COND_ORDER[cond] || 5 });
+    if (price) {
+      // Se non riesco a estrarre la condizione assumo NM (comune per CM raw listings)
+      const finalCond = cond || 'Near Mint';
+      listings.push({ price, condition: finalCond, condRank: COND_ORDER[finalCond] || 2 });
+    }
   }
   if (listings.length > 0) return listings.slice(0, 20).sort((a,b) => a.price - b.price);
 
@@ -232,17 +245,23 @@ function extractCMListings(html: string): Listing[] {
     const n = parsePrice(m[1]);
     if (n && n >= 0.1 && n <= 9999 && !seen.has(n)) {
       seen.add(n);
-      listings.push({ price: n, condition: 'NM', condRank: 2 });
+      listings.push({ price: n, condition: 'Near Mint', condRank: 2 });
     }
   }
   if (listings.length > 0) return listings.slice(0, 20).sort((a,b) => a.price - b.price);
 
-  const euroPattern = /€\s*(\d{1,4}(?:[.,]\d{3})*[,.]\d{2})/g;
-  while ((m = euroPattern.exec(html)) !== null) {
-    const n = parsePrice(m[1]);
-    if (n && n >= 0.1 && n <= 9999 && !seen.has(n)) {
-      seen.add(n);
-      listings.push({ price: n, condition: 'NM', condRank: 2 });
+  // Fallback ambidestro: € prima O dopo il numero
+  const euroPatterns = [
+    /€\s*(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})/g,
+    /(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})\s*(?:&nbsp;|&#160;|\u00a0|\s)*€/g,
+  ];
+  for (const ep of euroPatterns) {
+    while ((m = ep.exec(html)) !== null) {
+      const n = parsePrice(m[1]);
+      if (n && n >= 0.1 && n <= 9999 && !seen.has(n)) {
+        seen.add(n);
+        listings.push({ price: n, condition: 'Near Mint', condRank: 2 });
+      }
     }
   }
   return listings.slice(0, 20).sort((a, b) => a.price - b.price);
@@ -295,23 +314,97 @@ function extractConditionLabel(condField: unknown): string | null {
   return abbrev[str] ?? (COND_ORDER[str] ? str : null);
 }
 
-function extractConditionFromRow(row: string): string | null {
-  const condMatch = row.match(/(?:badge-|condition-|cond-)([a-z-]+)/i)
-    ?? row.match(/\b(Mint|Near Mint|Excellent|Good|Light Played|Played|Poor|NM|EX|GD|LP|PL|PO|MT)\b/i);
-  if (!condMatch) return null;
-  const raw = condMatch[1];
-  const map: Record<string,string> = {
-    'mint':'Mint','near':'Near Mint','near-mint':'Near Mint','nearmint':'Near Mint',
-    'excellent':'Excellent','good':'Good','lightplayed':'Light Played',
-    'light-played':'Light Played','light':'Light Played','played':'Played','poor':'Poor',
-    'nm':'Near Mint','ex':'Excellent','gd':'Good','lp':'Light Played','pl':'Played','po':'Poor','mt':'Mint',
-  };
-  return map[raw.toLowerCase()] ?? null;
+// Normalizza l'HTML della row in plain text utilizzabile: rimuove tag, decodifica
+// entità comuni (&nbsp; → spazio, &euro; → €, etc) e collassa gli spazi.
+function rowToText(row: string): string {
+  return row
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&#160;|\u00a0/g, ' ')
+    .replace(/&euro;|&#8364;/g, '€')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
+// Mappe canoniche per condizione (full name ← abbreviation, parola singola, ecc)
+const COND_MAP_FULL: Record<string, string> = {
+  'mint':'Mint','near mint':'Near Mint','excellent':'Excellent','good':'Good',
+  'light played':'Light Played','played':'Played','poor':'Poor',
+  'nm':'Near Mint','ex':'Excellent','gd':'Good','lp':'Light Played','pl':'Played','po':'Poor','mt':'Mint',
+  // Traduzioni locali comuni (IT/DE/FR)
+  'perfetto':'Mint','quasi perfetto':'Near Mint','ottimo':'Excellent','buono':'Good',
+  'giocato leggermente':'Light Played','giocato':'Played','rovinato':'Poor',
+};
+
+function normalizeCondFromLabel(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const k = raw.toLowerCase().trim();
+  return COND_MAP_FULL[k] ?? null;
+}
+
+// Estrae condizione da una row: cerca (a) tooltip / aria-label / title attribute,
+// (b) testo nei badge class, (c) pattern testuale plain nel contenuto.
+function extractConditionFromRow(row: string): string | null {
+  // Strategia A: attributi tooltip/title/aria-label (CM v2024+ usa data-bs-title)
+  const attrPats = [
+    /(?:title|aria-label|data-bs-title|data-original-title)="([^"]+)"/gi,
+  ];
+  for (const rx of attrPats) {
+    let m: RegExpExecArray | null;
+    rx.lastIndex = 0;
+    while ((m = rx.exec(row)) !== null) {
+      const txt = m[1];
+      // Match esatto o contenuto della label
+      const cond = normalizeCondFromLabel(txt);
+      if (cond) return cond;
+      // Fallback: cerca una parola-chiave dentro un testo lungo
+      const found = txt.match(/\b(Mint|Near Mint|Excellent|Good|Light Played|Played|Poor)\b/i);
+      if (found) return normalizeCondFromLabel(found[1]) ?? null;
+    }
+  }
+  // Strategia B: testo plain dentro elementi badge
+  const badgeRe = /<(?:span|abbr|div)[^>]*class="[^"]*(?:badge|condition|cond-)[^"]*"[^>]*>([\s\S]*?)<\/(?:span|abbr|div)>/gi;
+  let bm: RegExpExecArray | null;
+  while ((bm = badgeRe.exec(row)) !== null) {
+    const inner = bm[1].replace(/<[^>]+>/g, '').trim();
+    const cond = normalizeCondFromLabel(inner);
+    if (cond) return cond;
+  }
+  // Strategia C: class hint (es. "badge-nm", "condition-excellent")
+  const clsMatch = row.match(/\b(?:badge-|condition-|cond-)([a-z]+(?:-[a-z]+)?)/i);
+  if (clsMatch) {
+    const cond = normalizeCondFromLabel(clsMatch[1].replace('-', ' '));
+    if (cond) return cond;
+  }
+  // Strategia D: testo full
+  const plainText = rowToText(row);
+  const plainMatch = plainText.match(/\b(Near Mint|Light Played|Mint|Excellent|Good|Played|Poor|NM|EX|GD|LP|PL|PO|MT)\b/);
+  if (plainMatch) return normalizeCondFromLabel(plainMatch[1]);
+  return null;
+}
+
+// Estrae il prezzo da una row: strip HTML + regex su testo normalizzato.
+// Accetta € prima (€ 12,34) o dopo (12,34 €), con separatore , o .
 function extractPriceFromRow(row: string): number | null {
-  const m = row.match(/(?:€\s*|"price"\s*:\s*"?)(\d{1,4}[,.]?\d{0,3}[,.]\d{2})/i);
-  return m ? parsePrice(m[1]) : null;
+  const text = rowToText(row);
+  // Pattern ambidestro: 12,34 € | 12.34 € | € 12,34 | 1.234,56 € | 1,234.56 $
+  // Il gruppo numerico supporta migliaia sia con . che ,
+  const pats = [
+    /(\d{1,3}(?:[.,]\d{3})+[.,]\d{2})\s*€/,         // 1.234,56 € o 1,234.56 €
+    /(\d{1,4}[.,]\d{2})\s*€/,                         // 12,34 € o 12.34 €
+    /€\s*(\d{1,3}(?:[.,]\d{3})+[.,]\d{2})/,           // € 1.234,56
+    /€\s*(\d{1,4}[.,]\d{2})/,                         // € 12,34
+  ];
+  for (const p of pats) {
+    const m = text.match(p);
+    if (m) {
+      const n = parsePrice(m[1]);
+      if (n != null && n >= 0.05 && n < 10000) return n;
+    }
+  }
+  return null;
 }
 
 function parsePrice(s: string): number | null {
