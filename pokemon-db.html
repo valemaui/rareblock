@@ -8205,6 +8205,7 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
         <div class="rad-subtabs">
           <button class="rad-subtab active" data-sub="feed"     onclick="huntShowSub('feed')">🔥 Feed <span id="huntFeedCount"></span></button>
           <button class="rad-subtab"        data-sub="auctions" onclick="huntShowSub('auctions')">⏰ Aste</button>
+          <button class="rad-subtab"        data-sub="butler"   onclick="huntShowSub('butler')">🎩 Maggiordomo <span id="huntButlerCount"></span></button>
           <button class="rad-subtab"        data-sub="targets"  onclick="huntShowSub('targets')">🎯 Target <span id="huntTargetsCount"></span></button>
           <button class="rad-subtab"        data-sub="alerts"   onclick="huntShowSub('alerts')">🔔 Regole</button>
           <button class="rad-subtab"        data-sub="report"   onclick="huntShowSub('report')">📊 Report</button>
@@ -8223,6 +8224,7 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
 
       <!-- FEED -->
       <div id="huntSub-feed" class="rad-sub rad-sub-active">
+        <div id="huntButlerStrip"></div>
         <div id="huntFeedList"></div>
         <div id="huntFeedEmpty" class="rad-empty" style="display:none">
           <div class="rad-empty-icon">📡</div>
@@ -8241,6 +8243,11 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
       <div id="huntSub-auctions" class="rad-sub" style="display:none">
         <div style="margin-bottom:10px;font-size:12px;color:var(--text-muted)">Aste con countdown (scraped + monitorate manualmente). Ordinate per scadenza più vicina.</div>
         <div id="huntAuctionsList"></div>
+      </div>
+
+      <!-- MAGGIORDOMO -->
+      <div id="huntSub-butler" class="rad-sub" style="display:none">
+        <div id="huntButlerContent"></div>
       </div>
 
       <!-- TARGET -->
@@ -8330,6 +8337,38 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
 .rad-monitor-flag{position:absolute;top:8px;left:8px;background:rgba(255,149,0,.15);border:1px solid var(--warning);color:var(--warning);width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;animation:radPulse 2s ease-in-out infinite}
 @keyframes radPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,149,0,.5)}50%{box-shadow:0 0 0 6px rgba(255,149,0,0)}}
 .rad-monitor-on{background:var(--warning)!important;color:#0d1117!important;border-color:var(--warning)!important;font-weight:600}
+
+/* Maggiordomo */
+.rad-butler{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px}
+.rad-butler-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.rad-butler-hat{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#2a2f3a,#14171d);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.rad-butler-title{font-size:15px;font-weight:600}
+.rad-butler-sub{font-size:11px;color:var(--text-muted);font-family:var(--mono);margin-top:2px}
+.rad-butler-status{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:10px;font-family:var(--mono);margin-left:auto;flex-shrink:0}
+.rad-butler-status.ok{background:rgba(63,185,80,.12);color:var(--success);border:1px solid rgba(63,185,80,.3)}
+.rad-butler-status.warn{background:rgba(210,153,34,.12);color:var(--warning);border:1px solid rgba(210,153,34,.3)}
+.rad-butler-status.err{background:rgba(248,81,73,.12);color:var(--danger);border:1px solid rgba(248,81,73,.3)}
+
+.rad-butler-channels{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.rad-chan-chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 9px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);font-family:var(--mono)}
+.rad-chan-chip.on{border-color:var(--success);color:var(--success);background:rgba(63,185,80,.08)}
+.rad-chan-chip.off{color:var(--text-subtle)}
+
+.rad-butler-banner{background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.3);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;font-size:12px}
+.rad-butler-banner.err{background:rgba(248,81,73,.08);border-color:rgba(248,81,73,.3)}
+
+.rad-butler-watch{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.rad-butler-watch:last-child{border-bottom:none}
+.rad-butler-watch-title{font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rad-butler-watch-meta{font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:2px}
+.rad-butler-watch-next{font-size:11px;font-family:var(--mono);color:var(--warning);white-space:nowrap;flex-shrink:0}
+.rad-butler-watch-done{display:inline-flex;gap:2px;flex-wrap:wrap;margin-top:3px}
+.rad-butler-watch-done span{font-size:9px;padding:1px 5px;border-radius:3px;background:var(--surface2);color:var(--text-subtle);font-family:var(--mono)}
+.rad-butler-watch-done span.fired{background:rgba(63,185,80,.12);color:var(--success);border:1px solid rgba(63,185,80,.3)}
+
+/* Strip Maggiordomo in cima al Feed (quando ci sono monitor attivi) */
+.rad-butler-strip{background:linear-gradient(90deg,rgba(255,149,0,.08),transparent);border:1px solid rgba(255,149,0,.25);border-left:3px solid var(--warning);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;font-size:12px;flex-wrap:wrap}
+.rad-butler-strip-ico{font-size:18px}
 .rad-score-badge{position:absolute;top:8px;right:8px;color:#fff;font-weight:700;font-size:13px;padding:3px 8px;border-radius:10px;font-family:var(--mono);letter-spacing:.02em}
 .rad-card-img{width:64px;height:86px;object-fit:cover;border-radius:4px;border:1px solid var(--border);flex-shrink:0;background:var(--surface2)}
 .rad-card-img-ph{width:64px;height:86px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text-subtle);flex-shrink:0}
@@ -10377,10 +10416,22 @@ async function huntInit(){
     await huntLoadAll();
     huntStartRealtime();
     huntRequestBrowserPush();
+    huntStartTick();
   }
   huntRenderAll();
 }
 window.huntInit = huntInit;
+
+// Tick periodico: ogni 60s aggiorna countdown + Maggiordomo se tab visibile
+var _huntTick = null;
+function huntStartTick(){
+  if(_huntTick) return;
+  _huntTick = setInterval(function(){
+    var tab = document.getElementById('tab-hunt');
+    if(!tab || tab.style.display==='none') return;
+    huntRenderAll();
+  }, 60000);
+}
 
 // ── REALTIME: subscribe a nuovi listing dell'utente ─────────────────────
 var _huntRealtime = null;
@@ -10518,8 +10569,8 @@ function huntShowToast(title, body, url, score){
   var t = document.createElement('div');
   t.style.cssText = 'background:var(--card);border:1px solid var(--border);border-left:4px solid '+color+';border-radius:8px;padding:12px 14px;box-shadow:0 4px 16px rgba(0,0,0,.3);cursor:pointer;animation:rbSlideIn .3s ease-out';
   t.innerHTML = '<div style="font-weight:600;font-size:13px;margin-bottom:4px">'+escapeHtml(title)+'</div>'
-    +'<div style="font-size:11px;color:var(--muted)">'+escapeHtml(body)+'</div>'
-    +'<div style="font-size:10px;color:var(--muted);margin-top:4px">click per aprire →</div>';
+    +'<div style="font-size:11px;color:var(--muted);white-space:pre-line">'+escapeHtml(body)+'</div>'
+    +(url ? '<div style="font-size:10px;color:var(--muted);margin-top:4px">click per aprire →</div>' : '');
   t.onclick = function(){ if(url) window.open(url,'_blank'); t.remove(); };
   host.appendChild(t);
   setTimeout(function(){ t.style.opacity='0'; setTimeout(function(){t.remove();}, 300); }, 8000);
@@ -10594,13 +10645,256 @@ function huntRenderAll(){
   huntRenderAlertRules();
   huntRenderArbitrage();
   huntRenderReport();
+  huntRenderButler();
+  huntRenderButlerStrip();
   huntRenderStatsStrip();
   // Contatori sub-tab
   var fc = document.getElementById('huntFeedCount');
   if(fc) fc.textContent = _huntState.listings.length ? '('+_huntState.listings.length+')' : '';
   var tc = document.getElementById('huntTargetsCount');
   if(tc) tc.textContent = _huntState.targets.length ? '('+_huntState.targets.length+')' : '';
+  var bc = document.getElementById('huntButlerCount');
+  var mon = _huntState.listings.filter(function(l){return l.is_monitored;}).length;
+  if(bc) bc.textContent = mon ? '('+mon+')' : '';
 }
+
+// ── MAGGIORDOMO ─────────────────────────────────────────────────────────
+// Pannello "concierge" che mostra stato dei monitoraggi attivi:
+// - stato canali notifica (email/TG/push browser)
+// - lista aste monitorate con prossima soglia attesa
+// - warning se canali mancanti
+// - test di invio
+
+var RAD_THRESHOLDS = [
+  { key:'24h', hours:24,       label:'24h' },
+  { key:'6h',  hours:6,        label:'6h'  },
+  { key:'1h',  hours:1,        label:'1h'  },
+  { key:'10m', hours:10/60,    label:'10m' }
+];
+
+function radNextThreshold(listing){
+  // Ritorna la prossima soglia non ancora notificata che scatterà
+  if(!listing.auction_ends_at) return null;
+  var hRem = (new Date(listing.auction_ends_at) - new Date())/3600000;
+  if(hRem <= 0) return { key:'ended', label:'fine', etaMs:0 };
+  var notified = listing.monitor_notified || [];
+  // Le soglie sono ordinate da più larga a più stretta; la prossima a scattare è
+  // quella con hoursMax >= hRem e non ancora notificata; se tutte le outer sono già
+  // notificate, la prossima è la più stretta non ancora notificata.
+  // Più semplice: scansiona le non-notified e prendi la prima con hRem >= h
+  // (cioè: la più lontana che ancora deve scattare).
+  // Poi se hRem è già < h della più stretta non-notified, prendi 'ended'.
+  var pending = RAD_THRESHOLDS.filter(function(t){ return notified.indexOf(t.key)<0; });
+  if(!pending.length) return { key:'ended', label:'fine', etaMs: hRem*3600000 };
+  // Prossima soglia futura = la più grande pending ≥ hRem (che scatterà quando hRem ≤ h)
+  // Se hRem è già sotto la soglia più larga pending, allora prossima = quella più stretta ≥ hRem
+  var next = null;
+  for(var i=0;i<pending.length;i++){
+    var t = pending[i];
+    if(hRem >= t.hours){
+      // Non ancora raggiunta; scatterà quando hRem = t.hours → eta = (hRem - t.hours) ore
+      if(!next || t.hours > next.hours) next = t;
+    }
+  }
+  if(next){
+    var etaH = hRem - next.hours;
+    return { key:next.key, label:next.label, etaMs: etaH*3600000 };
+  }
+  // Tutte le soglie pending sono più strette di hRem attuale → la prossima è la più larga pending (scatterà al prossimo cron)
+  var imminent = pending.reduce(function(a,b){ return a.hours>b.hours ? a : b; });
+  return { key:imminent.key, label:imminent.label, etaMs: 0, imminent:true };
+}
+
+function radFmtEta(ms){
+  if(ms <= 0) return 'imminente';
+  var s = Math.floor(ms/1000);
+  var d = Math.floor(s/86400); s -= d*86400;
+  var h = Math.floor(s/3600);  s -= h*3600;
+  var m = Math.floor(s/60);
+  if(d) return 'tra '+d+'g '+h+'h';
+  if(h) return 'tra '+h+'h '+m+'m';
+  return 'tra '+m+'m';
+}
+
+function radChannelsStatus(){
+  var cfg = _huntState.config || {};
+  var pushOk = (typeof Notification!=='undefined') && Notification.permission === 'granted';
+  return {
+    email:    { ok: !!cfg.email_address,    value: cfg.email_address },
+    telegram: { ok: !!cfg.telegram_chat_id, value: cfg.telegram_chat_id },
+    push:     { ok: pushOk,                 value: pushOk ? 'browser autorizzato' : (Notification && Notification.permission==='denied' ? 'negato' : 'non richiesto') }
+  };
+}
+
+function huntRenderButler(){
+  var host = document.getElementById('huntButlerContent');
+  if(!host) return;
+  var ch = radChannelsStatus();
+  var anyOn = ch.email.ok || ch.telegram.ok || ch.push.ok;
+  var monitored = _huntState.listings
+    .filter(function(l){ return l.is_monitored && l.auction_ends_at; })
+    .sort(function(a,b){ return new Date(a.auction_ends_at) - new Date(b.auction_ends_at); });
+
+  var status = !anyOn ? '<span class="rad-butler-status err">⚠ nessun canale</span>'
+             : (monitored.length ? '<span class="rad-butler-status ok">✓ '+monitored.length+' in ascolto</span>'
+                                  : '<span class="rad-butler-status warn">○ nulla da seguire</span>');
+
+  var html = '<div class="rad-butler">'
+    +'<div class="rad-butler-head">'
+    +'  <div class="rad-butler-hat">🎩</div>'
+    +'  <div style="flex:1;min-width:0">'
+    +'    <div class="rad-butler-title">Maggiordomo</div>'
+    +'    <div class="rad-butler-sub">tiene d\'occhio le aste monitorate e ti avvisa alle soglie 24h · 6h · 1h · 10m · fine</div>'
+    +'  </div>'
+    +  status
+    +'</div>';
+
+  // Canali
+  html += '<div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;font-weight:600;margin-bottom:6px">Canali notifica</div>'
+    +'<div class="rad-butler-channels">'
+    +'  <span class="rad-chan-chip '+(ch.email.ok?'on':'off')+'">📧 '+(ch.email.ok?escapeHtml(ch.email.value):'non configurato')+'</span>'
+    +'  <span class="rad-chan-chip '+(ch.telegram.ok?'on':'off')+'">✈ '+(ch.telegram.ok?'Telegram #'+escapeHtml(ch.telegram.value):'Telegram non configurato')+'</span>'
+    +'  <span class="rad-chan-chip '+(ch.push.ok?'on':'off')+'">🔔 Push: '+escapeHtml(ch.push.value)+'</span>'
+    +'</div>';
+
+  // Azioni canali
+  html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">'
+    +'  <button class="btn" onclick="huntOpenAdminPanel()" style="font-size:11px">⚙ Modifica canali</button>';
+  if(!ch.push.ok && (typeof Notification!=='undefined') && Notification.permission!=='denied'){
+    html += '<button class="btn" onclick="radRequestPush()" style="font-size:11px">🔔 Autorizza push browser</button>';
+  }
+  html += '  <button class="btn" onclick="radTestNotification()" style="font-size:11px">🧪 Test notifica</button>'
+    +'</div>';
+
+  // Warning banner se no canali
+  if(!anyOn && monitored.length){
+    html += '<div class="rad-butler-banner err">'
+      +'⚠ Hai <b>'+monitored.length+'</b> monitoraggi attivi ma <b>nessun canale configurato</b>. Non riceverai alert fino a che non configuri almeno uno tra email, Telegram o push.'
+      +'</div>';
+  }
+
+  // Info su push con tab chiusa
+  if(ch.push.ok){
+    html += '<div class="rad-butler-banner" style="background:rgba(88,166,255,.05);border-color:rgba(88,166,255,.25)">'
+      +'<span style="font-size:14px">ℹ</span>'
+      +'<span>Push browser attivi solo con RareBlock <b>aperto in una tab</b>. Per alert a browser chiuso usa email o Telegram.</span>'
+      +'</div>';
+  }
+
+  // Watchlist monitoraggio
+  html += '<div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;font-weight:600;margin-bottom:6px">Aste sotto osservazione</div>';
+  if(!monitored.length){
+    html += '<div style="padding:18px;text-align:center;color:var(--text-muted);font-size:12px;background:var(--surface2);border-radius:var(--r)">'
+      +'Nessuna asta monitorata. Clicca <b>🔕 Monitora</b> su una card asta per attivare le notifiche automatiche.'
+      +'</div>';
+  } else {
+    html += '<div>';
+    html += monitored.map(function(l){
+      var hRem = (new Date(l.auction_ends_at) - new Date())/3600000;
+      var next = radNextThreshold(l);
+      var notified = l.monitor_notified || [];
+      var fired = RAD_THRESHOLDS.map(function(t){
+        var on = notified.indexOf(t.key)>=0;
+        return '<span class="'+(on?'fired':'')+'">'+t.label+(on?' ✓':'')+'</span>';
+      }).join('');
+      var nextStr = next
+        ? (next.key==='ended'
+            ? '🏁 termina tra '+radFmtEta(new Date(l.auction_ends_at)-new Date())
+            : (next.imminent
+                ? '⏰ '+next.label+' (alert al prossimo tick)'
+                : '⏰ '+next.label+' '+radFmtEta(next.etaMs)))
+        : '—';
+      var pfLabel = (HUNT_PLATFORMS.find(function(p){return p.id===l.platform;})||{}).label || l.platform;
+      return '<div class="rad-butler-watch">'
+        +'  <div style="flex:1;min-width:0">'
+        +'    <div class="rad-butler-watch-title">'+escapeHtml(l.title||'(senza titolo)')+'</div>'
+        +'    <div class="rad-butler-watch-meta">'+pfLabel+' · €'+(l.price!=null?Number(l.price).toFixed(2):'—')+' · '+huntFmtCountdown(l.auction_ends_at)+'</div>'
+        +'    <div class="rad-butler-watch-done">'+fired+'</div>'
+        +'  </div>'
+        +'  <div style="text-align:right">'
+        +'    <div class="rad-butler-watch-next">'+nextStr+'</div>'
+        +'    <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">'
+        +'      <a class="btn" href="'+l.listing_url+'" target="_blank" style="font-size:10px;text-decoration:none">Apri</a>'
+        +'      <button class="btn" onclick="huntToggleMonitor(\''+l.id+'\')" style="font-size:10px">🔕 Stop</button>'
+        +'    </div>'
+        +'  </div>'
+        +'</div>';
+    }).join('');
+    html += '</div>';
+  }
+
+  html += '</div>';
+  host.innerHTML = html;
+}
+
+function huntRenderButlerStrip(){
+  // Banner compatto in cima al Feed quando ci sono monitor attivi
+  var strip = document.getElementById('huntButlerStrip');
+  if(!strip) return;
+  var monitored = _huntState.listings.filter(function(l){ return l.is_monitored && l.auction_ends_at; });
+  if(!monitored.length){ strip.innerHTML=''; return; }
+  var ch = radChannelsStatus();
+  var anyOn = ch.email.ok || ch.telegram.ok || ch.push.ok;
+  // prossimo alert previsto
+  var next = monitored
+    .map(function(l){ return { l:l, n:radNextThreshold(l) }; })
+    .filter(function(x){ return x.n; })
+    .sort(function(a,b){ return (a.n.etaMs||0) - (b.n.etaMs||0); })[0];
+
+  var warnHtml = !anyOn
+    ? '<span style="color:var(--danger)">⚠ canali non configurati</span>'
+    : (next ? 'prossimo alert: <b>'+escapeHtml((next.l.title||'').slice(0,40))+'</b> — '
+              + (next.n.key==='ended' ? '🏁 fine '+radFmtEta(new Date(next.l.auction_ends_at)-new Date())
+                                       : '⏰ soglia '+next.n.label+' '+(next.n.imminent?'(ora)':radFmtEta(next.n.etaMs)))
+            : '');
+
+  strip.innerHTML = '<div class="rad-butler-strip">'
+    +'<span class="rad-butler-strip-ico">🎩</span>'
+    +'<span><b>'+monitored.length+'</b> '+(monitored.length===1?'asta monitorata':'aste monitorate')+'</span>'
+    +'<span style="color:var(--text-muted)">·</span>'
+    +'<span>'+warnHtml+'</span>'
+    +'<span style="flex:1"></span>'
+    +'<button class="btn" onclick="huntShowSub(\'butler\')" style="font-size:11px">Apri Maggiordomo →</button>'
+    +'</div>';
+}
+
+// Richiedi autorizzazione push browser (manuale)
+function radRequestPush(){
+  if(!('Notification' in window)){ alert('Questo browser non supporta Notification API'); return; }
+  Notification.requestPermission().then(function(p){
+    if(p==='granted'){
+      huntShowToast('🔔 Push attivati', 'Riceverai notifiche browser mentre RareBlock è aperto', null, 100);
+      try{ new Notification('📡 RareBlock Radar', { body:'Notifiche push abilitate. Benvenuto!' }); }catch(_){}
+    } else if(p==='denied'){
+      alert('Permesso negato. Vai nelle impostazioni del browser per riabilitare le notifiche.');
+    }
+    huntRenderAll();
+  }).catch(function(e){ console.warn(e); });
+}
+window.radRequestPush = radRequestPush;
+
+// Test notifica: simula un alert di soglia locale (senza chiamare edge)
+function radTestNotification(){
+  var ch = radChannelsStatus();
+  var msgs = [];
+  if(ch.push.ok){
+    try{
+      new Notification('📡 RareBlock — Test Maggiordomo', {
+        body: 'Se vedi questo, il push browser funziona.\nAggiungi email o Telegram per alert quando sei offline.',
+        icon: '/favicon.ico',
+        tag: 'rb-butler-test',
+        requireInteraction: false
+      });
+      msgs.push('✓ Push browser inviato');
+    }catch(e){ msgs.push('✖ Push error: '+e.message); }
+  } else {
+    msgs.push('⚠ Push non autorizzato');
+  }
+  if(ch.email.ok) msgs.push('ℹ Email config OK ('+ch.email.value+') — il cron manderà alle soglie');
+  if(ch.telegram.ok) msgs.push('ℹ Telegram OK (chat '+ch.telegram.value+') — il cron manderà alle soglie');
+  huntShowToast('🧪 Test canali', msgs.join('\n'), null, 80);
+}
+window.radTestNotification = radTestNotification;
 
 function huntRenderStatsStrip(){
   var sL = document.getElementById('radStatListings'); if(sL) sL.textContent = _huntState.listings.length;
