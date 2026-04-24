@@ -8669,9 +8669,9 @@ function anlRenderAll(card){
     +'<div class="anl-sources" id="anlSources">'+anlSourcesScaffold(card)+'</div>'
     +'</div>';
 
-  // Zona 2: Proiezione (scaffold)
-  var fwdTitle = graded ? 'Proiezione · tra 12 mesi' : 'Potenziale · se gradata oggi';
-  var fwdSub   = graded ? 'trend 12M da PriceCharting' : 'stima sul grado più probabile dalla condizione';
+  // Zona 2: Analisi/Proiezione
+  var fwdTitle = graded ? 'Analisi mercato' : 'Potenziale · se gradata oggi';
+  var fwdSub   = graded ? 'liquidità, volatilità e dimensione del campione' : 'stima sul grado più probabile dalla condizione';
   h+='<div class="anl-fwd" id="anlFwd">'
     +'<div class="anl-fwd-head">'
     +  '<span class="anl-fwd-label">'+fwdTitle+'</span>'
@@ -8878,49 +8878,95 @@ function anlRenderProjection(){
 function anlRenderProjectionGraded(priceEl, deltaEl, descEl, gridEl){
   var today = anlComputeToday();
   var pc = anlLiveData.pc;
+  var ebay = anlLiveData.ebay;
   var house = document.getElementById('anlHouse').value;
-  var score = parseFloat(document.getElementById('anlGradeScore').value);
+  var score = document.getElementById('anlGradeScore').value;
+  var listingKey = house + '_' + score;
 
   if(!today.price){
     priceEl.textContent='—'; priceEl.className='anl-fwd-price mute';
     deltaEl.textContent=''; deltaEl.className='anl-fwd-delta mute';
-    descEl.textContent='Serve almeno una sorgente valida per proiettare il futuro.';
+    descEl.textContent='Serve almeno una sorgente valida per analizzare il mercato.';
     gridEl.innerHTML='';
     return;
   }
 
-  // Trend: scegli tra trend_psa10_12m (se grado 10) / trend_grade9_12m (se ≤9.5) / ungraded come fallback
-  var trendPct = null, trendSrc = null;
-  if(pc){
-    if(score===10 && pc.trend_psa10_12m!=null){ trendPct=pc.trend_psa10_12m; trendSrc='PSA 10 12M'; }
-    else if(score<=9.5 && pc.trend_grade9_12m!=null){ trendPct=pc.trend_grade9_12m; trendSrc='Grade 9 12M'; }
-    else if(pc.trend_ungraded_12m!=null){ trendPct=pc.trend_ungraded_12m; trendSrc='Ungraded 12M (proxy)'; }
+  // Per le carte gradate, PC non espone trend 12M nella pagina base.
+  // Invece di mostrare una previsione inventata, analizziamo il mercato REALE:
+  // - volumi: quante vendite eBay nel campione di PC + nella cascata eBay Sold
+  // - dispersione: range min-max come indicatore di liquidità/volatilità del prezzo
+  // - rarità: count totale di vendite (alto = carta liquida, basso = carta illiquida)
+  var rate = anlLiveData.usdEur || ANL_USD_EUR_FALLBACK;
+  var pcListing = (pc && pc.grades_from_listings) ? pc.grades_from_listings[listingKey] : null;
+
+  // Totale vendite storiche (PC) + vendite recenti (eBay cascata)
+  var pcCount = pcListing ? pcListing.count : 0;
+  var ebayCount = ebay && ebay.count ? ebay.count : 0;
+  var totalSales = pcCount + ebayCount;
+
+  // Volatilità: (max - min) / mediana. Se >0.8 il mercato è molto volatile.
+  var volatility = null;
+  if(pcListing && pcListing.max && pcListing.min && pcListing.median){
+    volatility = (pcListing.max - pcListing.min) / pcListing.median;
   }
 
-  if(trendPct==null){
-    priceEl.textContent='—'; priceEl.className='anl-fwd-price mute';
-    deltaEl.textContent=''; deltaEl.className='anl-fwd-delta mute';
-    descEl.textContent='PriceCharting non ha esposto il trend 12 mesi per questa carta. Impossibile proiettare.';
-    gridEl.innerHTML='';
-    return;
+  // Classificazione liquidità
+  var liquidity;
+  if(totalSales >= 20)       liquidity = {label:'alta', cls:'pos', note:'carta molto scambiata, prezzo affidabile'};
+  else if(totalSales >= 8)   liquidity = {label:'media', cls:'mute', note:'mercato attivo ma non sovrabbondante'};
+  else if(totalSales >= 3)   liquidity = {label:'bassa', cls:'mute', note:'poche vendite registrate, prezzo indicativo'};
+  else                       liquidity = {label:'molto bassa', cls:'neg', note:'carta illiquida, difficile valutare'};
+
+  // Classificazione volatilità
+  var volatilityClass = null;
+  if(volatility != null){
+    if(volatility < 0.3)      volatilityClass = {label:'bassa', cls:'pos', note:'prezzi stabili, mercato maturo'};
+    else if(volatility < 0.6) volatilityClass = {label:'media', cls:'mute', note:'escursioni normali'};
+    else if(volatility < 1.2) volatilityClass = {label:'alta', cls:'mute', note:'prezzo variabile tra vendite'};
+    else                      volatilityClass = {label:'molto alta', cls:'neg', note:'attenzione: range prezzi molto ampio'};
   }
 
-  var fwdPrice = today.price * (1 + trendPct/100);
-  var delta = fwdPrice - today.price;
-  var cls = trendPct>=0 ? 'pos' : 'neg';
-  priceEl.textContent='€'+fwdPrice.toFixed(2);
-  priceEl.className='anl-fwd-price '+cls;
-  deltaEl.textContent = (delta>=0?'+':'')+'€'+delta.toFixed(2)+' · '+(trendPct>=0?'+':'')+trendPct.toFixed(1)+'%';
-  deltaEl.className='anl-fwd-delta '+cls;
-  descEl.textContent='Applicando il trend storico 12M di PriceCharting ('+trendSrc+') al valore attuale, la carta potrebbe valere €'+fwdPrice.toFixed(2)+' a distanza di un anno. Non è una garanzia: il mercato può divergere.';
+  // Hero: prezzo corrente (già calcolato in anlComputeToday)
+  priceEl.textContent = '€'+today.price.toFixed(2);
+  priceEl.className = 'anl-fwd-price';
+  deltaEl.textContent = 'mercato ' + liquidity.label;
+  deltaEl.className = 'anl-fwd-delta ' + liquidity.cls;
 
-  // Grid KV
+  // Descrizione
+  var descParts = ['Valore di mercato attuale per '+house+' '+score+': €'+today.price.toFixed(2)+'.'];
+  if(totalSales > 0){
+    descParts.push(totalSales+' vendite analizzate (PC Sold Listings + eBay cascata).');
+  }
+  descParts.push('Liquidità '+liquidity.label+' · '+liquidity.note+'.');
+  if(volatilityClass){
+    descParts.push('Volatilità '+volatilityClass.label+' · '+volatilityClass.note+'.');
+  }
+  descEl.textContent = descParts.join(' ');
+
+  // Grid KV con dettagli di mercato
   var rows=[
-    {k:'Valore oggi', v:'€'+today.price.toFixed(2)},
-    {k:'Trend 12M (PC)', v:(trendPct>=0?'+':'')+trendPct.toFixed(1)+'%', cls: trendPct>=0?'pos':'neg'},
-    {k:'Trend source', v:trendSrc, cls:'mute'},
-    {k:'Δ atteso', v:(delta>=0?'+':'')+'€'+delta.toFixed(2), cls:cls},
+    {k:'Valore mediano', v:'€'+today.price.toFixed(2)},
+    {k:'Vendite totali', v: totalSales>0 ? (totalSales + ' (' + pcCount + ' storiche + ' + ebayCount + ' recenti)') : '—', cls:'mute'},
   ];
+  if(pcListing){
+    var sym = pcListing.currency_symbol || '$';
+    rows.push({k:'Range prezzi', v: sym+Math.round(pcListing.min)+'–'+sym+Math.round(pcListing.max), cls:'mute'});
+  }
+  rows.push({k:'Liquidità', v:liquidity.label, cls:liquidity.cls});
+  if(volatilityClass){
+    rows.push({k:'Volatilità', v:volatilityClass.label + (volatility!=null?' ('+(volatility*100).toFixed(0)+'%)':''), cls:volatilityClass.cls});
+  }
+  // Suggerimento operativo
+  var advice = null;
+  if(liquidity.label==='alta' && volatilityClass && volatilityClass.label==='bassa'){
+    advice = {k:'Consiglio', v:'Mercato solido, prezzo affidabile', cls:'pos'};
+  } else if(liquidity.label==='molto bassa'){
+    advice = {k:'Consiglio', v:'Prezzo solo indicativo, negozia', cls:'neg'};
+  } else if(volatilityClass && volatilityClass.label==='molto alta'){
+    advice = {k:'Consiglio', v:'Aspetta o verifica su più fonti', cls:'neg'};
+  }
+  if(advice) rows.push(advice);
+
   gridEl.innerHTML = rows.map(function(r){
     return '<div class="anl-fwd-kv"><span class="anl-fwd-kv-k">'+r.k+'</span><span class="anl-fwd-kv-v '+(r.cls||'')+'">'+r.v+'</span></div>';
   }).join('');
