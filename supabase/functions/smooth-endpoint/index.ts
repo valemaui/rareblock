@@ -1031,112 +1031,23 @@ async function handleDiag(inputCards: DiagCardInput[] | null): Promise<Response>
     const prod = await fetchWithRetry(firstProduct.url, 1, 'https://www.pricecharting.com/');
     if (!prod.ok) { cardReport.error = `product HTTP ${prod.status}`; report.push(cardReport); continue; }
 
-    // Estrai slice di ogni ID con contesto label
-    const ids = ['used_price','complete_price','new_price','graded_price','box_only_price','manual_only_price','bgs_10_price'];
-    const idData: any = {};
-    for (const id of ids) {
-      const rx = new RegExp(`<(?:td|span|div)[^>]*id="${id}"[^>]*>([\\s\\S]{0,600}?)<\\/(?:td|span|div)>`, 'i');
-      const m = prod.html.match(rx);
-      if (!m) continue;
-      const slice = m[0];
-      // Estrai primo prezzo $
-      const priceM = slice.match(/\$\s*([\d,]+\.\d{2})/);
-      const price = priceM ? parseFloat(priceM[1].replace(/,/g, '')) : null;
-      // Prendi contesto label: 200 char prima dell'ID
-      const idx = prod.html.indexOf(`id="${id}"`);
-      const before = idx > 0 ? prod.html.substring(Math.max(0, idx - 250), idx).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(-120) : '';
-      idData[id] = { price, label_context: before, raw: slice.substring(0, 200) };
-    }
-    cardReport.ids = idData;
-
-    // Prova anche label-based (quello che usa fallback parser)
-    const labelPatterns: Array<[string, RegExp]> = [
-      ['PSA 10',   /PSA\s*10[\s\S]{0,200}?\$([\d,]+\.\d{2})/i],
-      ['BGS 10',   /BGS\s*10[\s\S]{0,200}?\$([\d,]+\.\d{2})/i],
-      ['CGC 10',   /CGC\s*10[\s\S]{0,200}?\$([\d,]+\.\d{2})/i],
-      ['Grade 9.5',/Grade\s*9\.5[\s\S]{0,200}?\$([\d,]+\.\d{2})/i],
-      ['Grade 9',  /Grade\s*9(?!\.)[\s\S]{0,200}?\$([\d,]+\.\d{2})/i],
-      ['Grade 8',  /Grade\s*8[\s\S]{0,200}?\$([\d,]+\.\d{2})/i],
-      ['Grade 7',  /Grade\s*7[\s\S]{0,200}?\$([\d,]+\.\d{2})/i],
-      ['Ungraded', /Ungraded[\s\S]{0,200}?\$([\d,]+\.\d{2})/i],
-    ];
-    const labels: any = {};
-    for (const [lbl, rx] of labelPatterns) {
-      const m = prod.html.match(rx);
-      if (m) labels[lbl] = parseFloat(m[1].replace(/,/g, ''));
-    }
-    cardReport.labels = labels;
-
-    // Prezzo "estratto" ufficiale (quello che ritornerebbe la funzione)
+    // Prezzi estratti (output principale, quello che userà il frontend)
     cardReport.extracted = extractPCPrices(prod.html);
 
-    // Dump: elenca TUTTI i $XXX.XX del HTML con contesto, per vedere dove stanno davvero i prezzi
-    const priceMatches: { price: number; before: string; after: string }[] = [];
-    const pricePat = /\$\s*([\d,]+\.\d{2})/g;
-    let pm: RegExpExecArray | null;
-    while ((pm = pricePat.exec(prod.html)) !== null && priceMatches.length < 80) {
-      const before = prod.html.substring(Math.max(0, pm.index - 140), pm.index)
-        .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(-80);
-      const after = prod.html.substring(pm.index + pm[0].length, pm.index + pm[0].length + 80)
-        .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 50);
-      priceMatches.push({ price: parseFloat(pm[1].replace(/,/g, '')), before, after });
-    }
-    cardReport.price_dump = priceMatches;
-
-    // Dump trend: cerca "Price Change" / "1 Year" / "12 Month" / "ago" nel HTML
-    // e slice 800 char attorno per capire struttura
-    const trendMarkers = ['Price Change', '1 Year', '12 Month', 'a year ago', 'yearly change'];
-    const trendSlices: Record<string, string> = {};
-    for (const marker of trendMarkers) {
-      const idx = prod.html.toLowerCase().indexOf(marker.toLowerCase());
-      if (idx > 0) {
-        const slice = prod.html.substring(idx, idx + 800)
-          .replace(/<[^>]+>/g, ' ')
-          .replace(/&nbsp;/g, ' ')
-          .replace(/&#43;/g, '+')
-          .replace(/\s+/g, ' ')
-          .trim().slice(0, 500);
-        trendSlices[marker] = 'pos=' + idx + ' | ' + slice;
-      }
-    }
-    if (Object.keys(trendSlices).length) cardReport.trend_slices = trendSlices;
-
-    // Per ciascuna label (PSA 10, BGS 10, CGC 10), trova TUTTE le occorrenze
-    // e per ognuna prendi il primo $ dopo e 200 char di contesto
-    const labelOccurrences: Record<string, Array<{ pos: number; first_price: number | null; context: string }>> = {};
-    for (const lbl of ['PSA 10', 'BGS 10', 'CGC 10', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 9.5', 'Ungraded']) {
-      const lblRe = new RegExp(lbl.replace(/\s+/g, '\\s*').replace('.', '\\.'), 'gi');
-      const occs: Array<{ pos: number; first_price: number | null; context: string }> = [];
-      let lm: RegExpExecArray | null;
-      while ((lm = lblRe.exec(prod.html)) !== null && occs.length < 8) {
-        const from = lm.index;
-        const nextPriceM = prod.html.substring(from, from + 2000).match(/\$\s*([\d,]+\.\d{2})/);
-        const price = nextPriceM ? parseFloat(nextPriceM[1].replace(/,/g, '')) : null;
-        const ctx = prod.html.substring(from, from + 500)
-          .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300);
-        occs.push({ pos: from, first_price: price, context: ctx });
-      }
-      if (occs.length) labelOccurrences[lbl] = occs;
-    }
-    cardReport.label_occurrences = labelOccurrences;
-
-    // SUMMARY TABLE: cerca la "summary grade table" in fondo pagina
-    // Pattern: sequenza "Ungraded $X ... Grade 7 $X ... Grade 8 $X ... Grade 9 $X ... Grade 9.5 $X ..."
-    // Spesso dopo un heading tipo "<h2>Price History</h2>" o sezione similar
-    const summaryBlockM = prod.html.match(/Ungraded\s*\$\s*[\d,]+\.?\d*[\s\S]{0,800}?Grade\s*7[\s\S]{0,2000}?Grade\s*9\.5/i);
-    if (summaryBlockM) {
-      cardReport.summary_block = summaryBlockM[0].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').substring(0, 800);
-    }
-
-    // Rileva anomalie
+    // Anomalie automatiche di validazione
     const ex = cardReport.extracted;
-    const anomalies = [];
+    const anomalies: string[] = [];
     if (ex.psa10 && ex.ungraded && ex.psa10 > 10 * ex.ungraded) anomalies.push(`PSA 10 (${ex.psa10}) > 10× Ungraded (${ex.ungraded})`);
-    if (ex.psa10 && ex.grade9 && ex.psa10 < ex.grade9) anomalies.push('PSA 10 < Grade 9');
-    if (ex.psa10 > 5000) anomalies.push(`PSA 10 > $5000 (sospetto)`);
-    if (ex.bgs10 > 5000) anomalies.push(`BGS 10 > $5000 (sospetto)`);
-    if (ex.cgc10 > 5000) anomalies.push(`CGC 10 > $5000 (sospetto)`);
-    cardReport.anomalies = anomalies;
+    if (ex.psa10 && ex.grade9 && ex.psa10 < ex.grade9) anomalies.push('PSA 10 < Grade 9 (incoerente)');
+    // Rileva combinazioni con campione troppo piccolo
+    if (ex.grades_from_listings) {
+      let lowCount = 0;
+      for (const k of Object.keys(ex.grades_from_listings)) {
+        if (ex.grades_from_listings[k].confidence === 'low') lowCount++;
+      }
+      if (lowCount > 0) anomalies.push(`${lowCount} grade con campione ≤2 vendite`);
+    }
+    if (anomalies.length) cardReport.anomalies = anomalies;
 
     report.push(cardReport);
   }
