@@ -4467,9 +4467,23 @@ function cmLogger(label){
   var _pmHandlers = {};
 
   function dispatch(data){
+    // Diagnostic log — utile per capire se il messaggio arriva ma viene scartato
+    try{
+      console.log('[RareBlock] CM message ricevuto:', {
+        status: data.status || 'ok',
+        prices: (data.prices||[]).length,
+        listings: (data.listings||[]).length,
+        single: !!data.single,
+        url: data.url
+      });
+    }catch(e){}
+
     var prices   = data.prices   || [];
     var listings = data.listings || prices.map(function(p){ return {price:p,condition:'NM',condRank:2}; });
-    if(!prices.length && !listings.length) return;
+    // Accetta anche "no_prices" come segnale valido (sblocca il timeout)
+    var isNoPrices = data.status === 'no_prices';
+    if(!prices.length && !listings.length && !isNoPrices) return;
+
     Object.keys(_pmHandlers).forEach(function(idx){
       _pmHandlers[idx](prices, data, listings);
       delete _pmHandlers[idx];
@@ -4520,9 +4534,15 @@ async function verifyPrice(idx){
     log.log('In attesa prezzi dallo userscript\u2026 (timeout 30s)','info');
 
     const livePrices = await new Promise(function(resolve){
-      var timer = setTimeout(function(){ resolve(null); }, 30000);
+      var timer = setTimeout(function(){ resolve({_timeout:true}); }, 30000);
       window._rbRegisterPriceHandler(idx, function(prices, data, listings){
-        clearTimeout(timer); resolve({prices: prices, listings: listings||[]});
+        clearTimeout(timer);
+        resolve({
+          prices: prices,
+          listings: listings||[],
+          status: data && data.status,    // 'no_prices' se userscript ha finito senza trovare offerte
+          reason: data && data.reason,
+        });
       });
     });
 
@@ -4560,25 +4580,34 @@ async function verifyPrice(idx){
     } else {
       window._rbUnregisterPriceHandler(idx);
 
-      // Nessun prezzo ricevuto — mostra input manuale nel log
+      // Capisci il motivo: timeout reale, userscript ha detto "no_prices", o payload vuoto imprevisto
+      var failReason;
+      var failHint;
+      if(!livePrices || livePrices._timeout){
+        failReason = 'Timeout 30s — userscript non ha risposto';
+        failHint   = 'Verifica che Tampermonkey sia installato e che "RareBlock · CM Price Bridge v2.1" sia abilitato sul dominio cardmarket.com';
+      } else if(livePrices.status === 'no_prices'){
+        failReason = 'Userscript ha risposto: nessuna offerta sulla pagina';
+        failHint   = 'La carta potrebbe non avere offerte per la lingua/condizione scelte. Prova con lingua diversa o inserisci prezzo manualmente';
+      } else {
+        failReason = 'Payload vuoto ricevuto dallo userscript';
+        failHint   = 'Aggiorna lo userscript all\'ultima versione (v2.1) o inserisci prezzo manualmente';
+      }
+      log.log('\u2717 ' + failReason, 'err');
+      log.log(failHint, 'warn');
+
+      // Mostra input manuale nel log
       const ov = document.getElementById('cmLogOverlay');
       if(ov){
         const b = ov.querySelector('.cm-log-body');
         if(b){
-          const hint = document.createElement('div');
-          hint.className = 'cm-log-line';
-          hint.innerHTML = '<span class="cm-log-icon">⚠</span>'
-            + '<span class="cm-log-text warn">Installa lo userscript Tampermonkey per grab automatico. '
-            + 'Inserisci prezzo manualmente:</span>';
-          b.appendChild(hint);
-
           const manWrap = document.createElement('div');
           manWrap.style.cssText = 'padding:6px 12px 10px;display:flex;align-items:center;gap:8px';
           manWrap.innerHTML = '<input id="rbManualPrice" type="number" step="0.01" min="0" placeholder="0.00"'
             + ' style="width:90px;font-size:14px;font-family:var(--mono);padding:4px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text)">'
             + '<button onclick="(function(){var v=parseFloat(document.getElementById(\'rbManualPrice\').value);if(v>0){applyVerifiedPrice('+idx+',v);document.getElementById(\'cmLogOverlay\').remove();}})()"'
             + ' style="padding:4px 12px;background:var(--success);color:#0d1117;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:13px">'
-            + '✓ Applica</button>';
+            + '\u2713 Applica</button>';
           b.appendChild(manWrap);
           setTimeout(function(){ var inp=document.getElementById('rbManualPrice'); if(inp) inp.focus(); }, 100);
         }

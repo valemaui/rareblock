@@ -1,13 +1,31 @@
 // ==UserScript==
-// @name         RareBlock CM Price Scraper
+// @name         RareBlock CM Price Scraper [DEPRECATO — usa rareblock-cardmarket.user.js v2.1+]
 // @namespace    https://www.rareblock.eu
 // @version      2.0
-// @description  Legge prezzi listing da Cardmarket e li invia a RareBlock
+// @description  DEPRECATO. Sostituito da rareblock-cardmarket.user.js v2.1 (che unifica questa logica + UI banner + segnale no_prices).
 // @author       RareBlock
 // @match        https://www.cardmarket.com/*/Pokemon/Products/*
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
+
+/*
+ * ⚠️  QUESTO SCRIPT È DEPRECATO
+ *
+ * La sua logica di scraping è stata integrata in
+ *   rareblock-cardmarket.user.js (v2.1+)
+ * che aggiunge:
+ *   - UI banner con chip cliccabili per invio singolo prezzo
+ *   - segnale 'no_prices' per sbloccare il timeout lato app
+ *   - dual channel: postMessage + BroadcastChannel
+ *
+ * Azione consigliata:
+ *   1. In Tampermonkey, disinstalla "RareBlock CM Price Scraper"
+ *   2. Installa "RareBlock · CM Price Bridge" v2.1 da rareblock-cardmarket.user.js
+ *
+ * Avere entrambi installati fa partire il doppio banner e raddoppia i postMessage.
+ */
+
 
 (function () {
   'use strict';
