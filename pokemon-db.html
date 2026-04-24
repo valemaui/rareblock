@@ -3033,6 +3033,11 @@ async function savePrev(p){
       deal_info:p.deal_info?(typeof p.deal_info==='string'?p.deal_info:JSON.stringify(p.deal_info)):null,
       ...(uid?{user_id:uid}:{})
     };
+    // Se lo schema check ha rilevato colonne mancanti, rimuovile dal payload
+    // per evitare errori ripetuti. L'app resta funzionante con degrado grazioso.
+    if(_prevSchemaStatus && _prevSchemaStatus.missing && _prevSchemaStatus.missing.length){
+      _prevSchemaStatus.missing.forEach(function(col){ delete bodyObj[col]; });
+    }
     const r = await fetch(SUPA_URL+'/rest/v1/preventivi',{
       method:'POST',
       headers:upsertHdr,
@@ -3040,6 +3045,20 @@ async function savePrev(p){
     });
     const respText = await r.text().catch(function(){ return ''; });
     if(!r.ok){
+      // Se 400 con "column does not exist" → aggiorna schema status e riprova una volta
+      if(r.status===400 && /column.*does\s+not\s+exist/i.test(respText)){
+        // Forza re-check schema e riprova con payload pulito
+        await checkPrevSchema(true);
+        if(_prevSchemaStatus && _prevSchemaStatus.missing && _prevSchemaStatus.missing.length){
+          _prevSchemaStatus.missing.forEach(function(col){ delete bodyObj[col]; });
+          const r2=await fetch(SUPA_URL+'/rest/v1/preventivi',{
+            method:'POST', headers:upsertHdr, body:JSON.stringify(bodyObj)
+          });
+          const r2Text=await r2.text().catch(function(){return '';});
+          if(!r2.ok) throw new Error('Supabase HTTP '+r2.status+': '+r2Text.substring(0,200));
+          return; // retry ok
+        }
+      }
       throw new Error('Supabase HTTP '+r.status+': '+respText.substring(0,200));
     }
   }catch(e){
@@ -3052,6 +3071,122 @@ async function deletePrevFromDB(id){
   try{ await supa('DELETE','preventivi?id=eq.'+id); }
   catch(e){ console.warn('deletePrev error:',e.message); }
 }
+
+// ── SCHEMA CHECK: verifica se il DB ha i campi nuovi dei preventivi ──
+// Le colonne aggiunte per note/venditore + conferma deal richiedono ALTER TABLE.
+// Questa funzione rileva colonne mancanti e mostra un banner con l'SQL da eseguire.
+// Il payload di savePrev viene poi filtrato per escludere i campi non presenti,
+// così l'app resta funzionante anche prima della migrazione.
+var _prevSchemaStatus=null; // {checked:bool, missing:[...]}
+var PREV_NEW_COLS=['note','seller_name','status','confirmed_at','deal_info'];
+
+async function checkPrevSchema(force){
+  if(_prevSchemaStatus && !force) return _prevSchemaStatus;
+  const missing=[];
+  // Prova a selezionare tutte le colonne nuove in un colpo. Se fallisce,
+  // PostgREST ritorna 400 con un messaggio che cita la PRIMA colonna mancante.
+  // Iteriamo finché non abbiamo identificato tutte le colonne problematiche.
+  try{
+    const colsToCheck=PREV_NEW_COLS.slice();
+    // Ciclo difensivo: max PREV_NEW_COLS.length+1 iterazioni
+    for(let safety=0;safety<=PREV_NEW_COLS.length;safety++){
+      const remaining=colsToCheck.filter(c=>!missing.includes(c));
+      if(!remaining.length) break;
+      const url=SUPA_URL+'/rest/v1/preventivi?select=id,'+remaining.join(',')+'&limit=1';
+      const r=await fetch(url,{headers:getHDR()});
+      if(r.ok) break; // tutte le rimanenti esistono
+      const txt=await r.text().catch(function(){return '';});
+      // Parse: "column preventivi.X does not exist" o "column 'X' does not exist"
+      let found=null;
+      for(const col of remaining){
+        const re=new RegExp('column[^a-z0-9_]+(preventivi\\.)?"?'+col+'"?[^a-z0-9_]+does\\s+not\\s+exist','i');
+        if(re.test(txt)){ found=col; break; }
+      }
+      if(found){ missing.push(found); continue; }
+      // Se non siamo riusciti a identificare la colonna, tagliamo la prima della lista
+      // e riproviamo — è un euristico ma evita loop infiniti
+      const first=remaining[0];
+      if(first && !missing.includes(first)) missing.push(first);
+    }
+    _prevSchemaStatus={checked:true,missing:missing};
+    if(missing.length){
+      console.warn('[SCHEMA] Colonne mancanti nella tabella preventivi:',missing);
+      showSchemaWarning(missing);
+    } else {
+      console.info('[SCHEMA] preventivi: tutte le colonne necessarie sono presenti');
+    }
+  }catch(e){
+    console.warn('checkPrevSchema error (assumo OK):',e.message);
+    _prevSchemaStatus={checked:true,missing:[]};
+  }
+  return _prevSchemaStatus;
+}
+
+function showSchemaWarning(missingCols){
+  if(document.getElementById('schemaWarningBanner')) return; // già mostrato
+  const sql=missingCols.map(function(col){
+    const types={note:'text default null',seller_name:'text default null',status:"text default 'open'",confirmed_at:'timestamptz default null',deal_info:'jsonb default null'};
+    return 'ALTER TABLE preventivi ADD COLUMN IF NOT EXISTS '+col+' '+(types[col]||'text default null')+';';
+  }).join('\n');
+  const banner=document.createElement('div');
+  banner.id='schemaWarningBanner';
+  banner.style.cssText='position:fixed;top:60px;right:16px;z-index:1500;max-width:480px;background:var(--surface);border:1px solid rgba(210,153,34,.5);border-left:3px solid var(--warning);border-radius:8px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.4);font-family:var(--font);color:var(--text)';
+  banner.innerHTML=
+    '<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px">'
+    +'<span style="font-size:18px;line-height:1">⚠️</span>'
+    +'<div style="flex:1">'
+    +'<div style="font-weight:600;font-size:13px;margin-bottom:4px">Database non aggiornato</div>'
+    +'<div style="font-size:12px;color:var(--text-muted);line-height:1.4">La tabella <code style="background:var(--surface2);padding:1px 4px;border-radius:3px;font-family:var(--mono);font-size:11px">preventivi</code> non ha alcune colonne necessarie per le funzionalità <b>note trattativa</b> e <b>conferma deal</b>. L\'app continua a funzionare, ma i dati nuovi non verranno salvati finché non esegui questo SQL su Supabase:</div>'
+    +'</div>'
+    +'<button onclick="document.getElementById(\'schemaWarningBanner\').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;padding:0;line-height:1" title="Chiudi">✕</button>'
+    +'</div>'
+    +'<pre id="schemaWarningSql" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px 10px;font-family:var(--mono);font-size:10px;color:var(--text);white-space:pre-wrap;word-break:break-word;max-height:120px;overflow-y:auto;margin:0 0 8px 0">'+sql+'</pre>'
+    +'<div style="display:flex;gap:6px;justify-content:flex-end">'
+    +'<button class="btn" style="font-size:11px;padding:4px 10px" onclick="copySchemaSql()">📋 Copia SQL</button>'
+    +'<button class="btn" style="font-size:11px;padding:4px 10px" onclick="recheckSchema()" title="Dopo aver eseguito l\'ALTER TABLE su Supabase, clicca qui per ricontrollare">↻ Ricontrolla</button>'
+    +'<button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="document.getElementById(\'schemaWarningBanner\').remove()">Dopo</button>'
+    +'</div>';
+  document.body.appendChild(banner);
+}
+
+async function recheckSchema(){
+  const banner=document.getElementById('schemaWarningBanner');
+  const btns=banner?banner.querySelectorAll('button'):[];
+  btns.forEach(b=>b.disabled=true);
+  // Reset status e forza il re-check
+  _prevSchemaStatus=null;
+  if(banner) banner.remove();
+  await checkPrevSchema(true);
+  if(!_prevSchemaStatus.missing.length){
+    // Successo — ricarica i preventivi con i nuovi campi e notifica l'utente
+    try{ await loadPrev(); if(typeof renderPrevList==='function') await renderPrevList(); }catch(e){}
+    const ok=document.createElement('div');
+    ok.style.cssText='position:fixed;top:60px;right:16px;z-index:1500;max-width:400px;background:var(--surface);border:1px solid rgba(63,185,80,.5);border-left:3px solid var(--success);border-radius:8px;padding:12px 16px;box-shadow:0 10px 30px rgba(0,0,0,.4);font-family:var(--font);color:var(--text);font-size:13px';
+    ok.innerHTML='<div style="display:flex;align-items:center;gap:8px"><span style="color:var(--success);font-size:16px">✓</span><div><b>Schema aggiornato</b><div style="font-size:11px;color:var(--text-muted);margin-top:2px">Tutte le colonne sono ora presenti. Puoi usare note e conferma deal.</div></div></div>';
+    document.body.appendChild(ok);
+    setTimeout(()=>ok.remove(),4500);
+  }
+  // Altrimenti showSchemaWarning ha già ri-mostrato il banner con le colonne ancora mancanti
+}
+
+function copySchemaSql(){
+  const pre=document.getElementById('schemaWarningSql');
+  if(!pre) return;
+  const txt=pre.textContent;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(function(){
+      const btn=event&&event.target;
+      if(btn){ const orig=btn.textContent; btn.textContent='✓ Copiato'; setTimeout(function(){btn.textContent=orig;},1500); }
+    }).catch(function(e){ console.warn('clipboard error',e); alert('SQL:\n\n'+txt); });
+  } else {
+    // Fallback legacy
+    const ta=document.createElement('textarea');
+    ta.value=txt; document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); alert('SQL copiato'); }catch(e){ alert('SQL:\n\n'+txt); }
+    document.body.removeChild(ta);
+  }
+}
+
 // Helper: restituisce sempre un array, anche se items è una stringa JSON
 function getItems(p){
   if(!p) return [];
@@ -3063,9 +3198,16 @@ function getItems(p){
 }
 
 async function loadPrev(){
+  // Verifica lo schema al primo caricamento (no-op se già checkato).
+  // Se mancano colonne, checkPrevSchema mostra il banner di warning.
+  if(!_prevSchemaStatus) { try{ await checkPrevSchema(); }catch(e){} }
   try{
     const uid=getCurrentUserId();
-    const data=await supa('GET','preventivi?order=created.desc&limit=200'+(uid?'&user_id=eq.'+uid:''));
+    // Costruisci la select in base alle colonne effettivamente presenti
+    const missing=(_prevSchemaStatus&&_prevSchemaStatus.missing)||[];
+    const wantedCols=['id','name','created','items','provenienza'].concat(PREV_NEW_COLS.filter(c=>!missing.includes(c)));
+    const selectStr=wantedCols.join(',');
+    const data=await supa('GET','preventivi?select='+selectStr+'&order=created.desc&limit=200'+(uid?'&user_id=eq.'+uid:''));
     preventivi=data.map(p=>({
       id:p.id,
       name:p.name,
@@ -3483,7 +3625,9 @@ async function confirmDealConversion(){
 
     setTimeout(function(){
       closeDealModal();
-      alert('✓ Deal confermato!\n\n'+inserted+' carte sono state aggiunte in collezione con il prezzo di acquisto allocato proporzionalmente al loro valore CM.\n\nCosto totale: €'+totalPaid.toFixed(2)+'\nCoefficiente di allocazione: '+coef.toFixed(4)+' (paghi €'+coef.toFixed(2)+' per ogni € di CM)');
+      const missingCols=(_prevSchemaStatus&&_prevSchemaStatus.missing)||[];
+      const schemaWarn=missingCols.length?('\n\n⚠️ ATTENZIONE: le colonne '+missingCols.join(', ')+' non sono presenti nella tabella preventivi. Le carte sono state aggiunte correttamente in collezione, ma lo stato "confermato" del preventivo non è stato persistito. Esegui le ALTER TABLE mostrate nel banner in alto e riconferma il deal per salvare lo storico.'):'';
+      alert('✓ Deal confermato!\n\n'+inserted+' carte sono state aggiunte in collezione con il prezzo di acquisto allocato proporzionalmente al loro valore CM.\n\nCosto totale: €'+totalPaid.toFixed(2)+'\nCoefficiente di allocazione: '+coef.toFixed(4)+' (paghi €'+coef.toFixed(2)+' per ogni € di CM)'+schemaWarn);
     },800);
 
   }catch(e){
