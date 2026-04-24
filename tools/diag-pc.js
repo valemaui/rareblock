@@ -77,6 +77,11 @@ function formatReport(diag) {
       }
     }
 
+    if (c.summary_block) {
+      out += '\n  ─── Summary block (blocco prezzi in fondo pagina) ───\n';
+      out += '  "' + c.summary_block + '"\n';
+    }
+
     if (c.anomalies && c.anomalies.length) {
       out += '\n  ⚠  ANOMALIE:\n';
       c.anomalies.forEach(a => out += `     - ${a}\n`);

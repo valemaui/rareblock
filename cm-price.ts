@@ -788,23 +788,31 @@ async function handleDiag(inputCards: DiagCardInput[] | null): Promise<Response>
     cardReport.price_dump = priceMatches;
 
     // Per ciascuna label (PSA 10, BGS 10, CGC 10), trova TUTTE le occorrenze
-    // e per ognuna prendi il primo $ dopo e 100 char di contesto
+    // e per ognuna prendi il primo $ dopo e 200 char di contesto
     const labelOccurrences: Record<string, Array<{ pos: number; first_price: number | null; context: string }>> = {};
     for (const lbl of ['PSA 10', 'BGS 10', 'CGC 10', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 9.5', 'Ungraded']) {
       const lblRe = new RegExp(lbl.replace(/\s+/g, '\\s*').replace('.', '\\.'), 'gi');
       const occs: Array<{ pos: number; first_price: number | null; context: string }> = [];
       let lm: RegExpExecArray | null;
-      while ((lm = lblRe.exec(prod.html)) !== null && occs.length < 6) {
+      while ((lm = lblRe.exec(prod.html)) !== null && occs.length < 8) {
         const from = lm.index;
         const nextPriceM = prod.html.substring(from, from + 2000).match(/\$\s*([\d,]+\.\d{2})/);
         const price = nextPriceM ? parseFloat(nextPriceM[1].replace(/,/g, '')) : null;
-        const ctx = prod.html.substring(from, from + 400)
-          .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+        const ctx = prod.html.substring(from, from + 500)
+          .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300);
         occs.push({ pos: from, first_price: price, context: ctx });
       }
       if (occs.length) labelOccurrences[lbl] = occs;
     }
     cardReport.label_occurrences = labelOccurrences;
+
+    // SUMMARY TABLE: cerca la "summary grade table" in fondo pagina
+    // Pattern: sequenza "Ungraded $X ... Grade 7 $X ... Grade 8 $X ... Grade 9 $X ... Grade 9.5 $X ..."
+    // Spesso dopo un heading tipo "<h2>Price History</h2>" o sezione similar
+    const summaryBlockM = prod.html.match(/Ungraded\s*\$\s*[\d,]+\.?\d*[\s\S]{0,800}?Grade\s*7[\s\S]{0,2000}?Grade\s*9\.5/i);
+    if (summaryBlockM) {
+      cardReport.summary_block = summaryBlockM[0].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').substring(0, 800);
+    }
 
     // Rileva anomalie
     const ex = cardReport.extracted;
