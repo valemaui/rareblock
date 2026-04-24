@@ -66,6 +66,17 @@ function formatReport(diag) {
       });
     }
 
+    if (c.label_occurrences && Object.keys(c.label_occurrences).length) {
+      out += '\n  ─── Label occurrences (ogni label + primo \$ dopo) ───\n';
+      for (const [lbl, occs] of Object.entries(c.label_occurrences)) {
+        out += `  "${lbl}":\n`;
+        occs.forEach((o, i) => {
+          const price = o.first_price != null ? `$${o.first_price}` : '—';
+          out += `     [#${i} pos=${o.pos}] ${price.padStart(10)}  "${(o.context || '').slice(0, 120)}"\n`;
+        });
+      }
+    }
+
     if (c.anomalies && c.anomalies.length) {
       out += '\n  ⚠  ANOMALIE:\n';
       c.anomalies.forEach(a => out += `     - ${a}\n`);

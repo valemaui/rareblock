@@ -778,7 +778,7 @@ async function handleDiag(inputCards: DiagCardInput[] | null): Promise<Response>
     const priceMatches: { price: number; before: string; after: string }[] = [];
     const pricePat = /\$\s*([\d,]+\.\d{2})/g;
     let pm: RegExpExecArray | null;
-    while ((pm = pricePat.exec(prod.html)) !== null && priceMatches.length < 40) {
+    while ((pm = pricePat.exec(prod.html)) !== null && priceMatches.length < 80) {
       const before = prod.html.substring(Math.max(0, pm.index - 140), pm.index)
         .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(-80);
       const after = prod.html.substring(pm.index + pm[0].length, pm.index + pm[0].length + 80)
@@ -786,6 +786,25 @@ async function handleDiag(inputCards: DiagCardInput[] | null): Promise<Response>
       priceMatches.push({ price: parseFloat(pm[1].replace(/,/g, '')), before, after });
     }
     cardReport.price_dump = priceMatches;
+
+    // Per ciascuna label (PSA 10, BGS 10, CGC 10), trova TUTTE le occorrenze
+    // e per ognuna prendi il primo $ dopo e 100 char di contesto
+    const labelOccurrences: Record<string, Array<{ pos: number; first_price: number | null; context: string }>> = {};
+    for (const lbl of ['PSA 10', 'BGS 10', 'CGC 10', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 9.5', 'Ungraded']) {
+      const lblRe = new RegExp(lbl.replace(/\s+/g, '\\s*').replace('.', '\\.'), 'gi');
+      const occs: Array<{ pos: number; first_price: number | null; context: string }> = [];
+      let lm: RegExpExecArray | null;
+      while ((lm = lblRe.exec(prod.html)) !== null && occs.length < 6) {
+        const from = lm.index;
+        const nextPriceM = prod.html.substring(from, from + 2000).match(/\$\s*([\d,]+\.\d{2})/);
+        const price = nextPriceM ? parseFloat(nextPriceM[1].replace(/,/g, '')) : null;
+        const ctx = prod.html.substring(from, from + 400)
+          .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+        occs.push({ pos: from, first_price: price, context: ctx });
+      }
+      if (occs.length) labelOccurrences[lbl] = occs;
+    }
+    cardReport.label_occurrences = labelOccurrences;
 
     // Rileva anomalie
     const ex = cardReport.extracted;
