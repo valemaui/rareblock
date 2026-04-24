@@ -57,6 +57,16 @@ function formatReport(diag) {
       for (const k of order) {
         if (c.extracted[k] != null) out += `  ${pad(k, 12)} $${c.extracted[k]}\n`;
       }
+
+      if (c.extracted.grades_from_listings && Object.keys(c.extracted.grades_from_listings).length) {
+        out += '\n  ─── Grades from Sold Listings (casa+grade → mediana) ───\n';
+        const entries = Object.entries(c.extracted.grades_from_listings)
+          .sort(([a], [b]) => a.localeCompare(b));
+        for (const [key, data] of entries) {
+          const sym = data.currency_symbol || '$';
+          out += `  ${pad(key, 10)} ${sym}${String(data.median).padStart(8)}  (${data.count} vend., range ${sym}${data.min}–${sym}${data.max})\n`;
+        }
+      }
     }
 
     if (c.price_dump && c.price_dump.length) {
