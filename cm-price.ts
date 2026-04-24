@@ -35,7 +35,9 @@ function buildHeaders(url: string, lang = 'it', referer?: string): Record<string
   const ua = getRandomUA();
   const isIt = lang === 'it';
   const host = new URL(url).host;
-  return {
+  const isPc = host.includes('pricecharting.com');
+
+  const headers: Record<string,string> = {
     'User-Agent': ua,
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
     'Accept-Language': isIt ? 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7' : 'en-US,en;q=0.9',
@@ -53,6 +55,15 @@ function buildHeaders(url: string, lang = 'it', referer?: string): Record<string
     'DNT': '1',
     'Referer': referer ?? `https://${host}/`,
   };
+
+  // PriceCharting decide la valuta mostrata principalmente via cookie utente.
+  // Forziamo EUR esplicitamente così l'edge function riceve gli stessi prezzi
+  // che vede l'utente italiano sul browser. Senza cookie PC default USD.
+  if (isPc) {
+    headers['Cookie'] = 'currency=EUR; country=IT';
+  }
+
+  return headers;
 }
 
 async function fetchWithRetry(url: string, maxRetries = 2, referer?: string): Promise<{ html: string; ok: boolean; status: number }> {
@@ -357,7 +368,8 @@ async function handlePriceChartingCascade(urls: string[], cardName?: string, deb
     const prices = extractPCPrices(html);
     prices.productUrl = productUrl;
     if (productTitle && !prices.productTitle) prices.productTitle = productTitle;
-    prices.currency = 'USD';
+    // Deduce la currency effettiva della pagina dal simbolo dominante nei listings
+    prices.currency = detectDominantCurrency(prices);
 
     // Consideriamo "hit" se abbiamo almeno ungraded O un grado
     const hasData = prices.ungraded != null || prices.grade9 != null || prices.psa10 != null || prices.grade8 != null;
@@ -414,9 +426,27 @@ async function handlePriceCharting(url: string, cardName?: string): Promise<Resp
   const prices = extractPCPrices(html);
   prices.productUrl = productUrl;
   if (productTitle && !prices.productTitle) prices.productTitle = productTitle;
-  prices.currency = 'USD';
+  prices.currency = detectDominantCurrency(prices);
 
   return json({ source: 'pricecharting', prices, url: productUrl });
+}
+
+// Determina la valuta della pagina PC dal simbolo dominante nei sold listings
+// (che abbiamo già estratto via extractAllGradesFromListingsOnePass).
+// Se non ci sono listings, fallback a USD.
+function detectDominantCurrency(prices: PCPrices): string {
+  if (!prices.grades_from_listings) return 'USD';
+  const symbolCounts: Record<string, number> = {};
+  for (const key of Object.keys(prices.grades_from_listings)) {
+    const sym = prices.grades_from_listings[key].currency_symbol;
+    symbolCounts[sym] = (symbolCounts[sym] || 0) + prices.grades_from_listings[key].count;
+  }
+  const entries = Object.entries(symbolCounts).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) return 'USD';
+  const dominant = entries[0][0];
+  if (dominant === '€') return 'EUR';
+  if (dominant === '£') return 'GBP';
+  return 'USD';
 }
 
 function extractFirstPCProduct(html: string, nameHint?: string): { url: string; title: string } | null {

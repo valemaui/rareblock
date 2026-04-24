@@ -8725,6 +8725,15 @@ function anlComputeToday(){
 
   // PC lookup con priorità ai sold listings specifici per casa+grade
   var pcP = null, pcCount = null, pcSrc = 'PriceCharting';
+  // PC può ora servire EUR (cookie geografico): rispetta pc.currency per la conversione
+  var pcCurrency = (pc && pc.currency) || 'USD';
+  var pcToEur = function(v, symbolOverride){
+    // symbolOverride: se presente, prevale su pc.currency (usato per grades_from_listings)
+    var sym = symbolOverride || (pcCurrency==='EUR'?'€':(pcCurrency==='GBP'?'£':'$'));
+    if(sym==='€') return v;
+    if(sym==='£') return v * 1.17 * rate;
+    return v * rate;  // $ → EUR
+  };
   if(pc){
     if(graded){
       var house = document.getElementById('anlHouse').value;
@@ -8734,20 +8743,16 @@ function anlComputeToday(){
       // PRIORITÀ 1: sold listings eBay specifici per questa casa+grade (fonte migliore)
       if(pc.grades_from_listings && pc.grades_from_listings[listingKey]){
         var L = pc.grades_from_listings[listingKey];
-        // Se il symbol è € i dati sono già in EUR (PC li serve localizzati)
-        // Se $ vanno convertiti
-        if(L.currency_symbol==='€')       pcP = L.median;
-        else if(L.currency_symbol==='£')  pcP = L.median * 1.17 * rate;
-        else                              pcP = L.median * rate;
+        pcP = pcToEur(L.median, L.currency_symbol);
         pcCount = L.count;
         pcSrc = 'PC Sold ' + house + ' ' + score + ' (' + L.count + ' vend.)';
       } else {
         // PRIORITÀ 2: fallback campi aggregati (ungraded, grade7/8/9/9_5, psa10/bgs10/cgc10)
         var key = anlPcKey(house, parseFloat(score));
-        if(key && pc[key]!=null) pcP = pc[key]*rate;
+        if(key && pc[key]!=null) pcP = pcToEur(pc[key]);
       }
     } else {
-      if(pc.ungraded!=null) pcP = pc.ungraded*rate;
+      if(pc.ungraded!=null) pcP = pcToEur(pc.ungraded);
     }
   }
   var cmP = cm || null;   // per raw applichiamo condizione
@@ -8887,10 +8892,25 @@ function anlRenderProjectionRaw(priceEl, deltaEl, descEl, gridEl){
     return;
   }
 
-  // Valore target: PSA (house più liquida per PC). Prova a ottenere il prezzo PC del grado atteso
-  var pcKey = anlPcKey('PSA', expGrade);
-  var pcGraded = pc && pcKey ? pc[pcKey] : null;
-  var pcGradedEur = pcGraded!=null ? pcGraded*rate : null;
+  // Valore target: PSA (house più liquida per PC). Priorità listings specifici PSA+expGrade.
+  var pcGradedEur = null;
+  var listingKey = 'PSA_' + expGrade;
+  if(pc && pc.grades_from_listings && pc.grades_from_listings[listingKey]){
+    var L = pc.grades_from_listings[listingKey];
+    if(L.currency_symbol==='€')      pcGradedEur = L.median;
+    else if(L.currency_symbol==='£') pcGradedEur = L.median * 1.17 * rate;
+    else                             pcGradedEur = L.median * rate;
+  } else {
+    // Fallback campi aggregati con currency-aware conversion
+    var pcKey = anlPcKey('PSA', expGrade);
+    var pcGraded = pc && pcKey ? pc[pcKey] : null;
+    if(pcGraded!=null){
+      var pcCur = (pc && pc.currency) || 'USD';
+      if(pcCur==='EUR')      pcGradedEur = pcGraded;
+      else if(pcCur==='GBP') pcGradedEur = pcGraded * 1.17 * rate;
+      else                   pcGradedEur = pcGraded * rate;
+    }
+  }
 
   // Se eBay ha un sotto-dataset graded, sarebbe ideale — al momento l'edge non separa raw/graded
   // Usa PC come fonte primaria per il valore potenziale graded
@@ -9225,18 +9245,24 @@ function anlPopPc(prices, err){
       srcLabel = house+' '+score;
       sourceNote = L.count+' vendite eBay'+(L.min&&L.max?' · range '+L.currency_symbol+Math.round(L.min)+'–'+L.currency_symbol+Math.round(L.max):'');
     } else {
-      // Fallback: campi aggregati
+      // Fallback: campi aggregati (rispetta currency nativa PC)
       var key = anlPcKey(house, parseFloat(score));
-      var usd = key ? prices[key] : null;
-      if(usd!=null){
-        eurValue = usd * rate;
+      var rawVal = key ? prices[key] : null;
+      if(rawVal!=null){
+        var pcCur2 = prices.currency || 'USD';
+        if(pcCur2==='EUR')      eurValue = rawVal;
+        else if(pcCur2==='GBP') eurValue = rawVal * 1.17 * rate;
+        else                    eurValue = rawVal * rate;
         srcLabel = 'stima '+house+' '+score;
         sourceNote = 'da PriceCharting (dati aggregati)';
       }
     }
   } else {
     if(prices.ungraded!=null){
-      eurValue = prices.ungraded * rate;
+      var pcCur3 = prices.currency || 'USD';
+      if(pcCur3==='EUR')      eurValue = prices.ungraded;
+      else if(pcCur3==='GBP') eurValue = prices.ungraded * 1.17 * rate;
+      else                    eurValue = prices.ungraded * rate;
       srcLabel = 'ungraded';
       sourceNote = '';
     }
