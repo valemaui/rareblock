@@ -174,6 +174,26 @@ label{font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;fon
 .td-img{width:40px;padding:4px 8px}
 .td-price{text-align:right;font-family:var(--mono);font-weight:500}
 .td-cm{text-align:right;font-family:var(--mono);color:var(--text-muted);font-size:11px;white-space:nowrap}
+/* Origine prezzo: suggerito (da AVG30/algoritmo) = colore warning, da rivedere.
+   Verificato (CM verify) o manuale = bianco/grigio normale (default) */
+.td-cm-suggested{color:var(--warning);background:rgba(210,153,34,.04);position:relative}
+.td-cm-suggested::before{content:"∼";margin-right:4px;font-size:9px;opacity:.7}
+.td-cm-verified{color:var(--text);font-weight:500}
+.td-cm-verified::before{content:"\2713";margin-right:4px;font-size:8px;color:var(--success);opacity:.7}
+.td-cm-manual{color:var(--text)}
+/* Align prices overlay */
+#alignOverlay{position:fixed;bottom:20px;left:20px;z-index:9999;width:360px;max-width:calc(100vw - 24px);background:var(--bg);border:1px solid var(--border);border-radius:10px;font-family:var(--mono);font-size:11px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+#alignOverlay .ao-head{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface)}
+#alignOverlay .ao-title{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
+#alignOverlay .ao-body{padding:10px 12px;display:flex;flex-direction:column;gap:7px}
+#alignOverlay .ao-current{font-size:11px;color:var(--text)}
+#alignOverlay .ao-prog-bar{height:4px;background:var(--surface2);border-radius:2px;overflow:hidden}
+#alignOverlay .ao-prog-fill{height:100%;background:var(--accent);transition:width .25s}
+#alignOverlay .ao-stats{display:flex;gap:12px;font-size:10px;color:var(--text-muted)}
+#alignOverlay .ao-stats .ok{color:var(--success)}
+#alignOverlay .ao-stats .err{color:var(--danger)}
+#alignOverlay .ao-cancel{background:none;border:1px solid var(--border);color:var(--text-muted);font-size:10px;padding:3px 8px;border-radius:4px;cursor:pointer;align-self:flex-start}
+#alignOverlay .ao-cancel:hover{color:var(--danger);border-color:var(--danger)}
 tr.prev-row-hidden{display:none}
 /* Price verification inline row */
 tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2px solid rgba(88,166,255,.15)}
@@ -1339,6 +1359,10 @@ tr.price-verify-row td{background:rgba(88,166,255,.04)!important;border-bottom:2
             <button class="btn" onclick="scanFromPrev()" title="Scansiona album e aggiungi direttamente a questo preventivo" style="display:flex;align-items:center;gap:5px">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="3" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="21"/><line x1="3" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="21" y2="12"/></svg>
               Scan Album
+            </button>
+            <button class="btn" onclick="alignAllPrices()" id="btnAlignPrices" title="Verifica su Cardmarket tutti i prezzi suggeriti (∼) — batch server-side" style="display:flex;align-items:center;gap:5px">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              Allinea prezzi
             </button>
             <button class="btn" onclick="exportPrevCSV()">CSV</button>
             <button class="btn btn-success" onclick="openDealModal()" id="btnConfirmDeal" title="Converte il preventivo in acquisto e aggiunge le carte in collezione">✓ Conferma Deal</button>
@@ -3765,6 +3789,17 @@ function renderPrevTable(){
       return cached[0]&&cached[0].set ? cached[0].set.id : null;
     })();
     var cmUrl=buildCMDirectUrl(c.name, setId, c.number, c.condition, c.language||'ITA', c.variant||'Normal', c.first_edition||false, c.set||'');
+    // Colore prezzo in base all'origine:
+    // - 'avg30' (default se mancante) → warning: prezzo suggerito dall'algoritmo, da verificare
+    // - 'cm_verified' → success: verificato su Cardmarket live
+    // - 'manual' → neutro: inserito/modificato manualmente
+    var priceSource = c.price_source || 'avg30';
+    var cmCellCls = 'td-cm ' + (priceSource==='avg30' ? 'td-cm-suggested'
+                              : priceSource==='cm_verified' ? 'td-cm-verified'
+                              : 'td-cm-manual');
+    var priceTooltip = priceSource==='avg30' ? 'Prezzo suggerito da AVG30 — usa Verifica per controllare su Cardmarket'
+                     : priceSource==='cm_verified' ? 'Prezzo verificato live su Cardmarket'
+                     : 'Prezzo inserito manualmente';
     return '<tr data-name="'+(c.name||'').toLowerCase()+'" data-set="'+(c.set||'').toLowerCase()+'" data-cond="'+(c.condition||'')+'">'
       +'<td class="td-img">'+imgHtml+'</td>'
       +'<td><div style="font-weight:500;font-size:12px">'+c.name+fedBadge+'</div>'
@@ -3774,7 +3809,7 @@ function renderPrevTable(){
       +'<td style="font-size:11px;color:var(--text-subtle)">'+(c.language||'ITA')+'</td>'
       +'<td style="font-size:11px;color:var(--text-subtle)">'+(c.variant||'Normal')+'</td>'
       +'<td style="font-size:12px">×'+c.qty+'</td>'
-      +'<td class="td-cm">€'+((c.cm_avg30||0).toFixed(2))+'</td>'
+      +'<td class="'+cmCellCls+'" title="'+priceTooltip+'">€'+((c.cm_avg30||0).toFixed(2))+'</td>'
       +'<td class="td-price">€'+((c.cm_avg30||0)*(c.qty||1)).toFixed(2)+'</td>'
       +'<td style="white-space:nowrap">'
         +'<button class="btn-ghost" title="Modifica" onclick="openEditModal('+i+')" style="color:var(--blue);font-size:15px;margin-right:2px">✎</button>'
@@ -4039,12 +4074,16 @@ function refreshEditPrice(){
 async function saveEditModal(){
   if(editIdx===null||!activePrev)return;
   const c=activePrev.items[editIdx];
+  const newPrice = parseFloat(document.getElementById('emCm').value)||0;
+  const priceChanged = Math.abs(newPrice - (c.cm_avg30||0)) > 0.005;
   c.condition=document.getElementById('emCond').value;
   c.language=document.getElementById('emLang').value;
   c.variant=document.getElementById('emVar').value;
   c.qty=parseInt(document.getElementById('emQty').value)||1;
-  c.cm_avg30=parseFloat(document.getElementById('emCm').value)||0;
+  c.cm_avg30=newPrice;
   c.first_edition=document.getElementById('em1st').checked;
+  // Se l'utente ha cambiato il prezzo nel modal → è intervento manuale
+  if(priceChanged) c.price_source = 'manual';
   await savePrev(activePrev);
   renderPrevTable();renderPrevList();
   closeEditModal();
@@ -4414,11 +4453,157 @@ async function applyVerifiedPrice(idx, price){
   const item = activePrev.items[idx];
   if(!item) return;
   item.cm_avg30 = Math.round(price * 100) / 100;
+  item.price_source = 'cm_verified';
   await savePrev(activePrev);
   const ov = document.getElementById('cmLogOverlay');
   if(ov) ov.remove();
   renderPrevTable();
   renderPrevList();
+}
+
+// ─── ALIGN PRICES (batch server-side verification) ──────────────────────────
+// Scorre tutte le carte del preventivo attivo con price_source='avg30' (o assente),
+// per ognuna tenta una verifica server-side CM (se CM URL è diretto) e applica
+// il prezzo risolto. Non apre mai tab — se server-side fallisce, l'item viene
+// contato come "failed" e resta con il suo prezzo AVG30.
+// Supporta cancellazione e mostra progress overlay in basso a sinistra.
+var _alignState = null; // { cancelled: bool, running: bool }
+
+async function alignAllPrices(){
+  if(!activePrev){ alert('Nessun preventivo attivo'); return; }
+  const items = activePrev.items || [];
+  if(!items.length){ alert('Preventivo vuoto'); return; }
+
+  if(_alignState && _alignState.running){
+    // Già in esecuzione → cancel
+    _alignState.cancelled = true;
+    return;
+  }
+
+  // Seleziona gli indici da allineare: tutti quelli con price_source='avg30' o mancante
+  var toAlign = [];
+  for(var i=0; i<items.length; i++){
+    var src = items[i].price_source || 'avg30';
+    if(src === 'avg30') toAlign.push(i);
+  }
+
+  if(!toAlign.length){
+    var total = items.length;
+    var yes = confirm('Tutti i '+total+' prezzi sono già verificati o manuali.\nVuoi ri-verificare comunque tutte le carte?');
+    if(!yes) return;
+    toAlign = items.map(function(_,i){ return i; });
+  }
+
+  _alignState = { cancelled: false, running: true, stats: {ok:0, fail:0, skip:0} };
+  _showAlignOverlay(toAlign.length);
+  var btn = document.getElementById('btnAlignPrices');
+  if(btn){ btn.textContent = '✕ Annulla allineamento'; btn.classList.add('btn-danger'); }
+
+  for(var k=0; k<toAlign.length; k++){
+    if(_alignState.cancelled) break;
+    var idx = toAlign[k];
+    var item = activePrev.items[idx];
+    if(!item){ _alignState.stats.skip++; continue; }
+
+    _updateAlignOverlay(k+1, toAlign.length, item, _alignState.stats);
+
+    // Costruisci CM URL (stessa logica di verifyPrice)
+    var _vc = cache[(item.name||'').toLowerCase().trim()];
+    var _vt = _vc ? (_vc.find(function(x){return x.number===item.number;}) || _vc[0]) : null;
+    var setId = item.set_id || (_vt && _vt.set ? _vt.set.id : null);
+    var cmUrl = buildCMDirectUrl(item.name, setId, item.number, item.condition,
+                                  item.language||'ITA', item.variant||'Normal',
+                                  item.first_edition||false, item.set||'');
+
+    // Solo URL diretti possono essere server-side scraped
+    var isDirect = cmUrl.includes('/Singles/') && !cmUrl.includes('searchString=');
+    if(!isDirect){ _alignState.stats.skip++; continue; }
+
+    try{
+      var srv = await _vpServerSideCMScrape(cmUrl);
+      if(srv.listings && srv.listings.length > 0){
+        var smart = smartCMPrice(srv.listings, item.condition);
+        var finalPrice = (smart && smart.price > 0) ? smart.price : srv.listings[0].price;
+        item.cm_avg30 = Math.round(finalPrice * 100) / 100;
+        item.price_source = 'cm_verified';
+        _alignState.stats.ok++;
+      } else {
+        _alignState.stats.fail++;
+      }
+    }catch(e){
+      _alignState.stats.fail++;
+    }
+
+    // Salva ogni 5 items per persistenza progressiva (evita perdita in caso di crash)
+    if((k+1) % 5 === 0){
+      try{ await savePrev(activePrev); renderPrevTable(); }catch(e){}
+    }
+
+    // Piccola pausa tra le richieste per non intasare l'edge function e CM
+    await new Promise(function(r){ setTimeout(r, 350); });
+  }
+
+  // Salvataggio finale
+  try{ await savePrev(activePrev); }catch(e){}
+  renderPrevTable();
+  renderPrevList();
+
+  var stats = _alignState.stats;
+  var wasCancelled = _alignState.cancelled;
+  _alignState = null;
+  if(btn){ btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Allinea prezzi'; btn.classList.remove('btn-danger'); }
+  _finishAlignOverlay(stats, wasCancelled);
+}
+
+function _showAlignOverlay(total){
+  var old = document.getElementById('alignOverlay'); if(old) old.remove();
+  var el = document.createElement('div');
+  el.id = 'alignOverlay';
+  el.innerHTML =
+    '<div class="ao-head">'
+    +  '<span class="ao-title">Allineamento prezzi</span>'
+    +  '<span class="ao-title" id="alignCounter">0/'+total+'</span>'
+    +'</div>'
+    +'<div class="ao-body">'
+    +  '<div class="ao-current" id="alignCurrent">Preparazione\u2026</div>'
+    +  '<div class="ao-prog-bar"><div class="ao-prog-fill" id="alignProgFill" style="width:0%"></div></div>'
+    +  '<div class="ao-stats" id="alignStats"><span class="ok">0 ok</span><span class="err">0 falliti</span><span>0 skip</span></div>'
+    +  '<button class="ao-cancel" onclick="alignAllPrices()">Annulla</button>'
+    +'</div>';
+  document.body.appendChild(el);
+}
+
+function _updateAlignOverlay(curr, total, item, stats){
+  var counter = document.getElementById('alignCounter');
+  var currEl = document.getElementById('alignCurrent');
+  var fill = document.getElementById('alignProgFill');
+  var statsEl = document.getElementById('alignStats');
+  if(counter) counter.textContent = curr+'/'+total;
+  if(currEl){
+    var setShort = (item.set||'').length > 20 ? item.set.substring(0,18)+'\u2026' : item.set;
+    currEl.textContent = item.name + ' \u00b7 #' + (item.number||'?') + ' (' + (setShort||'?') + ')';
+  }
+  if(fill) fill.style.width = Math.round((curr/total)*100) + '%';
+  if(statsEl){
+    statsEl.innerHTML = '<span class="ok">'+stats.ok+' ok</span><span class="err">'+stats.fail+' falliti</span><span>'+stats.skip+' skip</span>';
+  }
+}
+
+function _finishAlignOverlay(stats, cancelled){
+  var el = document.getElementById('alignOverlay'); if(!el) return;
+  var total = stats.ok + stats.fail + stats.skip;
+  var title = cancelled ? 'Allineamento annullato' : 'Allineamento completato';
+  var summary = stats.ok+' verificate, '+stats.fail+' fallite, '+stats.skip+' non verificabili';
+  el.innerHTML =
+    '<div class="ao-head">'
+    +  '<span class="ao-title">'+title+'</span>'
+    +  '<button class="cm-log-close" onclick="document.getElementById(\'alignOverlay\').remove()">\u00d7</button>'
+    +'</div>'
+    +'<div class="ao-body">'
+    +  '<div class="ao-current">'+summary+'</div>'
+    +  '<div class="ao-stats"><span class="ok">'+stats.ok+' ok</span><span class="err">'+stats.fail+' falliti</span><span>'+stats.skip+' skip</span></div>'
+    +'</div>';
+  setTimeout(function(){ var x=document.getElementById('alignOverlay'); if(x) x.remove(); }, 5000);
 }
 
 // ── CM Price Log — floating overlay ──────────────────────────────────────────
@@ -4963,13 +5148,19 @@ async function addToPrev(){
   const p=calcPrice(prevCard.cardmarket?.prices,cond,variant,first1st);
   // Usa il prezzo dal campo input (modificabile manualmente) oppure quello calcolato
   const manualPrice=parseFloat(document.getElementById('pCmPrice')?.value);
-  const finalPrice=(!isNaN(manualPrice)&&manualPrice>0)?manualPrice:(p?p.price:0);
+  const suggestedPrice = p?p.price:0;
+  const usedManual = (!isNaN(manualPrice)&&manualPrice>0 && Math.abs(manualPrice-suggestedPrice)>0.005);
+  const finalPrice = (!isNaN(manualPrice)&&manualPrice>0) ? manualPrice : suggestedPrice;
   const item={
     name:prevCard.name,set:prevCard.set?.name||'',set_id:prevCard.set?.id||'',number:prevCard.number||'',rarity:prevCard.rarity||'',
     image:prevCard.images?.small||'',image_lg:prevCard.images?.large||'',condition:cond,variant,first_edition:first1st,
     language:document.getElementById('pLang').value,
     qty:parseInt(document.getElementById('pQty').value)||1,
-    cm_avg30:finalPrice
+    cm_avg30:finalPrice,
+    // usedManual=true se l'utente ha digitato un prezzo diverso da quello calcolato
+    // (es. dopo verifyPriceAdd o inserimento a mano). Altrimenti è il valore AVG30
+    // suggerito dall'algoritmo e va marcato per la revisione.
+    price_source: usedManual ? 'manual' : 'avg30'
   };
   activePrev.items.push(item);
   await savePrev(activePrev);
@@ -6370,7 +6561,10 @@ async function scAddToPreventivo(){
         first_edition: cc.first1st,
         qty:          cc.qty||1,
         price:        cc.cm_avg30||0,
-        cm_avg30:     cc.cm_avg30||0
+        cm_avg30:     cc.cm_avg30||0,
+        // Scan → prezzo sempre suggerito dall'algoritmo (AVG30 normalizzato).
+        // Utente probabilmente vorrà usare "Allinea prezzi" per verificarli su CM.
+        price_source: 'avg30'
       };
     });
 
