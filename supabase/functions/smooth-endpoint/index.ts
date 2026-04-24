@@ -305,26 +305,24 @@ async function handlePriceChartingCascade(urls: string[], cardName?: string, deb
         // Debug: raccoglie info diagnostiche
         const entry: typeof attempts[0] = { url, ok: false, error: 'nessun prodotto', html_len: srch.html.length };
         if (debug) {
-          // Trova tutti i link /game/ per capire se il pattern esiste
+          // Trova tutti i link /game/ per capire se il pattern esiste (assoluti o relativi)
           const allLinks: string[] = [];
-          const linkRe = /<a[^>]+href="(\/game\/[^"]+)"/g;
+          const linkRe = /<a[^>]+href="(?:https?:\/\/(?:www\.)?pricecharting\.com)?(\/game\/[^"]+)"/gi;
           let lm: RegExpExecArray | null;
           while ((lm = linkRe.exec(srch.html)) !== null && allLinks.length < 10) {
             allLinks.push(lm[1]);
           }
           entry.candidates = allLinks.length;
           entry.sample_links = allLinks;
-          // Cerca la tabella dei risultati per snippet
-          const tableM = srch.html.match(/<table[^>]*(?:id=["']games_table["']|class=["'][^"']*(?:results|products|games)[^"']*["'])[^>]*>([\s\S]{0,2500})/i);
-          if (tableM) entry.snippet = tableM[0].substring(0, 2000);
+          // PC usa <table id="games_table"><tbody>: vai al tbody per snippet utile
+          const tbodyM = srch.html.match(/<tbody\b[^>]*>([\s\S]{0,2500})/i);
+          if (tbodyM) entry.snippet = tbodyM[0].substring(0, 2000);
           else {
-            // Cerca la sezione "results" o "search"
-            const secM = srch.html.match(/<(?:div|section)[^>]*(?:id|class)=["'][^"']*(?:results|search|product)[^"']*["'][^>]*>([\s\S]{0,2500})/i);
-            if (secM) entry.snippet = secM[0].substring(0, 2000);
+            const tableM = srch.html.match(/<table[^>]*id=["']games_table["'][^>]*>([\s\S]{0,2500})/i);
+            if (tableM) entry.snippet = tableM[0].substring(0, 2000);
             else {
-              // Fallback: salta il menu, vai al contenuto
-              const mainM = srch.html.match(/<main\b[^>]*>([\s\S]{0,3000})/i) || srch.html.match(/<\/header>([\s\S]{0,3000})/i);
-              if (mainM) entry.snippet = mainM[1].substring(0, 2000);
+              const bodyM = srch.html.match(/<body\b[^>]*>([\s\S]{0,3000})/i);
+              if (bodyM) entry.snippet = bodyM[1].substring(0, 2000);
             }
           }
         }
@@ -393,46 +391,49 @@ async function handlePriceCharting(url: string, cardName?: string): Promise<Resp
 }
 
 function extractFirstPCProduct(html: string, nameHint?: string): { url: string; title: string } | null {
-  // Pattern 1: link con testo semplice  <a href="/game/..."> TEXT </a>
-  // Pattern 2: link con tag annidati      <a href="/game/..."><span>...</span><b>...</b></a>
-  // Pattern 3: link con title attribute  <a href="/game/..." title="...">...</a>
-  // Unifichiamo: match href + contenuto tra <a> e </a>, poi strippa tag
-  const linkPat = /<a\b[^>]*\bhref="(\/game\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  // PC usa URL assoluti: href="https://www.pricecharting.com/game/..."
+  // Anche se raramente può usare path relativi /game/...
+  // Pattern accetta entrambi.
+  const linkPat = /<a\b[^>]*\bhref="(https?:\/\/(?:www\.)?pricecharting\.com)?(\/game\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
   const candidates: { url: string; title: string; score: number; raw_path: string }[] = [];
   let m: RegExpExecArray | null;
   const hint = (nameHint || '').toLowerCase().trim();
   const hintWords = hint.split(/\s+/).filter(w => w.length > 2);
+  const seen = new Set<string>();
 
   while ((m = linkPat.exec(html)) !== null) {
-    const path = m[1];
-    // Estrai testo dal contenuto del link strippando tag HTML
-    const innerHtml = m[2];
-    const title = innerHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    const path = m[2];
+    if (seen.has(path)) continue;
+    seen.add(path);
+    const innerHtml = m[3];
+    let title = innerHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     if (title.length < 2) {
-      // Se label vuota, usa lo slug URL come fallback
       const slug = path.replace(/^\/game\//, '').replace(/[-\/]/g, ' ').trim();
       if (slug.length < 3) continue;
-      candidates.push({ url: 'https://www.pricecharting.com' + path, title: slug, score: 0, raw_path: path });
-      continue;
+      title = slug;
     }
-    candidates.push({ url: 'https://www.pricecharting.com' + path, title, score: 0, raw_path: path });
-    if (candidates.length > 50) break;
+    candidates.push({
+      url: 'https://www.pricecharting.com' + path,
+      title,
+      score: 0,
+      raw_path: path,
+    });
+    if (candidates.length > 80) break;
   }
 
   if (!candidates.length) return null;
 
-  // Scoring: preferisci i pokemon, poi score su match keyword hint
+  // Scoring basato su hint + pokemon
   for (const c of candidates) {
     if (/pokemon/i.test(c.raw_path) || /pokemon/i.test(c.title)) c.score += 10;
     for (const w of hintWords) {
-      if (c.title.toLowerCase().includes(w)) c.score += 2;
-      if (c.raw_path.toLowerCase().includes(w)) c.score += 1;
+      if (c.title.toLowerCase().includes(w)) c.score += 3;
+      if (c.raw_path.toLowerCase().includes(w)) c.score += 2;
     }
   }
 
-  candidates.sort((a,b) => b.score - a.score);
+  candidates.sort((a, b) => b.score - a.score);
   const best = candidates[0];
-  // Richiedi almeno che sia pokemon (evita match spuri su altri giochi)
   if (!/pokemon/i.test(best.raw_path) && !/pokemon/i.test(best.title)) return null;
   return { url: best.url, title: best.title };
 }
