@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         RareBlock · CM Price Bridge
 // @namespace    https://rareblock.app
-// @version      2.1
-// @description  Legge prezzi + condizioni da Cardmarket e li invia a RareBlock via postMessage + BroadcastChannel
+// @version      2.2
+// @description  Legge prezzi + condizioni da Cardmarket e li invia a RareBlock via postMessage + BroadcastChannel. v2.2: auto-close ricevendo messaggio esplicito dall'app.
 // @author       RareBlock
 // @match        https://www.cardmarket.com/*/Pokemon/Products/*
 // @grant        none
@@ -11,6 +11,16 @@
 
 (function () {
   'use strict';
+
+  // ── Listener per messaggio di close esplicito dall'app RareBlock ─────────────
+  // v2.2: l'app può inviare {type:'rareblock_close'} via cmTab.postMessage() per
+  // forzare la chiusura della tab quando Chrome blocca cmTab.close() dal lato
+  // opener a causa di policy COOP/popup.
+  window.addEventListener('message', function (e) {
+    if (e.data && e.data.type === 'rareblock_close') {
+      try { window.close(); } catch (_) {}
+    }
+  });
 
   var COND_RANK = {
     'Mint':1,'Near Mint':2,'Excellent':3,'Good':4,

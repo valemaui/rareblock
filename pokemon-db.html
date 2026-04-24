@@ -4535,8 +4535,38 @@ function _vpProcessListings(listings, conditionReq, log){
   return {finalPrice: finalPrice, smart: smart};
 }
 
+// ── Helper: chiudi tab CM con multi-strategia (per Chrome COOP/popup policy) ─
+// Prova:
+//   1. Invia postMessage {type:'rareblock_close'} → userscript v2.1+ lo riceve
+//      e fa window.close() lato CM (più affidabile se opener è stato azzerato)
+//   2. cmTab.close() lato app (opener) — retry a intervalli di 250ms, 8 tentativi
+// Se entrambi falliscono, la tab resta aperta ma il browser potrebbe averla
+// messa in background.
+function _vpCloseCMTab(tab){
+  if(!tab) return;
+  try{ if(tab.closed) return; }catch(e){}
+
+  // Strategia 1: invia messaggio close allo userscript
+  try{ tab.postMessage({type:'rareblock_close'}, '*'); }catch(e){}
+
+  // Strategia 2: retry close dal lato opener
+  var attempts = 0;
+  var timer = setInterval(function(){
+    try{
+      if(tab.closed){ clearInterval(timer); return; }
+      tab.close();
+      // Se il primo non funziona, riprova con postMessage a metà strada
+      if(attempts === 2){
+        try{ tab.postMessage({type:'rareblock_close'}, '*'); }catch(e){}
+      }
+    }catch(e){}
+    if(++attempts >= 8) clearInterval(timer);
+  }, 250);
+}
+
 // ── Helper: tenta scraping server-side via edge function, 10s timeout ────────
-// Ritorna {listings, error} — listings vuoto se fallisce
+// Ritorna l'intera response data — se listings vuoto, include un oggetto `debug`
+// con diagnostica dell'HTML ricevuto dal server.
 async function _vpServerSideCMScrape(cmUrl){
   try{
     var controller = new AbortController();
@@ -4546,24 +4576,23 @@ async function _vpServerSideCMScrape(cmUrl){
     var res = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+bearer},
-      body:JSON.stringify({source:'cardmarket', url:cmUrl}),
+      body:JSON.stringify({source:'cardmarket', url:cmUrl, debug:true}),
       signal: controller.signal,
     });
     clearTimeout(timer);
     if(!res.ok){
-      // Retry con anon key se 401
       if(res.status===401 && bearer!==SUPA_KEY){
         res = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {
           method:'POST',
           headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPA_KEY},
-          body:JSON.stringify({source:'cardmarket', url:cmUrl}),
+          body:JSON.stringify({source:'cardmarket', url:cmUrl, debug:true}),
         });
       }
       if(!res.ok) return {listings:[], error:'HTTP '+res.status};
     }
     var data = await res.json();
-    if(data.error) return {listings:[], error:data.error};
-    return {listings: data.listings || [], error: null};
+    if(data.error) return {listings:[], error:data.error, debug:data.debug};
+    return {listings: data.listings || [], error: null, debug: data.debug};
   }catch(e){
     return {listings:[], error: e.name==='AbortError' ? 'timeout 10s' : (e.message || String(e))};
   }
@@ -4603,8 +4632,20 @@ async function verifyPrice(idx){
           return;
         }
       }
-      // Server-side fallito: logga il motivo e prosegui con fallback userscript
-      log.log('\u26a0 Server-side fallito ('+(srv.error||'0 listings')+') \u2014 fallback userscript','warn');
+      // Server-side fallito: logga il motivo + debug info e prosegui con fallback userscript
+      var dbgSummary = '';
+      if(srv.debug){
+        try{ console.log('[RareBlock] CM server-side debug:', srv.debug); }catch(e){}
+        var d = srv.debug;
+        var hints = [];
+        if(d.has_consent_wall) hints.push('cookie wall');
+        if(d.is_geo_block) hints.push('geo-block');
+        if(d.page_title) hints.push('title="'+(d.page_title.length>40?d.page_title.substring(0,40)+'\u2026':d.page_title)+'"');
+        if(d.has_next_data===false) hints.push('no NEXT_DATA');
+        if(d.html_length!=null) hints.push(d.html_length+' bytes');
+        dbgSummary = hints.length ? ' [' + hints.join(', ') + ']' : '';
+      }
+      log.log('Server-side fallito ('+(srv.error||'0 listings')+')'+dbgSummary+' \u2014 fallback userscript','warn');
     } else {
       log.log('URL di ricerca \u2014 userscript richiesto (no server-side)','info');
     }
@@ -4630,9 +4671,7 @@ async function verifyPrice(idx){
       const processed = _vpProcessListings(livePrices.listings, c.condition, log);
       var finalPrice = processed ? processed.finalPrice : livePrices.prices[0];
 
-      if(cmTab && !cmTab.closed) cmTab.close();
-      // Retry close se primo tentativo bloccato da browser
-      setTimeout(function(){ try{ if(cmTab && !cmTab.closed) cmTab.close(); }catch(e){} }, 300);
+      _vpCloseCMTab(cmTab);
       await applyVerifiedPrice(idx, finalPrice);
       setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 3000);
     } else {

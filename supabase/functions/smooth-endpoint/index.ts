@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
     if (source === 'unknown' || !urls.length) {
       return json({ error: 'url/source non valido', listings: [], prices: [] });
     }
-    if (source === 'cardmarket')    return await handleCardmarket(firstUrl);
+    if (source === 'cardmarket')    return await handleCardmarket(firstUrl, body?.debug === true);
     if (source === 'pricecharting') return await handlePriceChartingCascade(urls, body?.card_name, body?.debug === true);
     if (source === 'ebay_sold')     return await handleEbaySoldCascade(urls, Number(body?.min_hits ?? 3));
     return json({ error: 'source non gestita', listings: [], prices: [] });
@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
 // ═════════════════════════════════════════════════════════════════════
 //  CARDMARKET (v4 logic invariata)
 // ═════════════════════════════════════════════════════════════════════
-async function handleCardmarket(url: string): Promise<Response> {
+async function handleCardmarket(url: string, debug = false): Promise<Response> {
   const { html, ok, status } = await fetchWithRetry(url);
   if (!ok || !html) {
     return json({
@@ -143,7 +143,58 @@ async function handleCardmarket(url: string): Promise<Response> {
   }
   const listings = extractCMListings(html);
   const prices = listings.map(l => l.price);
-  return json({ listings, prices, url, source: 'cardmarket', count: listings.length });
+
+  // Se 0 listings e debug richiesto, aggiungi diagnostica dell'HTML ricevuto
+  // per capire se CM ha servito consent wall / pagina alternativa / NEXT_DATA
+  // con struttura diversa rispetto a quella attesa.
+  const baseResp: Record<string, unknown> = {
+    listings, prices, url, source: 'cardmarket', count: listings.length,
+  };
+
+  if (listings.length === 0 && debug) {
+    const nd = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+    const rowMatches = (html.match(/class="[^"]*article-row[^"]*"/gi) || []).length;
+    const euroMatches = (html.match(/€\s*\d{1,4}[,.]\d{2}/g) || []).length;
+    const priceJsonMatches = (html.match(/"price"\s*:\s*"?\d{1,4}[,.]\d{2}/g) || []).length;
+    const titleMatch = html.match(/<title>([^<]*)<\/title>/i);
+    const hasConsentWall = /cookie[- ]?consent|accetta (tutti i )?cookie|i understand|accept cookies/i.test(html);
+    const isGeoBlock = /not available in your (country|region)|geo[- ]?blocked/i.test(html);
+
+    let ndInfo: Record<string, unknown> | null = null;
+    if (nd) {
+      const ndText = nd[1];
+      ndInfo = {
+        length: ndText.length,
+        has_listings_key: /\"(listings|articles|offers|products)\"/i.test(ndText),
+        has_price_key: /\"(price|priceGross|sellPrice|minPrice)\"/i.test(ndText),
+        sample_head: ndText.substring(0, 300),
+      };
+      // Prova un parse grezzo per vedere chiavi top-level
+      try {
+        const parsed = JSON.parse(ndText);
+        const pageProps = (parsed as { props?: { pageProps?: unknown } }).props?.pageProps;
+        if (pageProps && typeof pageProps === 'object') {
+          ndInfo.pageProps_keys = Object.keys(pageProps).slice(0, 20);
+        }
+      } catch { /* */ }
+    }
+
+    baseResp.debug = {
+      http_status: status,
+      html_length: html.length,
+      has_next_data: !!nd,
+      next_data_info: ndInfo,
+      article_row_matches: rowMatches,
+      price_json_matches: priceJsonMatches,
+      euro_symbol_matches: euroMatches,
+      page_title: titleMatch ? titleMatch[1].trim().substring(0, 80) : null,
+      has_consent_wall: hasConsentWall,
+      is_geo_block: isGeoBlock,
+      html_head_500: html.substring(0, 500),
+    };
+  }
+
+  return json(baseResp);
 }
 
 function extractCMListings(html: string): Listing[] {
