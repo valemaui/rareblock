@@ -7790,18 +7790,18 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
       </div>
 
       <div class="anl-f anl-f-name">
-        <label>Carta</label>
+        <label for="anlCardName">Carta</label>
         <input type="text" id="anlCardName" placeholder="nome + numero"
           onkeydown="if(event.key==='Enter')anlSearch()"/>
       </div>
 
       <div class="anl-f anl-f-set">
-        <label>Set</label>
+        <label for="anlCardName-setpicker-input">Set</label>
         <div id="anlCardName-setpicker" style="position:relative"></div>
       </div>
 
       <div class="anl-f anl-f-lang">
-        <label>Lingua</label>
+        <label for="anlLang">Lingua</label>
         <select id="anlLang">
           <option value="ITA">ITA</option>
           <option value="ENG" selected>ENG</option>
@@ -7815,16 +7815,16 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
       </div>
 
       <div class="anl-f">
-        <label>Tipo</label>
-        <div class="anl-seg" role="tablist">
-          <button class="anl-seg-btn active" id="anlSegRaw" onclick="anlSetMode('raw')">Raw</button>
-          <button class="anl-seg-btn" id="anlSegGr" onclick="anlSetMode('graded')">Gradata</button>
+        <label id="anlSegLabel">Tipo</label>
+        <div class="anl-seg" role="tablist" aria-labelledby="anlSegLabel">
+          <button class="anl-seg-btn active" id="anlSegRaw" role="tab" aria-selected="true" onclick="anlSetMode('raw')">Raw</button>
+          <button class="anl-seg-btn" id="anlSegGr" role="tab" aria-selected="false" onclick="anlSetMode('graded')">Gradata</button>
         </div>
       </div>
 
       <!-- Fields RAW -->
       <div class="anl-f anl-f-cond" id="anlFCond">
-        <label>Condizione</label>
+        <label for="anlCond">Condizione</label>
         <select id="anlCond">
           <option>MINT</option>
           <option selected>NM</option>
@@ -7837,7 +7837,7 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
         </select>
       </div>
       <div class="anl-f anl-f-1st" id="anlF1st">
-        <label>1ª Ed</label>
+        <label for="anl1st">1ª Ed</label>
         <select id="anl1st">
           <option value="no" selected>No</option>
           <option value="yes">Sì</option>
@@ -7846,7 +7846,7 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
 
       <!-- Fields GRADED -->
       <div class="anl-f anl-f-house" id="anlFHouse" style="display:none">
-        <label>Casa</label>
+        <label for="anlHouse">Casa</label>
         <select id="anlHouse" onchange="anlOnHouseChange()">
           <option value="PSA" selected>PSA</option>
           <option value="BGS">BGS</option>
@@ -7861,7 +7861,7 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
         </select>
       </div>
       <div class="anl-f anl-f-grade" id="anlFGrade" style="display:none">
-        <label>Grado</label>
+        <label for="anlGradeScore">Grado</label>
         <select id="anlGradeScore" onchange="anlOnScoreChange()"></select>
       </div>
 
@@ -8287,8 +8287,12 @@ function anlPopulateGradeSelect(){
 
 function anlSetMode(m){
   anlMode = m;
-  document.getElementById('anlSegRaw').classList.toggle('active', m==='raw');
-  document.getElementById('anlSegGr').classList.toggle('active', m==='graded');
+  var rawBtn=document.getElementById('anlSegRaw');
+  var grBtn =document.getElementById('anlSegGr');
+  rawBtn.classList.toggle('active', m==='raw');
+  grBtn.classList.toggle('active',  m==='graded');
+  rawBtn.setAttribute('aria-selected', m==='raw' ? 'true':'false');
+  grBtn.setAttribute('aria-selected',  m==='graded' ? 'true':'false');
   document.getElementById('anlFCond').style.display  = m==='raw'?'':'none';
   document.getElementById('anlF1st').style.display   = m==='raw'?'':'none';
   document.getElementById('anlFHouse').style.display = m==='graded'?'':'none';
