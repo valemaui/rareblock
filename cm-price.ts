@@ -346,7 +346,21 @@ async function handlePriceChartingCascade(urls: string[], cardName?: string, deb
 
     // Consideriamo "hit" se abbiamo almeno ungraded O un grado
     const hasData = prices.ungraded != null || prices.grade9 != null || prices.psa10 != null || prices.grade8 != null;
-    attempts.push({ url, ok: true, found: prices.productTitle });
+    const attempt: typeof attempts[0] = { url, ok: true, found: prices.productTitle };
+
+    if (debug) {
+      // Ritorna snippet della sezione prezzi per ispezione ID reali
+      const priceSection = html.match(/<table[^>]*(?:id|class)=["'][^"']*price[^"']*["'][\s\S]{0,4000}?<\/table>/i)
+        || html.match(/<div[^>]*(?:id|class)=["'][^"']*price[^"']*["'][\s\S]{0,4000}?<\/div>/i);
+      if (priceSection) attempt.snippet = priceSection[0].substring(0, 3500);
+      else {
+        // Fallback: cerca pattern $XX.XX e slice attorno
+        const firstPrice = html.search(/\$[\d,]+\.\d{2}/);
+        if (firstPrice > 0) attempt.snippet = html.substring(Math.max(0, firstPrice - 500), firstPrice + 3000);
+      }
+      attempt.html_len = html.length;
+    }
+    attempts.push(attempt);
 
     if (hasData) {
       return json({ source: 'pricecharting', prices, url: productUrl, attempts, query_index: i });
