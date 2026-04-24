@@ -482,18 +482,53 @@ function extractFirstPCProduct(html: string, nameHint?: string): { url: string; 
 
   if (!candidates.length) return null;
 
-  // Scoring basato su hint + pokemon
+  // Estrai numero carta dall'hint (formato "Nome 106" o "Nome #106" o "Nome 106/130")
+  const numMatch = hint.match(/(?:^|\s)#?(\d{1,3})(?:\/\d+)?(?:\s|$)/);
+  const cardNum = numMatch ? numMatch[1] : null;
+
+  // Pattern di prodotti sigillati / non-singoli da penalizzare
+  const SEALED_PAT = /(?:booster-box|booster-pack|theme-deck|starter-deck|deck-box|bundle|collection-box|tin|elite-trainer|etb|blister|sleeved|binder|booster(?:-display)?|promo-box|gift-box|japanese-booster|jumbo-pack|mini-tin)/i;
+  const INDEX_PAT  = /(?:\/game\/pokemon-cards\/?$|\/pokemon-card-singles\/?$|prices\/singles\/?$)/i;
+
+  // Scoring basato su hint + pokemon + penalità sealed
   for (const c of candidates) {
+    const lowerPath  = c.raw_path.toLowerCase();
+    const lowerTitle = c.title.toLowerCase();
+
+    // Penalità forti — queste non sono carte singole
+    if (SEALED_PAT.test(lowerPath) || SEALED_PAT.test(lowerTitle)) c.score -= 50;
+    if (INDEX_PAT.test(lowerPath)) c.score -= 100;
+
+    // Deve essere Pokémon
     if (/pokemon/i.test(c.raw_path) || /pokemon/i.test(c.title)) c.score += 10;
+
+    // Match su parole dell'hint (nome carta + set)
     for (const w of hintWords) {
-      if (c.title.toLowerCase().includes(w)) c.score += 3;
-      if (c.raw_path.toLowerCase().includes(w)) c.score += 2;
+      if (lowerTitle.includes(w)) c.score += 3;
+      if (lowerPath.includes(w))  c.score += 2;
     }
+
+    // Bonus forte per match numero carta: cerca "-106" / "-106-" / "#106" / "_106"
+    if (cardNum) {
+      const numPats = [
+        new RegExp('[-_/#]' + cardNum + '(?:[-_/]|$)'),
+        new RegExp('\\b' + cardNum + '\\b'),
+      ];
+      for (const p of numPats) {
+        if (p.test(lowerPath))  { c.score += 15; break; }
+        if (p.test(lowerTitle)) { c.score += 12; break; }
+      }
+    }
+
+    // Bonus se path usa pattern canonico /game/pokemon-{set}/{card}-{num}
+    if (/^\/game\/pokemon-[a-z0-9-]+\/[a-z0-9-]+/i.test(c.raw_path)) c.score += 5;
   }
 
   candidates.sort((a, b) => b.score - a.score);
   const best = candidates[0];
   if (!/pokemon/i.test(best.raw_path) && !/pokemon/i.test(best.title)) return null;
+  // Refuse se il best ha score negativo (probabilmente tutti sealed/index)
+  if (best.score < 0) return null;
   return { url: best.url, title: best.title };
 }
 
@@ -942,7 +977,8 @@ function extractEbayPrices(html: string, currency: string): EbaySoldResult {
       const mm = block.match(p);
       if (mm) {
         const n = parsePrice(mm[1]);
-        if (n && n >= 0.5 && n <= 99999) { raw.push(n); break; }
+        // Pavimento alzato a 1 (sotto 1€ = gadget/sfuso) e soffitto a 99999
+        if (n && n >= 1 && n <= 99999) { raw.push(n); break; }
       }
     }
   }
@@ -951,7 +987,7 @@ function extractEbayPrices(html: string, currency: string): EbaySoldResult {
     const jsonPricePat = /"convertedCurrentPrice"\s*:\s*\{?[^}]*?"value"\s*:\s*"?([\d.]+)"?/g;
     while ((m = jsonPricePat.exec(html)) !== null) {
       const n = parseFloat(m[1]);
-      if (!isNaN(n) && n >= 0.5 && n <= 99999) raw.push(n);
+      if (!isNaN(n) && n >= 1 && n <= 99999) raw.push(n);
     }
   }
 
@@ -959,7 +995,7 @@ function extractEbayPrices(html: string, currency: string): EbaySoldResult {
     const soldRowPat = /(SOLD|Venduto|Venduti)[\s\S]{0,400}?(?:\$|€|£)\s*([\d.,]+)/gi;
     while ((m = soldRowPat.exec(html)) !== null) {
       const n = parsePrice(m[2]);
-      if (n && n >= 0.5 && n <= 99999) raw.push(n);
+      if (n && n >= 1 && n <= 99999) raw.push(n);
     }
   }
 
@@ -968,14 +1004,34 @@ function extractEbayPrices(html: string, currency: string): EbaySoldResult {
   }
 
   const sorted = raw.slice().sort((a,b) => a - b);
-  const q1 = sorted[Math.floor(sorted.length * 0.25)];
-  const q3 = sorted[Math.floor(sorted.length * 0.75)];
-  const iqr = q3 - q1;
-  const lo = q1 - 1.5 * iqr;
-  const hi = q3 + 1.5 * iqr;
-  const filtered = sorted.filter(p => p >= lo && p <= hi);
+  let filtered: number[];
+
+  if (sorted.length >= 10) {
+    // Campione grande: percentile 10-90 (taglia gli estremi, tiene l'80% centrale)
+    const p10 = sorted[Math.floor(sorted.length * 0.10)];
+    const p90 = sorted[Math.floor(sorted.length * 0.90)];
+    filtered = sorted.filter(p => p >= p10 && p <= p90);
+  } else if (sorted.length >= 6) {
+    // Campione medio: MAD (Median Absolute Deviation) — più robusto dell'IQR
+    const med = sorted[Math.floor(sorted.length / 2)];
+    const absDevs = sorted.map(p => Math.abs(p - med)).sort((a,b) => a - b);
+    const mad = absDevs[Math.floor(absDevs.length / 2)] || (med * 0.1);
+    // Soglia 3.5 * MAD (equivalente a ~2.3 sigma in distribuzione normale)
+    const lo = med - 3.5 * mad;
+    const hi = med + 3.5 * mad;
+    filtered = sorted.filter(p => p >= lo && p <= hi);
+  } else {
+    // Campione piccolo: IQR classico ma più stretto (1.2 invece di 1.5)
+    const q1 = sorted[Math.floor(sorted.length * 0.25)];
+    const q3 = sorted[Math.floor(sorted.length * 0.75)];
+    const iqr = q3 - q1;
+    const lo = q1 - 1.2 * iqr;
+    const hi = q3 + 1.2 * iqr;
+    filtered = sorted.filter(p => p >= lo && p <= hi);
+  }
   const outliersRemoved = sorted.length - filtered.length;
 
+  // Se il filtro ha tagliato troppo, fallback al raw sorted
   const use = filtered.length >= 3 ? filtered : sorted;
   const count = use.length;
   const sum = use.reduce((a,b) => a + b, 0);
