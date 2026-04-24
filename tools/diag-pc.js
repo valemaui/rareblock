@@ -66,6 +66,13 @@ function formatReport(diag) {
       });
     }
 
+    if (c.trend_slices && Object.keys(c.trend_slices).length) {
+      out += '\n  ─── Trend markers (sezioni Price Change/1 Year/ago) ───\n';
+      for (const [marker, sl] of Object.entries(c.trend_slices)) {
+        out += `  [${marker}]\n     ${sl}\n`;
+      }
+    }
+
     if (c.label_occurrences && Object.keys(c.label_occurrences).length) {
       out += '\n  ─── Label occurrences (ogni label + primo \$ dopo) ───\n';
       for (const [lbl, occs] of Object.entries(c.label_occurrences)) {

@@ -901,6 +901,24 @@ async function handleDiag(inputCards: DiagCardInput[] | null): Promise<Response>
     }
     cardReport.price_dump = priceMatches;
 
+    // Dump trend: cerca "Price Change" / "1 Year" / "12 Month" / "ago" nel HTML
+    // e slice 800 char attorno per capire struttura
+    const trendMarkers = ['Price Change', '1 Year', '12 Month', 'a year ago', 'yearly change'];
+    const trendSlices: Record<string, string> = {};
+    for (const marker of trendMarkers) {
+      const idx = prod.html.toLowerCase().indexOf(marker.toLowerCase());
+      if (idx > 0) {
+        const slice = prod.html.substring(idx, idx + 800)
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&#43;/g, '+')
+          .replace(/\s+/g, ' ')
+          .trim().slice(0, 500);
+        trendSlices[marker] = 'pos=' + idx + ' | ' + slice;
+      }
+    }
+    if (Object.keys(trendSlices).length) cardReport.trend_slices = trendSlices;
+
     // Per ciascuna label (PSA 10, BGS 10, CGC 10), trova TUTTE le occorrenze
     // e per ognuna prendi il primo $ dopo e 200 char di contesto
     const labelOccurrences: Record<string, Array<{ pos: number; first_price: number | null; context: string }>> = {};

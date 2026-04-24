@@ -8862,30 +8862,48 @@ async function anlStartLiveFetches(card){
     var user = window._anlUserInput || {};
     var houseLabel = graded ? ANL_HOUSES[document.getElementById('anlHouse').value].label : '';
     var scoreVal   = graded ? document.getElementById('anlGradeScore').value : '';
-    var gradeSfx   = graded ? (' '+houseLabel+' '+scoreVal) : '';
 
-    // Costruisco lista di query da provare, ordine dal più specifico al più largo.
-    // user.name viene dall'input utente (es. "Groudon") — più affidabile del card.name API (es. "Groudon-EX").
     var nameUser = user.name || card.name;
     var nameApi  = card.name;
     var num      = card.number || user.number || '';
 
+    // Varianti di scrittura del grade (molti venditori usano forme diverse)
+    // "PSA 8" è la più comune, ma "PSA-8" e "PSA8" appaiono spesso su eBay.
+    var gradeVariants = graded
+      ? [' '+houseLabel+' '+scoreVal, ' '+houseLabel+'-'+scoreVal, ' '+houseLabel+scoreVal]
+      : [''];
+
     var queries = [];
     function addQ(s){ s=s.trim().replace(/\s+/g,' '); if(s && queries.indexOf(s)<0) queries.push(s); }
 
-    // Ordine: user-name + numero + set + grade  →  user-name + numero + grade  →  user-name + grade  →  api-name + numero + grade  →  user-name nudo
-    if(nameUser && num && setNm) addQ(nameUser+' '+num+(setNm?' '+setNm:'')+gradeSfx+' pokemon');
+    // Per la query principale uso SOLO la forma canonica "PSA 8".
+    // Le varianti "PSA-8" / "PSA8" vanno in fondo come ultima chance.
+    var gradeSfx = gradeVariants[0];
+
+    // Ordine: dalla più specifica alla più larga
+    if(nameUser && num && setNm) addQ(nameUser+' '+num+' '+setNm+gradeSfx+' pokemon');
     if(nameUser && num)          addQ(nameUser+' '+num+gradeSfx+' pokemon');
+    if(nameUser && num && setNm) addQ(nameUser+' '+num+' '+setNm+gradeSfx);  // senza "pokemon"
     if(nameUser)                 addQ(nameUser+gradeSfx+' pokemon');
     if(nameApi && nameApi!==nameUser && num) addQ(nameApi+' '+num+gradeSfx+' pokemon');
-    if(nameUser && !graded)      addQ(nameUser+' '+num+' pokemon');  // ultimo: raw senza grade anche se graded mode
+    if(nameUser && !graded)      addQ(nameUser+' '+num+' pokemon');  // raw senza grade
 
-    // Costruisci URL per ciascuna query (eBay IT come primo host)
+    // URL su eBay IT (valuta EUR)
     var urls = queries.map(function(q){
       return 'https://www.ebay.it/sch/i.html?_nkw='+encodeURIComponent(q)+'&LH_Sold=1&LH_Complete=1&_sacat=2611';
     });
-    // Aggiungi un tentativo su ebay.com con la query più larga (fallback internazionale)
-    if(nameUser) urls.push('https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(nameUser+gradeSfx+' pokemon')+'&LH_Sold=1&LH_Complete=1&_sacat=2611');
+
+    // Fallback EU: eBay.de (molti venditori tedeschi per Pokémon)
+    if(nameUser && num){
+      urls.push('https://www.ebay.de/sch/i.html?_nkw='+encodeURIComponent(nameUser+' '+num+gradeSfx+' pokemon')+'&LH_Sold=1&LH_Complete=1&_sacat=2611');
+    }
+
+    // Fallback internazionale: eBay.com con query larga + varianti grade
+    if(nameUser){
+      gradeVariants.forEach(function(g){
+        urls.push('https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(nameUser+g+' pokemon')+'&LH_Sold=1&LH_Complete=1&_sacat=2611');
+      });
+    }
 
     try{
       var data=await anlFetchSmooth({source:'ebay_sold', urls:urls, url:urls[0], min_hits:3});
