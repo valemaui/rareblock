@@ -1037,7 +1037,9 @@ async function handleDiag(inputCards: DiagCardInput[] | null): Promise<Response>
     // Anomalie automatiche di validazione
     const ex = cardReport.extracted;
     const anomalies: string[] = [];
-    if (ex.psa10 && ex.ungraded && ex.psa10 > 10 * ex.ungraded) anomalies.push(`PSA 10 (${ex.psa10}) > 10× Ungraded (${ex.ungraded})`);
+    // Anomalia PSA10 vs Ungraded: per carte vintage o rare il gap 10× è normale.
+    // Solo gap estremi (>50×) indicano potenziale bug di parsing.
+    if (ex.psa10 && ex.ungraded && ex.psa10 > 50 * ex.ungraded) anomalies.push(`PSA 10 (${ex.psa10}) > 50× Ungraded (${ex.ungraded}) — sospetto parsing`);
     if (ex.psa10 && ex.grade9 && ex.psa10 < ex.grade9) anomalies.push('PSA 10 < Grade 9 (incoerente)');
     // Rileva combinazioni con campione troppo piccolo
     if (ex.grades_from_listings) {
