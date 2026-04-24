@@ -57,10 +57,9 @@ function buildHeaders(url: string, lang = 'it', referer?: string): Record<string
   };
 
   // PriceCharting decide la valuta mostrata principalmente via cookie utente.
-  // Forziamo EUR esplicitamente così l'edge function riceve gli stessi prezzi
-  // che vede l'utente italiano sul browser. Senza cookie PC default USD.
+  // Vari nomi di cookie possibili — li setto tutti per robustezza.
   if (isPc) {
-    headers['Cookie'] = 'currency=EUR; country=IT';
+    headers['Cookie'] = 'preferred_currency=EUR; currency=EUR; country=IT; locale=it_IT';
   }
 
   return headers;
@@ -283,6 +282,7 @@ interface GradeListingData {
   min?: number;
   max?: number;
   currency_symbol: string;
+  confidence: 'high' | 'medium' | 'low';  // basato su count: ≥10 high, 3-9 medium, 1-2 low
 }
 
 interface PCPrices {
@@ -625,12 +625,16 @@ function extractAllGradesFromListingsOnePass(html: string): Record<string, Grade
       if (f.length >= 2) filtered = f;
     }
     const median = filtered[Math.floor(filtered.length / 2)];
+    const count = filtered.length;
+    const confidence: 'high' | 'medium' | 'low' =
+      count >= 10 ? 'high' : (count >= 3 ? 'medium' : 'low');
     out[key] = {
       median,
-      count: filtered.length,
+      count,
       min: filtered[0],
       max: filtered[filtered.length - 1],
       currency_symbol: dominantSym,
+      confidence,
     };
   }
   return out;

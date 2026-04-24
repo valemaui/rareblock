@@ -8729,7 +8729,7 @@ function anlComputeToday(){
   }
 
   // PC lookup con priorità ai sold listings specifici per casa+grade
-  var pcP = null, pcCount = null, pcSrc = 'PriceCharting';
+  var pcP = null, pcCount = null, pcSrc = 'PriceCharting', pcConfidence = null;
   // PC può ora servire EUR (cookie geografico): rispetta pc.currency per la conversione
   var pcCurrency = (pc && pc.currency) || 'USD';
   var pcToEur = function(v, symbolOverride){
@@ -8750,7 +8750,9 @@ function anlComputeToday(){
         var L = pc.grades_from_listings[listingKey];
         pcP = pcToEur(L.median, L.currency_symbol);
         pcCount = L.count;
-        pcSrc = 'PC Sold ' + house + ' ' + score + ' (' + L.count + ' vend.)';
+        pcConfidence = L.confidence || (L.count>=10?'high':(L.count>=3?'medium':'low'));
+        var confLabel = pcConfidence==='high'?'':(pcConfidence==='medium'?' · campione medio':' · campione piccolo');
+        pcSrc = 'PC Sold ' + house + ' ' + score + ' (' + L.count + ' vend.' + confLabel + ')';
       } else {
         // PRIORITÀ 2: fallback campi aggregati (ungraded, grade7/8/9/9_5, psa10/bgs10/cgc10)
         var key = anlPcKey(house, parseFloat(score));
@@ -8763,11 +8765,15 @@ function anlComputeToday(){
   var cmP = cm || null;   // per raw applichiamo condizione
 
   // Consolida: mediana tra le fonti disponibili, con pesatura semplice
-  // Peso PC boostato quando abbiamo listings specifici (più affidabile di eBay cascata)
+  // Peso PC modulato da confidence (ad alto sample è attendibile quanto eBay, basso è solo hint)
   var sources = [];
   if(ebP) sources.push({v:ebP, w:3, src:'eBay Sold'+(ebNote?' ['+ebNote+']':''), n:ebay.count});
   if(pcP){
-    var pcWeight = pcCount ? 3 : 2;  // listings specifici sono forti quanto eBay
+    var pcWeight;
+    if(pcConfidence==='high')      pcWeight = 3;
+    else if(pcConfidence==='medium') pcWeight = 2;
+    else if(pcConfidence==='low')    pcWeight = 1;
+    else                              pcWeight = 2;  // default per fallback aggregati
     sources.push({v:pcP, w:pcWeight, src:pcSrc, n:pcCount});
   }
   if(cmP) sources.push({v:cmP, w:1, src:'CardMarket'});
@@ -9248,7 +9254,9 @@ function anlPopPc(prices, err){
       else if(L.currency_symbol==='£') eurValue = L.median * 1.17 * rate;
       else                             eurValue = L.median * rate;
       srcLabel = house+' '+score;
-      sourceNote = L.count+' vendite eBay'+(L.min&&L.max?' · range '+L.currency_symbol+Math.round(L.min)+'–'+L.currency_symbol+Math.round(L.max):'');
+      var conf = L.confidence || (L.count>=10?'high':(L.count>=3?'medium':'low'));
+      var confNote = conf==='high' ? '' : (conf==='medium' ? ' · campione medio' : ' · campione piccolo');
+      sourceNote = L.count+' vendite eBay'+confNote+(L.min&&L.max?' · range '+L.currency_symbol+Math.round(L.min)+'–'+L.currency_symbol+Math.round(L.max):'');
     } else {
       // Fallback: campi aggregati (rispetta currency nativa PC)
       var key = anlPcKey(house, parseFloat(score));
