@@ -4510,6 +4510,65 @@ function cmLogger(label){
   window._rbUnregisterPriceHandler = function(idx){ delete _pmHandlers[idx]; };
 })();
 
+// ── Helper: estrae un prezzo finale dai listings CM + logga le offerte ───────
+// Ritorna {finalPrice, smart} o null se nessun prezzo valido
+function _vpProcessListings(listings, conditionReq, log){
+  if(!listings || !listings.length) return null;
+  log.log('CM listing ('+listings.length+'):','ok');
+  listings.slice(0,7).forEach(function(l){
+    var condShort = {Mint:'MT','Near Mint':'NM',Excellent:'EX',Good:'GD','Light Played':'LP',Played:'PL',Poor:'PO'};
+    var cs = condShort[l.condition] || l.condition || '?';
+    log.log('  '+cs+' &nbsp;\u2192 <b>\u20ac'+l.price.toFixed(2)+'</b>', l.condRank<=2?'ok':l.condRank<=4?'warn':'err');
+  });
+  var smart = smartCMPrice(listings, conditionReq);
+  var finalPrice;
+  if(smart && smart.price > 0){
+    finalPrice = smart.price;
+    log.log('Smart price ('+conditionReq+'): <b>\u20ac'+finalPrice.toFixed(2)+'</b>'
+      +(smart.outlierRemoved?' \u2014 '+smart.outlierRemoved+' outlier rimossi':''), 'ok');
+    if(smart.usedConds && smart.usedConds.join(',') !== conditionReq)
+      log.log('Condizioni usate: '+smart.usedConds.join(', '),'warn');
+  } else {
+    finalPrice = listings[0].price;
+    log.log('Min price: <b>\u20ac'+finalPrice.toFixed(2)+'</b>','ok');
+  }
+  return {finalPrice: finalPrice, smart: smart};
+}
+
+// ── Helper: tenta scraping server-side via edge function, 10s timeout ────────
+// Ritorna {listings, error} — listings vuoto se fallisce
+async function _vpServerSideCMScrape(cmUrl){
+  try{
+    var controller = new AbortController();
+    var timer = setTimeout(function(){ controller.abort(); }, 10000);
+    var sessionToken = window._rbSession && window._rbSession.access_token;
+    var bearer = sessionToken || SUPA_KEY;
+    var res = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+bearer},
+      body:JSON.stringify({source:'cardmarket', url:cmUrl}),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if(!res.ok){
+      // Retry con anon key se 401
+      if(res.status===401 && bearer!==SUPA_KEY){
+        res = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPA_KEY},
+          body:JSON.stringify({source:'cardmarket', url:cmUrl}),
+        });
+      }
+      if(!res.ok) return {listings:[], error:'HTTP '+res.status};
+    }
+    var data = await res.json();
+    if(data.error) return {listings:[], error:data.error};
+    return {listings: data.listings || [], error: null};
+  }catch(e){
+    return {listings:[], error: e.name==='AbortError' ? 'timeout 10s' : (e.message || String(e))};
+  }
+}
+
 async function verifyPrice(idx){
   const btn = document.getElementById('vbtn_'+idx);
   try{
@@ -4521,7 +4580,6 @@ async function verifyPrice(idx){
     const _vc = cache[(c.name||'').toLowerCase().trim()];
     const _vt = _vc?(_vc.find(function(x){return x.number===c.number;})||_vc[0]):null;
     const cmUrl = buildCMDirectUrl(c.name,c.set_id||(_vt&&_vt.set?_vt.set.id:null),c.number,c.condition,c.language||'ITA',c.variant||'Normal',c.first_edition||false,c.set||'');
-    const cmTab = window.open(cmUrl,'_blank');
     const log = cmLogger(c.name+' \u00b7 #'+(c.number||'?'));
 
     const _cp = _vt&&_vt.cardmarket&&_vt.cardmarket.prices;
@@ -4530,7 +4588,29 @@ async function verifyPrice(idx){
       log.log('TCG API: '+pf.map(function(k){return k+'='+(_cp[k]!=null?'\u20ac'+_cp[k]:'\u2205');}).join(' \u00b7 '),'data');
     }
     const isDirect = cmUrl.includes('/Singles/')&&!cmUrl.includes('searchString=');
-    log.log((isDirect?'\u2713 CM diretto':'\u26a0 CM ricerca')+' \u2192 <a>'+cmUrl.replace('https://www.cardmarket.com','CM')+'</a>',isDirect?'ok':'warn',cmUrl);
+    log.log((isDirect?'CM diretto':'CM ricerca')+' \u2192 <a>'+cmUrl.replace('https://www.cardmarket.com','CM')+'</a>',isDirect?'ok':'warn',cmUrl);
+
+    // ─── STRATEGIA 1: Server-side scrape (solo per URL diretti, zero tab aperte) ─
+    if(isDirect){
+      log.log('\u{1F680} Scraping server-side\u2026','info');
+      const srv = await _vpServerSideCMScrape(cmUrl);
+      if(srv.listings && srv.listings.length > 0){
+        const processed = _vpProcessListings(srv.listings, c.condition, log);
+        if(processed){
+          log.log('Server-side OK \u2014 nessuna tab aperta','ok');
+          await applyVerifiedPrice(idx, processed.finalPrice);
+          setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 2000);
+          return;
+        }
+      }
+      // Server-side fallito: logga il motivo e prosegui con fallback userscript
+      log.log('\u26a0 Server-side fallito ('+(srv.error||'0 listings')+') \u2014 fallback userscript','warn');
+    } else {
+      log.log('URL di ricerca \u2014 userscript richiesto (no server-side)','info');
+    }
+
+    // ─── STRATEGIA 2: Fallback userscript (tab aperta + attesa postMessage) ─────
+    const cmTab = window.open(cmUrl,'_blank');
     log.log('In attesa prezzi dallo userscript\u2026 (timeout 30s)','info');
 
     const livePrices = await new Promise(function(resolve){
@@ -4547,30 +4627,8 @@ async function verifyPrice(idx){
     });
 
     if(livePrices && livePrices.prices && livePrices.prices.length > 0){
-      const listings = livePrices.listings;
-      const prices   = livePrices.prices;
-
-      // Log listing con condizione
-      log.log('CM listing ('+listings.length+'):','ok');
-      listings.slice(0,7).forEach(function(l){
-        var condShort = {Mint:'MT','Near Mint':'NM',Excellent:'EX',Good:'GD','Light Played':'LP',Played:'PL',Poor:'PO'};
-        var cs = condShort[l.condition] || l.condition || '?';
-        log.log('  '+cs+' &nbsp;→ <b>€'+l.price.toFixed(2)+'</b>', l.condRank<=2?'ok':l.condRank<=4?'warn':'err');
-      });
-
-      // Usa smartCMPrice per calcolare il prezzo corretto per la condizione richiesta
-      const smart = smartCMPrice(listings, c.condition);
-      var finalPrice;
-      if(smart && smart.price > 0){
-        finalPrice = smart.price;
-        log.log('✓ Smart price ('+c.condition+'): <b>€'+finalPrice.toFixed(2)+'</b>'
-          +(smart.outlierRemoved?' — '+smart.outlierRemoved+' outlier rimossi':''), 'ok');
-        if(smart.usedConds && smart.usedConds.join(',') !== c.condition)
-          log.log('  ⚠ Condizioni usate: '+smart.usedConds.join(', '),'warn');
-      } else {
-        finalPrice = prices[0];
-        log.log('✓ Min price: <b>€'+finalPrice.toFixed(2)+'</b>','ok');
-      }
+      const processed = _vpProcessListings(livePrices.listings, c.condition, log);
+      var finalPrice = processed ? processed.finalPrice : livePrices.prices[0];
 
       if(cmTab && !cmTab.closed) cmTab.close();
       // Retry close se primo tentativo bloccato da browser
@@ -4593,7 +4651,7 @@ async function verifyPrice(idx){
         failReason = 'Payload vuoto ricevuto dallo userscript';
         failHint   = 'Aggiorna lo userscript all\'ultima versione (v2.1) o inserisci prezzo manualmente';
       }
-      log.log('\u2717 ' + failReason, 'err');
+      log.log(failReason, 'err');
       log.log(failHint, 'warn');
 
       // Mostra input manuale nel log
