@@ -26,7 +26,8 @@ async function runDiag(cards) {
 function pad(s, n) { return String(s).padEnd(n); }
 
 function formatReport(diag) {
-  if (diag.error) return '❌ ' + diag.error;
+  if (diag.error && !diag.cards) return '❌ ' + diag.error + '\n\nRAW: ' + JSON.stringify(diag).slice(0, 500);
+  if (!diag.cards || !diag.cards.length) return '⚠ response senza cards\n\nRAW: ' + JSON.stringify(diag).slice(0, 1000);
   let out = `\n📊 Diagnostica smooth-endpoint · ${diag.generated_at}\n`;
   out += '═'.repeat(80) + '\n';
 
