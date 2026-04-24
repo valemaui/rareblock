@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
       return json({ error: 'url/source non valido', listings: [], prices: [] });
     }
     if (source === 'cardmarket')    return await handleCardmarket(firstUrl);
-    if (source === 'pricecharting') return await handlePriceChartingCascade(urls, body?.card_name);
+    if (source === 'pricecharting') return await handlePriceChartingCascade(urls, body?.card_name, body?.debug === true);
     if (source === 'ebay_sold')     return await handleEbaySoldCascade(urls, Number(body?.min_hits ?? 3));
     return json({ error: 'source non gestita', listings: [], prices: [] });
   } catch (e: any) {
@@ -284,8 +284,8 @@ interface PCPrices {
   currency?: string;
 }
 
-async function handlePriceChartingCascade(urls: string[], cardName?: string): Promise<Response> {
-  const attempts: Array<{ url: string; ok: boolean; found?: string; error?: string }> = [];
+async function handlePriceChartingCascade(urls: string[], cardName?: string, debug?: boolean): Promise<Response> {
+  const attempts: Array<{ url: string; ok: boolean; found?: string; error?: string; html_len?: number; snippet?: string; candidates?: number; sample_links?: string[] }> = [];
 
   for (let i = 0; i < urls.length; i++) {
     const url = urls[i];
@@ -297,12 +297,33 @@ async function handlePriceChartingCascade(urls: string[], cardName?: string): Pr
     if (url.includes('/search-products') || url.includes('/search?')) {
       const srch = await fetchWithRetry(url, 1);
       if (!srch.ok) {
-        attempts.push({ url, ok: false, error: `search HTTP ${srch.status}` });
+        attempts.push({ url, ok: false, error: `search HTTP ${srch.status}`, html_len: srch.html?.length ?? 0 });
         continue;
       }
       const firstProduct = extractFirstPCProduct(srch.html, cardName);
       if (!firstProduct) {
-        attempts.push({ url, ok: false, error: 'nessun prodotto' });
+        // Debug: raccoglie info diagnostiche
+        const entry: typeof attempts[0] = { url, ok: false, error: 'nessun prodotto', html_len: srch.html.length };
+        if (debug) {
+          // Trova tutti i link /game/ per capire se il pattern esiste
+          const allLinks: string[] = [];
+          const linkRe = /<a[^>]+href="(\/game\/[^"]+)"/g;
+          let lm: RegExpExecArray | null;
+          while ((lm = linkRe.exec(srch.html)) !== null && allLinks.length < 10) {
+            allLinks.push(lm[1]);
+          }
+          entry.candidates = allLinks.length;
+          entry.sample_links = allLinks;
+          // Cerca la tabella dei risultati per snippet
+          const tableM = srch.html.match(/<table[^>]*id=["']games_table["'][^>]*>([\s\S]{0,2000})/i);
+          if (tableM) entry.snippet = tableM[0].substring(0, 1500);
+          else {
+            // Fallback: primi 1500 char dopo <body
+            const bodyM = srch.html.match(/<body[^>]*>([\s\S]{0,3000})/i);
+            if (bodyM) entry.snippet = bodyM[1].substring(0, 1500);
+          }
+        }
+        attempts.push(entry);
         continue;
       }
       productUrl = firstProduct.url;
