@@ -8184,6 +8184,7 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
             <input type="datetime-local" id="radWatchEnd"/>
           </div>
         </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text);cursor:pointer;margin:4px 0 6px 0"><input type="checkbox" id="radWatchMonitor" checked style="margin:0"/> 🔔 Attiva monitoraggio (notifica a 24h/6h/1h/10m/fine)</label>
         <button class="btn btn-primary" onclick="radWatchSubmit()" style="width:100%;margin-top:4px;font-size:12px">+ Aggiungi in watchlist</button>
         <div id="radWatchStatus" style="margin-top:6px;font-size:11px;color:var(--text-muted);min-height:14px"></div>
       </div>
@@ -8325,6 +8326,10 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
 .rad-card.score-high{border-left:3px solid var(--warning)}
 .rad-card.score-mid{border-left:3px solid #ffcc00}
 .rad-card.manual-watch{border-left:3px solid #0088ff;background:rgba(0,136,255,.03)}
+.rad-card.monitored{box-shadow:0 0 0 1px rgba(255,149,0,.5) inset, 0 0 14px rgba(255,149,0,.15)}
+.rad-monitor-flag{position:absolute;top:8px;left:8px;background:rgba(255,149,0,.15);border:1px solid var(--warning);color:var(--warning);width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;animation:radPulse 2s ease-in-out infinite}
+@keyframes radPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,149,0,.5)}50%{box-shadow:0 0 0 6px rgba(255,149,0,0)}}
+.rad-monitor-on{background:var(--warning)!important;color:#0d1117!important;border-color:var(--warning)!important;font-weight:600}
 .rad-score-badge{position:absolute;top:8px;right:8px;color:#fff;font-weight:700;font-size:13px;padding:3px 8px;border-radius:10px;font-family:var(--mono);letter-spacing:.02em}
 .rad-card-img{width:64px;height:86px;object-fit:cover;border-radius:4px;border:1px solid var(--border);flex-shrink:0;background:var(--surface2)}
 .rad-card-img-ph{width:64px;height:86px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text-subtle);flex-shrink:0}
@@ -10416,9 +10421,38 @@ function huntStartRealtime(){
           if(msg.payload.data.type === 'INSERT'){
             huntHandleNewListing(rec);
           } else if(msg.payload.data.type === 'UPDATE'){
-            // aggiorna listing esistente nello state
             var idx = _huntState.listings.findIndex(function(x){return x.id===rec.id;});
+            var prev = idx>=0 ? _huntState.listings[idx] : null;
+            // preserva is_manual_watch flag
+            if(rec.deal_reasons && rec.deal_reasons.indexOf('manual_watch')>=0) rec.is_manual_watch = true;
             if(idx>=0) _huntState.listings[idx] = rec;
+
+            // Rileva nuova soglia monitor: monitor_notified è cresciuto
+            if(prev && rec.is_monitored !== false){
+              var oldN = (prev.monitor_notified||[]);
+              var newN = (rec.monitor_notified||[]);
+              var added = newN.filter(function(k){ return oldN.indexOf(k)<0; });
+              if(added.length){
+                var th = added[added.length-1];
+                var thLabel = ({
+                  '24h':'24 ore alla fine','6h':'6 ore alla fine',
+                  '1h':'1 ora alla fine','10m':'10 minuti alla fine',
+                  'ended':'Asta terminata'
+                })[th] || th;
+                huntShowToast('⏰ '+thLabel, (rec.title||'(asta)').slice(0,70), rec.listing_url, 90);
+                if('Notification' in window && Notification.permission==='granted'){
+                  try{
+                    var n = new Notification('📡 Radar — '+thLabel, {
+                      body: (rec.title||'').slice(0,120),
+                      icon: rec.image_url || undefined,
+                      tag: 'rb-mon-'+rec.id+'-'+th,
+                      requireInteraction: th==='10m' || th==='1h'
+                    });
+                    n.onclick = function(){ window.open(rec.listing_url, '_blank'); n.close(); };
+                  }catch(_){}
+                }
+              }
+            }
             huntRenderAll();
           }
         }
@@ -10608,8 +10642,11 @@ function huntListingCardHtml(l){
   var t = _huntState.targets.find(function(x){ return x.id===l.target_id; });
   var score = l.deal_score || 0;
   var isManual = !!l.is_manual_watch;
+  var hasAuction = !!l.auction_ends_at;
+  var isMonitored = !!l.is_monitored;
   var scoreClass = isManual ? 'manual-watch'
                  : (score>=80 ? 'score-hot' : (score>=60 ? 'score-high' : (score>=40 ? 'score-mid' : '')));
+  if(isMonitored) scoreClass += ' monitored';
   var pfLabel = (HUNT_PLATFORMS.find(function(p){return p.id===l.platform;})||{}).label || l.platform;
   var priceStr = l.price ? (l.currency||'€') + Number(l.price).toFixed(2) : '—';
   var discStr = '';
@@ -10629,7 +10666,20 @@ function huntListingCardHtml(l){
     ? '<div class="rad-score-badge" style="background:'+huntScoreColor(score)+'">'+score+'</div>'
     : '<div class="rad-score-badge" style="background:#0088ff">WATCH</div>';
 
+  // Monitor toggle button: visibile solo su aste (l.auction_ends_at presente)
+  var monitorBtn = '';
+  if(hasAuction){
+    var notified = l.monitor_notified || [];
+    var notifStr = notified.length
+      ? ' <span style="font-size:9px;opacity:.7">['+notified.join('·')+']</span>'
+      : '';
+    monitorBtn = isMonitored
+      ? '<button class="btn rad-monitor-on" onclick="huntToggleMonitor(\''+l.id+'\')" style="font-size:11px" title="Monitoraggio attivo. Ricevi notifiche a 24h, 6h, 1h, 10min e fine asta sui canali configurati.">🔔 Monitorata'+notifStr+'</button>'
+      : '<button class="btn" onclick="huntToggleMonitor(\''+l.id+'\')" style="font-size:11px" title="Attiva notifiche automatiche alle soglie: 24h, 6h, 1h, 10min, fine asta">🔕 Monitora</button>';
+  }
+
   return '<div class="rad-card '+scoreClass+'">'
+    + (isMonitored ? '<div class="rad-monitor-flag" title="Monitoraggio attivo">🔔</div>' : '')
     + badge
     + imgHtml
     +'<div class="rad-card-body">'
@@ -10649,12 +10699,13 @@ function huntListingCardHtml(l){
     +'  </div>'
     +(l.deal_reasons && l.deal_reasons.length
       ? '<div class="rad-card-reasons">'
-        + l.deal_reasons.map(function(r){ return '<span class="rad-card-reason">'+r+'</span>'; }).join('')
+        + l.deal_reasons.filter(function(r){return r!=='manual_watch';}).map(function(r){ return '<span class="rad-card-reason">'+r+'</span>'; }).join('')
         + '</div>'
       : '')
     +'</div>'
     +'<div class="rad-card-actions">'
     +'  <a class="btn btn-primary" href="'+l.listing_url+'" target="_blank" style="font-size:11px;text-decoration:none;text-align:center">Apri →</a>'
+    + monitorBtn
     +(isManual
        ? '<button class="btn" onclick="huntMarkStatus(\''+l.id+'\',\'dismissed\')" style="font-size:11px">🗑 Rimuovi</button>'
        : '<button class="btn" onclick="huntMarkStatus(\''+l.id+'\',\'watched\')" style="font-size:11px">👁 Watch</button>'
@@ -11115,6 +11166,40 @@ async function huntMarkStatus(id, status){
 }
 window.huntMarkStatus = huntMarkStatus;
 
+// ── MONITOR TOGGLE ──────────────────────────────────────────────────────
+// Attiva/disattiva il monitoraggio attivo sull'asta.
+// Quando attivo, la edge function scheduled `hunt-monitor` invia notifiche
+// alle soglie 24h/6h/1h/10m/fine sui canali configurati dall'utente.
+async function huntToggleMonitor(id){
+  var l = _huntState.listings.find(function(x){return x.id===id;});
+  if(!l){ return; }
+  if(!l.auction_ends_at){
+    alert('Il monitoraggio è disponibile solo per aste con data di fine.');
+    return;
+  }
+  var willEnable = !l.is_monitored;
+  if(willEnable){
+    // Controllo: ha canali configurati?
+    var cfg = _huntState.config || {};
+    if(!cfg.email_address && !cfg.telegram_chat_id && Notification.permission!=='granted'){
+      if(!confirm('Non hai canali notifica configurati. Il monitoraggio resterà registrato ma NON riceverai alert finché non configuri email/Telegram (⚙ Canali notifica) o autorizzi le notifiche push.\n\nAttivare comunque?')) return;
+    }
+  }
+  var patch = willEnable
+    ? { is_monitored: true, monitor_notified: [] }   // reset soglie già notificate
+    : { is_monitored: false };
+  try{
+    await supa('PATCH','hunt_listings?id=eq.'+id, patch);
+    l.is_monitored = willEnable;
+    if(willEnable) l.monitor_notified = [];
+    huntRenderAll();
+    if(willEnable){
+      huntShowToast('🔔 Monitoraggio attivato', 'Riceverai alert a 24h/6h/1h/10min dalla fine asta', l.listing_url, 100);
+    }
+  }catch(e){ alert('Errore: '+e.message); }
+}
+window.huntToggleMonitor = huntToggleMonitor;
+
 // ── SCAN PORTALI ────────────────────────────────────────────────────────
 // Mostra modal con lista target attivi; click → apre tutte le tab per quel target
 function radScanMenu(){
@@ -11257,6 +11342,8 @@ async function radWatchSubmit(){
     try{ endIso = new Date(endLocal).toISOString(); }catch(e){}
   }
 
+  var monitorNow = !!(document.getElementById('radWatchMonitor') && document.getElementById('radWatchMonitor').checked);
+
   var data = {
     user_id: uid,
     platform: platform,
@@ -11269,7 +11356,9 @@ async function radWatchSubmit(){
     auction_ends_at: endIso,
     status: 'watched',
     deal_reasons: ['manual_watch'],
-    deal_score: null
+    deal_score: null,
+    is_monitored: monitorNow && !!endIso,        // monitor solo se asta con scadenza
+    monitor_notified: []
   };
 
   try{
@@ -11279,10 +11368,10 @@ async function radWatchSubmit(){
     row.is_manual_watch = true;  // flag client-side
     _huntState.listings.unshift(row);
     ['radWatchUrl','radWatchTitle','radWatchPrice','radWatchEnd'].forEach(function(id){ document.getElementById(id).value=''; });
-    statusEl.textContent = '✓ Asta aggiunta ('+platform+')';
+    var mChk = document.getElementById('radWatchMonitor'); if(mChk) mChk.checked = true;
+    statusEl.textContent = '✓ Aggiunta ('+platform+')'+(data.is_monitored?' · 🔔 monitorata':'');
     statusEl.style.color = 'var(--success)';
-    setTimeout(function(){ statusEl.textContent=''; }, 3000);
-    // passa a sub-tab Aste se aveva senso
+    setTimeout(function(){ statusEl.textContent=''; }, 3500);
     if(endIso) huntShowSub('auctions'); else huntRenderAll();
   }catch(e){
     statusEl.textContent = '✖ Errore: '+e.message;
