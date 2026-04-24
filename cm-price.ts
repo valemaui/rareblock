@@ -538,9 +538,13 @@ function extractAllGradesFromListingsOnePass(html: string): Record<string, Grade
     .replace(/\s+/g, ' ');
 
   // Pattern unico: (HOUSE) (SCORE) [qualifier] ([eBay|TCGPlayer|Fanatics]) (SYM)(PRICE)
-  // Case grading conosciute. Score può essere intero o decimale.
+  // Negative lookahead per escludere varianti speciali più prestigiose che PC elenca separatamente:
+  // - "BGS 10 Black" è un grade BGS Black Label (diverso da BGS 10 normale)
+  // - "CGC 10 Pristine" / "CGC 10 Prist." è CGC Pristine 10 (diverso da CGC 10 normale)
+  // Senza questo lookahead il regex matcherebbe "BGS 10" dentro "BGS 10 Black $3,051,430"
+  // catturando il prezzo della variante speciale.
   // Il qualifier tra casa+score e il prezzo non deve contenere valute (limita false positive).
-  const rx = /\b(PSA|BGS|CGC|SGC|HGA|GMA|TAG|ARS|ACE)\s*(10|9\.5|9|8\.5|8|7\.5|7|6|5|4|3|2|1)\b[^$€£]{0,150}?(?:\[(?:eBay|TCGPlayer|Fanatics)\])?\s*([\$€£])\s*([\d,]+(?:[.,]\d{2})?)/gi;
+  const rx = /\b(PSA|BGS|CGC|SGC|HGA|GMA|TAG|ARS|ACE)\s*(10|9\.5|9|8\.5|8|7\.5|7|6|5|4|3|2|1)\b(?!\s+(?:Black|Pristine|Prist\.))[^$€£]{0,150}?(?:\[(?:eBay|TCGPlayer|Fanatics)\])?\s*([\$€£])\s*([\d,]+(?:[.,]\d{2})?)/gi;
 
   // Aggrega tutti i match per chiave HOUSE_SCORE
   const buckets: Record<string, { prices: number[]; symbols: string[] }> = {};
