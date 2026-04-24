@@ -459,27 +459,22 @@ function extractFirstPCProduct(html: string, nameHint?: string): { url: string; 
 type PCPriceKey = 'ungraded'|'grade7'|'grade8'|'grade9'|'grade9_5'|'psa10'|'bgs10'|'cgc10';
 
 // Parse "Summary Block" PC: sequenza label→prezzo come
-// "Grade 7 $285.05 Grade 8 $955.22 Grade 9 $1,589.03 ..."
-// o "CGC 10 $12,000.00 PSA 10 $15,000.00 BGS 10 $19,500.00 ..."
+// "Grade 7 $285.05 Grade 8 $955.22 Grade 9 $1,589.03 Grade 9.5 $1,748.00"
 //
-// Normalizza HTML (via stripText) poi scansiona con pattern lineare.
-// Vengono riconosciute SOLO coppie "label + $prezzo" contigue (no &nbsp; o tag
-// inseriti, che normalizziamo preventivamente).
+// IMPORTANTE: il summary block NON contiene PSA 10 / BGS 10 / CGC 10 per le carte Pokémon.
+// Quelle label compaiono nell'HTML come header colonna (con prezzo Ungraded adiacente) e come
+// qualifier di "Sold Listings" eBay, ma mai come coppia label→prezzo-di-mercato.
+// Quindi questa funzione popola SOLO: ungraded, grade7, grade8, grade9, grade9_5.
+//
+// Per PSA/BGS/CGC 10 serve extractGradedSoldListings.
 function extractFromSummaryBlock(html: string, out: PCPrices): void {
-  // Normalizza: togli tag HTML, collassa whitespace + &nbsp;
   const text = html
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/&#43;/g, '+')
     .replace(/\s+/g, ' ');
 
-  // Labels canoniche in ordine di specificità (più specifica prima)
-  // Ogni regex cerca "LABEL $X" con il prezzo IMMEDIATAMENTE dopo la label (max 20 char di gap)
   const patterns: Array<{ rx: RegExp; key: PCPriceKey }> = [
-    // Case grading 10 prima dei Grade N perché "Grade 9" matcherebbe "Grade 9.5"
-    { rx: /PSA\s*10\s+\$\s*([\d,]+(?:\.\d{2})?)(?!\s*(?:Gem|GEM|Mint|MINT|\#|ENG|#))/g, key: 'psa10' },
-    { rx: /BGS\s*10(?!\s+Black)\s+\$\s*([\d,]+(?:\.\d{2})?)/g, key: 'bgs10' },
-    { rx: /CGC\s*10(?!\s+Pristine|\s+Prist)\s+\$\s*([\d,]+(?:\.\d{2})?)/g, key: 'cgc10' },
     { rx: /Grade\s*9\.5\s+\$\s*([\d,]+(?:\.\d{2})?)/g, key: 'grade9_5' },
     { rx: /Grade\s*9(?!\.)\s+\$\s*([\d,]+(?:\.\d{2})?)/g, key: 'grade9' },
     { rx: /Grade\s*8\s+\$\s*([\d,]+(?:\.\d{2})?)/g, key: 'grade8' },
@@ -487,13 +482,6 @@ function extractFromSummaryBlock(html: string, out: PCPrices): void {
     { rx: /Ungraded\s+\$\s*([\d,]+(?:\.\d{2})?)/g, key: 'ungraded' },
   ];
 
-  // Per ogni pattern, raccogli TUTTI i match e scegli il più "centrale"
-  // ossia quello che compare nel summary block (tipicamente il 2° o 3°, non il primo
-  // che è l'header colonne e non il prezzo eBay sold).
-  //
-  // Strategia: se ci sono 2+ match dello stesso pattern, prendiamo quello con
-  // prezzo > 0 che NON è il primo in pagina (il primo è spesso header colonna
-  // sovrapposta). Se solo 1 match, quello.
   for (const { rx, key } of patterns) {
     const matches: Array<{ price: number; pos: number }> = [];
     let m: RegExpExecArray | null;
@@ -504,25 +492,69 @@ function extractFromSummaryBlock(html: string, out: PCPrices): void {
     }
     if (matches.length === 0) continue;
 
+    // Strategia scelta:
+    // - 1 match → prendi quello
+    // - 2+ match → mediana: robusta contro header (primo) e sold listings singoli (ultimi)
+    //   che hanno variazione naturale. Il summary block è tipicamente al centro.
     let chosen: number;
     if (matches.length === 1) {
       chosen = matches[0].price;
     } else {
-      // Tipicamente: [0] = header tabella con prezzo ungraded adiacente (NON è il prezzo della label)
-      //              [1-2] = summary block (QUESTO è quello buono)
-      //              [3+] = sold listings eBay (prezzo reale ma con variazione singole vendite)
-      // Strategia: prendi il secondo match se disponibile, altrimenti la mediana
-      if (matches.length === 2) {
-        chosen = matches[1].price;
-      } else {
-        // Ordina per prezzo e prendi la mediana — robusta contro outlier header e listing singole
-        const sorted = matches.map(m => m.price).sort((a,b) => a - b);
-        chosen = sorted[Math.floor(sorted.length / 2)];
-      }
+      const prices = matches.map(x => x.price).sort((a, b) => a - b);
+      chosen = prices[Math.floor(prices.length / 2)];
     }
     out[key] = chosen;
   }
 }
+
+// Estrae mediana dei primi N "Sold Listings" eBay per un grade specifico.
+// PC pubblica (per ogni carta Pokémon) una sezione tipo:
+//   PSA 10 Gem Mint [eBay] $16,400.00
+//   PSA 10 Gem Mint #106 [eBay] $15,000.00
+//   PSA 10 Gem Mint [eBay] $12,100.00
+//   PSA 10 GEM MINT POP 17 [eBay] $5,499.99
+//
+// Questi sono prezzi di vendita reali, affidabili. Prendiamo i primi 10,
+// scartiamo outlier IQR e ritorniamo la mediana.
+function extractGradedFromSoldListings(html: string, label: string): number | null {
+  const text = html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#43;/g, '+')
+    .replace(/\s+/g, ' ');
+
+  const lblEsc = label.replace(/\s+/g, '\\s*');
+  // Pattern: LABEL (+ qualifier opzionale fino a 80 char) + "[eBay]" + "$prezzo"
+  const rx = new RegExp(
+    `${lblEsc}[^$]{0,120}?\\[eBay\\]\\s*\\$\\s*([\\d,]+(?:\\.\\d{2})?)`,
+    'gi'
+  );
+
+  const prices: number[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = rx.exec(text)) !== null && prices.length < 15) {
+    const n = parsePrice(m[1]);
+    if (n != null && n > 0) prices.push(n);
+  }
+  if (prices.length === 0) return null;
+  if (prices.length === 1) return prices[0];
+
+  // IQR outlier removal
+  const sorted = prices.slice().sort((a, b) => a - b);
+  if (sorted.length >= 4) {
+    const q1 = sorted[Math.floor(sorted.length * 0.25)];
+    const q3 = sorted[Math.floor(sorted.length * 0.75)];
+    const iqr = q3 - q1;
+    const lo = q1 - 1.5 * iqr;
+    const hi = q3 + 1.5 * iqr;
+    const filtered = sorted.filter(p => p >= lo && p <= hi);
+    if (filtered.length >= 2) {
+      return filtered[Math.floor(filtered.length / 2)];
+    }
+  }
+  return sorted[Math.floor(sorted.length / 2)];
+}
+
 
 
 
@@ -548,23 +580,22 @@ function extractFromSummaryBlock(html: string, out: PCPrices): void {
 function extractPCPrices(html: string): PCPrices {
   const out: PCPrices = {};
 
-  // ─ STRATEGIA 1: Summary Block ─────────────────────────────────────────
-  // Cerca il blocco "Ungraded $X Grade 7 $X Grade 8 $X Grade 9 $X Grade 9.5 $X"
-  // che rappresenta la quotazione ufficiale PC per tutti i grade.
-  // Pattern accetta anche nel caso Ungraded non compaia (alcune carte graded-only).
-  // Cattura singoli blocchi label+prezzo ed estrae valori in sequenza.
-  //
-  // Il blocco è tipicamente contiguo, quindi usiamo un lookahead su sequenza
-  // ravvicinata di label distinte.
+  // ─ STRATEGIA 1: Summary Block per Ungraded + Grade 7/8/9/9.5 ─────────
   extractFromSummaryBlock(html, out);
 
-  // ─ STRATEGIA 2: fallback label-based per campi mancanti ──────────────
-  // Ordine: grade 9.5 prima di grade 9, 10 prima di 7/8/9.
-  // Se già popolato dalla strategia 1, saltiamo.
+  // ─ STRATEGIA 2: Sold Listings eBay per PSA 10 / BGS 10 / CGC 10 ──────
+  // (il summary block PC non contiene queste label come coppia label→prezzo;
+  // PSA 10 Gem Mint [eBay] $XXX è la fonte affidabile)
+  const psa10 = extractGradedFromSoldListings(html, 'PSA 10');
+  if (psa10 != null) out.psa10 = psa10;
+  const bgs10 = extractGradedFromSoldListings(html, 'BGS 10');
+  if (bgs10 != null) out.bgs10 = bgs10;
+  const cgc10 = extractGradedFromSoldListings(html, 'CGC 10');
+  if (cgc10 != null) out.cgc10 = cgc10;
+
+  // ─ STRATEGIA 3: fallback label-based se ancora qualcosa manca ────────
+  // Solo per grade_raw mancanti dallo step 1
   const labelPatterns: Array<{ rx: RegExp; key: PCPriceKey }> = [
-    { rx: /PSA\s*10\s*(?:&nbsp;|\s)*\$\s*([\d,]+(?:\.\d{2})?)/i, key: 'psa10' },
-    { rx: /BGS\s*10(?!\s+Black)\s*(?:&nbsp;|\s)*\$\s*([\d,]+(?:\.\d{2})?)/i, key: 'bgs10' },
-    { rx: /CGC\s*10(?!\s+Pristine)\s*(?:&nbsp;|\s)*\$\s*([\d,]+(?:\.\d{2})?)/i, key: 'cgc10' },
     { rx: /Grade\s*9\.5\s*(?:&nbsp;|\s)*\$\s*([\d,]+(?:\.\d{2})?)/i, key: 'grade9_5' },
     { rx: /Grade\s*9(?!\.)\s*(?:&nbsp;|\s)*\$\s*([\d,]+(?:\.\d{2})?)/i, key: 'grade9' },
     { rx: /Grade\s*8\s*(?:&nbsp;|\s)*\$\s*([\d,]+(?:\.\d{2})?)/i, key: 'grade8' },
@@ -572,7 +603,7 @@ function extractPCPrices(html: string): PCPrices {
     { rx: /Ungraded\s*(?:&nbsp;|\s)*\$\s*([\d,]+(?:\.\d{2})?)/i, key: 'ungraded' },
   ];
   for (const { rx, key } of labelPatterns) {
-    if (out[key] != null) continue;  // già popolato dalla strategia 1
+    if (out[key] != null) continue;
     const m = html.match(rx);
     if (m) {
       const n = parsePrice(m[1]);
