@@ -79,9 +79,10 @@ async function fetchWithRetry(url: string, maxRetries = 2, referer?: string): Pr
 }
 
 // ─── ROUTER ──────────────────────────────────────────────────────────
-function detectSource(url: string, hint?: string): 'cardmarket'|'pricecharting'|'ebay_sold'|'unknown' {
+function detectSource(url: string, hint?: string): 'cardmarket'|'pricecharting'|'ebay_sold'|'diag'|'unknown' {
   if (hint) {
     const h = String(hint).toLowerCase();
+    if (h === 'diag' || h === 'diagnostic') return 'diag';
     if (h.includes('price') || h === 'pc') return 'pricecharting';
     if (h.includes('ebay')) return 'ebay_sold';
     if (h === 'cardmarket' || h === 'cm') return 'cardmarket';
@@ -97,6 +98,9 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   try {
     const body = await req.json();
+    // Diag: prioritario, non richiede url
+    if (body?.source === 'diag') return await handleDiag(body?.cards || null);
+
     const singleUrl: string = body?.url ?? '';
     const urls: string[] = Array.isArray(body?.urls) && body.urls.length ? body.urls : (singleUrl ? [singleUrl] : []);
     const firstUrl = urls[0] ?? '';
@@ -703,4 +707,91 @@ function extractEbayPrices(html: string, currency: string): EbaySoldResult {
     currency,
     outliersRemoved,
   };
+}
+
+// ═════════════════════════════════════════════════════════════════════
+//  DIAG — diagnostic runner che parsa PC e stampa tabella ID→prezzi
+// ═════════════════════════════════════════════════════════════════════
+interface DiagCardInput {
+  name: string;       // query PC
+  card_name?: string; // hint match (nome+numero)
+}
+
+const DIAG_DEFAULT_CARDS: DiagCardInput[] = [
+  { name: 'Groudon-EX Dark Explorers', card_name: 'Groudon 106' },
+  { name: 'Charizard Base Set', card_name: 'Charizard 4' },
+  { name: 'Pikachu Vivid Voltage', card_name: 'Pikachu 44' },
+];
+
+async function handleDiag(inputCards: DiagCardInput[] | null): Promise<Response> {
+  const cards = (inputCards && inputCards.length) ? inputCards : DIAG_DEFAULT_CARDS;
+  const report: any[] = [];
+
+  for (const card of cards) {
+    const url = 'https://www.pricecharting.com/search-products?q=' + encodeURIComponent(card.name) + '&type=prices';
+    const srch = await fetchWithRetry(url, 1);
+    const cardReport: any = { card: card.name, card_name: card.card_name };
+
+    if (!srch.ok) { cardReport.error = `search HTTP ${srch.status}`; report.push(cardReport); continue; }
+
+    const firstProduct = extractFirstPCProduct(srch.html, card.card_name);
+    if (!firstProduct) { cardReport.error = 'no product match'; report.push(cardReport); continue; }
+
+    cardReport.product_title = firstProduct.title;
+    cardReport.product_url   = firstProduct.url;
+
+    const prod = await fetchWithRetry(firstProduct.url, 1, 'https://www.pricecharting.com/');
+    if (!prod.ok) { cardReport.error = `product HTTP ${prod.status}`; report.push(cardReport); continue; }
+
+    // Estrai slice di ogni ID con contesto label
+    const ids = ['used_price','complete_price','new_price','graded_price','box_only_price','manual_only_price','bgs_10_price'];
+    const idData: any = {};
+    for (const id of ids) {
+      const rx = new RegExp(`<(?:td|span|div)[^>]*id="${id}"[^>]*>([\\s\\S]{0,600}?)<\\/(?:td|span|div)>`, 'i');
+      const m = prod.html.match(rx);
+      if (!m) continue;
+      const slice = m[0];
+      // Estrai primo prezzo $
+      const priceM = slice.match(/\$\s*([\d,]+\.\d{2})/);
+      const price = priceM ? parseFloat(priceM[1].replace(/,/g, '')) : null;
+      // Prendi contesto label: 200 char prima dell'ID
+      const idx = prod.html.indexOf(`id="${id}"`);
+      const before = idx > 0 ? prod.html.substring(Math.max(0, idx - 250), idx).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(-120) : '';
+      idData[id] = { price, label_context: before, raw: slice.substring(0, 200) };
+    }
+    cardReport.ids = idData;
+
+    // Prova anche label-based (quello che usa fallback parser)
+    const labelPatterns: Array<[string, RegExp]> = [
+      ['PSA 10',   /PSA\s*10[\s\S]{0,200}?\$([\d,]+\.\d{2})/i],
+      ['BGS 10',   /BGS\s*10[\s\S]{0,200}?\$([\d,]+\.\d{2})/i],
+      ['CGC 10',   /CGC\s*10[\s\S]{0,200}?\$([\d,]+\.\d{2})/i],
+      ['Grade 9.5',/Grade\s*9\.5[\s\S]{0,200}?\$([\d,]+\.\d{2})/i],
+      ['Grade 9',  /Grade\s*9(?!\.)[\s\S]{0,200}?\$([\d,]+\.\d{2})/i],
+      ['Grade 8',  /Grade\s*8[\s\S]{0,200}?\$([\d,]+\.\d{2})/i],
+      ['Grade 7',  /Grade\s*7[\s\S]{0,200}?\$([\d,]+\.\d{2})/i],
+      ['Ungraded', /Ungraded[\s\S]{0,200}?\$([\d,]+\.\d{2})/i],
+    ];
+    const labels: any = {};
+    for (const [lbl, rx] of labelPatterns) {
+      const m = prod.html.match(rx);
+      if (m) labels[lbl] = parseFloat(m[1].replace(/,/g, ''));
+    }
+    cardReport.labels = labels;
+
+    // Prezzo "estratto" ufficiale (quello che ritornerebbe la funzione)
+    cardReport.extracted = extractPCPrices(prod.html);
+
+    // Rileva anomalie
+    const ex = cardReport.extracted;
+    const anomalies = [];
+    if (ex.psa10 && ex.ungraded && ex.psa10 > 10 * ex.ungraded) anomalies.push(`PSA 10 (${ex.psa10}) > 10× Ungraded (${ex.ungraded})`);
+    if (ex.psa10 && ex.grade9 && ex.psa10 < ex.grade9) anomalies.push('PSA 10 < Grade 9');
+    if (ex.psa10 > 5000) anomalies.push(`PSA 10 > $5000 (sospetto)`);
+    if (ex.bgs10 > 5000) anomalies.push(`BGS 10 > $5000 (sospetto)`);
+    if (ex.cgc10 > 5000) anomalies.push(`CGC 10 > $5000 (sospetto)`);
+    cardReport.anomalies = anomalies;
+  }
+
+  return json({ source: 'diag', generated_at: new Date().toISOString(), cards: report });
 }

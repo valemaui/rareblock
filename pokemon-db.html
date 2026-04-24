@@ -8782,6 +8782,47 @@ async function anlFetchSmooth(body){
   return await res.json();
 }
 
+// Console helper: diagnostica automatica PC su carte campione
+// Uso: await anlDiag()                              → carte default
+//      await anlDiag([{name:'...', card_name:'...'}])
+window.anlDiag = async function(cards){
+  console.log('⏳ Diagnostica in corso…');
+  var body = cards ? {source:'diag', cards:cards} : {source:'diag'};
+  var diag = await anlFetchSmooth(body);
+  if(diag.error){ console.error('❌', diag.error); return diag; }
+  console.log('%c📊 Diagnostica smooth-endpoint · '+diag.generated_at, 'font-weight:bold;font-size:13px');
+  diag.cards.forEach(function(c){
+    console.group('▸ '+c.card+(c.card_name?' ('+c.card_name+')':''));
+    if(c.error){ console.warn('❌', c.error); console.groupEnd(); return; }
+    console.log('title:', c.product_title);
+    console.log('url:  ', c.product_url);
+    if(c.ids && Object.keys(c.ids).length){
+      console.group('ID HTML → prezzo + contesto');
+      var idTable = {};
+      Object.keys(c.ids).forEach(function(id){
+        idTable[id] = { price: c.ids[id].price, context: (c.ids[id].label_context||'').substring(0,60) };
+      });
+      console.table(idTable);
+      console.groupEnd();
+    }
+    if(c.labels && Object.keys(c.labels).length){
+      console.group('Label-based');
+      console.table(c.labels);
+      console.groupEnd();
+    }
+    if(c.extracted){
+      console.group('Prezzi finali');
+      console.table(c.extracted);
+      console.groupEnd();
+    }
+    if(c.anomalies && c.anomalies.length){
+      console.warn('⚠ ANOMALIE:', c.anomalies);
+    }
+    console.groupEnd();
+  });
+  return diag;
+};
+
 async function anlStartLiveFetches(card){
   if(!card||!card.id) return;
 
