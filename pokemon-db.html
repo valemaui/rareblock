@@ -8329,6 +8329,9 @@ window.anlSearch = async function(){
   var cardName = pm ? pm[1].trim() : raw;
   var cardNum  = pm ? pm[2] : null;
 
+  // Memorizza input utente — usato per cascata query eBay/PC quando il nome ufficiale API è troppo specifico (es. "Groudon-EX" mentre l'utente cerca "Groudon")
+  window._anlUserInput = { raw: raw, name: cardName, number: cardNum, setName: setSel?setSel.name:null };
+
   anlSearching = true;
   var btn = document.getElementById('anlBtn');
   if(btn){ btn.disabled=true; btn.innerHTML='<span class="anl-spin"></span>Ricerca…'; }
@@ -8806,31 +8809,65 @@ async function anlStartLiveFetches(card){
   var setNm = card.set?card.set.name:'';
   var graded = anlMode==='graded';
 
-  // eBay
+  // eBay — cascata multi-query
   (async function(){
-    var q=(card.name+' '+(card.number||'')+(setNm?' '+setNm:'')).trim();
-    if(graded){
-      var house=document.getElementById('anlHouse').value;
-      var score=document.getElementById('anlGradeScore').value;
-      q+=' '+ANL_HOUSES[house].label+' '+score;
-    }
-    q+=' pokemon';
-    var url='https://www.ebay.it/sch/i.html?_nkw='+encodeURIComponent(q)+'&LH_Sold=1&LH_Complete=1&_sacat=2611';
+    var user = window._anlUserInput || {};
+    var houseLabel = graded ? ANL_HOUSES[document.getElementById('anlHouse').value].label : '';
+    var scoreVal   = graded ? document.getElementById('anlGradeScore').value : '';
+    var gradeSfx   = graded ? (' '+houseLabel+' '+scoreVal) : '';
+
+    // Costruisco lista di query da provare, ordine dal più specifico al più largo.
+    // user.name viene dall'input utente (es. "Groudon") — più affidabile del card.name API (es. "Groudon-EX").
+    var nameUser = user.name || card.name;
+    var nameApi  = card.name;
+    var num      = card.number || user.number || '';
+
+    var queries = [];
+    function addQ(s){ s=s.trim().replace(/\s+/g,' '); if(s && queries.indexOf(s)<0) queries.push(s); }
+
+    // Ordine: user-name + numero + set + grade  →  user-name + numero + grade  →  user-name + grade  →  api-name + numero + grade  →  user-name nudo
+    if(nameUser && num && setNm) addQ(nameUser+' '+num+(setNm?' '+setNm:'')+gradeSfx+' pokemon');
+    if(nameUser && num)          addQ(nameUser+' '+num+gradeSfx+' pokemon');
+    if(nameUser)                 addQ(nameUser+gradeSfx+' pokemon');
+    if(nameApi && nameApi!==nameUser && num) addQ(nameApi+' '+num+gradeSfx+' pokemon');
+    if(nameUser && !graded)      addQ(nameUser+' '+num+' pokemon');  // ultimo: raw senza grade anche se graded mode
+
+    // Costruisci URL per ciascuna query (eBay IT come primo host)
+    var urls = queries.map(function(q){
+      return 'https://www.ebay.it/sch/i.html?_nkw='+encodeURIComponent(q)+'&LH_Sold=1&LH_Complete=1&_sacat=2611';
+    });
+    // Aggiungi un tentativo su ebay.com con la query più larga (fallback internazionale)
+    if(nameUser) urls.push('https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(nameUser+gradeSfx+' pokemon')+'&LH_Sold=1&LH_Complete=1&_sacat=2611');
+
     try{
-      var data=await anlFetchSmooth({url:url,source:'ebay_sold'});
+      var data=await anlFetchSmooth({source:'ebay_sold', urls:urls, url:urls[0], min_hits:3});
       if(data.error){ anlPopEbay(null,data.error); return; }
       anlLiveData.ebay=data;
       anlPopEbay(data);
     }catch(e){ anlPopEbay(null,e.message||'errore rete'); }
   })();
 
-  // PriceCharting
+  // PriceCharting — cascata multi-query
   (async function(){
-    var q=(card.name+(setNm?' '+setNm:'')).trim();
-    var url='https://www.pricecharting.com/search-products?q='+encodeURIComponent(q)+'&type=pokemon';
-    var cardName=card.name+(card.number?' '+card.number:'');
+    var user = window._anlUserInput || {};
+    var nameUser = user.name || card.name;
+    var nameApi  = card.name;
+    var num      = card.number || '';
+
+    var queries=[];
+    function addQ(s){ s=s.trim().replace(/\s+/g,' '); if(s && queries.indexOf(s)<0) queries.push(s); }
+    if(nameUser && setNm) addQ(nameUser+' '+setNm);
+    if(nameApi && setNm && nameApi!==nameUser) addQ(nameApi+' '+setNm);
+    if(nameUser && num)   addQ(nameUser+' '+num);
+    if(nameUser)          addQ(nameUser);
+
+    var urls = queries.map(function(q){
+      return 'https://www.pricecharting.com/search-products?q='+encodeURIComponent(q)+'&type=pokemon';
+    });
+    var cardNameFull = nameUser + (num ? ' '+num : '');
+
     try{
-      var data=await anlFetchSmooth({url:url,source:'pricecharting',card_name:cardName});
+      var data=await anlFetchSmooth({source:'pricecharting', urls:urls, url:urls[0], card_name:cardNameFull});
       if(data.error){ anlPopPc(null,data.error); return; }
       anlLiveData.pc=data.prices;
       anlPopPc(data.prices);

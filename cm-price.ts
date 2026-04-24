@@ -97,14 +97,16 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   try {
     const body = await req.json();
-    const url: string = body?.url ?? '';
-    const source = detectSource(url, body?.source);
-    if (source === 'unknown' || !url) {
+    const singleUrl: string = body?.url ?? '';
+    const urls: string[] = Array.isArray(body?.urls) && body.urls.length ? body.urls : (singleUrl ? [singleUrl] : []);
+    const firstUrl = urls[0] ?? '';
+    const source = detectSource(firstUrl, body?.source);
+    if (source === 'unknown' || !urls.length) {
       return json({ error: 'url/source non valido', listings: [], prices: [] });
     }
-    if (source === 'cardmarket')    return await handleCardmarket(url);
-    if (source === 'pricecharting') return await handlePriceCharting(url, body?.card_name);
-    if (source === 'ebay_sold')     return await handleEbaySold(url);
+    if (source === 'cardmarket')    return await handleCardmarket(firstUrl);
+    if (source === 'pricecharting') return await handlePriceChartingCascade(urls, body?.card_name);
+    if (source === 'ebay_sold')     return await handleEbaySoldCascade(urls, Number(body?.min_hits ?? 3));
     return json({ error: 'source non gestita', listings: [], prices: [] });
   } catch (e: any) {
     return json({ error: String(e?.message ?? e), listings: [], prices: [] });
@@ -282,6 +284,58 @@ interface PCPrices {
   currency?: string;
 }
 
+async function handlePriceChartingCascade(urls: string[], cardName?: string): Promise<Response> {
+  const attempts: Array<{ url: string; ok: boolean; found?: string; error?: string }> = [];
+
+  for (let i = 0; i < urls.length; i++) {
+    const url = urls[i];
+
+    // Risolvi search → product URL
+    let productUrl = url;
+    let productTitle: string | undefined;
+
+    if (url.includes('/search-products') || url.includes('/search?')) {
+      const srch = await fetchWithRetry(url, 1);
+      if (!srch.ok) {
+        attempts.push({ url, ok: false, error: `search HTTP ${srch.status}` });
+        continue;
+      }
+      const firstProduct = extractFirstPCProduct(srch.html, cardName);
+      if (!firstProduct) {
+        attempts.push({ url, ok: false, error: 'nessun prodotto' });
+        continue;
+      }
+      productUrl = firstProduct.url;
+      productTitle = firstProduct.title;
+    }
+
+    const { html, ok, status } = await fetchWithRetry(productUrl, 1, 'https://www.pricecharting.com/');
+    if (!ok) {
+      attempts.push({ url, ok: false, error: `product HTTP ${status}` });
+      continue;
+    }
+
+    const prices = extractPCPrices(html);
+    prices.productUrl = productUrl;
+    if (productTitle && !prices.productTitle) prices.productTitle = productTitle;
+    prices.currency = 'USD';
+
+    // Consideriamo "hit" se abbiamo almeno ungraded O un grado
+    const hasData = prices.ungraded != null || prices.grade9 != null || prices.psa10 != null || prices.grade8 != null;
+    attempts.push({ url, ok: true, found: prices.productTitle });
+
+    if (hasData) {
+      return json({ source: 'pricecharting', prices, url: productUrl, attempts, query_index: i });
+    }
+  }
+
+  return json({
+    source: 'pricecharting',
+    attempts,
+    error: `PC: nessun prodotto con dati prezzo su ${urls.length} tentativi`,
+  });
+}
+
 async function handlePriceCharting(url: string, cardName?: string): Promise<Response> {
   let productUrl = url;
   let productTitle: string | undefined;
@@ -451,21 +505,62 @@ interface EbaySoldResult {
   outliersRemoved?: number;
 }
 
-async function handleEbaySold(url: string): Promise<Response> {
-  let finalUrl = url;
-  if (!/LH_Sold=1/.test(finalUrl))     finalUrl += (finalUrl.includes('?') ? '&' : '?') + 'LH_Sold=1';
-  if (!/LH_Complete=1/.test(finalUrl)) finalUrl += '&LH_Complete=1';
+async function handleEbaySoldCascade(urls: string[], minHits: number): Promise<Response> {
+  const attempts: Array<{ url: string; count: number; median?: number; error?: string }> = [];
+  let best: (EbaySoldResult & { url: string }) | null = null;
 
-  const host = new URL(finalUrl).host;
-  const { html, ok, status } = await fetchWithRetry(finalUrl, 2, `https://${host}/`);
-  if (!ok) return json({ error: `eBay HTTP ${status}`, source: 'ebay_sold' });
+  for (let i = 0; i < urls.length; i++) {
+    let u = urls[i];
+    if (!/LH_Sold=1/.test(u))     u += (u.includes('?') ? '&' : '?') + 'LH_Sold=1';
+    if (!/LH_Complete=1/.test(u)) u += '&LH_Complete=1';
 
-  const currency = /ebay\.com[^.]/.test(finalUrl) || finalUrl.includes('ebay.com/') ? 'USD'
-    : /ebay\.co\.uk/.test(finalUrl) ? 'GBP'
-    : 'EUR';
+    const host = new URL(u).host;
+    const { html, ok, status } = await fetchWithRetry(u, 1, `https://${host}/`);
+    if (!ok) {
+      attempts.push({ url: u, count: 0, error: `HTTP ${status}` });
+      continue;
+    }
 
-  const result = extractEbayPrices(html, currency);
-  return json({ source: 'ebay_sold', url: finalUrl, ...result });
+    const currency = /ebay\.com\//.test(u) ? 'USD'
+      : /ebay\.co\.uk/.test(u) ? 'GBP'
+      : 'EUR';
+
+    const result = extractEbayPrices(html, currency);
+    attempts.push({ url: u, count: result.count, median: result.median });
+
+    // Se raggiungiamo la soglia → esci subito
+    if (result.count >= minHits) {
+      return json({ source: 'ebay_sold', url: u, attempts, query_index: i, ...result });
+    }
+
+    // Tieni il "meno peggio" come fallback se nessuno raggiunge la soglia
+    if (!best || result.count > best.count) {
+      best = { ...result, url: u };
+    }
+  }
+
+  // Nessun tentativo sopra soglia — ritorna il migliore (anche se count < minHits)
+  if (best && best.count > 0) {
+    const { url: _drop, ...restOfBest } = best;
+    return json({
+      source: 'ebay_sold',
+      url: best.url,
+      attempts,
+      query_index: attempts.findIndex(a => a.url === best!.url),
+      below_threshold: true,
+      ...restOfBest,
+    });
+  }
+
+  return json({
+    source: 'ebay_sold',
+    url: urls[urls.length-1] || '',
+    attempts,
+    prices: [],
+    count: 0,
+    currency: 'EUR',
+    error: 'nessun venduto su '+urls.length+' tentativi',
+  });
 }
 
 function extractEbayPrices(html: string, currency: string): EbaySoldResult {
