@@ -458,34 +458,121 @@ function extractFirstPCProduct(html: string, nameHint?: string): { url: string; 
 
 type PCPriceKey = 'ungraded'|'grade7'|'grade8'|'grade9'|'grade9_5'|'psa10'|'bgs10'|'cgc10';
 
-// Estrae prezzi da pagina prodotto PC.
+// Parse "Summary Block" PC: sequenza label→prezzo come
+// "Grade 7 $285.05 Grade 8 $955.22 Grade 9 $1,589.03 ..."
+// o "CGC 10 $12,000.00 PSA 10 $15,000.00 BGS 10 $19,500.00 ..."
 //
-// IMPORTANTE: PriceCharting usa ID HTML ereditati dalla sua origine video-games
-// (used_price, complete_price, new_price, graded_price, box_only_price,
-// manual_only_price, bgs_10_price). Per le carte Pokémon questi ID sono
-// semanticamente DIVERSI — il label sopra la cella dice "PSA 10", "Grade 9", ecc.
-// Diagnostica 2026-04-24 ha dimostrato che mapping ID→grade produce valori errati
-// (es. manual_only_price=$15000 per Groudon-EX, ma label-based PSA 10=$16400).
+// Normalizza HTML (via stripText) poi scansiona con pattern lineare.
+// Vengono riconosciute SOLO coppie "label + $prezzo" contigue (no &nbsp; o tag
+// inseriti, che normalizziamo preventivamente).
+function extractFromSummaryBlock(html: string, out: PCPrices): void {
+  // Normalizza: togli tag HTML, collassa whitespace + &nbsp;
+  const text = html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#43;/g, '+')
+    .replace(/\s+/g, ' ');
+
+  // Labels canoniche in ordine di specificità (più specifica prima)
+  // Ogni regex cerca "LABEL $X" con il prezzo IMMEDIATAMENTE dopo la label (max 20 char di gap)
+  const patterns: Array<{ rx: RegExp; key: PCPriceKey }> = [
+    // Case grading 10 prima dei Grade N perché "Grade 9" matcherebbe "Grade 9.5"
+    { rx: /PSA\s*10\s+\$\s*([\d,]+(?:\.\d{2})?)(?!\s*(?:Gem|GEM|Mint|MINT|\#|ENG|#))/g, key: 'psa10' },
+    { rx: /BGS\s*10(?!\s+Black)\s+\$\s*([\d,]+(?:\.\d{2})?)/g, key: 'bgs10' },
+    { rx: /CGC\s*10(?!\s+Pristine|\s+Prist)\s+\$\s*([\d,]+(?:\.\d{2})?)/g, key: 'cgc10' },
+    { rx: /Grade\s*9\.5\s+\$\s*([\d,]+(?:\.\d{2})?)/g, key: 'grade9_5' },
+    { rx: /Grade\s*9(?!\.)\s+\$\s*([\d,]+(?:\.\d{2})?)/g, key: 'grade9' },
+    { rx: /Grade\s*8\s+\$\s*([\d,]+(?:\.\d{2})?)/g, key: 'grade8' },
+    { rx: /Grade\s*7\s+\$\s*([\d,]+(?:\.\d{2})?)/g, key: 'grade7' },
+    { rx: /Ungraded\s+\$\s*([\d,]+(?:\.\d{2})?)/g, key: 'ungraded' },
+  ];
+
+  // Per ogni pattern, raccogli TUTTI i match e scegli il più "centrale"
+  // ossia quello che compare nel summary block (tipicamente il 2° o 3°, non il primo
+  // che è l'header colonne e non il prezzo eBay sold).
+  //
+  // Strategia: se ci sono 2+ match dello stesso pattern, prendiamo quello con
+  // prezzo > 0 che NON è il primo in pagina (il primo è spesso header colonna
+  // sovrapposta). Se solo 1 match, quello.
+  for (const { rx, key } of patterns) {
+    const matches: Array<{ price: number; pos: number }> = [];
+    let m: RegExpExecArray | null;
+    while ((m = rx.exec(text)) !== null) {
+      const n = parsePrice(m[1]);
+      if (n != null && n > 0) matches.push({ price: n, pos: m.index });
+      if (matches.length > 15) break;
+    }
+    if (matches.length === 0) continue;
+
+    let chosen: number;
+    if (matches.length === 1) {
+      chosen = matches[0].price;
+    } else {
+      // Tipicamente: [0] = header tabella con prezzo ungraded adiacente (NON è il prezzo della label)
+      //              [1-2] = summary block (QUESTO è quello buono)
+      //              [3+] = sold listings eBay (prezzo reale ma con variazione singole vendite)
+      // Strategia: prendi il secondo match se disponibile, altrimenti la mediana
+      if (matches.length === 2) {
+        chosen = matches[1].price;
+      } else {
+        // Ordina per prezzo e prendi la mediana — robusta contro outlier header e listing singole
+        const sorted = matches.map(m => m.price).sort((a,b) => a - b);
+        chosen = sorted[Math.floor(sorted.length / 2)];
+      }
+    }
+    out[key] = chosen;
+  }
+}
+
+
+
+// Estrae prezzi da pagina prodotto PriceCharting.
 //
-// Strategia corretta: usare SOLO i pattern label-based. Il label sopra la cella
-// ("PSA 10", "BGS 10", "Grade 9"...) è affidabile perché riflette la semantica
-// reale della colonna nella pagina Pokémon.
+// Strategia a due livelli (diagnostica 2026-04-24):
+//
+// 1) SUMMARY BLOCK (fonte primaria): PC pubblica in ~pos 415000-843000 una
+//    sequenza lineare "Grade 7 $X Grade 8 $X Grade 9 $X Grade 9.5 $X ..."
+//    e poco dopo "CGC 10 $X PSA 10 $X BGS 10 $X". Associazione 1:1 label→prezzo,
+//    zero ambiguità. Questa è la quotazione ufficiale PC.
+//
+// 2) LABEL ADIACENTE (fallback): cerca pattern "PSA 10 ... $X" nei primi 200
+//    char. Meno affidabile perché la label compare più volte nella pagina
+//    (header tabella, sold-listings eBay, POP report) e il primo $ non sempre
+//    è quello corrispondente. Usato solo se summary block non ha trovato il
+//    campo specifico.
+//
+// NOTA: gli ID HTML di PC (used_price, complete_price, new_price,
+// graded_price, box_only_price, manual_only_price, bgs_10_price) sono
+// ereditati dalla struttura video-games e sono semanticamente inaffidabili
+// per le carte Pokémon — NON USARLI.
 function extractPCPrices(html: string): PCPrices {
   const out: PCPrices = {};
 
-  // Ordine IMPORTANTE: grade 9.5 prima di grade 9 (altrimenti regex grade9 prende entrambi)
-  // PSA/BGS/CGC 10 prima di grade 8/9 per evitare match ambigui
+  // ─ STRATEGIA 1: Summary Block ─────────────────────────────────────────
+  // Cerca il blocco "Ungraded $X Grade 7 $X Grade 8 $X Grade 9 $X Grade 9.5 $X"
+  // che rappresenta la quotazione ufficiale PC per tutti i grade.
+  // Pattern accetta anche nel caso Ungraded non compaia (alcune carte graded-only).
+  // Cattura singoli blocchi label+prezzo ed estrae valori in sequenza.
+  //
+  // Il blocco è tipicamente contiguo, quindi usiamo un lookahead su sequenza
+  // ravvicinata di label distinte.
+  extractFromSummaryBlock(html, out);
+
+  // ─ STRATEGIA 2: fallback label-based per campi mancanti ──────────────
+  // Ordine: grade 9.5 prima di grade 9, 10 prima di 7/8/9.
+  // Se già popolato dalla strategia 1, saltiamo.
   const labelPatterns: Array<{ rx: RegExp; key: PCPriceKey }> = [
-    { rx: /PSA\s*10[\s\S]{0,200}?\$([\d,]+\.\d{2})/i, key: 'psa10' },
-    { rx: /BGS\s*10[\s\S]{0,200}?\$([\d,]+\.\d{2})/i, key: 'bgs10' },
-    { rx: /CGC\s*10[\s\S]{0,200}?\$([\d,]+\.\d{2})/i, key: 'cgc10' },
-    { rx: /Grade\s*9\.5[\s\S]{0,200}?\$([\d,]+\.\d{2})/i, key: 'grade9_5' },
-    { rx: /Grade\s*9(?!\.)[\s\S]{0,200}?\$([\d,]+\.\d{2})/i, key: 'grade9' },
-    { rx: /Grade\s*8[\s\S]{0,200}?\$([\d,]+\.\d{2})/i, key: 'grade8' },
-    { rx: /Grade\s*7[\s\S]{0,200}?\$([\d,]+\.\d{2})/i, key: 'grade7' },
-    { rx: /Ungraded[\s\S]{0,200}?\$([\d,]+\.\d{2})/i, key: 'ungraded' },
+    { rx: /PSA\s*10\s*(?:&nbsp;|\s)*\$\s*([\d,]+(?:\.\d{2})?)/i, key: 'psa10' },
+    { rx: /BGS\s*10(?!\s+Black)\s*(?:&nbsp;|\s)*\$\s*([\d,]+(?:\.\d{2})?)/i, key: 'bgs10' },
+    { rx: /CGC\s*10(?!\s+Pristine)\s*(?:&nbsp;|\s)*\$\s*([\d,]+(?:\.\d{2})?)/i, key: 'cgc10' },
+    { rx: /Grade\s*9\.5\s*(?:&nbsp;|\s)*\$\s*([\d,]+(?:\.\d{2})?)/i, key: 'grade9_5' },
+    { rx: /Grade\s*9(?!\.)\s*(?:&nbsp;|\s)*\$\s*([\d,]+(?:\.\d{2})?)/i, key: 'grade9' },
+    { rx: /Grade\s*8\s*(?:&nbsp;|\s)*\$\s*([\d,]+(?:\.\d{2})?)/i, key: 'grade8' },
+    { rx: /Grade\s*7\s*(?:&nbsp;|\s)*\$\s*([\d,]+(?:\.\d{2})?)/i, key: 'grade7' },
+    { rx: /Ungraded\s*(?:&nbsp;|\s)*\$\s*([\d,]+(?:\.\d{2})?)/i, key: 'ungraded' },
   ];
   for (const { rx, key } of labelPatterns) {
+    if (out[key] != null) continue;  // già popolato dalla strategia 1
     const m = html.match(rx);
     if (m) {
       const n = parsePrice(m[1]);
@@ -499,11 +586,7 @@ function extractPCPrices(html: string): PCPrices {
     if (t.length > 2 && t.length < 200) out.productTitle = t;
   }
 
-  // Trend 12 mesi — PriceCharting espone "1 Year Change" in tabelle o div con class/id variabili
-  // Strategia 1: pattern JSON "priceHistory" o "chartData" con datapoint mensili
-  // Strategia 2: cerca "+X%" o "-X%" vicino a label "1 year" / "12 month" / "yearly"
-  //              PC ha tipicamente: <div class="stats">Was $X a year ago</div>
-  // Strategia 3: "Price Change" table con colonne 3 mesi / 6 mesi / 12 mesi
+  // Trend 12 mesi — pattern su label "1 year"/"12 month"/"yearly"
   const trendPats: Array<{ rx: RegExp; key: 'trend_ungraded_12m'|'trend_grade9_12m'|'trend_psa10_12m' }> = [
     { rx: /Ungraded[\s\S]{0,600}?(?:1[\s-]?year|12[\s-]?month|yearly)[\s\S]{0,80}?(-?\+?[\d.]+)\s*%/i, key: 'trend_ungraded_12m' },
     { rx: /Grade\s*9(?!\.)[\s\S]{0,600}?(?:1[\s-]?year|12[\s-]?month|yearly)[\s\S]{0,80}?(-?\+?[\d.]+)\s*%/i, key: 'trend_grade9_12m' },
