@@ -527,7 +527,82 @@ function extractFromSummaryBlock(html: string, out: PCPrices): void {
 //
 // Questi sono prezzi di vendita reali, affidabili. Prendiamo i primi 10,
 // scartiamo outlier IQR e ritorniamo la mediana.
-// Estrae mediana dei "Sold Listings" eBay per un label grade specifico (es. "PSA 8", "BGS 9", "CGC 9.5").
+// Scan single-pass dell'HTML normalizzato per estrarre tutte le coppie
+// (HOUSE, SCORE, PREZZO) dai sold listings eBay. Molto più efficiente che
+// eseguire N regex separati per ogni combinazione casa+grade.
+function extractAllGradesFromListingsOnePass(html: string): Record<string, GradeListingData> {
+  const text = html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#43;/g, '+')
+    .replace(/\s+/g, ' ');
+
+  // Pattern unico: (HOUSE) (SCORE) [qualifier] ([eBay|TCGPlayer|Fanatics]) (SYM)(PRICE)
+  // Case grading conosciute. Score può essere intero o decimale.
+  // Il qualifier tra casa+score e il prezzo non deve contenere valute (limita false positive).
+  const rx = /\b(PSA|BGS|CGC|SGC|HGA|GMA|TAG|ARS|ACE)\s*(10|9\.5|9|8\.5|8|7\.5|7|6|5|4|3|2|1)\b[^$€£]{0,150}?(?:\[(?:eBay|TCGPlayer|Fanatics)\])?\s*([\$€£])\s*([\d,]+(?:[.,]\d{2})?)/gi;
+
+  // Aggrega tutti i match per chiave HOUSE_SCORE
+  const buckets: Record<string, { prices: number[]; symbols: string[] }> = {};
+  let m: RegExpExecArray | null;
+  let iters = 0;
+  while ((m = rx.exec(text)) !== null && iters < 2000) {
+    iters++;
+    const house = m[1].toUpperCase();
+    const score = m[2];
+    const sym = m[3];
+    let raw = m[4];
+    if (raw.indexOf(',') >= 0 && raw.indexOf('.') >= 0) {
+      if (raw.lastIndexOf('.') > raw.lastIndexOf(',')) raw = raw.replace(/,/g, '');
+      else raw = raw.replace(/\./g, '').replace(',', '.');
+    } else if (raw.indexOf(',') >= 0) {
+      const parts = raw.split(',');
+      if (parts.length === 2 && parts[1].length === 2) raw = raw.replace(',', '.');
+      else raw = raw.replace(/,/g, '');
+    }
+    const n = parseFloat(raw);
+    if (isNaN(n) || n <= 0) continue;
+
+    const key = `${house}_${score}`;
+    if (!buckets[key]) buckets[key] = { prices: [], symbols: [] };
+    if (buckets[key].prices.length < 20) {
+      buckets[key].prices.push(n);
+      buckets[key].symbols.push(sym);
+    }
+  }
+
+  // Per ogni bucket calcola mediana con IQR filter + raccoglie metadati
+  const out: Record<string, GradeListingData> = {};
+  for (const key of Object.keys(buckets)) {
+    const { prices, symbols } = buckets[key];
+    if (prices.length === 0) continue;
+    const symCounts: Record<string, number> = {};
+    for (const s of symbols) symCounts[s] = (symCounts[s] || 0) + 1;
+    const dominantSym = Object.keys(symCounts).sort((a, b) => symCounts[b] - symCounts[a])[0];
+
+    let filtered = prices.slice().sort((a, b) => a - b);
+    if (filtered.length >= 4) {
+      const q1 = filtered[Math.floor(filtered.length * 0.25)];
+      const q3 = filtered[Math.floor(filtered.length * 0.75)];
+      const iqr = q3 - q1;
+      const lo = q1 - 1.5 * iqr;
+      const hi = q3 + 1.5 * iqr;
+      const f = filtered.filter(p => p >= lo && p <= hi);
+      if (f.length >= 2) filtered = f;
+    }
+    const median = filtered[Math.floor(filtered.length / 2)];
+    out[key] = {
+      median,
+      count: filtered.length,
+      min: filtered[0],
+      max: filtered[filtered.length - 1],
+      currency_symbol: dominantSym,
+    };
+  }
+  return out;
+}
+
+
 //
 // PriceCharting pubblica per ogni carta una sezione per ogni grade con fino a ~30 vendite storiche:
 //   "PSA 8 2012 FA/Groudon Ex ... [eBay] $727.78"
@@ -650,28 +725,11 @@ function extractPCPrices(html: string): PCPrices {
   // ─ STRATEGIA 1: Summary Block per Ungraded + Grade 7/8/9/9.5 ─────────
   extractFromSummaryBlock(html, out);
 
-  // ─ STRATEGIA 2: Sold Listings eBay — scan esaustivo di casa+grade ────
-  // PriceCharting pubblica per ciascun grade una sezione con ~30 vendite eBay reali.
-  // Scannerizziamo tutte le combinazioni comuni e popoliamo grades_from_listings.
-  const houses = ['PSA', 'BGS', 'CGC', 'SGC', 'HGA', 'GMA', 'TAG', 'ARS', 'ACE'];
-  const scores = ['10', '9.5', '9', '8.5', '8', '7.5', '7', '6', '5'];
-
-  const gradesFromListings: Record<string, GradeListingData> = {};
-  for (const h of houses) {
-    for (const s of scores) {
-      const label = `${h} ${s}`;
-      const result = extractGradedFromSoldListings(html, label);
-      if (result && result.count > 0) {
-        gradesFromListings[`${h}_${s}`] = {
-          median: result.median,
-          count: result.count,
-          min: Math.min(...result.prices),
-          max: Math.max(...result.prices),
-          currency_symbol: result.currency_symbol,
-        };
-      }
-    }
-  }
+  // ─ STRATEGIA 2: Sold Listings eBay — single-pass scan per casa+grade ──
+  // Invece di 81 regex execution (9 case × 9 score) scansioniamo UNA sola volta
+  // l'HTML normalizzato cercando qualsiasi coppia HOUSE+SCORE+prezzo, poi
+  // aggreghiamo i risultati per chiave. Resource-efficient per Supabase.
+  const gradesFromListings = extractAllGradesFromListingsOnePass(html);
   if (Object.keys(gradesFromListings).length) out.grades_from_listings = gradesFromListings;
 
   // Per retro-compatibilità popola anche i campi top-level psa10/bgs10/cgc10
