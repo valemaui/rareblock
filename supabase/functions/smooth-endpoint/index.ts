@@ -269,6 +269,14 @@ interface PCPrices {
   psa10?: number;
   bgs10?: number;
   cgc10?: number;
+  // Trend dati
+  trend_ungraded_12m?: number;   // % var 12 mesi ungraded
+  trend_grade9_12m?: number;
+  trend_psa10_12m?: number;
+  // Prezzi storici (12 mesi fa) — utili per calcolare trend
+  ungraded_12mAgo?: number;
+  grade9_12mAgo?: number;
+  psa10_12mAgo?: number;
   productUrl?: string;
   productTitle?: string;
   currency?: string;
@@ -376,6 +384,49 @@ function extractPCPrices(html: string): PCPrices {
   if (titleM) {
     const t = titleM[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
     if (t.length > 2 && t.length < 200) out.productTitle = t;
+  }
+
+  // Trend 12 mesi — PriceCharting espone "1 Year Change" in tabelle o div con class/id variabili
+  // Strategia 1: pattern JSON "priceHistory" o "chartData" con datapoint mensili
+  // Strategia 2: cerca "+X%" o "-X%" vicino a label "1 year" / "12 month" / "yearly"
+  //              PC ha tipicamente: <div class="stats">Was $X a year ago</div>
+  // Strategia 3: "Price Change" table con colonne 3 mesi / 6 mesi / 12 mesi
+  const trendPats: Array<{ rx: RegExp; key: 'trend_ungraded_12m'|'trend_grade9_12m'|'trend_psa10_12m' }> = [
+    { rx: /Ungraded[\s\S]{0,600}?(?:1[\s-]?year|12[\s-]?month|yearly)[\s\S]{0,80}?(-?\+?[\d.]+)\s*%/i, key: 'trend_ungraded_12m' },
+    { rx: /Grade\s*9(?!\.)[\s\S]{0,600}?(?:1[\s-]?year|12[\s-]?month|yearly)[\s\S]{0,80}?(-?\+?[\d.]+)\s*%/i, key: 'trend_grade9_12m' },
+    { rx: /PSA\s*10[\s\S]{0,600}?(?:1[\s-]?year|12[\s-]?month|yearly)[\s\S]{0,80}?(-?\+?[\d.]+)\s*%/i, key: 'trend_psa10_12m' },
+  ];
+  for (const { rx, key } of trendPats) {
+    const m = html.match(rx);
+    if (m) {
+      const n = parseFloat(m[1].replace('+',''));
+      if (!isNaN(n) && Math.abs(n) < 10000) out[key] = Math.round(n * 10) / 10;
+    }
+  }
+
+  // Prezzi 12 mesi fa — pattern "was $X" / "a year ago $X"
+  const agoPats: Array<{ rx: RegExp; key: 'ungraded_12mAgo'|'grade9_12mAgo'|'psa10_12mAgo' }> = [
+    { rx: /Ungraded[\s\S]{0,800}?(?:a\s+year\s+ago|1\s*year\s*ago|12\s*months?\s*ago|was)[\s\S]{0,50}?\$\s*([\d,]+\.\d{2})/i, key: 'ungraded_12mAgo' },
+    { rx: /Grade\s*9(?!\.)[\s\S]{0,800}?(?:a\s+year\s+ago|1\s*year\s*ago|12\s*months?\s*ago|was)[\s\S]{0,50}?\$\s*([\d,]+\.\d{2})/i, key: 'grade9_12mAgo' },
+    { rx: /PSA\s*10[\s\S]{0,800}?(?:a\s+year\s+ago|1\s*year\s*ago|12\s*months?\s*ago|was)[\s\S]{0,50}?\$\s*([\d,]+\.\d{2})/i, key: 'psa10_12mAgo' },
+  ];
+  for (const { rx, key } of agoPats) {
+    const m = html.match(rx);
+    if (m) {
+      const n = parsePrice(m[1]);
+      if (n) out[key] = n;
+    }
+  }
+
+  // Se abbiamo sia prezzo attuale sia 12m fa, calcola trend se manca
+  if (out.ungraded && out.ungraded_12mAgo && out.trend_ungraded_12m == null) {
+    out.trend_ungraded_12m = Math.round(((out.ungraded - out.ungraded_12mAgo) / out.ungraded_12mAgo) * 1000) / 10;
+  }
+  if (out.grade9 && out.grade9_12mAgo && out.trend_grade9_12m == null) {
+    out.trend_grade9_12m = Math.round(((out.grade9 - out.grade9_12mAgo) / out.grade9_12mAgo) * 1000) / 10;
+  }
+  if (out.psa10 && out.psa10_12mAgo && out.trend_psa10_12m == null) {
+    out.trend_psa10_12m = Math.round(((out.psa10 - out.psa10_12mAgo) / out.psa10_12mAgo) * 1000) / 10;
   }
 
   return out;
