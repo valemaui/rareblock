@@ -1,4 +1,4 @@
-// Supabase Edge Function: smooth-endpoint (source: cm-price.ts) v5
+// Supabase Edge Function: smooth-endpoint (source: cm-price.ts) v5.1
 // Multi-source scraper: CardMarket + PriceCharting + eBay Sold
 // Backwards-compatible: se manca `source`, deduce dal dominio dell'URL.
 // Deploy: supabase functions deploy smooth-endpoint
