@@ -8548,11 +8548,30 @@ function anlComputeToday(){
     else if(ebay.currency==='GBP') { ebP = rawMed * 1.17 * rate; ebNote = 'conv GBP→EUR approx'; }
     else                           { ebP = rawMed; }
   }
-  var pcP = null;
+
+  // PC lookup con priorità ai sold listings specifici per casa+grade
+  var pcP = null, pcCount = null, pcSrc = 'PriceCharting';
   if(pc){
     if(graded){
-      var key = anlPcKey(document.getElementById('anlHouse').value, parseFloat(document.getElementById('anlGradeScore').value));
-      if(key && pc[key]!=null) pcP = pc[key]*rate;
+      var house = document.getElementById('anlHouse').value;
+      var score = document.getElementById('anlGradeScore').value;
+      var listingKey = house + '_' + score;
+
+      // PRIORITÀ 1: sold listings eBay specifici per questa casa+grade (fonte migliore)
+      if(pc.grades_from_listings && pc.grades_from_listings[listingKey]){
+        var L = pc.grades_from_listings[listingKey];
+        // Se il symbol è € i dati sono già in EUR (PC li serve localizzati)
+        // Se $ vanno convertiti
+        if(L.currency_symbol==='€')       pcP = L.median;
+        else if(L.currency_symbol==='£')  pcP = L.median * 1.17 * rate;
+        else                              pcP = L.median * rate;
+        pcCount = L.count;
+        pcSrc = 'PC Sold ' + house + ' ' + score + ' (' + L.count + ' vend.)';
+      } else {
+        // PRIORITÀ 2: fallback campi aggregati (ungraded, grade7/8/9/9_5, psa10/bgs10/cgc10)
+        var key = anlPcKey(house, parseFloat(score));
+        if(key && pc[key]!=null) pcP = pc[key]*rate;
+      }
     } else {
       if(pc.ungraded!=null) pcP = pc.ungraded*rate;
     }
@@ -8560,9 +8579,13 @@ function anlComputeToday(){
   var cmP = cm || null;   // per raw applichiamo condizione
 
   // Consolida: mediana tra le fonti disponibili, con pesatura semplice
+  // Peso PC boostato quando abbiamo listings specifici (più affidabile di eBay cascata)
   var sources = [];
   if(ebP) sources.push({v:ebP, w:3, src:'eBay Sold'+(ebNote?' ['+ebNote+']':''), n:ebay.count});
-  if(pcP) sources.push({v:pcP, w:2, src:'PriceCharting'});
+  if(pcP){
+    var pcWeight = pcCount ? 3 : 2;  // listings specifici sono forti quanto eBay
+    sources.push({v:pcP, w:pcWeight, src:pcSrc, n:pcCount});
+  }
   if(cmP) sources.push({v:cmP, w:1, src:'CardMarket'});
   if(!sources.length) return { price:null, method:'dati insufficienti', sources:sources };
 
@@ -8570,7 +8593,7 @@ function anlComputeToday(){
   sources.forEach(function(s){ totW+=s.w; totV+=s.v*s.w; });
   var price = totV/totW;
   var method;
-  if(sources.length===1) method = 'solo '+sources[0].src+(sources[0].n?' ('+sources[0].n+' vend.)':'');
+  if(sources.length===1) method = 'solo '+sources[0].src+(sources[0].n&&sources[0].src.indexOf('(')<0?' ('+sources[0].n+' vend.)':'');
   else method = 'media pesata · '+sources.map(function(s){return s.src.replace(/ \[.*?\]/,'');}).join(' + ');
 
   return { price: Math.round(price*100)/100, method: method, sources: sources };
@@ -9012,20 +9035,42 @@ function anlPopPc(prices, err){
   }
   var rate = anlLiveData.usdEur || ANL_USD_EUR_FALLBACK;
   var graded = anlMode==='graded';
-  var usd, label;
+  var eurValue=null, srcLabel='', sourceNote='';
+
   if(graded){
-    var key = anlPcKey(document.getElementById('anlHouse').value, parseFloat(document.getElementById('anlGradeScore').value));
-    usd = key ? prices[key] : null;
-    label = 'graded';
+    var house = document.getElementById('anlHouse').value;
+    var score = document.getElementById('anlGradeScore').value;
+    var listingKey = house + '_' + score;
+
+    // Prefer: sold listings specifici
+    if(prices.grades_from_listings && prices.grades_from_listings[listingKey]){
+      var L = prices.grades_from_listings[listingKey];
+      if(L.currency_symbol==='€')      eurValue = L.median;
+      else if(L.currency_symbol==='£') eurValue = L.median * 1.17 * rate;
+      else                             eurValue = L.median * rate;
+      srcLabel = house+' '+score;
+      sourceNote = L.count+' vendite eBay'+(L.min&&L.max?' · range '+L.currency_symbol+Math.round(L.min)+'–'+L.currency_symbol+Math.round(L.max):'');
+    } else {
+      // Fallback: campi aggregati
+      var key = anlPcKey(house, parseFloat(score));
+      var usd = key ? prices[key] : null;
+      if(usd!=null){
+        eurValue = usd * rate;
+        srcLabel = 'stima '+house+' '+score;
+        sourceNote = 'da PriceCharting (dati aggregati)';
+      }
+    }
   } else {
-    usd = prices.ungraded;
-    label = 'ungraded';
+    if(prices.ungraded!=null){
+      eurValue = prices.ungraded * rate;
+      srcLabel = 'ungraded';
+      sourceNote = '';
+    }
   }
 
   if(priceEl){
-    if(usd!=null){
-      var eur=usd*rate;
-      priceEl.innerHTML='€'+eur.toFixed(2)+' <span style="font-size:9px;color:var(--text-subtle);font-family:var(--mono)">$'+usd.toFixed(0)+'</span>';
+    if(eurValue!=null){
+      priceEl.textContent='€'+eurValue.toFixed(2);
       priceEl.classList.remove('loading');
       priceEl.classList.remove('na');
     } else {
@@ -9035,7 +9080,9 @@ function anlPopPc(prices, err){
     }
   }
   if(noteEl){
-    var parts=[label];
+    var parts=[];
+    if(srcLabel) parts.push(srcLabel);
+    if(sourceNote) parts.push(sourceNote);
     if(prices.trend_ungraded_12m!=null) parts.push('ungraded 12M '+(prices.trend_ungraded_12m>=0?'+':'')+prices.trend_ungraded_12m.toFixed(1)+'%');
     if(graded && prices.trend_grade9_12m!=null) parts.push('grade9 12M '+(prices.trend_grade9_12m>=0?'+':'')+prices.trend_grade9_12m.toFixed(1)+'%');
     if(graded && prices.trend_psa10_12m!=null) parts.push('psa10 12M '+(prices.trend_psa10_12m>=0?'+':'')+prices.trend_psa10_12m.toFixed(1)+'%');

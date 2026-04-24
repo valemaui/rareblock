@@ -266,6 +266,14 @@ function parsePrice(s: string): number | null {
 // ═════════════════════════════════════════════════════════════════════
 //  PRICECHARTING — prezzi graded reali (USD)
 // ═════════════════════════════════════════════════════════════════════
+interface GradeListingData {
+  median: number;
+  count: number;
+  min?: number;
+  max?: number;
+  currency_symbol: string;
+}
+
 interface PCPrices {
   ungraded?: number;
   grade7?: number;
@@ -275,6 +283,9 @@ interface PCPrices {
   psa10?: number;
   bgs10?: number;
   cgc10?: number;
+  // Mediana dei sold listings eBay per qualsiasi coppia casa+grade
+  // Chiave: "PSA_8", "BGS_9.5", "CGC_10", "SGC_9"...
+  grades_from_listings?: Record<string, GradeListingData>;
   // Trend dati
   trend_ungraded_12m?: number;   // % var 12 mesi ungraded
   trend_grade9_12m?: number;
@@ -516,44 +527,100 @@ function extractFromSummaryBlock(html: string, out: PCPrices): void {
 //
 // Questi sono prezzi di vendita reali, affidabili. Prendiamo i primi 10,
 // scartiamo outlier IQR e ritorniamo la mediana.
-function extractGradedFromSoldListings(html: string, label: string): number | null {
+// Estrae mediana dei "Sold Listings" eBay per un label grade specifico (es. "PSA 8", "BGS 9", "CGC 9.5").
+//
+// PriceCharting pubblica per ogni carta una sezione per ogni grade con fino a ~30 vendite storiche:
+//   "PSA 8 2012 FA/Groudon Ex ... [eBay] $727.78"
+//   "Pokemon Groudon EX Dark Explorers Full Art #106 PSA 8 [eBay] $1,027.47"
+//   ...
+//
+// NOTA: PC serve i prezzi nella valuta del visitatore (€ per IT, $ per US).
+// Il parser accetta entrambe e la currency detection è fatta dal chiamante.
+//
+// Ritorna { median, count, prices, currency_symbol } o null se nessuna vendita trovata.
+interface GradedListings {
+  median: number;
+  count: number;
+  prices: number[];
+  currency_symbol: string;
+  raw_count: number;   // prima di IQR
+}
+
+function extractGradedFromSoldListings(html: string, label: string, maxSamples = 15): GradedListings | null {
   const text = html
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/&#43;/g, '+')
     .replace(/\s+/g, ' ');
 
-  const lblEsc = label.replace(/\s+/g, '\\s*');
-  // Pattern: LABEL (+ qualifier opzionale fino a 80 char) + "[eBay]" + "$prezzo"
+  const lblEsc = label.replace(/\s+/g, '\\s*').replace('.', '\\.');
+
+  // Pattern accetta $ o € o £ (PC serve valuta in base a geolocalizzazione visitatore).
+  // "\[eBay\]" opzionale per catturare anche listing senza qualifier.
   const rx = new RegExp(
-    `${lblEsc}[^$]{0,120}?\\[eBay\\]\\s*\\$\\s*([\\d,]+(?:\\.\\d{2})?)`,
+    `${lblEsc}\\b[^$€£]{0,150}?(?:\\[(?:eBay|TCGPlayer|Fanatics)\\])?\\s*([\\$€£])\\s*([\\d,]+(?:[.,]\\d{2})?)`,
     'gi'
   );
 
   const prices: number[] = [];
+  const symbols: string[] = [];
   let m: RegExpExecArray | null;
-  while ((m = rx.exec(text)) !== null && prices.length < 15) {
-    const n = parsePrice(m[1]);
-    if (n != null && n > 0) prices.push(n);
+  let rawCount = 0;
+  while ((m = rx.exec(text)) !== null && rawCount < maxSamples * 2) {
+    rawCount++;
+    const sym = m[1];
+    // parsePrice gestisce formato US (1,027.47) ma non EU (1.027,47).
+    // Normalizzo il numero prima di parsePrice:
+    let raw = m[2];
+    // Se contiene sia , che . : "1,027.47" è US (, migliaia, . decimali), "1.027,47" è EU
+    if (raw.indexOf(',') >= 0 && raw.indexOf('.') >= 0) {
+      if (raw.lastIndexOf('.') > raw.lastIndexOf(',')) {
+        // US format: rimuovi le virgole
+        raw = raw.replace(/,/g, '');
+      } else {
+        // EU format: rimuovi i punti, virgola → punto
+        raw = raw.replace(/\./g, '').replace(',', '.');
+      }
+    } else if (raw.indexOf(',') >= 0) {
+      // Solo virgola: se è seguita da 2 cifre finali, è decimale EU
+      const parts = raw.split(',');
+      if (parts.length === 2 && parts[1].length === 2) raw = raw.replace(',', '.');
+      else raw = raw.replace(/,/g, '');  // virgole come separatore migliaia
+    }
+    const n = parseFloat(raw);
+    if (isNaN(n) || n <= 0) continue;
+    prices.push(n);
+    symbols.push(sym);
+    if (prices.length >= maxSamples) break;
   }
+
   if (prices.length === 0) return null;
-  if (prices.length === 1) return prices[0];
+  // Simbolo dominante (in genere tutti uguali)
+  const symCounts: Record<string, number> = {};
+  for (const s of symbols) symCounts[s] = (symCounts[s] || 0) + 1;
+  const dominantSym = Object.keys(symCounts).sort((a, b) => symCounts[b] - symCounts[a])[0];
+
+  if (prices.length === 1) {
+    return { median: prices[0], count: 1, prices, currency_symbol: dominantSym, raw_count: prices.length };
+  }
 
   // IQR outlier removal
   const sorted = prices.slice().sort((a, b) => a - b);
+  let filtered = sorted;
   if (sorted.length >= 4) {
     const q1 = sorted[Math.floor(sorted.length * 0.25)];
     const q3 = sorted[Math.floor(sorted.length * 0.75)];
     const iqr = q3 - q1;
     const lo = q1 - 1.5 * iqr;
     const hi = q3 + 1.5 * iqr;
-    const filtered = sorted.filter(p => p >= lo && p <= hi);
-    if (filtered.length >= 2) {
-      return filtered[Math.floor(filtered.length / 2)];
-    }
+    const f = sorted.filter(p => p >= lo && p <= hi);
+    if (f.length >= 2) filtered = f;
   }
-  return sorted[Math.floor(sorted.length / 2)];
+  const median = filtered[Math.floor(filtered.length / 2)];
+  return { median, count: filtered.length, prices: filtered, currency_symbol: dominantSym, raw_count: prices.length };
 }
+
+
 
 
 
@@ -583,15 +650,34 @@ function extractPCPrices(html: string): PCPrices {
   // ─ STRATEGIA 1: Summary Block per Ungraded + Grade 7/8/9/9.5 ─────────
   extractFromSummaryBlock(html, out);
 
-  // ─ STRATEGIA 2: Sold Listings eBay per PSA 10 / BGS 10 / CGC 10 ──────
-  // (il summary block PC non contiene queste label come coppia label→prezzo;
-  // PSA 10 Gem Mint [eBay] $XXX è la fonte affidabile)
-  const psa10 = extractGradedFromSoldListings(html, 'PSA 10');
-  if (psa10 != null) out.psa10 = psa10;
-  const bgs10 = extractGradedFromSoldListings(html, 'BGS 10');
-  if (bgs10 != null) out.bgs10 = bgs10;
-  const cgc10 = extractGradedFromSoldListings(html, 'CGC 10');
-  if (cgc10 != null) out.cgc10 = cgc10;
+  // ─ STRATEGIA 2: Sold Listings eBay — scan esaustivo di casa+grade ────
+  // PriceCharting pubblica per ciascun grade una sezione con ~30 vendite eBay reali.
+  // Scannerizziamo tutte le combinazioni comuni e popoliamo grades_from_listings.
+  const houses = ['PSA', 'BGS', 'CGC', 'SGC', 'HGA', 'GMA', 'TAG', 'ARS', 'ACE'];
+  const scores = ['10', '9.5', '9', '8.5', '8', '7.5', '7', '6', '5'];
+
+  const gradesFromListings: Record<string, GradeListingData> = {};
+  for (const h of houses) {
+    for (const s of scores) {
+      const label = `${h} ${s}`;
+      const result = extractGradedFromSoldListings(html, label);
+      if (result && result.count > 0) {
+        gradesFromListings[`${h}_${s}`] = {
+          median: result.median,
+          count: result.count,
+          min: Math.min(...result.prices),
+          max: Math.max(...result.prices),
+          currency_symbol: result.currency_symbol,
+        };
+      }
+    }
+  }
+  if (Object.keys(gradesFromListings).length) out.grades_from_listings = gradesFromListings;
+
+  // Per retro-compatibilità popola anche i campi top-level psa10/bgs10/cgc10
+  if (gradesFromListings['PSA_10']) out.psa10 = gradesFromListings['PSA_10'].median;
+  if (gradesFromListings['BGS_10']) out.bgs10 = gradesFromListings['BGS_10'].median;
+  if (gradesFromListings['CGC_10']) out.cgc10 = gradesFromListings['CGC_10'].median;
 
   // ─ STRATEGIA 3: fallback label-based se ancora qualcosa manca ────────
   // Solo per grade_raw mancanti dallo step 1
