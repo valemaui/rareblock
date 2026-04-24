@@ -8933,8 +8933,25 @@ function anlRenderProjectionRaw(priceEl, deltaEl, descEl, gridEl){
     return;
   }
 
+  // Trovato pcGradedEur — arricchiamo con metadati del listing source
+  var listingData = (pc && pc.grades_from_listings) ? pc.grades_from_listings[listingKey] : null;
+  var listingCount = listingData ? listingData.count : null;
+  var listingConfidence = listingData ? listingData.confidence : null;
+
   var delta = today.price ? pcGradedEur - today.price : null;
   var cls = delta==null ? 'mute' : (delta>=0 ? 'pos' : 'neg');
+
+  // Stima costo grading PSA (regular tier) + shipping a/r
+  // PSA "Value" tier ~$25 (carte sotto $499), "Regular" ~$75 (sotto $1499), "Express" ~$150+
+  // In EUR includendo spedizione a/r dall'Italia: ~€35 value, ~€95 regular
+  var gradingCost;
+  if(pcGradedEur < 500)        gradingCost = 35;
+  else if(pcGradedEur < 1500)  gradingCost = 95;
+  else if(pcGradedEur < 5000)  gradingCost = 180;
+  else                         gradingCost = 280;
+
+  var netUpside = delta != null ? delta - gradingCost : null;
+  var netCls = netUpside==null ? 'mute' : (netUpside>=0 ? 'pos' : 'neg');
 
   priceEl.textContent='€'+pcGradedEur.toFixed(2);
   priceEl.className='anl-fwd-price '+cls;
@@ -8943,17 +8960,28 @@ function anlRenderProjectionRaw(priceEl, deltaEl, descEl, gridEl){
 
   var descParts=[
     'Condizione '+cond+' → grado atteso PSA '+expGrade+'.',
-    'Valore di mercato graded PSA '+expGrade+' (da PriceCharting): €'+pcGradedEur.toFixed(2)+'.',
   ];
-  if(today.price) descParts.push('Differenza lorda con il raw attuale: '+(delta>=0?'+':'')+'€'+delta.toFixed(2)+'. Non sono inclusi costi di grading e spedizione.');
+  if(listingData){
+    var confTxt = listingConfidence==='high' ? '' : (listingConfidence==='medium' ? ' (campione medio)' : ' (campione piccolo)');
+    descParts.push('Valore di mercato PSA '+expGrade+': €'+pcGradedEur.toFixed(2)+' (mediana su '+listingCount+' vendite eBay reali'+confTxt+').');
+  } else {
+    descParts.push('Valore di mercato PSA '+expGrade+' (stima PriceCharting): €'+pcGradedEur.toFixed(2)+'.');
+  }
+  if(today.price && netUpside!=null){
+    var verdict = netUpside > 20 ? 'Gradare conviene' : (netUpside > -20 ? 'Economicamente in pari' : 'Gradare non conviene');
+    descParts.push(verdict + ': upside netto ' + (netUpside>=0?'+':'') + '€' + netUpside.toFixed(2) + ' (dopo ~€' + gradingCost + ' di grading + spedizione).');
+  }
   descEl.textContent = descParts.join(' ');
 
   var rows=[
     {k:'Grado atteso', v:'PSA '+expGrade},
     {k:'Valore raw oggi', v: today.price ? '€'+today.price.toFixed(2) : '—', cls:'mute'},
-    {k:'Valore graded', v:'€'+pcGradedEur.toFixed(2), cls:'pos'},
+    {k:'Valore graded PSA '+expGrade, v:'€'+pcGradedEur.toFixed(2), cls:'pos'},
   ];
-  if(delta!=null) rows.push({k:'Upside lordo', v:(delta>=0?'+':'')+'€'+delta.toFixed(2), cls:cls});
+  if(listingCount) rows.push({k:'Fonte dato graded', v: listingCount+' vendite eBay' + (listingConfidence==='low'?' (campione piccolo)':''), cls:'mute'});
+  if(delta!=null)     rows.push({k:'Upside lordo', v:(delta>=0?'+':'')+'€'+delta.toFixed(2), cls:cls});
+  if(gradingCost)     rows.push({k:'Costo grading stimato', v:'-€'+gradingCost, cls:'mute'});
+  if(netUpside!=null) rows.push({k:'Upside netto', v:(netUpside>=0?'+':'')+'€'+netUpside.toFixed(2), cls:netCls});
   if(pc && pc.trend_grade9_12m!=null) rows.push({k:'Trend 12M grade 9', v:(pc.trend_grade9_12m>=0?'+':'')+pc.trend_grade9_12m.toFixed(1)+'%', cls: pc.trend_grade9_12m>=0?'pos':'neg'});
 
   gridEl.innerHTML = rows.map(function(r){
