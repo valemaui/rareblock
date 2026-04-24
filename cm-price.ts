@@ -349,15 +349,15 @@ async function handlePriceChartingCascade(urls: string[], cardName?: string, deb
     const attempt: typeof attempts[0] = { url, ok: true, found: prices.productTitle };
 
     if (debug) {
-      // Ritorna snippet della sezione prezzi per ispezione ID reali
-      const priceSection = html.match(/<table[^>]*(?:id|class)=["'][^"']*price[^"']*["'][\s\S]{0,4000}?<\/table>/i)
-        || html.match(/<div[^>]*(?:id|class)=["'][^"']*price[^"']*["'][\s\S]{0,4000}?<\/div>/i);
-      if (priceSection) attempt.snippet = priceSection[0].substring(0, 3500);
-      else {
-        // Fallback: cerca pattern $XX.XX e slice attorno
-        const firstPrice = html.search(/\$[\d,]+\.\d{2}/);
-        if (firstPrice > 0) attempt.snippet = html.substring(Math.max(0, firstPrice - 500), firstPrice + 3000);
+      // Cerca direttamente lo slice attorno agli ID che il parser usa (used_price, graded_price, manual_only_price, bgs_10_price)
+      const ids = ['used_price','complete_price','new_price','graded_price','box_only_price','manual_only_price','bgs_10_price'];
+      const slices: Record<string, string> = {};
+      for (const id of ids) {
+        const rx = new RegExp(`<(?:td|span|div)[^>]*id="${id}"[^>]*>([\\s\\S]{0,600}?)<\\/(?:td|span|div)>`, 'i');
+        const m = html.match(rx);
+        if (m) slices[id] = m[0].substring(0, 500);
       }
+      attempt.snippet = JSON.stringify(slices, null, 2).substring(0, 3500);
       attempt.html_len = html.length;
     }
     attempts.push(attempt);
