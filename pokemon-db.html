@@ -9166,6 +9166,7 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
         <div class="rad-subtabs">
           <button class="rad-subtab active" data-sub="feed"     onclick="huntShowSub('feed')">🔥 Feed <span id="huntFeedCount"></span></button>
           <button class="rad-subtab"        data-sub="auctions" onclick="huntShowSub('auctions')">⏰ Aste</button>
+          <button class="rad-subtab"        data-sub="scans"    onclick="huntShowSub('scans')">📅 Scansioni <span id="huntScansCount"></span></button>
           <button class="rad-subtab"        data-sub="butler"   onclick="huntShowSub('butler')">🎩 Maggiordomo <span id="huntButlerCount"></span></button>
           <button class="rad-subtab"        data-sub="targets"  onclick="huntShowSub('targets')">🎯 Target <span id="huntTargetsCount"></span></button>
           <button class="rad-subtab"        data-sub="alerts"   onclick="huntShowSub('alerts')">🔔 Regole</button>
@@ -9238,6 +9239,145 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
       <div id="huntSub-arbitrage" class="rad-sub" style="display:none">
         <div id="huntArbitrageList"></div>
       </div>
+
+      <!-- ════ SCANSIONI SCHEDULATE (auction-site scraper) ════ -->
+      <div id="huntSub-scans" class="rad-sub" style="display:none">
+        <div class="rad-scan-layout">
+
+          <!-- Colonna sinistra: form nuovo job + lista jobs -->
+          <div class="rad-scan-left">
+
+            <div class="rad-scan-block">
+              <div class="rad-scan-block-head">
+                <h3>🎯 Nuovo job di scansione</h3>
+                <span id="radScanFormStatus" class="rad-scan-stat-pill"></span>
+              </div>
+
+              <div class="rad-form-field">
+                <label>Nome carta *</label>
+                <input type="text" id="radScanCardName" placeholder="es. Charizard"/>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+                <div class="rad-form-field">
+                  <label>Numero</label>
+                  <input type="text" id="radScanCardNum" placeholder="4/102"/>
+                </div>
+                <div class="rad-form-field">
+                  <label>Set</label>
+                  <input type="text" id="radScanSet" placeholder="Base Set"/>
+                </div>
+              </div>
+
+              <div class="rad-form-field">
+                <label>Stato carta *</label>
+                <div class="rad-scan-radio">
+                  <label><input type="radio" name="radScanGraded" value="raw" checked onchange="radScanToggleGradedFields()"/> Raw (non gradata)</label>
+                  <label><input type="radio" name="radScanGraded" value="graded" onchange="radScanToggleGradedFields()"/> Gradata</label>
+                </div>
+              </div>
+
+              <div id="radScanGradedFields" style="display:none">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+                  <div class="rad-form-field">
+                    <label>Casa di gradazione *</label>
+                    <select id="radScanGrader">
+                      <option value="">—</option>
+                      <option>PSA</option>
+                      <option>BGS</option>
+                      <option>CGC</option>
+                      <option>ACE</option>
+                      <option>SGC</option>
+                    </select>
+                  </div>
+                  <div class="rad-form-field">
+                    <label>Voto minimo *</label>
+                    <select id="radScanGrade">
+                      <option value="">—</option>
+                      <option value="10">10 (Gem Mint)</option>
+                      <option value="9.5">9.5</option>
+                      <option value="9">9</option>
+                      <option value="8.5">8.5</option>
+                      <option value="8">8</option>
+                      <option value="7">7</option>
+                      <option value="6">6</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="rad-form-field">
+                <label>Siti da monitorare *</label>
+                <div class="rad-scan-sites">
+                  <label><input type="checkbox" class="radScanSite" value="catawiki" checked/> 🏛 Catawiki</label>
+                  <label><input type="checkbox" class="radScanSite" value="ebay"/> 🛒 eBay</label>
+                  <label><input type="checkbox" class="radScanSite" value="subito"/> 📦 Subito</label>
+                </div>
+              </div>
+
+              <div class="rad-form-field">
+                <label>Schedulazione</label>
+                <select id="radScanSchedType" onchange="radScanToggleSchedFields()">
+                  <option value="manual">Manuale (solo "Esegui ora")</option>
+                  <option value="once">Una sola volta a una data/ora</option>
+                  <option value="daily" selected>Ogni giorno a un'ora</option>
+                  <option value="weekly">Ogni settimana (giorno + ora)</option>
+                  <option value="hourly">Ogni N ore</option>
+                </select>
+              </div>
+
+              <div id="radScanSchedFields">
+                <!-- popolato dinamicamente in base alla schedulazione -->
+              </div>
+
+              <div class="rad-form-field">
+                <label>Prezzo massimo (€) <span style="opacity:.6">— filtra risultati oltre soglia</span></label>
+                <input type="number" id="radScanMaxPrice" step="0.01" placeholder="opzionale"/>
+              </div>
+
+              <div style="display:flex;gap:6px;margin-top:8px">
+                <button class="btn btn-primary" onclick="radScanSubmit()" style="flex:1;font-size:12px">+ Crea job</button>
+                <button class="btn" onclick="radScanResetForm()" style="font-size:12px">Reset</button>
+              </div>
+            </div>
+
+            <div class="rad-scan-block">
+              <div class="rad-scan-block-head">
+                <h3>📋 Job attivi</h3>
+                <span id="radScanCount" class="rad-scan-stat-pill"></span>
+              </div>
+              <div id="radScanJobsList">
+                <div class="rad-empty" style="padding:20px 12px">
+                  <div class="rad-empty-icon" style="font-size:30px">📭</div>
+                  <div class="rad-empty-sub">Nessun job ancora. Crea il primo qui sopra.</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Colonna destra: risultati -->
+          <div class="rad-scan-right">
+            <div class="rad-scan-results-head">
+              <h3 id="radScanResultsTitle">📊 Risultati</h3>
+              <div class="rad-scan-results-actions">
+                <span id="radScanResultsMeta" class="rad-scan-meta"></span>
+                <button class="btn" id="radScanRunNowBtn" onclick="radScanRunSelected()" style="font-size:11px;display:none">▶ Esegui ora</button>
+                <button class="btn" id="radScanClearBtn" onclick="radScanClearResults()" style="font-size:11px;display:none">🗑 Pulisci</button>
+              </div>
+            </div>
+            <div id="radScanResultsList">
+              <div class="rad-empty" style="padding:50px 20px">
+                <div class="rad-empty-icon">📡</div>
+                <div class="rad-empty-title">Seleziona un job</div>
+                <div class="rad-empty-sub">Clicca un job a sinistra per vedere i risultati delle scansioni.</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <!-- ════ FINE SCANSIONI ════ -->
     </div>
   </div>
 </div>
@@ -9378,6 +9518,71 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
 
 /* Modal generico radar */
 .rad-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px}
+
+/* ═══ SCANSIONI SCHEDULATE ═══ */
+.rad-scan-layout{display:grid;grid-template-columns:380px 1fr;gap:16px;align-items:start}
+@media (max-width:1100px){.rad-scan-layout{grid-template-columns:1fr}}
+.rad-scan-left{display:flex;flex-direction:column;gap:14px;min-width:0}
+.rad-scan-right{min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;min-height:400px}
+.rad-scan-block{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px}
+.rad-scan-block-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.rad-scan-block-head h3{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin:0}
+.rad-scan-stat-pill{font-size:10px;font-family:var(--mono);background:var(--surface2);border:1px solid var(--border);padding:2px 8px;border-radius:10px;color:var(--text-muted)}
+
+.rad-scan-radio,.rad-scan-sites{display:flex;flex-direction:column;gap:5px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:7px 9px}
+.rad-scan-sites{flex-direction:row;flex-wrap:wrap;gap:10px}
+.rad-scan-radio label,.rad-scan-sites label{font-size:11px;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:6px;line-height:1.2}
+.rad-scan-radio input,.rad-scan-sites input{margin:0}
+
+.rad-scan-job{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:.12s;position:relative}
+.rad-scan-job:hover{border-color:var(--accent)}
+.rad-scan-job.selected{border-color:var(--accent);background:rgba(56,139,253,.06);box-shadow:0 0 0 1px var(--accent) inset}
+.rad-scan-job.disabled{opacity:.55}
+.rad-scan-job-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:5px}
+.rad-scan-job-title{font-size:12px;font-weight:600;line-height:1.3;flex:1;min-width:0}
+.rad-scan-job-toggle{flex-shrink:0}
+.rad-scan-job-attrs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px}
+.rad-scan-job-attr{font-size:9px;background:var(--surface);border:1px solid var(--border);padding:1px 6px;border-radius:3px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em}
+.rad-scan-job-attr.hot{border-color:var(--accent);color:var(--accent)}
+.rad-scan-job-meta{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:6px}
+.rad-scan-job-actions{display:flex;gap:4px;margin-top:8px;flex-wrap:wrap}
+.rad-scan-job-actions button{flex:1;font-size:10px;padding:4px 8px}
+.rad-scan-job-running{position:absolute;top:8px;right:8px;background:var(--warning);color:#0d1117;font-size:9px;padding:2px 6px;border-radius:3px;font-family:var(--mono);font-weight:600;animation:rbBlink 1s linear infinite}
+@keyframes rbBlink{50%{opacity:.4}}
+
+.rad-scan-results-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px;flex-wrap:wrap}
+.rad-scan-results-head h3{margin:0;font-size:13px;font-weight:600}
+.rad-scan-results-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.rad-scan-meta{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
+
+.rad-scan-result{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px;margin-bottom:8px;display:grid;grid-template-columns:80px 1fr auto;gap:10px;align-items:flex-start;transition:.12s}
+.rad-scan-result:hover{border-color:var(--accent)}
+.rad-scan-result.new{border-left:3px solid var(--success)}
+.rad-scan-result-img{width:80px;height:100px;object-fit:cover;border-radius:4px;border:1px solid var(--border);background:var(--surface);cursor:zoom-in}
+.rad-scan-result-img-ph{width:80px;height:100px;border-radius:4px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--text-subtle)}
+.rad-scan-result-body{min-width:0}
+.rad-scan-result-title{font-size:12px;line-height:1.35;font-weight:500;margin-bottom:5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rad-scan-result-title a{color:var(--text);text-decoration:none}
+.rad-scan-result-title a:hover{color:var(--accent)}
+.rad-scan-result-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:10px;color:var(--text-muted);margin-bottom:4px}
+.rad-scan-result-meta .pf{padding:1px 6px;border-radius:3px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;font-family:var(--mono);font-size:9px}
+.rad-scan-result-price{font-size:14px;font-weight:700;font-family:var(--mono);color:var(--text);white-space:nowrap;text-align:right}
+.rad-scan-result-price small{display:block;font-size:9px;font-weight:400;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;margin-top:2px}
+.rad-scan-result-end{font-size:10px;color:var(--warning);font-family:var(--mono);font-weight:600}
+.rad-scan-result-extra{font-size:10px;color:var(--text-muted);margin-top:3px}
+.rad-scan-result-actions{display:flex;flex-direction:column;gap:4px}
+.rad-scan-result-actions a{display:inline-block;font-size:10px;padding:4px 9px;background:var(--accent);color:#0d1117;border-radius:3px;text-decoration:none;font-weight:600;text-transform:uppercase;letter-spacing:.3px;text-align:center}
+
+.rad-scan-group{margin-bottom:18px}
+.rad-scan-group-head{font-size:11px;color:var(--text-muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.rad-scan-group-head .pill{background:var(--surface2);border:1px solid var(--border);padding:1px 7px;border-radius:10px;font-size:9px}
+
+.rad-scan-log{font-size:10px;color:var(--text-subtle);font-family:var(--mono);margin-top:4px;max-height:60px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:4px 6px;display:none}
+.rad-scan-log.show{display:block}
+.rad-scan-log-line{padding:1px 0;border-bottom:1px dotted var(--border)}
+.rad-scan-log-line:last-child{border-bottom:none}
+.rad-scan-log-line.err{color:var(--danger)}
+.rad-scan-log-line.ok{color:var(--success)}
 .rad-modal{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;max-width:480px;width:100%;max-height:90vh;overflow:auto}
 .rad-modal h3{margin:0 0 14px 0;font-size:14px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
 .rad-modal-close{background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;line-height:1;padding:0 4px}
@@ -13088,6 +13293,734 @@ document.addEventListener('keydown', function(e){
     if(document.querySelector('.rad-modal-bg')) radCloseModal();
   }
 });
+
+
+// ═══════════════════════════════════════════════════════════════════════
+//  📅 SCANSIONI SCHEDULATE — auction-site scraper (Catawiki/eBay/Subito)
+//  Modulo standalone: persistenza in localStorage, scheduler client-side.
+//  Le scansioni effettive passano per Edge Function `smooth-endpoint`
+//  con sources: catawiki_search | ebay_search | subito_search
+// ═══════════════════════════════════════════════════════════════════════
+
+var RAD_SCAN_LS_JOBS = 'pkm_radar_scan_jobs_v1';
+var RAD_SCAN_LS_RESULTS = 'pkm_radar_scan_results_v1';
+var RAD_SCAN_TICK_MS = 30000;          // controllo schedule ogni 30s
+var RAD_SCAN_RESULTS_MAX = 80;          // max risultati salvati per job
+var RAD_SCAN_HISTORY_MAX = 200;         // tetto su URL già visti per job (per flag "new")
+
+var _radScanState = {
+  jobs: [],
+  results: {},        // { [jobId]: [{...item, scanned_at, is_new}, ...] }
+  selectedJobId: null,
+  schedulerHandle: null,
+  lastTick: 0,
+};
+
+// ── Persistenza ─────────────────────────────────────────────────────────
+function radScanLoad(){
+  try{ _radScanState.jobs = JSON.parse(localStorage.getItem(RAD_SCAN_LS_JOBS)||'[]') || []; }
+  catch(e){ _radScanState.jobs = []; }
+  try{ _radScanState.results = JSON.parse(localStorage.getItem(RAD_SCAN_LS_RESULTS)||'{}') || {}; }
+  catch(e){ _radScanState.results = {}; }
+  // pulizia: rimuovi risultati di job che non esistono più
+  var validIds = {};
+  _radScanState.jobs.forEach(function(j){ validIds[j.id] = true; });
+  Object.keys(_radScanState.results).forEach(function(id){
+    if(!validIds[id]) delete _radScanState.results[id];
+  });
+}
+
+function radScanPersist(){
+  try{ localStorage.setItem(RAD_SCAN_LS_JOBS, JSON.stringify(_radScanState.jobs)); }catch(e){}
+  // I risultati possono diventare grossi: trim per quota
+  var slim = {};
+  Object.keys(_radScanState.results).forEach(function(id){
+    var arr = _radScanState.results[id] || [];
+    slim[id] = arr.slice(0, RAD_SCAN_RESULTS_MAX);
+  });
+  try{ localStorage.setItem(RAD_SCAN_LS_RESULTS, JSON.stringify(slim)); }
+  catch(e){
+    // quota: prova drasticamente a tenere solo 20 per job
+    Object.keys(slim).forEach(function(id){ slim[id] = slim[id].slice(0,20); });
+    try{ localStorage.setItem(RAD_SCAN_LS_RESULTS, JSON.stringify(slim)); }catch(_){}
+  }
+}
+
+function radScanGenId(){ return 'sj_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7); }
+
+// ── Form: campi schedule dinamici ───────────────────────────────────────
+function radScanToggleGradedFields(){
+  var graded = document.querySelector('input[name="radScanGraded"]:checked');
+  var box = document.getElementById('radScanGradedFields');
+  if(box) box.style.display = (graded && graded.value === 'graded') ? 'block' : 'none';
+}
+window.radScanToggleGradedFields = radScanToggleGradedFields;
+
+function radScanToggleSchedFields(){
+  var t = document.getElementById('radScanSchedType').value;
+  var box = document.getElementById('radScanSchedFields');
+  if(!box) return;
+  var html = '';
+  if(t === 'manual'){
+    html = '<div style="font-size:10px;color:var(--text-muted);padding:6px 0">Nessuna esecuzione automatica. Userai solo "▶ Esegui ora".</div>';
+  } else if(t === 'once'){
+    var d = new Date(Date.now()+3600000);
+    var iso = d.toISOString().slice(0,16);
+    html = '<div class="rad-form-field"><label>Data e ora</label><input type="datetime-local" id="radScanSchedAt" value="'+iso+'"/></div>';
+  } else if(t === 'daily'){
+    html = '<div class="rad-form-field"><label>Ora del giorno (HH:MM)</label><input type="time" id="radScanSchedTime" value="09:00"/></div>';
+  } else if(t === 'weekly'){
+    html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'+
+      '<div class="rad-form-field"><label>Giorno</label>'+
+      '<select id="radScanSchedDow"><option value="1">Lunedì</option><option value="2">Martedì</option><option value="3">Mercoledì</option><option value="4">Giovedì</option><option value="5">Venerdì</option><option value="6">Sabato</option><option value="0">Domenica</option></select></div>'+
+      '<div class="rad-form-field"><label>Ora</label><input type="time" id="radScanSchedTime" value="09:00"/></div>'+
+    '</div>';
+  } else if(t === 'hourly'){
+    html = '<div class="rad-form-field"><label>Ogni N ore (1-24)</label><input type="number" id="radScanSchedHours" min="1" max="24" value="6"/></div>';
+  }
+  box.innerHTML = html;
+}
+window.radScanToggleSchedFields = radScanToggleSchedFields;
+
+// ── Calcolo prossima esecuzione in base a schedulazione ─────────────────
+function radScanComputeNextRun(sched, fromMs){
+  fromMs = fromMs || Date.now();
+  var from = new Date(fromMs);
+  if(sched.type === 'manual') return null;
+
+  if(sched.type === 'once'){
+    var t = new Date(sched.at).getTime();
+    return (t > fromMs) ? t : null;  // null = già scaduta
+  }
+  if(sched.type === 'daily'){
+    var hm = (sched.time||'09:00').split(':');
+    var next = new Date(fromMs);
+    next.setHours(parseInt(hm[0])||0, parseInt(hm[1])||0, 0, 0);
+    if(next.getTime() <= fromMs) next.setDate(next.getDate()+1);
+    return next.getTime();
+  }
+  if(sched.type === 'weekly'){
+    var hmW = (sched.time||'09:00').split(':');
+    var dow = parseInt(sched.dow);
+    if(isNaN(dow)) dow = 1;
+    var nextW = new Date(fromMs);
+    nextW.setHours(parseInt(hmW[0])||0, parseInt(hmW[1])||0, 0, 0);
+    var diff = (dow - nextW.getDay() + 7) % 7;
+    if(diff === 0 && nextW.getTime() <= fromMs) diff = 7;
+    nextW.setDate(nextW.getDate() + diff);
+    return nextW.getTime();
+  }
+  if(sched.type === 'hourly'){
+    var n = parseInt(sched.hours)||6;
+    return fromMs + n*3600000;
+  }
+  return null;
+}
+
+// ── Crea job dal form ───────────────────────────────────────────────────
+function radScanSubmit(){
+  var statusEl = document.getElementById('radScanFormStatus');
+  function setStatus(msg, isErr){
+    if(!statusEl) return;
+    statusEl.textContent = msg;
+    statusEl.style.color = isErr ? 'var(--danger)' : 'var(--success)';
+    setTimeout(function(){ statusEl.textContent=''; }, 3500);
+  }
+  var name = (document.getElementById('radScanCardName').value||'').trim();
+  if(!name){ setStatus('Nome carta obbligatorio', true); return; }
+
+  var num = (document.getElementById('radScanCardNum').value||'').trim();
+  var setName = (document.getElementById('radScanSet').value||'').trim();
+
+  var gradedRadio = document.querySelector('input[name="radScanGraded"]:checked');
+  var isGraded = gradedRadio && gradedRadio.value === 'graded';
+  var grader = '';
+  var minGrade = null;
+  if(isGraded){
+    grader = document.getElementById('radScanGrader').value || '';
+    minGrade = parseFloat(document.getElementById('radScanGrade').value);
+    if(!grader){ setStatus('Casa di gradazione obbligatoria', true); return; }
+    if(!minGrade){ setStatus('Voto gradazione obbligatorio', true); return; }
+  }
+
+  var sites = Array.from(document.querySelectorAll('.radScanSite:checked')).map(function(c){return c.value;});
+  if(sites.length === 0){ setStatus('Seleziona almeno un sito', true); return; }
+
+  var schedType = document.getElementById('radScanSchedType').value;
+  var sched = { type: schedType };
+  if(schedType === 'once'){
+    var atRaw = document.getElementById('radScanSchedAt') && document.getElementById('radScanSchedAt').value;
+    if(!atRaw){ setStatus('Imposta data/ora', true); return; }
+    sched.at = new Date(atRaw).toISOString();
+  } else if(schedType === 'daily'){
+    sched.time = document.getElementById('radScanSchedTime').value || '09:00';
+  } else if(schedType === 'weekly'){
+    sched.dow = parseInt(document.getElementById('radScanSchedDow').value);
+    sched.time = document.getElementById('radScanSchedTime').value || '09:00';
+  } else if(schedType === 'hourly'){
+    sched.hours = parseInt(document.getElementById('radScanSchedHours').value)||6;
+  }
+
+  var maxPrice = parseFloat(document.getElementById('radScanMaxPrice').value);
+  if(!isFinite(maxPrice)) maxPrice = null;
+
+  var job = {
+    id: radScanGenId(),
+    card_name: name,
+    card_number: num || null,
+    set_name: setName || null,
+    is_graded: isGraded,
+    grading_house: grader || null,
+    min_grade: minGrade,
+    sites: sites,
+    schedule: sched,
+    max_price: maxPrice,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    last_run_at: null,
+    next_run_at: radScanComputeNextRun(sched),
+    last_count: 0,
+    last_log: [],
+    seen_urls: [],   // fingerprint per il flag "new"
+  };
+
+  _radScanState.jobs.unshift(job);
+  radScanPersist();
+  radScanRenderJobs();
+  setStatus('✓ Job creato', false);
+  radScanResetForm();
+}
+window.radScanSubmit = radScanSubmit;
+
+function radScanResetForm(){
+  ['radScanCardName','radScanCardNum','radScanSet','radScanMaxPrice'].forEach(function(id){
+    var el = document.getElementById(id); if(el) el.value = '';
+  });
+  var rRaw = document.querySelector('input[name="radScanGraded"][value="raw"]');
+  if(rRaw) rRaw.checked = true;
+  document.querySelectorAll('.radScanSite').forEach(function(c){ c.checked = (c.value === 'catawiki'); });
+  var st = document.getElementById('radScanSchedType'); if(st) st.value = 'daily';
+  radScanToggleGradedFields();
+  radScanToggleSchedFields();
+}
+window.radScanResetForm = radScanResetForm;
+
+// ── Job actions ─────────────────────────────────────────────────────────
+function radScanToggleJob(id){
+  var j = _radScanState.jobs.find(function(x){return x.id===id;});
+  if(!j) return;
+  j.is_active = !j.is_active;
+  if(j.is_active && !j.next_run_at){
+    j.next_run_at = radScanComputeNextRun(j.schedule);
+  }
+  radScanPersist();
+  radScanRenderJobs();
+}
+window.radScanToggleJob = radScanToggleJob;
+
+function radScanDeleteJob(id){
+  if(!confirm('Eliminare questo job di scansione (e tutti i suoi risultati)?')) return;
+  _radScanState.jobs = _radScanState.jobs.filter(function(x){return x.id!==id;});
+  delete _radScanState.results[id];
+  if(_radScanState.selectedJobId === id) _radScanState.selectedJobId = null;
+  radScanPersist();
+  radScanRenderJobs();
+  radScanRenderResults();
+}
+window.radScanDeleteJob = radScanDeleteJob;
+
+function radScanSelectJob(id){
+  _radScanState.selectedJobId = id;
+  radScanRenderJobs();
+  radScanRenderResults();
+}
+window.radScanSelectJob = radScanSelectJob;
+
+function radScanRunSelected(){
+  if(_radScanState.selectedJobId) radScanRunNow(_radScanState.selectedJobId);
+}
+window.radScanRunSelected = radScanRunSelected;
+
+function radScanClearResults(){
+  var id = _radScanState.selectedJobId;
+  if(!id) return;
+  if(!confirm('Pulire tutti i risultati di questo job?')) return;
+  _radScanState.results[id] = [];
+  var j = _radScanState.jobs.find(function(x){return x.id===id;});
+  if(j){ j.last_count = 0; j.seen_urls = []; }
+  radScanPersist();
+  radScanRenderJobs();
+  radScanRenderResults();
+}
+window.radScanClearResults = radScanClearResults;
+
+// ── URL builders per scraping (riusiamo HUNT_URL_BUILDERS quando applicabile) ─
+function radScanBuildUrl(site, job){
+  // Pseudo-target compatibile con HUNT_URL_BUILDERS
+  var target = {
+    card_name: job.card_name,
+    card_number: job.card_number,
+    grading_house: job.is_graded ? job.grading_house : null,
+    min_grade: job.is_graded ? job.min_grade : null,
+    extra_keywords: job.set_name ? [job.set_name] : null,
+    language: 'ANY',
+  };
+  if(window.HUNT_URL_BUILDERS && window.HUNT_URL_BUILDERS[site]){
+    return window.HUNT_URL_BUILDERS[site](target);
+  }
+  // fallback semplice
+  var terms = [job.card_name];
+  if(job.card_number) terms.push(job.card_number.replace(/\/.*$/,''));
+  if(job.set_name) terms.push(job.set_name);
+  if(job.is_graded){
+    if(job.grading_house) terms.push(job.grading_house);
+    if(job.min_grade) terms.push(String(job.min_grade));
+  }
+  var q = encodeURIComponent(terms.join(' '));
+  if(site==='catawiki') return 'https://www.catawiki.com/it/s?q='+q+'&category_id=321';
+  if(site==='ebay')     return 'https://www.ebay.it/sch/i.html?_nkw='+q+'&_sacat=2611&_sop=10';
+  if(site==='subito')   return 'https://www.subito.it/annunci-italia/vendita/hobby-collezionismo/?q='+q;
+  return null;
+}
+
+// ── Matching: filtra items dell'edge function contro i parametri del job ─
+function radScanMatchItem(item, job){
+  var t = (item.title||'').toLowerCase();
+  var name = (job.card_name||'').toLowerCase();
+  if(!name) return false;
+
+  // Tutte le parole del nome devono comparire (separatamente) nel titolo
+  var nameTokens = name.split(/\s+/).filter(function(s){return s.length>1;});
+  for(var i=0;i<nameTokens.length;i++){
+    if(t.indexOf(nameTokens[i]) < 0) return false;
+  }
+
+  // Numero (se presente): match flessibile (es "4/102" → cerca "4/102" o " 4 ")
+  if(job.card_number){
+    var num = job.card_number.toLowerCase();
+    var first = num.split('/')[0].trim();
+    var hasFull = (t.indexOf(num) >= 0);
+    var hasFirst = false;
+    if(first){
+      var re = new RegExp('(^|[^0-9])'+first.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'($|[^0-9])');
+      hasFirst = re.test(t);
+    }
+    if(!hasFull && !hasFirst) return false;
+  }
+
+  // Set (soft): se almeno una parola del set è presente, ok; altrimenti penalizziamo ma non blocchiamo
+  // (commentato: lasciamo il set come hint nella query, non come filtro hard)
+
+  // Graded vs raw
+  var graderHits = (t.match(/\b(psa|bgs|cgc|ace|sgc)\b/i) || []);
+  if(job.is_graded){
+    var gh = (job.grading_house||'').toLowerCase();
+    if(gh && t.indexOf(gh) < 0) return false;
+    // Voto: cerca pattern "psa 9", "psa 9.5", "psa 10" — accettiamo grade ≥ min_grade
+    if(job.min_grade){
+      var gradeRe = new RegExp(gh+'\\s*([0-9](?:[.,][0-9])?|10)','i');
+      var gm = t.match(gradeRe);
+      if(!gm) return false;
+      var found = parseFloat(gm[1].replace(',','.'));
+      if(!isFinite(found) || found < job.min_grade) return false;
+    }
+  } else {
+    // Raw: NON deve contenere pattern di gradazione
+    if(graderHits.length > 0){
+      // Più rigoroso: se "psa 10" presente ed è raw → escludi
+      if(/\b(psa|bgs|cgc|ace|sgc)\s*\d/i.test(t)) return false;
+    }
+  }
+
+  // Prezzo max
+  if(job.max_price && typeof item.price === 'number' && item.price > job.max_price){
+    return false;
+  }
+
+  return true;
+}
+
+// ── Scrape one site for a job via edge function ─────────────────────────
+async function radScanScrapeSite(job, site){
+  var url = radScanBuildUrl(site, job);
+  if(!url) throw new Error('URL builder mancante per '+site);
+  var sourceMap = { catawiki:'catawiki_search', ebay:'ebay_search', subito:'subito_search' };
+  var source = sourceMap[site];
+  if(!source) throw new Error('source mancante per '+site);
+
+  var sessionToken = window._rbSession && window._rbSession.access_token;
+  var bearer = sessionToken || SUPA_KEY;
+  var ctrl = new AbortController();
+  var timer = setTimeout(function(){ ctrl.abort(); }, 18000);
+  try{
+    var res = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+bearer},
+      body: JSON.stringify({ source: source, url: url, debug: true }),
+      signal: ctrl.signal
+    });
+    clearTimeout(timer);
+    if(!res.ok){
+      // Retry con SUPA_KEY in caso 401
+      if(res.status === 401 && bearer !== SUPA_KEY){
+        res = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPA_KEY},
+          body: JSON.stringify({ source: source, url: url, debug: true })
+        });
+      }
+      if(!res.ok) return { items:[], error:'HTTP '+res.status, search_url:url };
+    }
+    var data = await res.json();
+    return { items: data.items || [], error: data.error || null, search_url: url, debug: data.debug };
+  }catch(e){
+    clearTimeout(timer);
+    return { items:[], error: (e.name==='AbortError' ? 'timeout 18s' : (e.message||String(e))), search_url:url };
+  }
+}
+
+// ── Run job: scrape tutti i siti, matcha, merge nei risultati ───────────
+async function radScanRunNow(jobId){
+  var job = _radScanState.jobs.find(function(x){return x.id===jobId;});
+  if(!job) return;
+  if(job._running) return;     // evita doppia esecuzione
+  job._running = true;
+  job.last_log = ['['+(new Date()).toLocaleTimeString()+'] avvio scansione...'];
+  radScanRenderJobs();
+
+  var allMatches = [];
+  var totalFetched = 0;
+  for(var i=0;i<job.sites.length;i++){
+    var site = job.sites[i];
+    job.last_log.push('→ '+site+'...');
+    radScanRenderJobs();
+    try{
+      var r = await radScanScrapeSite(job, site);
+      if(r.error){
+        job.last_log.push('  ✗ '+site+': '+r.error);
+      } else {
+        totalFetched += r.items.length;
+        var matched = r.items.filter(function(it){ return radScanMatchItem(it, job); });
+        job.last_log.push('  ✓ '+site+': '+r.items.length+' totali, '+matched.length+' matchano');
+        matched.forEach(function(m){
+          allMatches.push(Object.assign({}, m, { _site: site, _search_url: r.search_url }));
+        });
+      }
+    }catch(e){
+      job.last_log.push('  ✗ '+site+': '+(e.message||e));
+    }
+  }
+
+  // Merge nei risultati esistenti, dedup per URL, marca come "new" se non era visto
+  var seen = job.seen_urls || [];
+  var seenSet = {};
+  seen.forEach(function(u){ seenSet[u] = true; });
+  var prev = _radScanState.results[job.id] || [];
+  var prevByUrl = {};
+  prev.forEach(function(p){ prevByUrl[p.url] = p; });
+
+  var nowIso = new Date().toISOString();
+  var newItems = 0;
+  allMatches.forEach(function(m){
+    var u = m.url;
+    if(!u) return;
+    var existing = prevByUrl[u];
+    var isNew = !seenSet[u];
+    if(isNew) newItems++;
+    var record = Object.assign({}, existing||{}, m, {
+      scanned_at: nowIso,
+      first_seen_at: existing && existing.first_seen_at ? existing.first_seen_at : nowIso,
+      is_new: isNew,
+    });
+    prevByUrl[u] = record;
+    seenSet[u] = true;
+  });
+
+  // Lista finale ordinata per scanned_at desc, troncata
+  var merged = Object.values(prevByUrl).sort(function(a,b){
+    if(a.is_new !== b.is_new) return a.is_new ? -1 : 1;  // new prima
+    return (b.scanned_at||'').localeCompare(a.scanned_at||'');
+  }).slice(0, RAD_SCAN_RESULTS_MAX);
+
+  _radScanState.results[job.id] = merged;
+  job.seen_urls = Object.keys(seenSet).slice(0, RAD_SCAN_HISTORY_MAX);
+  job.last_run_at = nowIso;
+  job.last_count = merged.length;
+  job.next_run_at = radScanComputeNextRun(job.schedule);
+  job.last_log.push('FATTO: '+newItems+' nuovi, '+merged.length+' totali (fetch '+totalFetched+')');
+  // Trim log
+  if(job.last_log.length > 30) job.last_log = job.last_log.slice(-30);
+  job._running = false;
+
+  radScanPersist();
+  radScanRenderJobs();
+  if(_radScanState.selectedJobId === job.id) radScanRenderResults();
+
+  // Notifica se nuovi e il browser ha permessi
+  if(newItems > 0 && typeof Notification !== 'undefined' && Notification.permission === 'granted'){
+    try{
+      new Notification('📅 Scansione: '+newItems+' nuovi su '+job.card_name, {
+        body: job.sites.join(', ')+' — clicca per aprire RareBlock'
+      });
+    }catch(_){}
+  }
+  return { newItems: newItems, total: merged.length };
+}
+window.radScanRunNow = radScanRunNow;
+
+// ── Scheduler: ogni RAD_SCAN_TICK_MS controlla job da eseguire ──────────
+async function radScanSchedulerTick(){
+  _radScanState.lastTick = Date.now();
+  var now = Date.now();
+  var due = _radScanState.jobs.filter(function(j){
+    return j.is_active && !j._running && j.next_run_at && j.next_run_at <= now;
+  });
+  // Esegui in serie per non saturare l'edge function
+  for(var i=0;i<due.length;i++){
+    try{ await radScanRunNow(due[i].id); }
+    catch(e){ console.warn('[radScan] errore job', due[i].id, e); }
+  }
+}
+
+function radScanStartScheduler(){
+  if(_radScanState.schedulerHandle) return;
+  _radScanState.schedulerHandle = setInterval(radScanSchedulerTick, RAD_SCAN_TICK_MS);
+  // Tick iniziale dopo 2s (lascia rendering completarsi)
+  setTimeout(radScanSchedulerTick, 2000);
+}
+window.radScanStartScheduler = radScanStartScheduler;
+
+// ── Render job list ─────────────────────────────────────────────────────
+function radScanFmtSched(s){
+  if(!s) return '—';
+  if(s.type==='manual') return 'manuale';
+  if(s.type==='once')   return 'una volta · '+new Date(s.at).toLocaleString();
+  if(s.type==='daily')  return 'ogni giorno · '+s.time;
+  if(s.type==='weekly'){
+    var d = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'][s.dow||1];
+    return 'ogni '+d+' · '+s.time;
+  }
+  if(s.type==='hourly') return 'ogni '+s.hours+'h';
+  return s.type;
+}
+
+function radScanFmtRel(iso){
+  if(!iso) return '—';
+  var diff = (typeof iso === 'number' ? iso : new Date(iso).getTime()) - Date.now();
+  var abs = Math.abs(diff);
+  var h = Math.floor(abs/3600000);
+  var m = Math.floor((abs%3600000)/60000);
+  var label;
+  if(abs < 60000) label = '<1m';
+  else if(h===0)   label = m+'m';
+  else if(h<24)    label = h+'h '+m+'m';
+  else             label = Math.floor(h/24)+'g '+(h%24)+'h';
+  return diff < 0 ? (label+' fa') : ('tra '+label);
+}
+
+function radScanRenderJobs(){
+  var listEl = document.getElementById('radScanJobsList');
+  var countEl = document.getElementById('radScanCount');
+  var subCountEl = document.getElementById('huntScansCount');
+  if(!listEl) return;
+
+  var jobs = _radScanState.jobs;
+  if(countEl) countEl.textContent = jobs.length ? jobs.length+' attivi' : '0';
+  if(subCountEl) subCountEl.textContent = jobs.length ? '('+jobs.length+')' : '';
+
+  if(jobs.length === 0){
+    listEl.innerHTML = '<div class="rad-empty" style="padding:20px 12px"><div class="rad-empty-icon" style="font-size:30px">📭</div><div class="rad-empty-sub">Nessun job ancora. Crea il primo qui sopra.</div></div>';
+    return;
+  }
+
+  var html = jobs.map(function(j){
+    var attrs = [];
+    if(j.card_number) attrs.push('<span class="rad-scan-job-attr">#'+escapeHtml(j.card_number)+'</span>');
+    if(j.set_name)    attrs.push('<span class="rad-scan-job-attr">'+escapeHtml(j.set_name)+'</span>');
+    if(j.is_graded){
+      attrs.push('<span class="rad-scan-job-attr hot">'+escapeHtml(j.grading_house||'')+' '+(j.min_grade||'')+'+</span>');
+    } else {
+      attrs.push('<span class="rad-scan-job-attr">RAW</span>');
+    }
+    j.sites.forEach(function(s){ attrs.push('<span class="rad-scan-job-attr">'+s+'</span>'); });
+    if(j.max_price) attrs.push('<span class="rad-scan-job-attr">≤€'+j.max_price+'</span>');
+
+    var nextRun = (j.is_active && j.next_run_at) ? radScanFmtRel(j.next_run_at) : '—';
+    var lastRun = j.last_run_at ? radScanFmtRel(j.last_run_at) : 'mai eseguito';
+    var lastCount = (typeof j.last_count === 'number') ? j.last_count : 0;
+
+    var logHtml = '';
+    if(j.last_log && j.last_log.length){
+      logHtml = '<div class="rad-scan-log show" id="radScanLog_'+j.id+'">'+
+        j.last_log.map(function(l){
+          var cls = /✗|errore|error|timeout/i.test(l) ? 'err' : (/✓|FATTO/i.test(l) ? 'ok' : '');
+          return '<div class="rad-scan-log-line '+cls+'">'+escapeHtml(l)+'</div>';
+        }).join('')+'</div>';
+    }
+
+    var selected = (_radScanState.selectedJobId === j.id) ? 'selected' : '';
+    var disabled = (!j.is_active) ? 'disabled' : '';
+    var running  = j._running ? '<span class="rad-scan-job-running">RUN</span>' : '';
+
+    return '<div class="rad-scan-job '+selected+' '+disabled+'" onclick="radScanSelectJob(\''+j.id+'\')">'+
+      running+
+      '<div class="rad-scan-job-head">'+
+        '<div class="rad-scan-job-title">'+escapeHtml(j.card_name)+'</div>'+
+        '<label class="rad-scan-job-toggle" onclick="event.stopPropagation()" style="font-size:10px;color:var(--text-muted);display:flex;align-items:center;gap:4px;cursor:pointer">'+
+          '<input type="checkbox" '+(j.is_active?'checked':'')+' onchange="radScanToggleJob(\''+j.id+'\')"/> '+(j.is_active?'attivo':'pausa')+
+        '</label>'+
+      '</div>'+
+      '<div class="rad-scan-job-attrs">'+attrs.join('')+'</div>'+
+      '<div class="rad-scan-job-meta">'+
+        '<span>📅 '+escapeHtml(radScanFmtSched(j.schedule))+'</span>'+
+        '<span>⏰ next: '+escapeHtml(nextRun)+'</span>'+
+      '</div>'+
+      '<div class="rad-scan-job-meta" style="margin-top:2px">'+
+        '<span>● '+lastCount+' risultati</span>'+
+        '<span>'+escapeHtml(lastRun)+'</span>'+
+      '</div>'+
+      '<div class="rad-scan-job-actions" onclick="event.stopPropagation()">'+
+        '<button class="btn" onclick="radScanRunNow(\''+j.id+'\')" '+(j._running?'disabled':'')+'>▶ Esegui ora</button>'+
+        '<button class="btn" onclick="radScanDeleteJob(\''+j.id+'\')">🗑 Elimina</button>'+
+      '</div>'+
+      logHtml+
+    '</div>';
+  }).join('');
+  listEl.innerHTML = html;
+}
+window.radScanRenderJobs = radScanRenderJobs;
+
+// ── Render results panel ────────────────────────────────────────────────
+function radScanRenderResults(){
+  var listEl = document.getElementById('radScanResultsList');
+  var titleEl = document.getElementById('radScanResultsTitle');
+  var metaEl = document.getElementById('radScanResultsMeta');
+  var runBtn = document.getElementById('radScanRunNowBtn');
+  var clearBtn = document.getElementById('radScanClearBtn');
+  if(!listEl) return;
+
+  var id = _radScanState.selectedJobId;
+  if(!id){
+    listEl.innerHTML = '<div class="rad-empty" style="padding:50px 20px"><div class="rad-empty-icon">📡</div><div class="rad-empty-title">Seleziona un job</div><div class="rad-empty-sub">Clicca un job a sinistra per vedere i risultati delle scansioni.</div></div>';
+    if(titleEl) titleEl.textContent = '📊 Risultati';
+    if(metaEl) metaEl.textContent = '';
+    if(runBtn) runBtn.style.display = 'none';
+    if(clearBtn) clearBtn.style.display = 'none';
+    return;
+  }
+  var job = _radScanState.jobs.find(function(x){return x.id===id;});
+  if(!job){ _radScanState.selectedJobId = null; return radScanRenderResults(); }
+
+  if(titleEl) titleEl.textContent = '📊 '+job.card_name+(job.is_graded?' · '+job.grading_house+' '+job.min_grade+'+':' · RAW');
+  if(metaEl){
+    var lr = job.last_run_at ? radScanFmtRel(job.last_run_at) : 'mai';
+    metaEl.textContent = (job.last_count||0)+' risultati · ultima scansione '+lr;
+  }
+  if(runBtn) runBtn.style.display = job._running ? 'none' : 'inline-block';
+  if(clearBtn) clearBtn.style.display = 'inline-block';
+
+  var results = (_radScanState.results[id] || []).slice();
+
+  if(results.length === 0){
+    listEl.innerHTML = '<div class="rad-empty" style="padding:40px 20px"><div class="rad-empty-icon">🔍</div><div class="rad-empty-title">Nessun risultato</div><div class="rad-empty-sub">Esegui il job per popolare i risultati. Se non escono match, allenta i parametri o controlla i log nel job.</div></div>';
+    return;
+  }
+
+  // Raggruppa per sito
+  var bySite = {};
+  results.forEach(function(r){
+    var s = r._site || r.source || 'other';
+    (bySite[s] = bySite[s] || []).push(r);
+  });
+
+  var sitesOrder = ['catawiki','ebay','subito','other'];
+  var html = '';
+  sitesOrder.forEach(function(s){
+    if(!bySite[s] || bySite[s].length === 0) return;
+    var items = bySite[s];
+    var newCount = items.filter(function(i){return i.is_new;}).length;
+    html += '<div class="rad-scan-group">'+
+      '<div class="rad-scan-group-head">'+
+        '<span>'+s.toUpperCase()+' · '+items.length+' risultati'+(newCount?' · '+newCount+' nuovi':'')+'</span>'+
+        (items[0]._search_url ? '<a href="'+escapeHtml(items[0]._search_url)+'" target="_blank" rel="noopener" style="font-size:10px;color:var(--accent);text-decoration:none">↗ Apri ricerca</a>' : '')+
+      '</div>';
+    items.forEach(function(it){
+      html += radScanResultRow(it);
+    });
+    html += '</div>';
+  });
+  listEl.innerHTML = html;
+}
+window.radScanRenderResults = radScanRenderResults;
+
+function radScanResultRow(it){
+  var pfClass = 'rad-pf-'+(it._site || it.source || 'other');
+  var pfLabel = (it._site || it.source || '?').toUpperCase();
+  var price = (typeof it.price === 'number') ? ('€ '+it.price.toFixed(2)) : '—';
+  var endHtml = '';
+  if(it.end_time){
+    var ms = new Date(it.end_time).getTime() - Date.now();
+    if(ms > 0){
+      endHtml = '<div class="rad-scan-result-end">⏰ chiude in '+radScanFmtRel(it.end_time).replace(/^tra /,'')+'</div>';
+    } else {
+      endHtml = '<div class="rad-scan-result-end" style="color:var(--text-subtle)">chiusa</div>';
+    }
+  }
+  var img = it.image_url
+    ? '<img class="rad-scan-result-img" src="'+escapeHtml(it.image_url)+'" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'rad-scan-result-img-ph\',innerHTML:\'🃏\'}))"/>'
+    : '<div class="rad-scan-result-img-ph">🃏</div>';
+  var newBadge = it.is_new ? '<span style="background:var(--success);color:#0d1117;font-size:8px;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">NEW</span>' : '';
+  var extra = [];
+  if(it.location) extra.push('📍 '+escapeHtml(it.location));
+  if(typeof it.bids === 'number') extra.push('🔨 '+it.bids+' bid');
+  if(it.shipping) extra.push('📦 '+escapeHtml(it.shipping));
+
+  return '<div class="rad-scan-result '+(it.is_new?'new':'')+'">'+
+    img+
+    '<div class="rad-scan-result-body">'+
+      '<div class="rad-scan-result-title"><a href="'+escapeHtml(it.url)+'" target="_blank" rel="noopener">'+escapeHtml(it.title)+'</a>'+newBadge+'</div>'+
+      '<div class="rad-scan-result-meta">'+
+        '<span class="pf '+pfClass+'">'+pfLabel+'</span>'+
+        (it.is_auction ? '<span class="pf rad-pf-auction">ASTA</span>' : '')+
+      '</div>'+
+      (extra.length ? '<div class="rad-scan-result-extra">'+extra.join(' · ')+'</div>' : '')+
+      endHtml+
+    '</div>'+
+    '<div>'+
+      '<div class="rad-scan-result-price">'+price+'<small>'+(it.currency||'EUR')+'</small></div>'+
+      '<div class="rad-scan-result-actions" style="margin-top:6px">'+
+        '<a href="'+escapeHtml(it.url)+'" target="_blank" rel="noopener">↗ Apri</a>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+}
+
+// ── Init ────────────────────────────────────────────────────────────────
+function radScanInit(){
+  radScanLoad();
+  radScanToggleSchedFields();
+  radScanToggleGradedFields();
+  radScanRenderJobs();
+  radScanStartScheduler();
+  // Ri-render periodico per aggiornare i countdown e i "tra Xm"
+  setInterval(function(){
+    if(_radScanState.jobs.length){
+      // refresh solo se Radar tab aperto + Scansioni sub-tab attivo
+      var subActive = document.getElementById('huntSub-scans');
+      if(subActive && subActive.style.display !== 'none'){
+        radScanRenderJobs();
+        if(_radScanState.selectedJobId) radScanRenderResults();
+      }
+    }
+  }, 30000);
+}
+// Auto-init dopo che il DOM è pronto e le costanti SUPA_* sono disponibili
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', radScanInit);
+} else {
+  setTimeout(radScanInit, 100);
+}
+window.radScanInit = radScanInit;
 
 
 // ── escapeHtml helper (fallback se non esiste già) ──────────────────────

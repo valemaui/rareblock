@@ -89,17 +89,22 @@ async function fetchWithRetry(url: string, maxRetries = 2, referer?: string): Pr
 }
 
 // ─── ROUTER ──────────────────────────────────────────────────────────
-function detectSource(url: string, hint?: string): 'cardmarket'|'pricecharting'|'ebay_sold'|'diag'|'unknown' {
+function detectSource(url: string, hint?: string): 'cardmarket'|'pricecharting'|'ebay_sold'|'catawiki_search'|'ebay_search'|'subito_search'|'diag'|'unknown' {
   if (hint) {
     const h = String(hint).toLowerCase();
     if (h === 'diag' || h === 'diagnostic') return 'diag';
     if (h.includes('price') || h === 'pc') return 'pricecharting';
+    if (h === 'catawiki_search' || h === 'catawiki') return 'catawiki_search';
+    if (h === 'ebay_search') return 'ebay_search';
+    if (h === 'subito_search' || h === 'subito') return 'subito_search';
     if (h.includes('ebay')) return 'ebay_sold';
     if (h === 'cardmarket' || h === 'cm') return 'cardmarket';
   }
   if (!url) return 'unknown';
   if (url.includes('cardmarket.com')) return 'cardmarket';
   if (url.includes('pricecharting.com')) return 'pricecharting';
+  if (url.includes('catawiki.com')) return 'catawiki_search';
+  if (url.includes('subito.it')) return 'subito_search';
   if (/ebay\.(com|it|de|co\.uk|fr|es)/.test(url)) return 'ebay_sold';
   return 'unknown';
 }
@@ -118,9 +123,12 @@ Deno.serve(async (req) => {
     if (source === 'unknown' || !urls.length) {
       return json({ error: 'url/source non valido', listings: [], prices: [] });
     }
-    if (source === 'cardmarket')    return await handleCardmarket(firstUrl, body?.debug === true);
-    if (source === 'pricecharting') return await handlePriceChartingCascade(urls, body?.card_name, body?.debug === true);
-    if (source === 'ebay_sold')     return await handleEbaySoldCascade(urls, Number(body?.min_hits ?? 3));
+    if (source === 'cardmarket')      return await handleCardmarket(firstUrl, body?.debug === true);
+    if (source === 'pricecharting')   return await handlePriceChartingCascade(urls, body?.card_name, body?.debug === true);
+    if (source === 'ebay_sold')       return await handleEbaySoldCascade(urls, Number(body?.min_hits ?? 3));
+    if (source === 'catawiki_search') return await handleCatawikiSearch(firstUrl, body?.debug === true);
+    if (source === 'ebay_search')     return await handleEbaySearch(firstUrl, body?.debug === true);
+    if (source === 'subito_search')   return await handleSubitoSearch(firstUrl, body?.debug === true);
     return json({ error: 'source non gestita', listings: [], prices: [] });
   } catch (e: any) {
     return json({ error: String(e?.message ?? e), listings: [], prices: [] });
@@ -1255,4 +1263,415 @@ async function handleDiag(inputCards: DiagCardInput[] | null): Promise<Response>
   }
 
   return json({ source: 'diag', generated_at: new Date().toISOString(), cards: report });
+}
+
+// ═════════════════════════════════════════════════════════════════════
+//  AUCTION/MARKETPLACE SEARCH SCRAPERS (v6: catawiki/ebay/subito search)
+//  Restituiscono items[] con: title, price, currency, image_url, url,
+//  end_time?, location?, seller?, is_auction, source
+// ═════════════════════════════════════════════════════════════════════
+
+interface SearchItem {
+  title: string;
+  price: number | null;
+  currency: string;
+  image_url: string | null;
+  url: string;
+  end_time: string | null;     // ISO se asta, null se buy-now/raw
+  location: string | null;
+  seller: string | null;
+  is_auction: boolean;
+  source: string;
+  lot_id?: string | null;
+  bids?: number | null;
+  shipping?: string | null;
+}
+
+function unentity(s: string): string {
+  return s.replace(/&amp;/g,'&')
+          .replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+          .replace(/&quot;/g,'"').replace(/&#39;/g,"'")
+          .replace(/&nbsp;/g,' ')
+          .replace(/&#x27;/g,"'").replace(/&#x2F;/g,'/')
+          .replace(/&#(\d+);/g, (_,n)=>String.fromCharCode(+n));
+}
+
+function stripTags(html: string): string {
+  return html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+}
+
+function priceFromText(s: string): { price: number|null; currency: string } {
+  if (!s) return { price: null, currency: 'EUR' };
+  const m = s.match(/(?:€|EUR|\$|USD|£|GBP)\s*([\d.,]+)|([\d.,]+)\s*(?:€|EUR|\$|USD|£|GBP)/i);
+  let currency = 'EUR';
+  if (/\$|USD/i.test(s)) currency = 'USD';
+  else if (/£|GBP/i.test(s)) currency = 'GBP';
+  if (!m) {
+    const m2 = s.match(/([\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)/);
+    if (!m2) return { price: null, currency };
+    return { price: normalizeNum(m2[1]), currency };
+  }
+  const raw = m[1] || m[2] || '';
+  return { price: normalizeNum(raw), currency };
+}
+
+function normalizeNum(raw: string): number|null {
+  if (!raw) return null;
+  // Heuristic: se ha sia . che , il separatore decimale è quello più a destra
+  const lastDot = raw.lastIndexOf('.');
+  const lastComma = raw.lastIndexOf(',');
+  let s = raw;
+  if (lastDot > -1 && lastComma > -1) {
+    if (lastComma > lastDot) s = raw.replace(/\./g,'').replace(',','.');
+    else s = raw.replace(/,/g,'');
+  } else if (lastComma > -1) {
+    // solo virgola: se 2 cifre dopo la virgola → decimale
+    if (raw.length - lastComma - 1 === 2) s = raw.replace(',','.');
+    else s = raw.replace(/,/g,'');
+  } else {
+    // solo punto o niente
+    if (lastDot > -1 && raw.length - lastDot - 1 === 3) s = raw.replace(/\./g,''); // migliaia
+  }
+  const n = parseFloat(s);
+  return isFinite(n) ? n : null;
+}
+
+// ── CATAWIKI ──────────────────────────────────────────────────────────
+//
+// Catawiki rende i risultati di ricerca in vari modi:
+// 1. JSON-LD `<script type="application/ld+json">` con @type ItemList
+// 2. `__NEXT_DATA__` con searchResults.lots[]
+// 3. Fallback HTML: pattern <a href="/it/l/<id>-...">
+async function handleCatawikiSearch(url: string, debug = false): Promise<Response> {
+  const { html, ok, status } = await fetchWithRetry(url);
+  if (!ok || !html) {
+    return json({ error: `Catawiki HTTP ${status}`, items: [], status, source: 'catawiki_search' });
+  }
+  if (/Just a moment|cf-browser-verification/i.test(html)) {
+    return json({ error: 'Cloudflare challenge', items: [], status: 403, source: 'catawiki_search' });
+  }
+
+  const items: SearchItem[] = [];
+  const seen = new Set<string>();
+
+  // Strategy 1: __NEXT_DATA__
+  try {
+    const nd = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+    if (nd) {
+      const data = JSON.parse(nd[1]);
+      // Naviga ricorsivamente cercando array di "lots"
+      const lots = findCatawikiLots(data);
+      for (const lot of lots) {
+        const u = lot.url || (lot.id ? `https://www.catawiki.com/it/l/${lot.id}` : null);
+        if (!u || seen.has(u)) continue;
+        seen.add(u);
+        items.push({
+          title: String(lot.title || lot.name || '').slice(0, 300),
+          price: typeof lot.price === 'number' ? lot.price : (lot.current_bid?.amount ?? lot.minimum_bid?.amount ?? null),
+          currency: lot.currency || lot.current_bid?.currency || 'EUR',
+          image_url: lot.image || lot.image_url || (lot.images && lot.images[0]?.url) || null,
+          url: u.startsWith('http') ? u : 'https://www.catawiki.com' + u,
+          end_time: lot.end_time || lot.bidding_end_time || lot.closing_at || null,
+          location: lot.location || null,
+          seller: lot.seller_name || lot.seller || null,
+          is_auction: true,
+          source: 'catawiki',
+          lot_id: lot.id ? String(lot.id) : null,
+          bids: typeof lot.bid_count === 'number' ? lot.bid_count : null,
+          shipping: lot.shipping_costs?.formatted || null,
+        });
+      }
+    }
+  } catch (_) { /* fall through */ }
+
+  // Strategy 2: HTML fallback per anchor pattern
+  if (items.length === 0) {
+    const anchorRe = /<a[^>]+href="(\/it\/l\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+    let m: RegExpExecArray | null;
+    let count = 0;
+    while ((m = anchorRe.exec(html)) !== null && count < 80) {
+      const path = m[1].split('?')[0];
+      const fullUrl = 'https://www.catawiki.com' + path;
+      if (seen.has(fullUrl)) continue;
+      seen.add(fullUrl);
+      const inner = m[2];
+      const titleMatch = inner.match(/(?:title|alt)="([^"]+)"/) || inner.match(/<h[1-6][^>]*>([\s\S]*?)<\/h/);
+      const imgMatch = inner.match(/<img[^>]+src="([^"]+)"/);
+      const priceMatch = inner.match(/(?:€|EUR)\s*[\d.,]+|[\d.,]+\s*(?:€|EUR)/i);
+      const title = titleMatch ? unentity(stripTags(titleMatch[1])) : '';
+      if (!title) continue;
+      const { price, currency } = priceMatch ? priceFromText(priceMatch[0]) : { price: null, currency: 'EUR' };
+      items.push({
+        title: title.slice(0, 300),
+        price,
+        currency,
+        image_url: imgMatch ? imgMatch[1] : null,
+        url: fullUrl,
+        end_time: null,
+        location: null,
+        seller: null,
+        is_auction: true,
+        source: 'catawiki',
+        lot_id: null,
+      });
+      count++;
+    }
+  }
+
+  const resp: Record<string, unknown> = {
+    source: 'catawiki_search',
+    url,
+    items,
+    count: items.length,
+  };
+  if (debug && items.length === 0) {
+    resp.debug = {
+      html_len: html.length,
+      has_next_data: /__NEXT_DATA__/.test(html),
+      has_consent: /consent|cookie/i.test(html.slice(0, 4000)),
+      preview: html.slice(0, 2000),
+    };
+  }
+  return json(resp);
+}
+
+function findCatawikiLots(node: any, depth = 0): any[] {
+  if (!node || depth > 10) return [];
+  // Se è array di oggetti con id+title o url contenente /l/
+  if (Array.isArray(node)) {
+    if (node.length && node[0] && typeof node[0] === 'object') {
+      const first = node[0];
+      if (first.id && (first.title || first.name) && (first.url || first.image || first.current_bid || first.price)) {
+        return node;
+      }
+    }
+    let out: any[] = [];
+    for (const v of node) out = out.concat(findCatawikiLots(v, depth + 1));
+    return out;
+  }
+  if (typeof node === 'object') {
+    // Chiavi note dirette
+    for (const key of ['lots','results','searchResults','items','products']) {
+      if (Array.isArray(node[key]) && node[key].length && node[key][0] && (node[key][0].id || node[key][0].title)) {
+        const candidate = findCatawikiLots(node[key], depth + 1);
+        if (candidate.length) return candidate;
+      }
+    }
+    let out: any[] = [];
+    for (const v of Object.values(node)) {
+      const r = findCatawikiLots(v, depth + 1);
+      if (r.length) out = out.concat(r);
+    }
+    return out;
+  }
+  return [];
+}
+
+// ── EBAY SEARCH (active listings, NOT sold) ───────────────────────────
+async function handleEbaySearch(url: string, debug = false): Promise<Response> {
+  const { html, ok, status } = await fetchWithRetry(url);
+  if (!ok || !html) {
+    return json({ error: `eBay HTTP ${status}`, items: [], status, source: 'ebay_search' });
+  }
+  const items: SearchItem[] = [];
+  const seen = new Set<string>();
+
+  // eBay pattern: <li class="s-item ..."> ... </li>
+  const liRe = /<li[^>]+class="[^"]*s-item[^"]*"[^>]*>([\s\S]*?)<\/li>/g;
+  let m: RegExpExecArray | null;
+  let count = 0;
+  while ((m = liRe.exec(html)) !== null && count < 80) {
+    const block = m[1];
+    if (/s-item__title--tagblock|s-item--placeholder/.test(block)) continue;
+
+    const linkM = block.match(/<a[^>]+class="s-item__link"[^>]*href="([^"]+)"/) || block.match(/<a[^>]+href="(https?:\/\/www\.ebay\.[^"]+\/itm\/[^"]+)"/);
+    if (!linkM) continue;
+    const itemUrl = linkM[1].split('?')[0];
+    if (seen.has(itemUrl)) continue;
+    seen.add(itemUrl);
+
+    const titleM = block.match(/<(?:span|div|h3)[^>]*class="[^"]*s-item__title[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|h3)>/);
+    const title = titleM ? unentity(stripTags(titleM[1])) : '';
+    if (!title || /^Shop on eBay$/i.test(title)) continue;
+
+    const priceM = block.match(/<span[^>]*class="[^"]*s-item__price[^"]*"[^>]*>([\s\S]*?)<\/span>/);
+    const priceTxt = priceM ? unentity(stripTags(priceM[1])) : '';
+    const { price, currency } = priceFromText(priceTxt);
+
+    const imgM = block.match(/<img[^>]+(?:src|data-src)="([^"]+)"/);
+    const image_url = imgM ? imgM[1] : null;
+
+    const isAuction = /\bbid\b|\bAsta\b|s-item__bids|s-item__time-left/i.test(block);
+    const endM = block.match(/<span[^>]*class="[^"]*s-item__time-left[^"]*"[^>]*>([\s\S]*?)<\/span>/);
+    const endText = endM ? unentity(stripTags(endM[1])) : '';
+    const end_time = endText ? parseEbayEndText(endText) : null;
+
+    const locM = block.match(/<span[^>]*class="[^"]*s-item__location[^"]*"[^>]*>([\s\S]*?)<\/span>/);
+    const location = locM ? unentity(stripTags(locM[1])) : null;
+
+    const bidM = block.match(/<span[^>]*class="[^"]*s-item__bids[^"]*"[^>]*>([\s\S]*?)<\/span>/);
+    const bidTxt = bidM ? unentity(stripTags(bidM[1])) : '';
+    const bidsN = bidTxt.match(/(\d+)/);
+    const bids = bidsN ? parseInt(bidsN[1]) : null;
+
+    const shipM = block.match(/<span[^>]*class="[^"]*s-item__shipping[^"]*"[^>]*>([\s\S]*?)<\/span>/);
+    const shipping = shipM ? unentity(stripTags(shipM[1])) : null;
+
+    items.push({
+      title: title.slice(0, 300),
+      price,
+      currency,
+      image_url,
+      url: itemUrl,
+      end_time,
+      location,
+      seller: null,
+      is_auction: isAuction,
+      source: 'ebay',
+      bids,
+      shipping,
+    });
+    count++;
+  }
+
+  const resp: Record<string, unknown> = { source: 'ebay_search', url, items, count: items.length };
+  if (debug && items.length === 0) {
+    resp.debug = {
+      html_len: html.length,
+      has_results: /s-item/.test(html),
+      preview: html.slice(0, 2000),
+    };
+  }
+  return json(resp);
+}
+
+function parseEbayEndText(t: string): string|null {
+  // "1g 2h", "5h 12m", "3m 20s" → ISO timestamp
+  const now = Date.now();
+  let ms = 0;
+  const dM = t.match(/(\d+)\s*g/i); // giorni in italiano
+  const dM2 = t.match(/(\d+)\s*d/i); // days in english
+  const hM = t.match(/(\d+)\s*h/i);
+  const mM = t.match(/(\d+)\s*m\b/i);
+  if (dM) ms += parseInt(dM[1]) * 86400000;
+  else if (dM2) ms += parseInt(dM2[1]) * 86400000;
+  if (hM) ms += parseInt(hM[1]) * 3600000;
+  if (mM) ms += parseInt(mM[1]) * 60000;
+  if (ms === 0) return null;
+  return new Date(now + ms).toISOString();
+}
+
+// ── SUBITO ────────────────────────────────────────────────────────────
+async function handleSubitoSearch(url: string, debug = false): Promise<Response> {
+  const { html, ok, status } = await fetchWithRetry(url);
+  if (!ok || !html) {
+    return json({ error: `Subito HTTP ${status}`, items: [], status, source: 'subito_search' });
+  }
+  const items: SearchItem[] = [];
+  const seen = new Set<string>();
+
+  // Subito usa Next.js: prova __NEXT_DATA__
+  try {
+    const nd = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+    if (nd) {
+      const data = JSON.parse(nd[1]);
+      const ads = findSubitoAds(data);
+      for (const ad of ads) {
+        const u = ad.urls?.default || ad.url || (ad.id ? `https://www.subito.it/annunci/${ad.id}` : null);
+        if (!u || seen.has(u)) continue;
+        seen.add(u);
+        let priceN: number|null = null;
+        if (ad.features?.['/price']?.values?.[0]?.value) {
+          priceN = parseFloat(String(ad.features['/price'].values[0].value).replace(/[^\d.,]/g,'').replace(',','.'));
+          if (!isFinite(priceN)) priceN = null;
+        } else if (typeof ad.price === 'number') {
+          priceN = ad.price;
+        }
+        const img = ad.images?.[0]?.scale?.[ad.images[0].scale.length-1]?.secureuri
+                  || ad.images?.[0]?.uri
+                  || ad.image?.url
+                  || null;
+        items.push({
+          title: String(ad.subject || ad.title || '').slice(0, 300),
+          price: priceN,
+          currency: 'EUR',
+          image_url: img,
+          url: u.startsWith('http') ? u : 'https://www.subito.it' + u,
+          end_time: null,
+          location: ad.geo?.city?.value || ad.geo?.town?.value || null,
+          seller: ad.advertiser?.user_id || null,
+          is_auction: false,
+          source: 'subito',
+        });
+      }
+    }
+  } catch (_) { /* fall through */ }
+
+  // Fallback HTML
+  if (items.length === 0) {
+    const cardRe = /<a[^>]+href="(https:\/\/www\.subito\.it\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+    let m: RegExpExecArray | null;
+    let count = 0;
+    while ((m = cardRe.exec(html)) !== null && count < 50) {
+      const u = m[1].split('?')[0];
+      if (!/\/v\/|\/annunci\//.test(u) || seen.has(u)) continue;
+      seen.add(u);
+      const inner = m[2];
+      const titleM = inner.match(/<h[2-6][^>]*>([\s\S]*?)<\/h/);
+      if (!titleM) continue;
+      const title = unentity(stripTags(titleM[1]));
+      const imgM = inner.match(/<img[^>]+src="([^"]+)"/);
+      const priceM = inner.match(/€\s*[\d.,]+/);
+      const { price } = priceM ? priceFromText(priceM[0]) : { price: null };
+      items.push({
+        title: title.slice(0, 300),
+        price,
+        currency: 'EUR',
+        image_url: imgM ? imgM[1] : null,
+        url: u,
+        end_time: null,
+        location: null,
+        seller: null,
+        is_auction: false,
+        source: 'subito',
+      });
+      count++;
+    }
+  }
+
+  const resp: Record<string, unknown> = { source: 'subito_search', url, items, count: items.length };
+  if (debug && items.length === 0) {
+    resp.debug = {
+      html_len: html.length,
+      has_next_data: /__NEXT_DATA__/.test(html),
+      preview: html.slice(0, 2000),
+    };
+  }
+  return json(resp);
+}
+
+function findSubitoAds(node: any, depth = 0): any[] {
+  if (!node || depth > 12) return [];
+  if (Array.isArray(node)) {
+    if (node.length && node[0] && typeof node[0] === 'object' && (node[0].subject || node[0].title) && (node[0].urls || node[0].url)) {
+      return node;
+    }
+    let out: any[] = [];
+    for (const v of node) out = out.concat(findSubitoAds(v, depth + 1));
+    return out;
+  }
+  if (typeof node === 'object') {
+    for (const key of ['ads','list','items','results']) {
+      if (Array.isArray(node[key]) && node[key].length && (node[key][0]?.subject || node[key][0]?.title)) {
+        return node[key];
+      }
+    }
+    let out: any[] = [];
+    for (const v of Object.values(node)) {
+      const r = findSubitoAds(v, depth + 1);
+      if (r.length) out = out.concat(r);
+    }
+    return out;
+  }
+  return [];
 }
