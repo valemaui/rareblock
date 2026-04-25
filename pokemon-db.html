@@ -9242,23 +9242,72 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
 
       <!-- ════ SCANSIONI SCHEDULATE (auction-site scraper) ════ -->
       <div id="huntSub-scans" class="rad-sub" style="display:none">
-        <div class="rad-scan-layout">
+        <!-- Header: stato + azioni globali -->
+        <div class="rad-scan-header">
+          <details id="radScanInfoBanner" class="rad-scan-info">
+            <summary>
+              <span>ℹ Stato scraping</span>
+              <span id="radScanProviderStatus" class="rad-scan-prov-status">…</span>
+            </summary>
+            <div class="rad-scan-info-body">
+              <div id="radScanProviderDetails" style="margin-bottom:10px"></div>
+              <b>Architettura</b>: cascata estensione → API proxy → edge function → userscript. Si ferma al primo provider che ritorna risultati.<br>
+              <b>Estensione Chrome RareBlock Hunter</b> (consigliata): apre tab nascoste sui siti target, scappe via DOM con IP residenziale + cookie utente → bypassa Cloudflare.
+              Scarica da <code>extension/</code> nel repo, installala da <code>chrome://extensions</code> → "Load unpacked".<br>
+              <b>Schedulazione</b>: i job girano solo quando questa pagina è aperta.
+            </div>
+          </details>
+          <div class="rad-scan-header-actions">
+            <button class="btn btn-primary" onclick="radScanOpenModal()" style="font-size:12px">+ Nuovo Job</button>
+          </div>
+        </div>
 
-          <!-- Colonna sinistra: form nuovo job + lista jobs -->
-          <div class="rad-scan-left">
+        <!-- Vista 1: lista jobs (default, mostrata se nessun job selezionato) -->
+        <div id="radScanViewList" class="rad-scan-view">
+          <div class="rad-scan-view-head">
+            <h3>📋 Job di scansione <span id="radScanCount" class="rad-scan-pill"></span></h3>
+          </div>
+          <div id="radScanJobsList">
+            <div class="rad-empty" style="padding:50px 20px">
+              <div class="rad-empty-icon">📭</div>
+              <div class="rad-empty-title">Nessun job ancora</div>
+              <div class="rad-empty-sub">Click su "+ Nuovo Job" qui sopra per crearne uno.</div>
+            </div>
+          </div>
+        </div>
 
-            <div class="rad-scan-block">
-              <div class="rad-scan-block-head">
-                <h3>🎯 Nuovo job di scansione</h3>
-                <span id="radScanFormStatus" class="rad-scan-stat-pill"></span>
-              </div>
+        <!-- Vista 2: risultati di un job specifico (mostrata quando si clicca un job) -->
+        <div id="radScanViewResults" class="rad-scan-view" style="display:none">
+          <div class="rad-scan-view-head">
+            <button class="btn rad-scan-back" onclick="radScanShowList()">← Torna ai job</button>
+            <h3 id="radScanResultsTitle" style="margin:0;flex:1">📊 Risultati</h3>
+            <span id="radScanResultsMeta" class="rad-scan-meta"></span>
+            <button class="btn" id="radScanRunNowBtn" onclick="radScanRunSelected()" style="font-size:11px">▶ Esegui ora</button>
+            <button class="btn" id="radScanClearBtn" onclick="radScanClearResults()" style="font-size:11px">🗑 Pulisci tutti</button>
+          </div>
+          <div id="radScanResultsList">
+            <div class="rad-empty" style="padding:50px 20px">
+              <div class="rad-empty-icon">🔍</div>
+              <div class="rad-empty-sub">Nessun risultato — esegui il job per popolare.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modale: form nuovo/modifica job (nascosto di default) -->
+        <div id="radScanModal" class="rad-modal-bg" style="display:none" onclick="if(event.target===this)radScanCloseModal()">
+          <div class="rad-modal-box">
+            <div class="rad-modal-head">
+              <h3 id="radScanModalTitle">🎯 Nuovo job di scansione</h3>
+              <button class="rad-modal-close" onclick="radScanCloseModal()" aria-label="Chiudi">✕</button>
+            </div>
+            <div class="rad-modal-body">
 
               <div class="rad-form-field">
                 <label>Nome carta *</label>
                 <input type="text" id="radScanCardName" placeholder="es. Charizard"/>
               </div>
 
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              <div class="rad-modal-row2">
                 <div class="rad-form-field">
                   <label>Numero</label>
                   <input type="text" id="radScanCardNum" placeholder="4/102"/>
@@ -9289,16 +9338,12 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
 
               <div id="radScanGradedFields" class="rad-scan-subform" style="display:none">
                 <div class="rad-scan-subform-hint">💡 Lascia vuoto per qualsiasi casa/voto — utile per scoprire <i>tutte</i> le PSA o tutte le 10</div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+                <div class="rad-modal-row2">
                   <div class="rad-form-field">
                     <label>Casa <span class="opt">(opzionale)</span></label>
                     <select id="radScanGrader">
                       <option value="">Qualsiasi</option>
-                      <option>PSA</option>
-                      <option>BGS</option>
-                      <option>CGC</option>
-                      <option>ACE</option>
-                      <option>SGC</option>
+                      <option>PSA</option><option>BGS</option><option>CGC</option><option>ACE</option><option>SGC</option>
                     </select>
                   </div>
                   <div class="rad-form-field">
@@ -9326,6 +9371,22 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
                 </div>
               </div>
 
+              <div class="rad-modal-row2">
+                <div class="rad-form-field">
+                  <label>Risultati max <span class="opt">(per sito)</span></label>
+                  <input type="number" id="radScanMaxResults" value="50" min="1" max="200" step="1"/>
+                </div>
+                <div class="rad-form-field">
+                  <label>Prezzo max € <span class="opt">(opz.)</span></label>
+                  <input type="number" id="radScanMaxPrice" step="0.01" placeholder="—"/>
+                </div>
+              </div>
+
+              <div class="rad-form-field">
+                <label>Escludi parole <span class="opt">(separate da virgola — esclude i risultati che le contengono)</span></label>
+                <input type="text" id="radScanExclude" placeholder="es. gameboy, vmax box, custom"/>
+              </div>
+
               <div class="rad-form-field">
                 <label>Schedulazione</label>
                 <select id="radScanSchedType" onchange="radScanToggleSchedFields()">
@@ -9337,72 +9398,18 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
                 </select>
               </div>
 
-              <div id="radScanSchedFields">
-                <!-- popolato dinamicamente in base alla schedulazione -->
+              <div id="radScanSchedFields"></div>
+
+              <div id="radScanFormStatusWrap" style="margin-top:6px;min-height:14px">
+                <span id="radScanFormStatus" style="font-size:11px;font-weight:500"></span>
               </div>
 
-              <div class="rad-form-field">
-                <label>Prezzo massimo (€) <span style="opacity:.6">— filtra risultati oltre soglia</span></label>
-                <input type="number" id="radScanMaxPrice" step="0.01" placeholder="opzionale"/>
-              </div>
-
-              <div style="display:flex;gap:6px;margin-top:8px">
-                <button class="btn btn-primary" onclick="radScanSubmit()" style="flex:1;font-size:12px">+ Crea job</button>
-                <button class="btn" onclick="radScanResetForm()" style="font-size:12px">Reset</button>
-              </div>
             </div>
-
-            <div class="rad-scan-block">
-              <div class="rad-scan-block-head">
-                <h3>📋 Job attivi</h3>
-                <span id="radScanCount" class="rad-scan-stat-pill"></span>
-              </div>
-              <div id="radScanJobsList">
-                <div class="rad-empty" style="padding:20px 12px">
-                  <div class="rad-empty-icon" style="font-size:30px">📭</div>
-                  <div class="rad-empty-sub">Nessun job ancora. Crea il primo qui sopra.</div>
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-          <!-- Colonna destra: risultati -->
-          <div class="rad-scan-right">
-            <!-- Info banner: spiega protezione Catawiki + userscript -->
-            <details id="radScanInfoBanner" style="margin-bottom:10px;background:rgba(56,139,253,.06);border:1px solid rgba(56,139,253,.25);border-radius:var(--r);padding:8px 12px;font-size:11px;color:var(--text-muted);line-height:1.5">
-              <summary style="cursor:pointer;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:8px">
-                <span>ℹ Stato scraping</span>
-                <span id="radScanProviderStatus" style="margin-left:auto;font-size:10px;font-weight:500;color:var(--text-muted);font-family:var(--mono)">…</span>
-              </summary>
-              <div style="margin-top:8px">
-                <div id="radScanProviderDetails" style="margin-bottom:10px"></div>
-                <b>Architettura</b>: il sistema prova in cascata estensione → API proxy → edge function → userscript.
-                Si ferma al primo provider che ritorna risultati.<br>
-                <b>Estensione Chrome RareBlock Hunter</b> (consigliata): apre tab nascoste sui siti target, scappe via DOM con
-                IP residenziale e cookie utente → bypassa Cloudflare. Scarica da <code>extension/</code> nel repo,
-                installala da <code>chrome://extensions</code> → "Load unpacked".<br>
-                <b>Schedulazione</b>: i job girano solo quando questa pagina è aperta. Per esecuzioni 24/7 anche
-                a browser chiuso servirebbe un cron lato Supabase (TODO fase 2).
-              </div>
-            </details>
-            <div class="rad-scan-results-head">
-              <h3 id="radScanResultsTitle">📊 Risultati</h3>
-              <div class="rad-scan-results-actions">
-                <span id="radScanResultsMeta" class="rad-scan-meta"></span>
-                <button class="btn" id="radScanRunNowBtn" onclick="radScanRunSelected()" style="font-size:11px;display:none">▶ Esegui ora</button>
-                <button class="btn" id="radScanClearBtn" onclick="radScanClearResults()" style="font-size:11px;display:none">🗑 Pulisci</button>
-              </div>
-            </div>
-            <div id="radScanResultsList">
-              <div class="rad-empty" style="padding:50px 20px">
-                <div class="rad-empty-icon">📡</div>
-                <div class="rad-empty-title">Seleziona un job</div>
-                <div class="rad-empty-sub">Clicca un job a sinistra per vedere i risultati delle scansioni.</div>
-              </div>
+            <div class="rad-modal-foot">
+              <button class="btn" onclick="radScanCloseModal()">Annulla</button>
+              <button class="btn btn-primary" onclick="radScanSubmit()" style="flex:1">💾 Salva job</button>
             </div>
           </div>
-
         </div>
       </div>
       <!-- ════ FINE SCANSIONI ════ -->
@@ -9547,15 +9554,98 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
 /* Modal generico radar */
 .rad-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px}
 
-/* ═══ SCANSIONI SCHEDULATE ═══ */
-.rad-scan-layout{display:grid;grid-template-columns:380px 1fr;gap:16px;align-items:start}
-@media (max-width:1100px){.rad-scan-layout{grid-template-columns:1fr}}
-.rad-scan-left{display:flex;flex-direction:column;gap:14px;min-width:0}
-.rad-scan-right{min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;min-height:400px}
-.rad-scan-block{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px}
-.rad-scan-block-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.rad-scan-block-head h3{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin:0}
-.rad-scan-stat-pill{font-size:10px;font-family:var(--mono);background:var(--surface2);border:1px solid var(--border);padding:2px 8px;border-radius:10px;color:var(--text-muted)}
+/* ═══ SCANSIONI v2 — Header + Views + Modal + Table ═══ */
+.rad-scan-header{display:flex;gap:10px;align-items:flex-start;margin-bottom:14px}
+.rad-scan-header .rad-scan-info{flex:1;background:rgba(56,139,253,.06);border:1px solid rgba(56,139,253,.25);border-radius:var(--r);padding:8px 12px;font-size:11px;color:var(--text-muted);line-height:1.5}
+.rad-scan-header .rad-scan-info summary{cursor:pointer;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:8px;list-style:none}
+.rad-scan-header .rad-scan-info summary::-webkit-details-marker{display:none}
+.rad-scan-header .rad-scan-info summary::before{content:'▸';display:inline-block;transition:transform .15s;font-size:9px}
+.rad-scan-header .rad-scan-info[open] summary::before{transform:rotate(90deg)}
+.rad-scan-prov-status{margin-left:auto;font-size:10px;font-weight:500;color:var(--text-muted);font-family:var(--mono)}
+.rad-scan-info-body{margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+.rad-scan-header-actions{display:flex;gap:6px;flex-shrink:0}
+
+.rad-scan-view{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;min-height:300px}
+.rad-scan-view-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px;flex-wrap:wrap}
+.rad-scan-view-head h3{margin:0;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+.rad-scan-pill{font-size:10px;font-family:var(--mono);background:var(--surface2);border:1px solid var(--border);padding:2px 8px;border-radius:10px;color:var(--text-muted);font-weight:500}
+.rad-scan-back{font-size:11px;padding:4px 10px}
+.rad-scan-meta{font-size:10px;color:var(--text-muted);font-family:var(--mono)}
+
+/* ═══ Job list (vista 1) — card più compatte ═══ */
+.rad-scan-job{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:.12s;position:relative;display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center}
+.rad-scan-job:hover{border-color:var(--accent);background:rgba(56,139,253,.04)}
+.rad-scan-job.disabled{opacity:.55}
+.rad-scan-job-main{min-width:0}
+.rad-scan-job-title{font-size:13px;font-weight:600;line-height:1.3;margin-bottom:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.rad-scan-job-attrs{display:flex;gap:4px;flex-wrap:wrap}
+.rad-scan-job-attr{font-size:9px;background:var(--surface);border:1px solid var(--border);padding:1px 6px;border-radius:3px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em}
+.rad-scan-job-attr.hot{border-color:var(--accent);color:var(--accent)}
+.rad-scan-job-stats{font-size:10px;color:var(--text-muted);font-family:var(--mono);text-align:right;line-height:1.5;white-space:nowrap}
+.rad-scan-job-stats .num{font-size:14px;font-weight:700;color:var(--text);font-family:var(--mono)}
+.rad-scan-job-actions{display:flex;gap:4px;flex-direction:column}
+.rad-scan-job-actions button{font-size:10px;padding:5px 10px;white-space:nowrap}
+.rad-scan-job-running{position:absolute;top:6px;right:6px;background:var(--warning);color:#0d1117;font-size:9px;padding:2px 6px;border-radius:3px;font-family:var(--mono);font-weight:600;animation:rbBlink 1s linear infinite}
+@keyframes rbBlink{50%{opacity:.4}}
+
+.rad-scan-log{font-size:10px;color:var(--text-subtle);font-family:var(--mono);margin-top:8px;max-height:60px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:4px 6px;display:none;grid-column:1 / -1}
+.rad-scan-log.show{display:block}
+.rad-scan-log-line{padding:1px 0;border-bottom:1px dotted var(--border)}
+.rad-scan-log-line:last-child{border-bottom:none}
+.rad-scan-log-line.err{color:var(--danger)}
+.rad-scan-log-line.ok{color:var(--success)}
+
+.rad-scan-job-fb{margin-top:8px;padding:6px 8px;background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.3);border-radius:4px;font-size:10px;color:var(--text-muted);line-height:1.4;grid-column:1 / -1}
+
+/* ═══ Results table (vista 2) — densità Excel-like ═══ */
+.rad-scan-table-wrap{overflow-x:auto;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r)}
+.rad-scan-table{width:100%;border-collapse:collapse;font-size:11px}
+.rad-scan-table thead th{background:var(--surface);padding:7px 10px;text-align:left;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1;white-space:nowrap}
+.rad-scan-table thead th.num{text-align:right}
+.rad-scan-table tbody tr{border-bottom:1px solid var(--border);transition:background .12s}
+.rad-scan-table tbody tr:hover{background:rgba(56,139,253,.04)}
+.rad-scan-table tbody tr.new{background:rgba(63,185,80,.06)}
+.rad-scan-table tbody tr.new:hover{background:rgba(63,185,80,.1)}
+.rad-scan-table tbody tr.monitored{box-shadow:inset 3px 0 0 var(--warning)}
+.rad-scan-table td{padding:6px 10px;vertical-align:middle}
+.rad-scan-table td.img{width:48px;padding:4px}
+.rad-scan-table td.img img{width:40px;height:40px;object-fit:cover;border-radius:3px;border:1px solid var(--border);display:block;background:var(--bg)}
+.rad-scan-table td.img .ph{width:40px;height:40px;border-radius:3px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--text-subtle)}
+.rad-scan-table td.title{max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rad-scan-table td.title a{color:var(--text);text-decoration:none}
+.rad-scan-table td.title a:hover{color:var(--accent);text-decoration:underline}
+.rad-scan-table td.title .new-badge{display:inline-block;background:var(--success);color:#0d1117;font-size:8px;padding:1px 5px;border-radius:3px;font-weight:700;margin-right:5px;vertical-align:middle;letter-spacing:.04em}
+.rad-scan-table td.price{font-family:var(--mono);font-weight:600;text-align:right;white-space:nowrap;color:var(--text)}
+.rad-scan-table td.price.no-price{color:var(--text-subtle);font-weight:400}
+.rad-scan-table td.site{white-space:nowrap}
+.rad-scan-table td.site .pf{padding:1px 6px;border-radius:3px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;font-family:var(--mono);font-size:9px;border:1px solid var(--border);background:var(--bg)}
+.rad-scan-table td.endtime{font-family:var(--mono);font-size:10px;color:var(--text-muted);white-space:nowrap}
+.rad-scan-table td.endtime.live{color:var(--warning);font-weight:600}
+.rad-scan-table td.endtime.closed{color:var(--text-subtle)}
+.rad-scan-table td.bids{font-family:var(--mono);text-align:right;color:var(--text-muted);font-size:10px;white-space:nowrap}
+.rad-scan-table td.actions{white-space:nowrap;text-align:right}
+.rad-scan-table td.actions button{padding:4px 7px;font-size:11px;background:transparent;border:1px solid transparent;border-radius:3px;cursor:pointer;color:var(--text-muted);transition:.12s;margin-left:2px}
+.rad-scan-table td.actions button:hover{background:var(--surface);border-color:var(--border);color:var(--text)}
+.rad-scan-table td.actions button.monitor.active{color:var(--warning);background:rgba(210,153,34,.1);border-color:var(--warning)}
+.rad-scan-table td.actions button.del:hover{color:var(--danger);border-color:var(--danger)}
+.rad-scan-table td.actions a{padding:4px 7px;font-size:11px;text-decoration:none;color:var(--text-muted);border-radius:3px;border:1px solid transparent;display:inline-block;transition:.12s}
+.rad-scan-table td.actions a:hover{background:var(--surface);border-color:var(--border);color:var(--accent)}
+
+.rad-scan-group-divider td{padding:6px 10px;background:var(--surface);font-size:10px;font-weight:600;color:var(--text-muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px}
+
+/* ═══ Modal ═══ */
+.rad-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:99999;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;backdrop-filter:blur(2px)}
+.rad-modal-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:100%;max-width:540px;box-shadow:0 20px 60px rgba(0,0,0,.4);display:flex;flex-direction:column;max-height:calc(100vh - 80px)}
+.rad-modal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.rad-modal-head h3{margin:0;font-size:14px;font-weight:600}
+.rad-modal-close{background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;padding:4px 8px;border-radius:4px;line-height:1}
+.rad-modal-close:hover{background:var(--surface2);color:var(--text)}
+.rad-modal-body{padding:16px 18px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:10px}
+.rad-modal-foot{display:flex;gap:8px;padding:12px 18px;border-top:1px solid var(--border);flex-shrink:0;background:var(--surface)}
+.rad-modal-row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:600px){.rad-modal-row2{grid-template-columns:1fr}}
+
+.rad-form-field label .opt{color:var(--text-subtle);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0}
 
 .rad-scan-radio,.rad-scan-sites{display:flex;flex-direction:column;gap:5px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:7px 9px}
 .rad-scan-sites{flex-direction:row;flex-wrap:wrap;gap:10px}
@@ -9586,60 +9676,6 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
 .rad-time-picker select:hover{color:var(--accent)}
 .rad-time-picker .rad-time-sep{color:var(--text-muted);font-weight:600;font-family:var(--mono);font-size:14px;pointer-events:none}
 .rad-time-picker-suffix{font-size:9px;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.5px;font-family:var(--mono);margin-left:4px}
-
-.rad-scan-job{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:.12s;position:relative}
-.rad-scan-job:hover{border-color:var(--accent)}
-.rad-scan-job.selected{border-color:var(--accent);background:rgba(56,139,253,.06);box-shadow:0 0 0 1px var(--accent) inset}
-.rad-scan-job.disabled{opacity:.55}
-.rad-scan-job-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:5px}
-.rad-scan-job-title{font-size:12px;font-weight:600;line-height:1.3;flex:1;min-width:0}
-.rad-scan-job-toggle{flex-shrink:0}
-.rad-scan-job-attrs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px}
-.rad-scan-job-attr{font-size:9px;background:var(--surface);border:1px solid var(--border);padding:1px 6px;border-radius:3px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em}
-.rad-scan-job-attr.hot{border-color:var(--accent);color:var(--accent)}
-.rad-scan-job-meta{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:6px}
-.rad-scan-job-actions{display:flex;gap:4px;margin-top:8px;flex-wrap:wrap}
-.rad-scan-job-actions button{flex:1;font-size:10px;padding:4px 8px}
-.rad-scan-job-running{position:absolute;top:8px;right:8px;background:var(--warning);color:#0d1117;font-size:9px;padding:2px 6px;border-radius:3px;font-family:var(--mono);font-weight:600;animation:rbBlink 1s linear infinite}
-@keyframes rbBlink{50%{opacity:.4}}
-
-.rad-scan-results-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px;flex-wrap:wrap}
-.rad-scan-results-head h3{margin:0;font-size:13px;font-weight:600}
-.rad-scan-results-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.rad-scan-meta{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
-
-.rad-scan-result{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px;margin-bottom:8px;display:grid;grid-template-columns:80px 1fr auto;gap:10px;align-items:flex-start;transition:.12s}
-.rad-scan-result:hover{border-color:var(--accent)}
-.rad-scan-result.new{border-left:3px solid var(--success)}
-.rad-scan-result-img{width:80px;height:100px;object-fit:cover;border-radius:4px;border:1px solid var(--border);background:var(--surface);cursor:zoom-in}
-.rad-scan-result-img-ph{width:80px;height:100px;border-radius:4px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--text-subtle)}
-.rad-scan-result-body{min-width:0}
-.rad-scan-result-title{font-size:12px;line-height:1.35;font-weight:500;margin-bottom:5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.rad-scan-result-title a{color:var(--text);text-decoration:none}
-.rad-scan-result-title a:hover{color:var(--accent)}
-.rad-scan-result-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:10px;color:var(--text-muted);margin-bottom:4px}
-.rad-scan-result-meta .pf{padding:1px 6px;border-radius:3px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;font-family:var(--mono);font-size:9px}
-.rad-scan-result-price{font-size:14px;font-weight:700;font-family:var(--mono);color:var(--text);white-space:nowrap;text-align:right}
-.rad-scan-result-price small{display:block;font-size:9px;font-weight:400;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;margin-top:2px}
-.rad-scan-result-end{font-size:10px;color:var(--warning);font-family:var(--mono);font-weight:600}
-.rad-scan-result-extra{font-size:10px;color:var(--text-muted);margin-top:3px}
-.rad-scan-result-actions{display:flex;flex-direction:column;gap:4px}
-.rad-scan-result-actions a{display:inline-block;font-size:10px;padding:4px 9px;background:var(--accent);color:#0d1117;border-radius:3px;text-decoration:none;font-weight:600;text-transform:uppercase;letter-spacing:.3px;text-align:center}
-
-.rad-scan-group{margin-bottom:18px}
-.rad-scan-group-head{font-size:11px;color:var(--text-muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
-.rad-scan-group-head .pill{background:var(--surface2);border:1px solid var(--border);padding:1px 7px;border-radius:10px;font-size:9px}
-
-.rad-scan-log{font-size:10px;color:var(--text-subtle);font-family:var(--mono);margin-top:4px;max-height:60px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:4px 6px;display:none}
-.rad-scan-log.show{display:block}
-.rad-scan-log-line{padding:1px 0;border-bottom:1px dotted var(--border)}
-.rad-scan-log-line:last-child{border-bottom:none}
-.rad-scan-log-line.err{color:var(--danger)}
-.rad-scan-log-line.ok{color:var(--success)}
-.rad-modal{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;max-width:480px;width:100%;max-height:90vh;overflow:auto}
-.rad-modal h3{margin:0 0 14px 0;font-size:14px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
-.rad-modal-close{background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;line-height:1;padding:0 4px}
-.rad-modal .rad-form-field{margin-bottom:10px}
 
 /* Responsive */
 @media (max-width: 900px){
@@ -13511,7 +13547,8 @@ function radScanComputeNextRun(sched, fromMs){
   return null;
 }
 
-// ── Crea job dal form ───────────────────────────────────────────────────
+// ── Crea o aggiorna job dal form modale ─────────────────────────────────
+// Se _radScanState.editingJobId è settato, fa update invece di create.
 function radScanSubmit(){
   var statusEl = document.getElementById('radScanFormStatus');
   function setStatus(msg, isErr){
@@ -13521,16 +13558,14 @@ function radScanSubmit(){
     setTimeout(function(){ statusEl.textContent=''; }, 3500);
   }
   var name = (document.getElementById('radScanCardName').value||'').trim();
-  if(!name){ setStatus('Nome carta obbligatorio', true); return; }
+  if(!name){ setStatus('⚠ Nome carta obbligatorio', true); return; }
 
   var num = (document.getElementById('radScanCardNum').value||'').trim();
   var setName = (document.getElementById('radScanSet').value||'').trim();
 
-  // Nuovo: filter = 'any' | 'raw' | 'graded'
   var fEl = document.querySelector('input[name="radScanFilter"]:checked');
   var filter = fEl ? fEl.value : 'any';
 
-  // Casa + voto: opzionali, validi solo se filter==='graded'
   var grader = '';
   var minGrade = null;
   if(filter === 'graded'){
@@ -13542,13 +13577,13 @@ function radScanSubmit(){
   }
 
   var sites = Array.from(document.querySelectorAll('.radScanSite:checked')).map(function(c){return c.value;});
-  if(sites.length === 0){ setStatus('Seleziona almeno un sito', true); return; }
+  if(sites.length === 0){ setStatus('⚠ Seleziona almeno un sito', true); return; }
 
   var schedType = document.getElementById('radScanSchedType').value;
   var sched = { type: schedType };
   if(schedType === 'once'){
     var dateEl = document.getElementById('radScanSchedDate');
-    if(!dateEl || !dateEl.value){ setStatus('Imposta la data', true); return; }
+    if(!dateEl || !dateEl.value){ setStatus('⚠ Imposta la data', true); return; }
     var time = _radScanReadTime('radScanSchedTimeH','radScanSchedTimeM');
     sched.at = new Date(dateEl.value + 'T' + time + ':00').toISOString();
   } else if(schedType === 'daily'){
@@ -13563,39 +13598,72 @@ function radScanSubmit(){
   var maxPrice = parseFloat(document.getElementById('radScanMaxPrice').value);
   if(!isFinite(maxPrice)) maxPrice = null;
 
-  var job = {
-    id: radScanGenId(),
-    card_name: name,
-    card_number: num || null,
-    set_name: setName || null,
-    grading_filter: filter,             // 'any' | 'raw' | 'graded'
-    grading_house: grader || null,       // opzionale anche se filter='graded'
-    min_grade: minGrade,                 // opzionale anche se filter='graded'
-    sites: sites,
-    schedule: sched,
-    max_price: maxPrice,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    last_run_at: null,
-    next_run_at: radScanComputeNextRun(sched),
-    last_count: 0,
-    last_log: [],
-    seen_urls: [],
-  };
+  // Nuovo: max_results
+  var maxResults = parseInt(document.getElementById('radScanMaxResults').value);
+  if(!isFinite(maxResults) || maxResults < 1) maxResults = 50;
+  if(maxResults > 200) maxResults = 200;
 
-  _radScanState.jobs.unshift(job);
+  // Nuovo: exclude_keywords (lista, parsata da virgole)
+  var excludeRaw = (document.getElementById('radScanExclude').value||'').trim();
+  var excludeList = excludeRaw
+    ? excludeRaw.split(',').map(function(s){return s.trim().toLowerCase();}).filter(function(s){return s.length>0;})
+    : [];
+
+  var editingId = _radScanState.editingJobId;
+  if(editingId){
+    var existing = _radScanState.jobs.find(function(x){return x.id===editingId;});
+    if(!existing){ setStatus('⚠ Job non trovato', true); return; }
+    // Update in-place mantenendo runtime fields
+    existing.card_name = name;
+    existing.card_number = num || null;
+    existing.set_name = setName || null;
+    existing.grading_filter = filter;
+    existing.grading_house = grader || null;
+    existing.min_grade = minGrade;
+    existing.sites = sites;
+    existing.schedule = sched;
+    existing.next_run_at = radScanComputeNextRun(sched);
+    existing.max_price = maxPrice;
+    existing.max_results = maxResults;
+    existing.exclude_keywords = excludeList;
+    setStatus('✓ Job aggiornato', false);
+  } else {
+    var job = {
+      id: radScanGenId(),
+      card_name: name,
+      card_number: num || null,
+      set_name: setName || null,
+      grading_filter: filter,
+      grading_house: grader || null,
+      min_grade: minGrade,
+      sites: sites,
+      schedule: sched,
+      max_price: maxPrice,
+      max_results: maxResults,
+      exclude_keywords: excludeList,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      last_run_at: null,
+      next_run_at: radScanComputeNextRun(sched),
+      last_count: 0,
+      last_log: [],
+      seen_urls: [],
+    };
+    _radScanState.jobs.unshift(job);
+    setStatus('✓ Job creato', false);
+  }
+
   radScanPersist();
   radScanRenderJobs();
-  setStatus('✓ Job creato', false);
-  radScanResetForm();
+  setTimeout(radScanCloseModal, 600);   // chiude il modale dopo conferma
 }
 window.radScanSubmit = radScanSubmit;
 
 function radScanResetForm(){
-  ['radScanCardName','radScanCardNum','radScanSet','radScanMaxPrice'].forEach(function(id){
+  ['radScanCardName','radScanCardNum','radScanSet','radScanMaxPrice','radScanExclude'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.value = '';
   });
-  // Default filter: "any" (tutti i risultati)
+  var maxR = document.getElementById('radScanMaxResults'); if(maxR) maxR.value = '50';
   var rAny = document.querySelector('input[name="radScanFilter"][value="any"]');
   if(rAny) rAny.checked = true;
   var gEl = document.getElementById('radScanGrader'); if(gEl) gEl.value = '';
@@ -13604,8 +13672,99 @@ function radScanResetForm(){
   var st = document.getElementById('radScanSchedType'); if(st) st.value = 'daily';
   radScanToggleGradedFields();
   radScanToggleSchedFields();
+  var statusEl = document.getElementById('radScanFormStatus');
+  if(statusEl) statusEl.textContent = '';
 }
 window.radScanResetForm = radScanResetForm;
+
+// ── Modal control + view switching ──────────────────────────────────────
+function radScanOpenModal(jobId){
+  _radScanState.editingJobId = jobId || null;
+  var titleEl = document.getElementById('radScanModalTitle');
+  if(jobId){
+    var job = _radScanState.jobs.find(function(x){return x.id===jobId;});
+    if(!job){ alert('Job non trovato'); return; }
+    if(titleEl) titleEl.textContent = '✏️ Modifica job';
+    // Popola form con i valori esistenti
+    document.getElementById('radScanCardName').value = job.card_name || '';
+    document.getElementById('radScanCardNum').value = job.card_number || '';
+    document.getElementById('radScanSet').value = job.set_name || '';
+    document.getElementById('radScanMaxPrice').value = job.max_price != null ? job.max_price : '';
+    document.getElementById('radScanMaxResults').value = job.max_results || 50;
+    document.getElementById('radScanExclude').value = (job.exclude_keywords||[]).join(', ');
+    var filter = job.grading_filter || (job.is_graded ? 'graded' : 'raw');
+    var fEl = document.querySelector('input[name="radScanFilter"][value="'+filter+'"]');
+    if(fEl) fEl.checked = true;
+    document.getElementById('radScanGrader').value = job.grading_house || '';
+    document.getElementById('radScanGrade').value = job.min_grade != null ? job.min_grade : '';
+    document.querySelectorAll('.radScanSite').forEach(function(c){
+      c.checked = (job.sites||[]).indexOf(c.value) >= 0;
+    });
+    var st = document.getElementById('radScanSchedType');
+    if(st) st.value = (job.schedule && job.schedule.type) || 'daily';
+    radScanToggleGradedFields();
+    radScanToggleSchedFields();
+    // Popola time picker / date in base a schedule
+    setTimeout(function(){
+      if(job.schedule){
+        if(job.schedule.type === 'once' && job.schedule.at){
+          var d = new Date(job.schedule.at);
+          var dateEl = document.getElementById('radScanSchedDate');
+          if(dateEl) dateEl.value = d.toISOString().slice(0,10);
+          var hh = (d.getHours()<10?'0':'')+d.getHours();
+          var mm = (d.getMinutes()<10?'0':'')+d.getMinutes();
+          var hEl = document.getElementById('radScanSchedTimeH');
+          var mEl = document.getElementById('radScanSchedTimeM');
+          if(hEl) hEl.value = hh;
+          if(mEl) mEl.value = mm;
+        } else if((job.schedule.type === 'daily' || job.schedule.type === 'weekly') && job.schedule.time){
+          var parts = job.schedule.time.split(':');
+          var hEl2 = document.getElementById('radScanSchedTimeH');
+          var mEl2 = document.getElementById('radScanSchedTimeM');
+          if(hEl2) hEl2.value = parts[0];
+          if(mEl2) mEl2.value = parts[1];
+          if(job.schedule.type === 'weekly'){
+            var dEl = document.getElementById('radScanSchedDow');
+            if(dEl) dEl.value = job.schedule.dow;
+          }
+        } else if(job.schedule.type === 'hourly'){
+          var hrEl = document.getElementById('radScanSchedHours');
+          if(hrEl) hrEl.value = job.schedule.hours;
+        }
+      }
+    }, 30);
+  } else {
+    if(titleEl) titleEl.textContent = '🎯 Nuovo job di scansione';
+    radScanResetForm();
+  }
+  document.getElementById('radScanModal').style.display = 'flex';
+  setTimeout(function(){
+    var f = document.getElementById('radScanCardName');
+    if(f && !jobId) f.focus();
+  }, 50);
+}
+window.radScanOpenModal = radScanOpenModal;
+
+function radScanCloseModal(){
+  document.getElementById('radScanModal').style.display = 'none';
+  _radScanState.editingJobId = null;
+}
+window.radScanCloseModal = radScanCloseModal;
+
+function radScanShowList(){
+  document.getElementById('radScanViewList').style.display = '';
+  document.getElementById('radScanViewResults').style.display = 'none';
+  _radScanState.selectedJobId = null;
+}
+window.radScanShowList = radScanShowList;
+
+function radScanShowResults(jobId){
+  _radScanState.selectedJobId = jobId;
+  document.getElementById('radScanViewList').style.display = 'none';
+  document.getElementById('radScanViewResults').style.display = '';
+  radScanRenderResults();
+}
+window.radScanShowResults = radScanShowResults;
 
 // ── Job actions ─────────────────────────────────────────────────────────
 function radScanToggleJob(id){
@@ -13624,17 +13783,18 @@ function radScanDeleteJob(id){
   if(!confirm('Eliminare questo job di scansione (e tutti i suoi risultati)?')) return;
   _radScanState.jobs = _radScanState.jobs.filter(function(x){return x.id!==id;});
   delete _radScanState.results[id];
-  if(_radScanState.selectedJobId === id) _radScanState.selectedJobId = null;
+  if(_radScanState.selectedJobId === id){
+    _radScanState.selectedJobId = null;
+    radScanShowList();
+  }
   radScanPersist();
   radScanRenderJobs();
-  radScanRenderResults();
 }
 window.radScanDeleteJob = radScanDeleteJob;
 
+// Selezione job → switch alla vista risultati
 function radScanSelectJob(id){
-  _radScanState.selectedJobId = id;
-  radScanRenderJobs();
-  radScanRenderResults();
+  radScanShowResults(id);
 }
 window.radScanSelectJob = radScanSelectJob;
 
@@ -13698,6 +13858,14 @@ function radScanMatchItem(item, job){
   var t = (item.title||'').toLowerCase();
   var name = (job.card_name||'').toLowerCase();
   if(!name) return false;
+
+  // ── Exclude keywords: se UNA delle parole è nel titolo → escludi
+  if(job.exclude_keywords && job.exclude_keywords.length){
+    for(var ex=0; ex<job.exclude_keywords.length; ex++){
+      var kw = (job.exclude_keywords[ex]||'').toLowerCase();
+      if(kw && t.indexOf(kw) >= 0) return false;
+    }
+  }
 
   // Tutte le parole del nome devono comparire (separatamente) nel titolo
   var nameTokens = name.split(/\s+/).filter(function(s){return s.length>1;});
@@ -13869,12 +14037,12 @@ var ProviderExtension = (function(){
           window.removeEventListener('message', onMsg);
           resolve({
             items:[],
-            error:'timeout estensione (45s)',
+            error:'timeout estensione (60s)',
             search_url:url,
             provider_name:'extension',
             duration_ms: Date.now()-t0,
           });
-        }, 45000);
+        }, 60000);
         function onMsg(ev){
           if(ev.source !== window) return;
           var d = ev.data;
@@ -14166,7 +14334,14 @@ function _radScanInstallMessageListener(){
         _search_url: d.source_url || null,
       };
     });
-    var matched = transformed.filter(function(it){ return radScanMatchItem(it, job); });
+    var dismissedSet2 = {};
+    (job.dismissed_urls||[]).forEach(function(u){ dismissedSet2[u] = true; });
+    var maxR2 = parseInt(job.max_results) || 50;
+    var capped2 = transformed.slice(0, maxR2);
+    var matched = capped2.filter(function(it){
+      if(dismissedSet2[it.url]) return false;
+      return radScanMatchItem(it, job);
+    });
 
     // Merge come fa radScanRunNow ma più snello (non resetta last_run_at)
     var seenSet = {};
@@ -14239,8 +14414,20 @@ async function radScanRunNow(jobId){
         job.last_log.push('  ⚠ '+site+providerLabel+': 0 risultati — fallback userscript');
       } else {
         totalFetched += r.items.length;
-        var matched = r.items.filter(function(it){ return radScanMatchItem(it, job); });
-        job.last_log.push('  ✓ '+site+providerLabel+durLabel+': '+r.items.length+' totali, '+matched.length+' match');
+        // Applica max_results PRIMA del matching (per limitare il lavoro di filtering)
+        var maxR = parseInt(job.max_results) || 50;
+        var capped = r.items.slice(0, maxR);
+        // Escludi URL che l'utente ha dismissed manualmente
+        var dismissedSet = {};
+        (job.dismissed_urls||[]).forEach(function(u){ dismissedSet[u] = true; });
+        var matched = capped.filter(function(it){
+          if(dismissedSet[it.url]) return false;
+          return radScanMatchItem(it, job);
+        });
+        var capWarn = (r.items.length > maxR) ? ' [capped a '+maxR+']' : '';
+        var noImg = matched.filter(function(it){ return !it.image_url; }).length;
+        var imgWarn = noImg > 0 ? ' ('+noImg+' senza img)' : '';
+        job.last_log.push('  ✓ '+site+providerLabel+durLabel+': '+r.items.length+' totali'+capWarn+', '+matched.length+' match'+imgWarn);
         matched.forEach(function(m){
           allMatches.push(Object.assign({}, m, { _site: site, _search_url: r.search_url }));
         });
@@ -14257,6 +14444,10 @@ async function radScanRunNow(jobId){
   var prev = _radScanState.results[job.id] || [];
   var prevByUrl = {};
   prev.forEach(function(p){ prevByUrl[p.url] = p; });
+  // Set delle aste monitorate per catturare cambiamenti (prezzo/bids/end)
+  var monitoredSet = {};
+  (job.monitored_urls||[]).forEach(function(u){ monitoredSet[u] = true; });
+  var monitoredChanges = [];
 
   var nowIso = new Date().toISOString();
   var newItems = 0;
@@ -14266,6 +14457,21 @@ async function radScanRunNow(jobId){
     var existing = prevByUrl[u];
     var isNew = !seenSet[u];
     if(isNew) newItems++;
+
+    // Se è un'asta monitorata e ha aggiornamenti rilevanti, registra change
+    if(monitoredSet[u] && existing){
+      var changed = [];
+      if(existing.price !== m.price && typeof m.price === 'number'){
+        changed.push('prezzo: €'+(existing.price||'?')+'→€'+m.price.toFixed(2));
+      }
+      if(existing.bids !== m.bids && typeof m.bids === 'number'){
+        changed.push('bid: '+(existing.bids||0)+'→'+m.bids);
+      }
+      if(changed.length){
+        monitoredChanges.push({ title: m.title, url: u, changes: changed });
+      }
+    }
+
     var record = Object.assign({}, existing||{}, m, {
       scanned_at: nowIso,
       first_seen_at: existing && existing.first_seen_at ? existing.first_seen_at : nowIso,
@@ -14303,7 +14509,22 @@ async function radScanRunNow(jobId){
       });
     }catch(_){}
   }
-  return { newItems: newItems, total: merged.length };
+
+  // Notifica per aste monitorate cambiate
+  if(monitoredChanges.length){
+    job.last_log.push('🔔 '+monitoredChanges.length+' aste monitorate aggiornate');
+    if(typeof Notification !== 'undefined' && Notification.permission === 'granted'){
+      monitoredChanges.slice(0,3).forEach(function(ch){
+        try{
+          new Notification('🔔 Asta monitorata: '+ch.title.slice(0,60), {
+            body: ch.changes.join(' · '),
+          });
+        }catch(_){}
+      });
+    }
+  }
+
+  return { newItems: newItems, total: merged.length, monitoredChanges: monitoredChanges.length };
 }
 window.radScanRunNow = radScanRunNow;
 
@@ -14364,11 +14585,11 @@ function radScanRenderJobs(){
   if(!listEl) return;
 
   var jobs = _radScanState.jobs;
-  if(countEl) countEl.textContent = jobs.length ? jobs.length+' attivi' : '0';
+  if(countEl) countEl.textContent = jobs.length ? jobs.length+(jobs.length===1?' job':' jobs') : '0';
   if(subCountEl) subCountEl.textContent = jobs.length ? '('+jobs.length+')' : '';
 
   if(jobs.length === 0){
-    listEl.innerHTML = '<div class="rad-empty" style="padding:20px 12px"><div class="rad-empty-icon" style="font-size:30px">📭</div><div class="rad-empty-sub">Nessun job ancora. Crea il primo qui sopra.</div></div>';
+    listEl.innerHTML = '<div class="rad-empty" style="padding:50px 20px"><div class="rad-empty-icon">📭</div><div class="rad-empty-title">Nessun job ancora</div><div class="rad-empty-sub">Click su "+ Nuovo Job" qui sopra per crearne uno.</div></div>';
     return;
   }
 
@@ -14377,14 +14598,12 @@ function radScanRenderJobs(){
     if(j.card_number) attrs.push('<span class="rad-scan-job-attr">#'+escapeHtml(j.card_number)+'</span>');
     if(j.set_name)    attrs.push('<span class="rad-scan-job-attr">'+escapeHtml(j.set_name)+'</span>');
 
-    // Nuovo: filter-based label
     var filter = j.grading_filter || (j.is_graded ? 'graded' : 'raw');
     if(filter === 'raw'){
       attrs.push('<span class="rad-scan-job-attr">RAW</span>');
     } else if(filter === 'any'){
-      attrs.push('<span class="rad-scan-job-attr">QUALSIASI</span>');
+      // niente badge per "any" — ridondante
     } else {
-      // graded — può avere casa+voto opzionali
       var gLabel = '';
       if(j.grading_house) gLabel = j.grading_house;
       if(j.min_grade) gLabel += (gLabel?' ':'') + j.min_grade + '+';
@@ -14394,57 +14613,63 @@ function radScanRenderJobs(){
 
     j.sites.forEach(function(s){ attrs.push('<span class="rad-scan-job-attr">'+s+'</span>'); });
     if(j.max_price) attrs.push('<span class="rad-scan-job-attr">≤€'+j.max_price+'</span>');
+    if(j.exclude_keywords && j.exclude_keywords.length){
+      attrs.push('<span class="rad-scan-job-attr" title="esclude: '+escapeHtml(j.exclude_keywords.join(', '))+'">−'+j.exclude_keywords.length+' esc</span>');
+    }
 
     var nextRun = (j.is_active && j.next_run_at) ? radScanFmtRel(j.next_run_at) : '—';
     var lastRun = j.last_run_at ? radScanFmtRel(j.last_run_at) : 'mai eseguito';
     var lastCount = (typeof j.last_count === 'number') ? j.last_count : 0;
+    var schedLabel = radScanFmtSched(j.schedule);
 
     var logHtml = '';
     if(j.last_log && j.last_log.length){
-      logHtml = '<div class="rad-scan-log show" id="radScanLog_'+j.id+'">'+
+      logHtml = '<div class="rad-scan-log show">'+
         j.last_log.map(function(l){
           var cls = /✗|errore|error|timeout/i.test(l) ? 'err' : (/✓|FATTO/i.test(l) ? 'ok' : '');
           return '<div class="rad-scan-log-line '+cls+'">'+escapeHtml(l)+'</div>';
         }).join('')+'</div>';
     }
 
-    // Fallback userscript (es. Catawiki bloccato server-side)
     var fbHtml = '';
     var fb = j.userscript_fallbacks || {};
     var fbSites = Object.keys(fb);
     if(fbSites.length){
-      fbHtml = '<div style="margin-top:6px;padding:6px 8px;background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.3);border-radius:4px;font-size:10px;color:var(--text-muted);line-height:1.4">'+
+      fbHtml = '<div class="rad-scan-job-fb">'+
         '<div style="font-weight:600;color:var(--warning);margin-bottom:4px">⚠ '+fbSites.length+' sito/i bloccato/i — usa userscript:</div>'+
         fbSites.map(function(s){
-          return '<button class="btn" onclick="event.stopPropagation();radScanOpenAssisted(\''+j.id+'\',\''+s+'\')" style="font-size:10px;padding:3px 8px;margin-right:4px;margin-bottom:3px">🪟 Apri '+s+'</button>';
+          return '<button class="btn" onclick="event.stopPropagation();radScanOpenAssisted(\''+j.id+'\',\''+s+'\')" style="font-size:10px;padding:3px 8px;margin-right:4px">🪟 Apri '+s+'</button>';
         }).join('')+
       '</div>';
     }
 
-    var selected = (_radScanState.selectedJobId === j.id) ? 'selected' : '';
     var disabled = (!j.is_active) ? 'disabled' : '';
     var running  = j._running ? '<span class="rad-scan-job-running">RUN</span>' : '';
+    var resultsCount = ((_radScanState.results[j.id])||[]).length;
 
-    return '<div class="rad-scan-job '+selected+' '+disabled+'" onclick="radScanSelectJob(\''+j.id+'\')">'+
+    return '<div class="rad-scan-job '+disabled+'" onclick="radScanSelectJob(\''+j.id+'\')">'+
       running+
-      '<div class="rad-scan-job-head">'+
-        '<div class="rad-scan-job-title">'+escapeHtml(j.card_name)+'</div>'+
-        '<label class="rad-scan-job-toggle" onclick="event.stopPropagation()" style="font-size:10px;color:var(--text-muted);display:flex;align-items:center;gap:4px;cursor:pointer">'+
-          '<input type="checkbox" '+(j.is_active?'checked':'')+' onchange="radScanToggleJob(\''+j.id+'\')"/> '+(j.is_active?'attivo':'pausa')+
-        '</label>'+
+      // Col 1: main info
+      '<div class="rad-scan-job-main">'+
+        '<div class="rad-scan-job-title">'+escapeHtml(j.card_name)+
+          '<label onclick="event.stopPropagation()" style="font-size:10px;color:var(--text-muted);display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-weight:400">'+
+            '<input type="checkbox" '+(j.is_active?'checked':'')+' onchange="radScanToggleJob(\''+j.id+'\')"/> '+(j.is_active?'attivo':'pausa')+
+          '</label>'+
+        '</div>'+
+        '<div class="rad-scan-job-attrs">'+attrs.join('')+'</div>'+
       '</div>'+
-      '<div class="rad-scan-job-attrs">'+attrs.join('')+'</div>'+
-      '<div class="rad-scan-job-meta">'+
-        '<span>📅 '+escapeHtml(radScanFmtSched(j.schedule))+'</span>'+
-        '<span>⏰ next: '+escapeHtml(nextRun)+'</span>'+
+      // Col 2: stats
+      '<div class="rad-scan-job-stats">'+
+        '<div class="num">'+resultsCount+'</div>'+
+        '<div>📅 '+escapeHtml(schedLabel)+'</div>'+
+        '<div>⏰ '+escapeHtml(nextRun)+'</div>'+
+        '<div style="opacity:.7">eseguito '+escapeHtml(lastRun)+'</div>'+
       '</div>'+
-      '<div class="rad-scan-job-meta" style="margin-top:2px">'+
-        '<span>● '+lastCount+' risultati</span>'+
-        '<span>'+escapeHtml(lastRun)+'</span>'+
-      '</div>'+
+      // Col 3: actions
       '<div class="rad-scan-job-actions" onclick="event.stopPropagation()">'+
-        '<button class="btn" onclick="radScanRunNow(\''+j.id+'\')" '+(j._running?'disabled':'')+'>▶ Esegui ora</button>'+
-        '<button class="btn" onclick="radScanDeleteJob(\''+j.id+'\')">🗑 Elimina</button>'+
+        '<button class="btn btn-primary" onclick="radScanRunNow(\''+j.id+'\')" '+(j._running?'disabled':'')+'>▶ Esegui</button>'+
+        '<button class="btn" onclick="radScanOpenModal(\''+j.id+'\')" title="Modifica">✏️ Modifica</button>'+
+        '<button class="btn" onclick="radScanDeleteJob(\''+j.id+'\')" title="Elimina">🗑 Elimina</button>'+
       '</div>'+
       fbHtml+
       logHtml+
@@ -14468,111 +14693,203 @@ function radScanRenderResults(){
 
   var id = _radScanState.selectedJobId;
   if(!id){
-    listEl.innerHTML = '<div class="rad-empty" style="padding:50px 20px"><div class="rad-empty-icon">📡</div><div class="rad-empty-title">Seleziona un job</div><div class="rad-empty-sub">Clicca un job a sinistra per vedere i risultati delle scansioni.</div></div>';
     if(titleEl) titleEl.textContent = '📊 Risultati';
     if(metaEl) metaEl.textContent = '';
-    if(runBtn) runBtn.style.display = 'none';
-    if(clearBtn) clearBtn.style.display = 'none';
     return;
   }
   var job = _radScanState.jobs.find(function(x){return x.id===id;});
-  if(!job){ _radScanState.selectedJobId = null; return radScanRenderResults(); }
+  if(!job){ _radScanState.selectedJobId = null; return radScanShowList(); }
 
   if(titleEl){
     var f = job.grading_filter || (job.is_graded ? 'graded' : 'raw');
     var stateLabel;
     if(f === 'raw') stateLabel = 'RAW';
-    else if(f === 'any') stateLabel = 'QUALSIASI';
+    else if(f === 'any') stateLabel = 'tutti';
     else {
       stateLabel = '';
       if(job.grading_house) stateLabel = job.grading_house;
       if(job.min_grade) stateLabel += (stateLabel?' ':'') + job.min_grade + '+';
       if(!stateLabel) stateLabel = 'GRADED';
     }
-    titleEl.textContent = '📊 '+job.card_name+' · '+stateLabel;
+    titleEl.innerHTML = '📊 '+escapeHtml(job.card_name)+' <span style="color:var(--text-muted);font-weight:400;font-size:11px;margin-left:6px">· '+escapeHtml(stateLabel)+'</span>';
   }
   if(metaEl){
     var lr = job.last_run_at ? radScanFmtRel(job.last_run_at) : 'mai';
-    metaEl.textContent = (job.last_count||0)+' risultati · ultima scansione '+lr;
+    metaEl.textContent = (job.last_count||0)+' risultati · ult. scan '+lr;
   }
-  if(runBtn) runBtn.style.display = job._running ? 'none' : 'inline-block';
-  if(clearBtn) clearBtn.style.display = 'inline-block';
 
   var results = (_radScanState.results[id] || []).slice();
 
   if(results.length === 0){
-    listEl.innerHTML = '<div class="rad-empty" style="padding:40px 20px"><div class="rad-empty-icon">🔍</div><div class="rad-empty-title">Nessun risultato</div><div class="rad-empty-sub">Esegui il job per popolare i risultati. Se non escono match, allenta i parametri o controlla i log nel job.</div></div>';
+    listEl.innerHTML = '<div class="rad-empty" style="padding:50px 20px"><div class="rad-empty-icon">🔍</div><div class="rad-empty-title">Nessun risultato</div><div class="rad-empty-sub">Click "▶ Esegui ora" qui sopra. Se non escono match, allenta i parametri o controlla il log nel job.</div></div>';
     return;
   }
 
-  // Raggruppa per sito
+  // Raggruppa per sito ma in tabella unica
   var bySite = {};
   results.forEach(function(r){
     var s = r._site || r.source || 'other';
     (bySite[s] = bySite[s] || []).push(r);
   });
 
+  var monitoredSet = {};
+  (job.monitored_urls||[]).forEach(function(u){ monitoredSet[u] = true; });
+
   var sitesOrder = ['catawiki','ebay','subito','other'];
-  var html = '';
+  var rows = '';
   sitesOrder.forEach(function(s){
-    if(!bySite[s] || bySite[s].length === 0) return;
     var items = bySite[s];
+    if(!items || !items.length) return;
     var newCount = items.filter(function(i){return i.is_new;}).length;
-    html += '<div class="rad-scan-group">'+
-      '<div class="rad-scan-group-head">'+
-        '<span>'+s.toUpperCase()+' · '+items.length+' risultati'+(newCount?' · '+newCount+' nuovi':'')+'</span>'+
-        (items[0]._search_url ? '<a href="'+escapeHtml(items[0]._search_url)+'" target="_blank" rel="noopener" style="font-size:10px;color:var(--accent);text-decoration:none">↗ Apri ricerca</a>' : '')+
-      '</div>';
+    var searchUrl = items[0]._search_url || null;
+    rows += '<tr class="rad-scan-group-divider">'+
+      '<td colspan="7">'+s.toUpperCase()+' · '+items.length+(newCount?' · '+newCount+' nuovi':'')+
+        (searchUrl ? '<a href="'+escapeHtml(searchUrl)+'" target="_blank" rel="noopener" style="margin-left:10px;color:var(--accent);text-decoration:none;text-transform:none;font-size:10px">↗ apri ricerca</a>' : '')+
+      '</td>'+
+    '</tr>';
     items.forEach(function(it){
-      html += radScanResultRow(it);
+      rows += radScanResultTr(it, job.id, !!monitoredSet[it.url]);
     });
-    html += '</div>';
   });
-  listEl.innerHTML = html;
+
+  listEl.innerHTML =
+    '<div class="rad-scan-table-wrap">'+
+      '<table class="rad-scan-table">'+
+        '<thead><tr>'+
+          '<th></th>'+
+          '<th>Titolo</th>'+
+          '<th class="num">Prezzo</th>'+
+          '<th>Fine</th>'+
+          '<th>Sito</th>'+
+          '<th class="num">Bid</th>'+
+          '<th style="text-align:right">Azioni</th>'+
+        '</tr></thead>'+
+        '<tbody>'+rows+'</tbody>'+
+      '</table>'+
+    '</div>';
 }
 window.radScanRenderResults = radScanRenderResults;
 
-function radScanResultRow(it){
-  var pfClass = 'rad-pf-'+(it._site || it.source || 'other');
-  var pfLabel = (it._site || it.source || '?').toUpperCase();
-  var price = (typeof it.price === 'number') ? ('€ '+it.price.toFixed(2)) : '—';
-  var endHtml = '';
+function radScanResultTr(it, jobId, isMonitored){
+  // IMG cell — placeholder se mancante o se onerror
+  var imgCell;
+  if(it.image_url){
+    imgCell = '<img src="'+escapeHtml(it.image_url)+'" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'ph\',innerHTML:\'🃏\'}))"/>';
+  } else {
+    imgCell = '<div class="ph">🃏</div>';
+  }
+
+  // Title — eventuale badge NEW
+  var newBadge = it.is_new ? '<span class="new-badge">NEW</span>' : '';
+  var titleCell = newBadge+'<a href="'+escapeHtml(it.url)+'" target="_blank" rel="noopener" title="'+escapeHtml(it.title)+'">'+escapeHtml(it.title)+'</a>';
+
+  // Price
+  var priceCellClass = 'price';
+  var priceText = '—';
+  if(typeof it.price === 'number'){
+    priceText = '€&nbsp;'+it.price.toFixed(2);
+  } else {
+    priceCellClass += ' no-price';
+  }
+
+  // End time
+  var endText = '—', endClass = '';
   if(it.end_time){
     var ms = new Date(it.end_time).getTime() - Date.now();
     if(ms > 0){
-      endHtml = '<div class="rad-scan-result-end">⏰ chiude in '+radScanFmtRel(it.end_time).replace(/^tra /,'')+'</div>';
+      endText = radScanFmtRel(it.end_time).replace(/^tra /,'⏰ ');
+      endClass = 'live';
     } else {
-      endHtml = '<div class="rad-scan-result-end" style="color:var(--text-subtle)">chiusa</div>';
+      endText = 'chiusa';
+      endClass = 'closed';
+    }
+  } else if(!it.is_auction){
+    endText = 'BUY-NOW';
+    endClass = 'closed';
+  }
+
+  // Site pill
+  var siteCell = '<span class="pf">'+(it._site||it.source||'?').toUpperCase()+'</span>';
+
+  // Bids
+  var bidsCell = (typeof it.bids === 'number') ? ('🔨&nbsp;'+it.bids) : '';
+
+  // Actions
+  var monClass = isMonitored ? 'monitor active' : 'monitor';
+  var monLabel = isMonitored ? 'attiva alert' : 'monitora questa asta';
+  var actionsCell =
+    '<a href="'+escapeHtml(it.url)+'" target="_blank" rel="noopener" title="Apri inserzione">↗</a>'+
+    '<button class="'+monClass+'" onclick="radScanToggleMonitor(\''+jobId+'\','+JSON.stringify(it.url)+')" title="'+monLabel+'">'+(isMonitored?'🔔':'🔕')+'</button>'+
+    '<button class="del" onclick="radScanRemoveResult(\''+jobId+'\','+JSON.stringify(it.url)+')" title="Rimuovi questo risultato (match errato)">✕</button>';
+
+  var rowClass = '';
+  if(it.is_new) rowClass += ' new';
+  if(isMonitored) rowClass += ' monitored';
+
+  return '<tr class="'+rowClass.trim()+'">'+
+    '<td class="img">'+imgCell+'</td>'+
+    '<td class="title">'+titleCell+'</td>'+
+    '<td class="'+priceCellClass+'">'+priceText+'<br><span style="font-size:9px;font-weight:400;color:var(--text-subtle)">'+(it.currency||'EUR')+'</span></td>'+
+    '<td class="endtime '+endClass+'">'+endText+'</td>'+
+    '<td class="site">'+siteCell+'</td>'+
+    '<td class="bids">'+bidsCell+'</td>'+
+    '<td class="actions">'+actionsCell+'</td>'+
+  '</tr>';
+}
+window.radScanResultTr = radScanResultTr;
+
+// ── Toggle monitoraggio (alert) di una specifica asta ────────────────────
+// Aggiunge / rimuove l'URL dalla lista monitored_urls del job. Quando un
+// URL è monitorato, ad ogni rescan se il record è ancora presente l'asta
+// produce una notifica "ASTA MONITORATA AGGIORNATA" (TODO: hook con
+// sistema alert del Radar esistente).
+function radScanToggleMonitor(jobId, url){
+  var job = _radScanState.jobs.find(function(x){return x.id===jobId;});
+  if(!job) return;
+  job.monitored_urls = job.monitored_urls || [];
+  var idx = job.monitored_urls.indexOf(url);
+  if(idx >= 0){
+    job.monitored_urls.splice(idx, 1);
+  } else {
+    job.monitored_urls.push(url);
+    // Notifica permission-up se non già concessa
+    if(typeof Notification !== 'undefined' && Notification.permission === 'default'){
+      try{ Notification.requestPermission(); }catch(_){}
     }
   }
-  var img = it.image_url
-    ? '<img class="rad-scan-result-img" src="'+escapeHtml(it.image_url)+'" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'rad-scan-result-img-ph\',innerHTML:\'🃏\'}))"/>'
-    : '<div class="rad-scan-result-img-ph">🃏</div>';
-  var newBadge = it.is_new ? '<span style="background:var(--success);color:#0d1117;font-size:8px;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">NEW</span>' : '';
-  var extra = [];
-  if(it.location) extra.push('📍 '+escapeHtml(it.location));
-  if(typeof it.bids === 'number') extra.push('🔨 '+it.bids+' bid');
-  if(it.shipping) extra.push('📦 '+escapeHtml(it.shipping));
-
-  return '<div class="rad-scan-result '+(it.is_new?'new':'')+'">'+
-    img+
-    '<div class="rad-scan-result-body">'+
-      '<div class="rad-scan-result-title"><a href="'+escapeHtml(it.url)+'" target="_blank" rel="noopener">'+escapeHtml(it.title)+'</a>'+newBadge+'</div>'+
-      '<div class="rad-scan-result-meta">'+
-        '<span class="pf '+pfClass+'">'+pfLabel+'</span>'+
-        (it.is_auction ? '<span class="pf rad-pf-auction">ASTA</span>' : '')+
-      '</div>'+
-      (extra.length ? '<div class="rad-scan-result-extra">'+extra.join(' · ')+'</div>' : '')+
-      endHtml+
-    '</div>'+
-    '<div>'+
-      '<div class="rad-scan-result-price">'+price+'<small>'+(it.currency||'EUR')+'</small></div>'+
-      '<div class="rad-scan-result-actions" style="margin-top:6px">'+
-        '<a href="'+escapeHtml(it.url)+'" target="_blank" rel="noopener">↗ Apri</a>'+
-      '</div>'+
-    '</div>'+
-  '</div>';
+  radScanPersist();
+  radScanRenderResults();
 }
+window.radScanToggleMonitor = radScanToggleMonitor;
+
+// ── Rimuovi un singolo risultato (match errato) ──────────────────────────
+// Aggiunge l'URL a job.dismissed_urls per non riapparire alle prossime
+// scansioni.
+function radScanRemoveResult(jobId, url){
+  var job = _radScanState.jobs.find(function(x){return x.id===jobId;});
+  if(!job) return;
+  // Rimuovi dalla lista corrente
+  var arr = _radScanState.results[jobId] || [];
+  _radScanState.results[jobId] = arr.filter(function(r){ return r.url !== url; });
+  // Aggiungi a dismissed permanenti
+  job.dismissed_urls = job.dismissed_urls || [];
+  if(job.dismissed_urls.indexOf(url) < 0) job.dismissed_urls.push(url);
+  // Trim dismissed list a 500
+  if(job.dismissed_urls.length > 500) job.dismissed_urls = job.dismissed_urls.slice(-500);
+  // Se era monitorato, smonitoralo
+  if(job.monitored_urls){
+    job.monitored_urls = job.monitored_urls.filter(function(u){ return u !== url; });
+  }
+  // Rimuovi anche da seen_urls per evitare confusione
+  if(job.seen_urls){
+    job.seen_urls = job.seen_urls.filter(function(u){ return u !== url; });
+  }
+  job.last_count = (_radScanState.results[jobId]||[]).length;
+  radScanPersist();
+  radScanRenderResults();
+  radScanRenderJobs();
+}
+window.radScanRemoveResult = radScanRemoveResult;
 
 // ── Render stato dei provider nel banner info ────────────────────────────
 async function radScanRenderProviderStatus(){

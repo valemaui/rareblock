@@ -1,5 +1,5 @@
 // Scraper eBay — funzionante su ebay.it / .com / .de / .co.uk / .fr / .es
-export function scrapeEbay(job) {
+export async function scrapeEbay(job) {
   function parsePrice(s) {
     if (!s) return null;
     var c = String(s).replace(/[€\s$£]/g, '').trim();
@@ -30,6 +30,88 @@ export function scrapeEbay(job) {
     return 'EUR';
   }
 
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  function pickFromSrcset(srcset) {
+    if (!srcset) return null;
+    var parts = srcset.split(',').map(function (s) { return s.trim(); });
+    if (!parts.length) return null;
+    var last = parts[parts.length - 1];
+    return last.split(/\s+/)[0] || null;
+  }
+
+  function isValidImageUrl(u) {
+    if (!u) return false;
+    if (u.indexOf('data:image/') === 0 && u.length < 200) return false;
+    if (u.indexOf('blank.') >= 0 || u.indexOf('placeholder') >= 0) return false;
+    if (/^data:image\/svg\+xml/.test(u)) return false;
+    return /^https?:\/\//.test(u) || u.indexOf('//') === 0;
+  }
+
+  function extractImageUrl(card) {
+    if (!card) return null;
+    var picture = card.querySelector('picture');
+    if (picture) {
+      var sources = picture.querySelectorAll('source');
+      for (var i = 0; i < sources.length; i++) {
+        var srcset = sources[i].getAttribute('srcset') || sources[i].getAttribute('data-srcset');
+        var u = pickFromSrcset(srcset);
+        if (isValidImageUrl(u)) return u.indexOf('//') === 0 ? 'https:' + u : u;
+      }
+    }
+    var imgs = card.querySelectorAll('img');
+    for (var j = 0; j < imgs.length; j++) {
+      var imgEl = imgs[j];
+      var attrs = ['data-src', 'data-lazy-src', 'data-original', 'data-defer-src', 'data-img-src'];
+      for (var k = 0; k < attrs.length; k++) {
+        var v = imgEl.getAttribute(attrs[k]);
+        if (isValidImageUrl(v)) return v.indexOf('//') === 0 ? 'https:' + v : v;
+      }
+      if (imgEl.currentSrc && isValidImageUrl(imgEl.currentSrc)) return imgEl.currentSrc;
+      var ss = imgEl.getAttribute('srcset') || imgEl.getAttribute('data-srcset');
+      var fromSs = pickFromSrcset(ss);
+      if (isValidImageUrl(fromSs)) return fromSs.indexOf('//') === 0 ? 'https:' + fromSs : fromSs;
+      if (isValidImageUrl(imgEl.src)) return imgEl.src;
+    }
+    return null;
+  }
+
+  function triggerLazyLoad() {
+    try {
+      window.scrollTo(0, document.body.scrollHeight);
+      window.scrollTo(0, 0);
+      document.querySelectorAll('img[data-src]').forEach(function (img) {
+        var ds = img.getAttribute('data-src');
+        if (ds) { try { img.src = ds; } catch (_) {} }
+      });
+      document.querySelectorAll('img[loading="lazy"]').forEach(function (img) {
+        try { img.loading = 'eager'; } catch (_) {}
+      });
+    } catch (_) {}
+  }
+
+  async function ensureImagesLoaded(maxWaitMs) {
+    triggerLazyLoad();
+    await sleep(300);
+    triggerLazyLoad();
+    var deadline = Date.now() + (maxWaitMs || 4000);
+    while (Date.now() < deadline) {
+      var pending = Array.from(document.querySelectorAll('img')).filter(function (img) {
+        if (img.naturalWidth > 0) return false;
+        if (!img.src && !img.getAttribute('data-src')) return false;
+        return true;
+      });
+      if (pending.length === 0) break;
+      pending.forEach(function (img) {
+        var ds = img.getAttribute('data-src') || img.getAttribute('data-lazy-src');
+        if (ds && img.src !== ds) { try { img.src = ds; } catch (_) {} }
+      });
+      await sleep(250);
+    }
+  }
+
+  await ensureImagesLoaded(3500);
+
   var items = [];
   var processed = {};
   var currency = getCurrency();
@@ -55,9 +137,7 @@ export function scrapeEbay(job) {
     var priceEl = row.querySelector('.s-item__price, .s-card__price');
     var price = parsePrice(priceEl ? priceEl.textContent : '');
 
-    var imgEl = row.querySelector('img.s-item__image-img, .s-item__image img, .s-item__image-wrapper img');
-    var img = null;
-    if (imgEl) img = imgEl.src || imgEl.getAttribute('data-src') || imgEl.getAttribute('data-lazy-src');
+    var img = extractImageUrl(row);
 
     var bidsEl = row.querySelector('.s-item__bids, .s-item__bidCount');
     var bidCount = null;

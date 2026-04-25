@@ -15,7 +15,7 @@
 
 import { SCRAPERS } from './scrapers/index.js';
 
-const TAB_TIMEOUT_MS = 30000;        // max attesa caricamento pagina
+const TAB_TIMEOUT_MS = 45000;        // max attesa caricamento pagina + scrape async
 const POST_LOAD_DELAY_MS = 2500;     // attesa per JS lazy-load dopo onLoad
 const BATCH_DELAY_MS = 800;          // pausa tra job concorrenti per non spam
 
