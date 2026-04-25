@@ -1339,100 +1339,201 @@ function normalizeNum(raw: string): number|null {
 // ── CATAWIKI ──────────────────────────────────────────────────────────
 //
 // Catawiki rende i risultati di ricerca in vari modi:
-// 1. JSON-LD `<script type="application/ld+json">` con @type ItemList
-// 2. `__NEXT_DATA__` con searchResults.lots[]
-// 3. Fallback HTML: pattern <a href="/it/l/<id>-...">
+// 1. JSON API endpoints (buyer/api) — spesso bypassano Cloudflare HTML wall
+// 2. __NEXT_DATA__ in HTML
+// 3. Fallback HTML anchor pattern
 async function handleCatawikiSearch(url: string, debug = false): Promise<Response> {
-  const { html, ok, status } = await fetchWithRetry(url);
-  if (!ok || !html) {
-    return json({ error: `Catawiki HTTP ${status}`, items: [], status, source: 'catawiki_search' });
-  }
-  if (/Just a moment|cf-browser-verification/i.test(html)) {
-    return json({ error: 'Cloudflare challenge', items: [], status: 403, source: 'catawiki_search' });
-  }
+  // Estrae query e categoria dall'URL HTML originale
+  const urlObj = new URL(url);
+  const q = urlObj.searchParams.get('q') || '';
+  const categoryId = urlObj.searchParams.get('category_id') || '';
+  const lang = (urlObj.pathname.match(/^\/([a-z]{2})\//)?.[1]) || 'it';
 
   const items: SearchItem[] = [];
   const seen = new Set<string>();
+  const attempts: Array<{strategy:string; status:number; ok:boolean; items:number; sample?:string}> = [];
 
-  // Strategy 1: __NEXT_DATA__
-  try {
-    const nd = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
-    if (nd) {
-      const data = JSON.parse(nd[1]);
-      // Naviga ricorsivamente cercando array di "lots"
-      const lots = findCatawikiLots(data);
-      for (const lot of lots) {
-        const u = lot.url || (lot.id ? `https://www.catawiki.com/it/l/${lot.id}` : null);
-        if (!u || seen.has(u)) continue;
-        seen.add(u);
-        items.push({
-          title: String(lot.title || lot.name || '').slice(0, 300),
-          price: typeof lot.price === 'number' ? lot.price : (lot.current_bid?.amount ?? lot.minimum_bid?.amount ?? null),
-          currency: lot.currency || lot.current_bid?.currency || 'EUR',
-          image_url: lot.image || lot.image_url || (lot.images && lot.images[0]?.url) || null,
-          url: u.startsWith('http') ? u : 'https://www.catawiki.com' + u,
-          end_time: lot.end_time || lot.bidding_end_time || lot.closing_at || null,
-          location: lot.location || null,
-          seller: lot.seller_name || lot.seller || null,
-          is_auction: true,
-          source: 'catawiki',
-          lot_id: lot.id ? String(lot.id) : null,
-          bids: typeof lot.bid_count === 'number' ? lot.bid_count : null,
-          shipping: lot.shipping_costs?.formatted || null,
+  // ── Strategia 1: API JSON buyer/api/v3/lots ─────────────────────────
+  if (q) {
+    const apiCandidates: Array<{url:string; type:'json'}> = [
+      { url: `https://www.catawiki.com/buyer/api/v3/lots?q=${encodeURIComponent(q)}&page=1&per_page=24${categoryId?`&category_id=${categoryId}`:''}`, type: 'json' },
+      { url: `https://www.catawiki.com/buyer/api/v2/lots/search?q=${encodeURIComponent(q)}&page=1${categoryId?`&category_id=${categoryId}`:''}`, type: 'json' },
+      { url: `https://www.catawiki.com/api/v2/search/lots?q=${encodeURIComponent(q)}${categoryId?`&category_id=${categoryId}`:''}`, type: 'json' },
+    ];
+    for (const cand of apiCandidates) {
+      try {
+        const ua = getRandomUA();
+        const resp = await fetch(cand.url, {
+          headers: {
+            'User-Agent': ua,
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': lang === 'it' ? 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7' : 'en-US,en;q=0.9',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Origin': 'https://www.catawiki.com',
+            'Referer': url,
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Ch-Ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+          },
         });
+        const text = await resp.text();
+        attempts.push({ strategy: 'api:'+cand.url.split('?')[0].split('catawiki.com')[1], status: resp.status, ok: resp.ok, items: 0, sample: debug ? text.slice(0, 200) : undefined });
+        if (!resp.ok) continue;
+        let data: any = null;
+        try { data = JSON.parse(text); } catch (_) { continue; }
+        const lots = findCatawikiLots(data);
+        if (!lots || !lots.length) continue;
+        for (const lot of lots) {
+          extractCatawikiLot(lot, items, seen);
+        }
+        if (items.length > 0) {
+          attempts[attempts.length-1].items = items.length;
+          break; // success
+        }
+      } catch (e) {
+        attempts.push({ strategy: 'api:'+cand.url.split('?')[0].split('catawiki.com')[1], status: 0, ok: false, items: 0, sample: debug ? String(e).slice(0,200) : undefined });
       }
     }
-  } catch (_) { /* fall through */ }
+  }
 
-  // Strategy 2: HTML fallback per anchor pattern
+  // ── Strategia 2: HTML page con __NEXT_DATA__ + fallback anchor ──────
   if (items.length === 0) {
-    const anchorRe = /<a[^>]+href="(\/it\/l\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
-    let m: RegExpExecArray | null;
-    let count = 0;
-    while ((m = anchorRe.exec(html)) !== null && count < 80) {
-      const path = m[1].split('?')[0];
-      const fullUrl = 'https://www.catawiki.com' + path;
-      if (seen.has(fullUrl)) continue;
-      seen.add(fullUrl);
-      const inner = m[2];
-      const titleMatch = inner.match(/(?:title|alt)="([^"]+)"/) || inner.match(/<h[1-6][^>]*>([\s\S]*?)<\/h/);
-      const imgMatch = inner.match(/<img[^>]+src="([^"]+)"/);
-      const priceMatch = inner.match(/(?:€|EUR)\s*[\d.,]+|[\d.,]+\s*(?:€|EUR)/i);
-      const title = titleMatch ? unentity(stripTags(titleMatch[1])) : '';
-      if (!title) continue;
-      const { price, currency } = priceMatch ? priceFromText(priceMatch[0]) : { price: null, currency: 'EUR' };
-      items.push({
-        title: title.slice(0, 300),
-        price,
-        currency,
-        image_url: imgMatch ? imgMatch[1] : null,
-        url: fullUrl,
-        end_time: null,
-        location: null,
-        seller: null,
-        is_auction: true,
-        source: 'catawiki',
-        lot_id: null,
+    const { html, ok, status } = await fetchWithRetry(url);
+    attempts.push({ strategy: 'html', status, ok, items: 0, sample: debug ? html.slice(0,200) : undefined });
+    if (!ok || !html) {
+      // Tutto fallito: ritorna errore strutturato con suggerimento
+      return json({
+        error: `Catawiki HTTP ${status}${status === 403 ? ' — Cloudflare blocca l\'edge function' : ''}`,
+        items: [], status, source: 'catawiki_search',
+        requires_userscript: true,
+        manual_url: url,
+        hint: 'Catawiki blocca lo scraping server-side. Apri manualmente la ricerca: lo userscript Tampermonkey raccoglierà i risultati. Oppure usa il pulsante "🔗 Apri ricerca" e l\'userscript farà il resto.',
+        attempts,
       });
-      count++;
     }
+    if (/Just a moment|cf-browser-verification|Attention Required/i.test(html)) {
+      return json({
+        error: 'Cloudflare challenge attivo',
+        items: [], status: 403, source: 'catawiki_search',
+        requires_userscript: true,
+        manual_url: url,
+        attempts,
+      });
+    }
+
+    // Strategia 2a: __NEXT_DATA__
+    try {
+      const nd = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+      if (nd) {
+        const data = JSON.parse(nd[1]);
+        const lots = findCatawikiLots(data);
+        for (const lot of lots) extractCatawikiLot(lot, items, seen);
+      }
+    } catch (_) {}
+
+    // Strategia 2b: anchor HTML pattern
+    if (items.length === 0) {
+      const anchorRe = /<a[^>]+href="(\/[a-z]{2}\/l\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+      let m: RegExpExecArray | null;
+      let count = 0;
+      while ((m = anchorRe.exec(html)) !== null && count < 80) {
+        const path = m[1].split('?')[0];
+        const fullUrl = 'https://www.catawiki.com' + path;
+        if (seen.has(fullUrl)) continue;
+        seen.add(fullUrl);
+        const inner = m[2];
+        const titleMatch = inner.match(/(?:title|alt)="([^"]+)"/) || inner.match(/<h[1-6][^>]*>([\s\S]*?)<\/h/);
+        const imgMatch = inner.match(/<img[^>]+src="([^"]+)"/);
+        const priceMatch = inner.match(/(?:€|EUR)\s*[\d.,]+|[\d.,]+\s*(?:€|EUR)/i);
+        const title = titleMatch ? unentity(stripTags(titleMatch[1])) : '';
+        if (!title) continue;
+        const { price, currency } = priceMatch ? priceFromText(priceMatch[0]) : { price: null, currency: 'EUR' };
+        items.push({
+          title: title.slice(0, 300),
+          price, currency,
+          image_url: imgMatch ? imgMatch[1] : null,
+          url: fullUrl,
+          end_time: null, location: null, seller: null,
+          is_auction: true, source: 'catawiki', lot_id: null,
+        });
+        count++;
+      }
+    }
+    attempts[attempts.length-1].items = items.length;
   }
 
   const resp: Record<string, unknown> = {
     source: 'catawiki_search',
-    url,
-    items,
-    count: items.length,
+    url, items, count: items.length,
   };
-  if (debug && items.length === 0) {
-    resp.debug = {
-      html_len: html.length,
-      has_next_data: /__NEXT_DATA__/.test(html),
-      has_consent: /consent|cookie/i.test(html.slice(0, 4000)),
-      preview: html.slice(0, 2000),
-    };
+  // Se 0 items, segnala fallback userscript
+  if (items.length === 0) {
+    resp.requires_userscript = true;
+    resp.manual_url = url;
+    resp.hint = 'Nessun risultato dal scraper server-side. Apri la ricerca manualmente — l\'userscript Tampermonkey raccoglierà i risultati.';
   }
+  if (debug) resp.attempts = attempts;
   return json(resp);
+}
+
+// Estrae un lot dal JSON Catawiki gestendo i vari schemi
+function extractCatawikiLot(lot: any, items: SearchItem[], seen: Set<string>): void {
+  if (!lot || typeof lot !== 'object') return;
+
+  let urlPath: string | null = null;
+  if (typeof lot.url === 'string') urlPath = lot.url;
+  else if (typeof lot.web_url === 'string') urlPath = lot.web_url;
+  else if (lot.id) urlPath = `https://www.catawiki.com/it/l/${lot.id}`;
+  if (!urlPath) return;
+  const fullUrl = urlPath.startsWith('http') ? urlPath : ('https://www.catawiki.com' + urlPath);
+  if (seen.has(fullUrl)) return;
+  seen.add(fullUrl);
+
+  // Prezzo: catawiki ha varie forme
+  let price: number | null = null;
+  let currency = 'EUR';
+  const bidObj = lot.current_bid || lot.minimum_bid || lot.starting_bid;
+  if (bidObj && typeof bidObj === 'object') {
+    if (typeof bidObj.amount === 'number') price = bidObj.amount;
+    else if (typeof bidObj.value === 'number') price = bidObj.value;
+    else if (bidObj.EUR) price = Number(bidObj.EUR);
+    else if (bidObj.formatted) price = priceFromText(bidObj.formatted).price;
+    if (bidObj.currency) currency = bidObj.currency;
+  }
+  if (price === null && typeof lot.price === 'number') price = lot.price;
+  if (price === null && lot.price && typeof lot.price === 'object') {
+    if (typeof lot.price.amount === 'number') price = lot.price.amount;
+    if (lot.price.currency) currency = lot.price.currency;
+  }
+  if (price !== null && price > 100000) price = price / 100; // alcune API ritornano centesimi
+
+  // Immagine
+  let image_url: string | null = null;
+  if (typeof lot.image === 'string') image_url = lot.image;
+  else if (lot.image && typeof lot.image === 'object') image_url = lot.image.url || lot.image.large || lot.image.src || null;
+  else if (Array.isArray(lot.images) && lot.images.length) {
+    const first = lot.images[0];
+    image_url = typeof first === 'string' ? first : (first.url || first.large || first.src || null);
+  }
+  else if (lot.image_url) image_url = lot.image_url;
+
+  items.push({
+    title: String(lot.title || lot.name || '').slice(0, 300),
+    price, currency,
+    image_url,
+    url: fullUrl,
+    end_time: lot.end_time || lot.bidding_end_time || lot.closing_at || null,
+    location: lot.location || lot.seller_country || null,
+    seller: lot.seller_name || lot.seller || null,
+    is_auction: true,
+    source: 'catawiki',
+    lot_id: lot.id ? String(lot.id) : null,
+    bids: typeof lot.bid_count === 'number' ? lot.bid_count : (typeof lot.bids === 'number' ? lot.bids : null),
+    shipping: lot.shipping_costs?.formatted || null,
+  });
 }
 
 function findCatawikiLots(node: any, depth = 0): any[] {

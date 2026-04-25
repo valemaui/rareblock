@@ -1,14 +1,15 @@
 // ==UserScript==
 // @name         RareBlock Hunter Scraper
 // @namespace    https://www.rareblock.eu
-// @version      1.0
-// @description  Raccoglie inserzioni da eBay, Subito, Vinted, Catawiki e le invia al backend RareBlock Hunter
+// @version      1.1
+// @description  Raccoglie inserzioni da eBay, Subito, Vinted, Catawiki e le invia al backend RareBlock Hunter (v1.1: supporto modalità scan-assisted con postMessage)
 // @author       RareBlock
 // @match        https://www.ebay.it/sch/*
 // @match        https://www.ebay.com/sch/*
 // @match        https://www.subito.it/annunci*
 // @match        https://www.vinted.it/catalog*
 // @match        https://www.catawiki.com/*/s*
+// @match        https://www.catawiki.com/*/s/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -187,30 +188,45 @@
   // ═══════ PARSER Catawiki ═══════
   function scrapeCatawiki(){
     var items = [];
-    var rows = document.querySelectorAll('[data-testid*="lot-card"], article[class*="lot"]');
+    // Selettori più robusti per Catawiki (cambia spesso classnames)
+    var rows = document.querySelectorAll('[data-testid*="lot-card"], article[class*="lot"], [class*="LotCard"], a[href*="/l/"][class*="card"]');
+    if(!rows.length){
+      // Fallback: tutti gli anchor che puntano a /l/
+      rows = document.querySelectorAll('a[href*="/l/"]');
+    }
+    var processed = {};
     rows.forEach(function(row){
-      var linkEl = row.querySelector('a[href*="/l/"]');
+      // Se il selector ha matchato direttamente l'anchor, usa quello
+      var linkEl = (row.tagName === 'A') ? row : row.querySelector('a[href*="/l/"]');
       if(!linkEl) return;
       var url = linkEl.href;
+      if(processed[url]) return;
+      processed[url] = true;
       var idMatch = url.match(/\/l\/([^\/\?#]+)/);
       var externalId = idMatch ? idMatch[1] : null;
       if(!externalId) return;
 
-      var title = (row.querySelector('h3, [class*="title"]')||{}).textContent || '';
-      var priceEl = row.querySelector('[class*="bid"], [class*="price"]');
+      // Risali al container "card" se siamo partiti dall'anchor
+      var card = (row.tagName === 'A') ? (row.closest('article, [data-testid], [class*="LotCard"], li, div[class*="card"]') || row) : row;
+
+      var titleEl = card.querySelector('h3, h2, [class*="title"], [data-testid*="title"]');
+      var title = titleEl ? titleEl.textContent.trim() : (linkEl.textContent || '').trim();
+
+      var priceEl = card.querySelector('[class*="bid"], [class*="price"], [data-testid*="bid"], [data-testid*="price"]');
       var price = parsePrice(priceEl ? priceEl.textContent : '');
-      var img = (row.querySelector('img')||{}).src || null;
 
-      // Catawiki è sempre asta
-      var endEl = row.querySelector('[class*="time-left"], [class*="countdown"]');
-      var endsAt = null; // TODO parse relative countdown
+      var imgEl = card.querySelector('img');
+      var img = imgEl ? (imgEl.src || imgEl.getAttribute('data-src') || imgEl.getAttribute('srcset')||'').split(' ')[0] : null;
 
-      if(title && price){
+      var endEl = card.querySelector('[class*="time-left"], [class*="countdown"], [class*="ends"], time');
+      var endsAt = endEl ? parseCatawikiCountdown(endEl.textContent) : null;
+
+      if(title){
         items.push({
           platform: 'catawiki',
-          listing_url: url.split('?')[0],
+          listing_url: url.split('?')[0].split('#')[0],
           external_id: externalId,
-          title: title.trim(),
+          title: title.slice(0, 300),
           price: price,
           currency: 'EUR',
           listing_type: 'auction',
@@ -220,6 +236,21 @@
       }
     });
     return items;
+  }
+
+  function parseCatawikiCountdown(s){
+    if(!s) return null;
+    // "Ends in 2d 5h" / "Termina in 1g 12h" / "5h 30m"
+    var m = s.match(/(\d+)\s*(g|d|day|giorno|giorni)/i);
+    var h = s.match(/(\d+)\s*h/i);
+    var min = s.match(/(\d+)\s*m\b/i);
+    if(!m && !h && !min) return null;
+    var ms = 0;
+    if(m) ms += parseInt(m[1]) * 86400000;
+    if(h) ms += parseInt(h[1]) * 3600000;
+    if(min) ms += parseInt(min[1]) * 60000;
+    if(ms === 0) return null;
+    return new Date(Date.now() + ms).toISOString();
   }
 
   // ═══════ ROUTER ═══════
@@ -284,10 +315,46 @@
   // Avvio: aspetta caricamento
   function init(){
     var res = detectAndScrape();
-    if(res && res.items && res.items.length){
-      console.log('[RB Hunter] '+res.platform+' — '+res.items.length+' inserzioni trovate');
-      addFloatingButton(res.items.length);
+    if(!res || !res.items || !res.items.length){
+      // Riprova ancora dopo 3 secondi (lazy loading)
+      setTimeout(function(){
+        var r2 = detectAndScrape();
+        if(r2 && r2.items && r2.items.length) handleScrapedItems(r2);
+      }, 3000);
+      return;
     }
+    handleScrapedItems(res);
+  }
+
+  function handleScrapedItems(res){
+    console.log('[RB Hunter] '+res.platform+' — '+res.items.length+' inserzioni trovate');
+
+    // ── Modalità ASSIST: scan triggerato dal main app via #rbScan=jobId ──
+    // Posta i risultati a window.opener tramite postMessage (no backend roundtrip)
+    var hash = location.hash || '';
+    var jobMatch = hash.match(/[#&]rbScan=([^&]+)/);
+    if(jobMatch && window.opener && !window.opener.closed){
+      try{
+        var jobId = decodeURIComponent(jobMatch[1]);
+        // Invia a tutti gli origin RareBlock noti (claude.ai per dev, rareblock.eu per prod)
+        var payload = {
+          type: 'rbScanResult',
+          jobId: jobId,
+          platform: res.platform,
+          source_url: location.href,
+          items: res.items
+        };
+        try{ window.opener.postMessage(payload, '*'); }
+        catch(_){ /* alcune CSP restrictive bloccano postMessage */ }
+        showBanner('🔄 '+res.items.length+' inserzioni inviate al main RareBlock', 'ok');
+        // Chiudi automaticamente dopo 4s (utile per scheduled scans)
+        setTimeout(function(){ try{ window.close(); }catch(_){} }, 4000);
+        return;
+      }catch(e){ console.warn('[RB Hunter] assist mode error:', e); }
+    }
+
+    // ── Modalità normale: pulsante invia-a-backend ───────────────────────
+    addFloatingButton(res.items.length);
   }
 
   if(document.readyState === 'complete') setTimeout(init, 1500);
