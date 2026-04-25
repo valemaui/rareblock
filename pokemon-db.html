@@ -9371,15 +9371,19 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
           <div class="rad-scan-right">
             <!-- Info banner: spiega protezione Catawiki + userscript -->
             <details id="radScanInfoBanner" style="margin-bottom:10px;background:rgba(56,139,253,.06);border:1px solid rgba(56,139,253,.25);border-radius:var(--r);padding:8px 12px;font-size:11px;color:var(--text-muted);line-height:1.5">
-              <summary style="cursor:pointer;font-weight:600;color:var(--accent)">ℹ Come funzionano le scansioni</summary>
+              <summary style="cursor:pointer;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:8px">
+                <span>ℹ Stato scraping</span>
+                <span id="radScanProviderStatus" style="margin-left:auto;font-size:10px;font-weight:500;color:var(--text-muted);font-family:var(--mono)">…</span>
+              </summary>
               <div style="margin-top:8px">
-                <b>eBay & Subito</b>: scraping diretto server-side (edge function). Nessun setup richiesto.<br>
-                <b>Catawiki</b>: protetto da Cloudflare contro lo scraping server-side.
-                Quando un job Catawiki fallisce, appare un pulsante <b>🪟 Apri ricerca</b> nella card del job.
-                Cliccandolo si apre la pagina Catawiki in una nuova tab e — se hai installato lo userscript Tampermonkey
-                <code>rareblock-hunter-scraper.user.js</code> v1.1+ — i risultati vengono inviati automaticamente qui via postMessage.<br>
-                <b>Schedulazione</b>: i job girano solo quando questa pagina è aperta (scheduler client-side).
-                Per esecuzioni 24/7 anche a browser chiuso serve un cron lato Supabase (TODO fase 2).
+                <div id="radScanProviderDetails" style="margin-bottom:10px"></div>
+                <b>Architettura</b>: il sistema prova in cascata estensione → API proxy → edge function → userscript.
+                Si ferma al primo provider che ritorna risultati.<br>
+                <b>Estensione Chrome RareBlock Hunter</b> (consigliata): apre tab nascoste sui siti target, scappe via DOM con
+                IP residenziale e cookie utente → bypassa Cloudflare. Scarica da <code>extension/</code> nel repo,
+                installala da <code>chrome://extensions</code> → "Load unpacked".<br>
+                <b>Schedulazione</b>: i job girano solo quando questa pagina è aperta. Per esecuzioni 24/7 anche
+                a browser chiuso servirebbe un cron lato Supabase (TODO fase 2).
               </div>
             </details>
             <div class="rad-scan-results-head">
@@ -13768,51 +13772,340 @@ function radScanMatchItem(item, job){
   return true;
 }
 
-// ── Scrape one site for a job via edge function ─────────────────────────
-async function radScanScrapeSite(job, site){
-  var url = radScanBuildUrl(site, job);
-  if(!url) throw new Error('URL builder mancante per '+site);
-  var sourceMap = { catawiki:'catawiki_search', ebay:'ebay_search', subito:'subito_search' };
-  var source = sourceMap[site];
-  if(!source) throw new Error('source mancante per '+site);
+// ═══════════════════════════════════════════════════════════════════════
+// 🔌 SCRAPING PROVIDERS — sistema pluggable per il fetching
+//
+// Ogni provider implementa la stessa interfaccia. Per cambiare strategia
+// di scraping (es. passare a ScrapingBee/Bright Data in futuro) basta:
+//   1. Implementare un nuovo oggetto provider con la stessa shape
+//   2. Aggiungerlo all'array RAD_SCAN_PROVIDERS con la priority desiderata
+//
+// L'orchestrator radScanScrapeSite() prova i provider in ordine di
+// priority (desc), ferma al primo con items > 0 oppure no error.
+//
+// Interface ScrapingProvider:
+//   {
+//     name: string,                  // id univoco per logging
+//     priority: number,              // 0-100, più alto = preferito
+//     supports: string[],            // ['catawiki','ebay','subito']
+//     isAvailable(site): Promise<bool>,
+//     scrape(site, job, urlBuilder): Promise<ScrapeResult>
+//   }
+//
+// ScrapeResult:
+//   {
+//     items: Array<Item>,
+//     error: string|null,
+//     search_url: string,
+//     provider_name: string,
+//     requires_userscript?: bool,
+//     manual_url?: string,
+//     hint?: string,
+//     duration_ms?: number
+//   }
+// ═══════════════════════════════════════════════════════════════════════
 
-  var sessionToken = window._rbSession && window._rbSession.access_token;
-  var bearer = sessionToken || SUPA_KEY;
-  var ctrl = new AbortController();
-  var timer = setTimeout(function(){ ctrl.abort(); }, 18000);
-  try{
-    var res = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+bearer},
-      body: JSON.stringify({ source: source, url: url, debug: true }),
-      signal: ctrl.signal
-    });
-    clearTimeout(timer);
-    if(!res.ok){
-      // Retry con SUPA_KEY in caso 401
-      if(res.status === 401 && bearer !== SUPA_KEY){
-        res = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {
-          method:'POST',
-          headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPA_KEY},
-          body: JSON.stringify({ source: source, url: url, debug: true })
-        });
-      }
-      if(!res.ok) return { items:[], error:'HTTP '+res.status, search_url:url };
-    }
-    var data = await res.json();
-    return {
-      items: data.items || [],
-      error: data.error || null,
-      search_url: url,
-      debug: data.debug,
-      requires_userscript: !!data.requires_userscript,
-      manual_url: data.manual_url || url,
-      hint: data.hint || null,
-    };
-  }catch(e){
-    clearTimeout(timer);
-    return { items:[], error: (e.name==='AbortError' ? 'timeout 18s' : (e.message||String(e))), search_url:url };
+// ── Provider 1: Estensione Chrome (preferito — IP residenziale, no Cloudflare) ─
+var ProviderExtension = (function(){
+  var EXT_AVAILABLE = false;
+  var EXT_VERSION = null;
+  var EXT_CAPS = [];
+  var DETECT_TIMEOUT_MS = 800;
+
+  // Listener permanente per "rb-extension-ready" (auto-annuncio del CS)
+  window.addEventListener('message', function(ev){
+    if(ev.source !== window) return;
+    if(!ev.data || ev.data.type !== 'rb-extension-ready') return;
+    EXT_AVAILABLE = true;
+    EXT_VERSION = ev.data.version || null;
+    EXT_CAPS = ev.data.capabilities || [];
+  });
+
+  function ping(){
+    // Provoca un announce dal content script
+    window.postMessage({ type: 'rb-ext-ping' }, '*');
   }
+
+  return {
+    name: 'extension',
+    priority: 90,
+    supports: ['catawiki', 'ebay', 'subito'],
+
+    isAvailable: function(site){
+      if(EXT_AVAILABLE){
+        return Promise.resolve(EXT_CAPS.indexOf(site) >= 0);
+      }
+      // Ping + aspetta risposta
+      ping();
+      return new Promise(function(resolve){
+        var done = false;
+        function onMsg(ev){
+          if(done) return;
+          if(ev.source !== window) return;
+          if(!ev.data || ev.data.type !== 'rb-extension-ready') return;
+          done = true;
+          window.removeEventListener('message', onMsg);
+          EXT_AVAILABLE = true;
+          EXT_VERSION = ev.data.version || null;
+          EXT_CAPS = ev.data.capabilities || [];
+          resolve(EXT_CAPS.indexOf(site) >= 0);
+        }
+        window.addEventListener('message', onMsg);
+        setTimeout(function(){
+          if(done) return;
+          done = true;
+          window.removeEventListener('message', onMsg);
+          resolve(false);
+        }, DETECT_TIMEOUT_MS);
+      });
+    },
+
+    scrape: function(site, job, urlBuilder){
+      var url = urlBuilder(site, job);
+      var requestId = 'ext_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+      var t0 = Date.now();
+      return new Promise(function(resolve){
+        var timer = setTimeout(function(){
+          window.removeEventListener('message', onMsg);
+          resolve({
+            items:[],
+            error:'timeout estensione (45s)',
+            search_url:url,
+            provider_name:'extension',
+            duration_ms: Date.now()-t0,
+          });
+        }, 45000);
+        function onMsg(ev){
+          if(ev.source !== window) return;
+          var d = ev.data;
+          if(!d || d.type !== 'rb-scrape-response' || d.requestId !== requestId) return;
+          clearTimeout(timer);
+          window.removeEventListener('message', onMsg);
+          resolve({
+            items: d.items || [],
+            error: d.error || null,
+            search_url: d.search_url || url,
+            provider_name: 'extension',
+            duration_ms: d.duration_ms || (Date.now()-t0),
+          });
+        }
+        window.addEventListener('message', onMsg);
+        window.postMessage({
+          type: 'rb-scrape-request',
+          requestId: requestId,
+          site: site,
+          url: url,
+          job: job
+        }, '*');
+      });
+    },
+
+    // Diagnostica per UI status
+    _getInfo: function(){
+      return { available: EXT_AVAILABLE, version: EXT_VERSION, caps: EXT_CAPS.slice() };
+    }
+  };
+})();
+
+// ── Provider 2: API Proxy (futuro — ScrapingBee, Bright Data, ScraperAPI) ─
+// Si attiva automaticamente quando l'utente configura una API key in
+// localStorage 'pkm_scraping_api_key' + 'pkm_scraping_api_provider'.
+// Stub per ora: implementa qui quando si decide il vendor.
+var ProviderApiProxy = {
+  name: 'api_proxy',
+  priority: 70,
+  supports: ['catawiki', 'ebay', 'subito'],
+
+  isAvailable: function(site){
+    var key = null;
+    try{ key = localStorage.getItem('pkm_scraping_api_key'); }catch(e){}
+    return Promise.resolve(!!key);
+  },
+
+  scrape: async function(site, job, urlBuilder){
+    var url = urlBuilder(site, job);
+    var apiKey = localStorage.getItem('pkm_scraping_api_key');
+    var apiProvider = localStorage.getItem('pkm_scraping_api_provider') || 'scrapingbee';
+
+    // L'edge function smooth-endpoint può fare il parsing — basta passargli
+    // un proxied URL invece dell'URL diretto. Implementazione minima:
+    var proxiedUrl;
+    if(apiProvider === 'scrapingbee'){
+      proxiedUrl = 'https://app.scrapingbee.com/api/v1/?api_key='+encodeURIComponent(apiKey)
+        +'&url='+encodeURIComponent(url)
+        +'&render_js=true&premium_proxy=true&country_code=it';
+    } else {
+      return { items:[], error:'provider api_proxy "'+apiProvider+'" non implementato', search_url:url, provider_name:'api_proxy' };
+    }
+
+    // Stub: chiama edge function con il proxied URL e source originale
+    // (richiede modifica futura dell'edge function per accettare un campo
+    // `proxy_url`). Per ora ritorniamo un placeholder.
+    return {
+      items: [],
+      error: 'api_proxy: implementazione da completare quando si attiva il piano a pagamento',
+      search_url: url,
+      provider_name: 'api_proxy',
+      hint: 'TODO: estendere smooth-endpoint per accettare proxy_url'
+    };
+  }
+};
+
+// ── Provider 3: Edge Function Supabase (server-side) ─────────────────────
+// Funziona per eBay/Subito ma fallisce su Catawiki per Cloudflare WAF.
+var ProviderEdgeFunction = {
+  name: 'edge_function',
+  priority: 50,
+  supports: ['catawiki', 'ebay', 'subito'],
+
+  isAvailable: function(site){ return Promise.resolve(true); },
+
+  scrape: async function(site, job, urlBuilder){
+    var url = urlBuilder(site, job);
+    var sourceMap = { catawiki:'catawiki_search', ebay:'ebay_search', subito:'subito_search' };
+    var source = sourceMap[site];
+    if(!source) return { items:[], error:'source non gestita: '+site, search_url:url, provider_name:'edge_function' };
+
+    var t0 = Date.now();
+    var sessionToken = window._rbSession && window._rbSession.access_token;
+    var bearer = sessionToken || SUPA_KEY;
+    var ctrl = new AbortController();
+    var timer = setTimeout(function(){ ctrl.abort(); }, 18000);
+    try{
+      var res = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+bearer},
+        body: JSON.stringify({ source: source, url: url, debug: true }),
+        signal: ctrl.signal
+      });
+      clearTimeout(timer);
+      if(!res.ok){
+        if(res.status === 401 && bearer !== SUPA_KEY){
+          res = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {
+            method:'POST',
+            headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPA_KEY},
+            body: JSON.stringify({ source: source, url: url, debug: true })
+          });
+        }
+        if(!res.ok) return { items:[], error:'HTTP '+res.status, search_url:url, provider_name:'edge_function', duration_ms: Date.now()-t0 };
+      }
+      var data = await res.json();
+      return {
+        items: data.items || [],
+        error: data.error || null,
+        search_url: url,
+        provider_name: 'edge_function',
+        duration_ms: Date.now() - t0,
+        requires_userscript: !!data.requires_userscript,
+        manual_url: data.manual_url || url,
+        hint: data.hint || null,
+      };
+    }catch(e){
+      clearTimeout(timer);
+      return { items:[], error: (e.name==='AbortError'?'timeout 18s':(e.message||String(e))), search_url:url, provider_name:'edge_function', duration_ms: Date.now()-t0 };
+    }
+  }
+};
+
+// ── Provider 4: Userscript fallback (richiede click utente, no auto) ─────
+// Lasciato come ultima risorsa quando l'estensione non è installata e
+// l'edge function fallisce. Restituisce sempre items=[] + manual_url per
+// far apparire il bottone "🪟 Apri sito" nell'UI.
+var ProviderUserscript = {
+  name: 'userscript',
+  priority: 10,
+  supports: ['catawiki', 'ebay', 'subito'],
+
+  isAvailable: function(site){
+    // Lo userscript è "disponibile" come fallback manuale se non c'è
+    // l'estensione attiva (lo verifichiamo nell'orchestrator).
+    return Promise.resolve(true);
+  },
+
+  scrape: function(site, job, urlBuilder){
+    var url = urlBuilder(site, job);
+    return Promise.resolve({
+      items: [],
+      error: 'fallback userscript — apertura manuale richiesta',
+      search_url: url,
+      provider_name: 'userscript',
+      requires_userscript: true,
+      manual_url: url,
+      hint: 'Estensione non rilevata. Click su "🪟 Apri" per usare userscript Tampermonkey, oppure installa l\'estensione RareBlock Hunter.',
+    });
+  }
+};
+
+// ── ARRAY DEI PROVIDER (modificare qui per aggiungere/rimuovere) ─────────
+var RAD_SCAN_PROVIDERS = [
+  ProviderExtension,
+  ProviderApiProxy,
+  ProviderEdgeFunction,
+  ProviderUserscript,
+];
+window.RAD_SCAN_PROVIDERS = RAD_SCAN_PROVIDERS;
+
+// ── ORCHESTRATOR: prova i provider in cascata ────────────────────────────
+async function radScanScrapeSite(job, site){
+  var urlBuilder = radScanBuildUrl;
+  var url = urlBuilder(site, job);
+  if(!url) return { items:[], error:'URL builder mancante per '+site, search_url:'', provider_name:'none' };
+
+  // Filtra provider supportanti il sito + ordina per priorità desc
+  var candidates = RAD_SCAN_PROVIDERS.filter(function(p){
+    return p.supports.indexOf(site) >= 0;
+  }).sort(function(a,b){
+    return b.priority - a.priority;
+  });
+
+  var attempts = [];
+  var lastResult = null;
+
+  for(var i=0; i<candidates.length; i++){
+    var p = candidates[i];
+    var avail;
+    try{ avail = await p.isAvailable(site); }catch(_){ avail = false; }
+    if(!avail){
+      attempts.push({ provider: p.name, available: false });
+      continue;
+    }
+    var result;
+    try{ result = await p.scrape(site, job, urlBuilder); }
+    catch(e){
+      attempts.push({ provider: p.name, available: true, error: e.message||String(e) });
+      continue;
+    }
+    attempts.push({
+      provider: p.name,
+      available: true,
+      items_count: (result.items||[]).length,
+      error: result.error || null,
+      duration_ms: result.duration_ms || null,
+    });
+    lastResult = result;
+
+    // SUCCESS: items > 0 → ritorna subito
+    if(result.items && result.items.length > 0){
+      result.attempts_log = attempts;
+      return result;
+    }
+    // SUCCESS: nessun errore + 0 items = "non c'è niente che matcha"
+    // → accetta come risposta valida (non provare provider con priority più bassa)
+    if(!result.error){
+      result.attempts_log = attempts;
+      return result;
+    }
+    // FAILURE: continua col prossimo provider
+  }
+
+  // Tutti hanno fallito → ritorna l'ultima risposta (con error e magari requires_userscript)
+  if(!lastResult){
+    lastResult = {
+      items:[], error:'nessun provider disponibile', search_url:url, provider_name:'none'
+    };
+  }
+  lastResult.attempts_log = attempts;
+  return lastResult;
 }
 
 // ── Apertura tab assistita da userscript (Catawiki bypass Cloudflare) ───
@@ -13933,19 +14226,21 @@ async function radScanRunNow(jobId){
     radScanRenderJobs();
     try{
       var r = await radScanScrapeSite(job, site);
+      var providerLabel = r.provider_name ? (' via '+r.provider_name) : '';
+      var durLabel = r.duration_ms ? (' '+(r.duration_ms/1000).toFixed(1)+'s') : '';
       if(r.error){
-        job.last_log.push('  ✗ '+site+': '+r.error);
+        job.last_log.push('  ✗ '+site+providerLabel+': '+r.error);
         if(r.requires_userscript && r.manual_url){
           job.userscript_fallbacks[site] = r.manual_url;
-          job.last_log.push('     ℹ usa "🪟 Apri ricerca" qui sotto + userscript');
+          job.last_log.push('     ℹ usa "🪟 Apri" qui sotto (userscript Tampermonkey)');
         }
       } else if(r.items.length === 0 && r.requires_userscript){
         job.userscript_fallbacks[site] = r.manual_url;
-        job.last_log.push('  ⚠ '+site+': 0 risultati server-side — fallback userscript');
+        job.last_log.push('  ⚠ '+site+providerLabel+': 0 risultati — fallback userscript');
       } else {
         totalFetched += r.items.length;
         var matched = r.items.filter(function(it){ return radScanMatchItem(it, job); });
-        job.last_log.push('  ✓ '+site+': '+r.items.length+' totali, '+matched.length+' matchano');
+        job.last_log.push('  ✓ '+site+providerLabel+durLabel+': '+r.items.length+' totali, '+matched.length+' match');
         matched.forEach(function(m){
           allMatches.push(Object.assign({}, m, { _site: site, _search_url: r.search_url }));
         });
@@ -14161,6 +14456,9 @@ window.radScanRenderJobs = radScanRenderJobs;
 
 // ── Render results panel ────────────────────────────────────────────────
 function radScanRenderResults(){
+  // Aggiorna anche lo stato dei provider nel banner info
+  radScanRenderProviderStatus();
+
   var listEl = document.getElementById('radScanResultsList');
   var titleEl = document.getElementById('radScanResultsTitle');
   var metaEl = document.getElementById('radScanResultsMeta');
@@ -14276,6 +14574,45 @@ function radScanResultRow(it){
   '</div>';
 }
 
+// ── Render stato dei provider nel banner info ────────────────────────────
+async function radScanRenderProviderStatus(){
+  var statusEl = document.getElementById('radScanProviderStatus');
+  var detailsEl = document.getElementById('radScanProviderDetails');
+  if(!statusEl || !detailsEl) return;
+
+  var rows = [];
+  var firstActive = null;
+  for(var i=0; i<RAD_SCAN_PROVIDERS.length; i++){
+    var p = RAD_SCAN_PROVIDERS[i];
+    var avail = false;
+    try{ avail = await p.isAvailable('catawiki'); }catch(_){}
+    if(avail && !firstActive) firstActive = p.name;
+    var color = avail ? 'var(--success)' : 'var(--text-subtle)';
+    var dot   = avail ? '●' : '○';
+    var label = {
+      extension: 'Estensione Chrome',
+      api_proxy: 'API Proxy (ScrapingBee/BrightData)',
+      edge_function: 'Edge Function Supabase',
+      userscript: 'Userscript Tampermonkey (manuale)'
+    }[p.name] || p.name;
+    rows.push(
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:11px;border-bottom:1px dotted var(--border)">'+
+        '<span style="color:'+color+'"><span style="font-size:13px;line-height:1">'+dot+'</span> '+escapeHtml(label)+' <span style="color:var(--text-subtle);font-family:var(--mono);font-size:9px">['+p.name+']</span></span>'+
+        '<span style="color:var(--text-subtle);font-family:var(--mono);font-size:10px">prio '+p.priority+' · '+(avail?'<span style="color:var(--success)">attivo</span>':'<span style="color:var(--text-subtle)">non rilevato</span>')+'</span>'+
+      '</div>'
+    );
+  }
+  detailsEl.innerHTML = rows.join('');
+  if(firstActive){
+    statusEl.textContent = '✓ '+firstActive;
+    statusEl.style.color = 'var(--success)';
+  } else {
+    statusEl.textContent = '⚠ nessun provider';
+    statusEl.style.color = 'var(--danger)';
+  }
+}
+window.radScanRenderProviderStatus = radScanRenderProviderStatus;
+
 // ── Init ────────────────────────────────────────────────────────────────
 function radScanInit(){
   radScanLoad();
@@ -14284,6 +14621,9 @@ function radScanInit(){
   radScanRenderJobs();
   radScanStartScheduler();
   _radScanInstallMessageListener();
+  // Render iniziale provider status (ritardato per dare tempo all'estensione di annunciarsi)
+  setTimeout(radScanRenderProviderStatus, 500);
+  setTimeout(radScanRenderProviderStatus, 2500);
   // Ri-render periodico per aggiornare i countdown e i "tra Xm"
   setInterval(function(){
     if(_radScanState.jobs.length){
@@ -14295,6 +14635,8 @@ function radScanInit(){
       }
     }
   }, 30000);
+  // Re-check provider status ogni 60s (cattura installazione tardiva dell'estensione)
+  setInterval(radScanRenderProviderStatus, 60000);
 }
 // Auto-init dopo che il DOM è pronto e le costanti SUPA_* sono disponibili
 if(document.readyState === 'loading'){
