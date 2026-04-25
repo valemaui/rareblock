@@ -1,14 +1,26 @@
-// Scraper Catawiki — iniettato nella tab di catawiki.com via executeScript.
-// IMPORTANTE: la funzione viene serializzata via toString(), quindi:
-//   - niente closure su variabili esterne
-//   - niente import dinamici
-//   - tutti gli helper devono essere DENTRO la funzione
-// La funzione è async: chrome.scripting.executeScript la awaitarà.
+// Scraper Catawiki — versione 2 con field mapping verificato
+//
+// Schema reale dei lots in __NEXT_DATA__ / API JSON Catawiki (verificato Apr 2026):
+//   id, title, subtitle
+//   thumbImageUrl, originalImageUrl
+//   url (relativo, /it/l/<id>-...)
+//   auctionId, biddingStartTime, biddingEndTime, expiresAt, closingAt
+//   biddingHistory: [{amount, currency_code, ...}, ...]   (l'ultimo è il bid corrente)
+//   currentBid: {amount, currency_code} (alcune varianti)
+//   buyNow: number|null
+//   reservePriceSet: bool
+//   favoriteCount, isContentExplicit
+//
+// La funzione viene serializzata via toString() per executeScript: tutto inline.
 
 export async function scrapeCatawiki(job) {
-  function parsePrice(s) {
+
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  // ── Helper: parsing prezzo da stringa visibile (€ 1.234,56) ─────────
+  function parsePriceText(s) {
     if (!s) return null;
-    var c = String(s).replace(/[€\s$£]/g, '').trim();
+    var c = String(s).replace(/[€\s$£EURURO]/gi, '').trim();
     if (/^\d{1,3}(\.\d{3})+,\d{2}$/.test(c)) return parseFloat(c.replace(/\./g, '').replace(',', '.'));
     if (/^\d{1,3}(,\d{3})+\.\d{2}$/.test(c)) return parseFloat(c.replace(/,/g, ''));
     if (/^\d+,\d{2}$/.test(c)) return parseFloat(c.replace(',', '.'));
@@ -16,203 +28,137 @@ export async function scrapeCatawiki(job) {
     return isFinite(n) && n > 0 ? n : null;
   }
 
-  function parseCountdown(s) {
-    if (!s) return null;
-    var m = s.match(/(\d+)\s*(g|d|day|giorno|giorni)/i);
-    var h = s.match(/(\d+)\s*h/i);
-    var min = s.match(/(\d+)\s*m\b/i);
-    if (!m && !h && !min) return null;
-    var ms = 0;
-    if (m) ms += parseInt(m[1]) * 86400000;
-    if (h) ms += parseInt(h[1]) * 3600000;
-    if (min) ms += parseInt(min[1]) * 60000;
-    if (ms === 0) return null;
-    return new Date(Date.now() + ms).toISOString();
+  // ── Helper: estrai prezzo dal lot JSON con tutti i fallback noti ────
+  function extractPriceFromLot(lot) {
+    var price = null;
+    var currency = 'EUR';
+    if (!lot) return { price: null, currency: currency };
+
+    // 1. biddingHistory: l'ultimo elemento è il bid più recente (più alto)
+    if (Array.isArray(lot.biddingHistory) && lot.biddingHistory.length) {
+      var last = lot.biddingHistory[lot.biddingHistory.length - 1];
+      if (last && typeof last.amount === 'number') {
+        price = last.amount;
+        if (last.currency_code) currency = last.currency_code;
+      }
+    }
+    // 2. bidding_history (snake_case alt)
+    if (price === null && Array.isArray(lot.bidding_history) && lot.bidding_history.length) {
+      var last2 = lot.bidding_history[lot.bidding_history.length - 1];
+      if (last2 && typeof last2.amount === 'number') {
+        price = last2.amount;
+        if (last2.currency_code) currency = last2.currency_code;
+      }
+    }
+    // 3. currentBid object
+    if (price === null && lot.currentBid && typeof lot.currentBid === 'object') {
+      if (typeof lot.currentBid.amount === 'number') {
+        price = lot.currentBid.amount;
+        if (lot.currentBid.currency_code) currency = lot.currentBid.currency_code;
+        else if (lot.currentBid.currency) currency = lot.currentBid.currency;
+      }
+    }
+    // 4. current_bid object snake_case
+    if (price === null && lot.current_bid && typeof lot.current_bid === 'object') {
+      if (typeof lot.current_bid.amount === 'number') {
+        price = lot.current_bid.amount;
+        if (lot.current_bid.currency_code) currency = lot.current_bid.currency_code;
+        else if (lot.current_bid.currency) currency = lot.current_bid.currency;
+      }
+    }
+    // 5. minimum_bid / starting_bid (per lots senza offerte ancora)
+    if (price === null) {
+      var mbid = lot.minimumBid || lot.minimum_bid || lot.startingBid || lot.starting_bid;
+      if (mbid && typeof mbid === 'object' && typeof mbid.amount === 'number') {
+        price = mbid.amount;
+        if (mbid.currency_code) currency = mbid.currency_code;
+        else if (mbid.currency) currency = mbid.currency;
+      } else if (typeof mbid === 'number') {
+        price = mbid;
+      }
+    }
+    // 6. buyNow (compra subito) — se non c'è altro
+    if (price === null && typeof lot.buyNow === 'number') price = lot.buyNow;
+    if (price === null && lot.buyNow && typeof lot.buyNow === 'object' && typeof lot.buyNow.amount === 'number') {
+      price = lot.buyNow.amount;
+      if (lot.buyNow.currency_code) currency = lot.buyNow.currency_code;
+    }
+    // 7. price plain
+    if (price === null && typeof lot.price === 'number') price = lot.price;
+    if (price === null && lot.price && typeof lot.price === 'object' && typeof lot.price.amount === 'number') {
+      price = lot.price.amount;
+      if (lot.price.currency_code) currency = lot.price.currency_code;
+    }
+
+    // Sanity: se price > 100000 ed è probabilmente in centesimi (qualche endpoint)
+    // ma molti lot Catawiki hanno prezzi reali alti, quindi NON convertiamo automaticamente.
+
+    return { price: price, currency: currency || 'EUR' };
   }
 
-  // ── Extract real image URL from a card, handling lazy-load + <picture> ──
-  // Catawiki usa <picture><source srcset="..."><img src="placeholder"></picture>
-  // Inoltre il loading è lazy: tab in background → src può essere vuoto.
-  // Cerchiamo in ordine: <source srcset> nel <picture>, srcset/data-srcset
-  // dell'<img>, src, attributi data-* vari.
-  function extractImageUrl(card) {
-    if (!card) return null;
-
-    function pickFromSrcset(srcset) {
-      if (!srcset) return null;
-      // srcset format: "url1 1x, url2 2x" oppure "url1 480w, url2 800w"
-      // Vogliamo l'URL più grande (ultimo in genere)
-      var parts = srcset.split(',').map(function (s) { return s.trim(); });
-      if (!parts.length) return null;
-      // Prendiamo l'ultimo (di solito a risoluzione maggiore)
-      var last = parts[parts.length - 1];
-      var url = last.split(/\s+/)[0];
-      return url || null;
-    }
-
-    function isValidImageUrl(u) {
-      if (!u) return false;
-      if (u.indexOf('data:image/') === 0 && u.length < 200) return false; // tiny placeholder
-      if (u.indexOf('blank.') >= 0 || u.indexOf('placeholder') >= 0) return false;
-      if (/^data:image\/svg\+xml/.test(u)) return false; // svg placeholders
-      return /^https?:\/\//.test(u) || u.indexOf('//') === 0;
-    }
-
-    // 1. Cerca <picture> e leggi <source srcset>
-    var picture = card.querySelector('picture');
-    if (picture) {
-      var sources = picture.querySelectorAll('source');
-      for (var i = 0; i < sources.length; i++) {
-        var srcset = sources[i].getAttribute('srcset') || sources[i].getAttribute('data-srcset');
-        var u = pickFromSrcset(srcset);
-        if (isValidImageUrl(u)) return u.indexOf('//') === 0 ? 'https:' + u : u;
+  // ── Helper: estrai end_time dal lot JSON ────────────────────────────
+  function extractEndTimeFromLot(lot) {
+    if (!lot) return null;
+    var candidates = [
+      'expiresAt', 'expires_at',
+      'closingAt', 'closing_at',
+      'biddingEndTime', 'bidding_end_time',
+      'endTime', 'end_time',
+      'endsAt', 'ends_at',
+    ];
+    for (var i = 0; i < candidates.length; i++) {
+      var k = candidates[i];
+      if (lot[k]) {
+        // Già ISO string?
+        if (typeof lot[k] === 'string') return lot[k];
+        if (typeof lot[k] === 'number') {
+          // timestamp seconds o millis?
+          var ms = lot[k] > 1e12 ? lot[k] : lot[k] * 1000;
+          return new Date(ms).toISOString();
+        }
       }
     }
-
-    // 2. Cerca <img> con tutti gli attributi possibili (per lazy loading)
-    var imgs = card.querySelectorAll('img');
-    for (var j = 0; j < imgs.length; j++) {
-      var imgEl = imgs[j];
-      // Ordine: data-src (lazy lib più comuni), data-lazy-src, srcset, data-srcset, src
-      var attrs = ['data-src', 'data-lazy-src', 'data-original', 'data-defer-src'];
-      for (var k = 0; k < attrs.length; k++) {
-        var v = imgEl.getAttribute(attrs[k]);
-        if (isValidImageUrl(v)) return v.indexOf('//') === 0 ? 'https:' + v : v;
-      }
-      // currentSrc è quello che il browser ha effettivamente caricato (gestisce <picture>)
-      if (imgEl.currentSrc && isValidImageUrl(imgEl.currentSrc)) {
-        return imgEl.currentSrc;
-      }
-      var ss = imgEl.getAttribute('srcset') || imgEl.getAttribute('data-srcset');
-      var fromSs = pickFromSrcset(ss);
-      if (isValidImageUrl(fromSs)) return fromSs.indexOf('//') === 0 ? 'https:' + fromSs : fromSs;
-      if (isValidImageUrl(imgEl.src)) return imgEl.src;
-    }
-
-    // 3. Background-image inline (alcuni siti usano div con bg)
-    var bgEls = card.querySelectorAll('[style*="background-image"]');
-    for (var b = 0; b < bgEls.length; b++) {
-      var st = bgEls[b].getAttribute('style') || '';
-      var m = st.match(/background-image:\s*url\(['"]?([^'")]+)['"]?\)/);
-      if (m && isValidImageUrl(m[1])) return m[1];
-    }
-
     return null;
   }
 
-  // ── Forza il lazy-load di tutte le immagini visibili o no ───────────
-  // Quando la tab è caricata in background, Chrome non triggera Intersection
-  // Observer per le immagini fuori viewport. Forziamo lo scroll virtuale.
-  function triggerLazyLoad() {
-    try {
-      // Strategy 1: scrolla in fondo per triggerare IntersectionObserver
-      window.scrollTo(0, document.body.scrollHeight);
-      window.scrollTo(0, 0);
-      // Strategy 2: per ogni img con data-src, copialo in src
-      document.querySelectorAll('img[data-src]').forEach(function (img) {
-        var ds = img.getAttribute('data-src');
-        if (ds && !img.src.startsWith(ds)) {
-          try { img.src = ds; } catch (_) {}
-        }
-      });
-      // Strategy 3: rimuovi loading=lazy (forza eager)
-      document.querySelectorAll('img[loading="lazy"]').forEach(function (img) {
-        try { img.loading = 'eager'; } catch (_) {}
-      });
-    } catch (_) {}
-  }
-
-  function parsePrice2(s) { return parsePrice(s); } // alias
-
-  // ── Strategia 1: __NEXT_DATA__ (più affidabile, dati strutturati) ────
-  function tryNextData() {
-    var nd = document.getElementById('__NEXT_DATA__');
-    if (!nd) return null;
-    try {
-      var data = JSON.parse(nd.textContent);
-      var lots = findLotsInJson(data);
-      if (!lots || !lots.length) return null;
-      return lots.map(function (lot) {
-        var u = lot.url || (lot.id ? '/it/l/' + lot.id : null);
-        if (!u) return null;
-        var fullUrl = u.indexOf('http') === 0 ? u : ('https://www.catawiki.com' + u);
-
-        var price = null;
-        var currency = 'EUR';
-        var bidObj = lot.current_bid || lot.minimum_bid || lot.starting_bid;
-        if (bidObj && typeof bidObj === 'object') {
-          if (typeof bidObj.amount === 'number') price = bidObj.amount;
-          else if (typeof bidObj.value === 'number') price = bidObj.value;
-          if (bidObj.currency) currency = bidObj.currency;
-        }
-        if (price === null && typeof lot.price === 'number') price = lot.price;
-        if (price !== null && price > 100000) price = price / 100;
-
-        var image = null;
-        // Catawiki ha vari shape per le immagini in JSON:
-        // - lot.image_url: string diretto
-        // - lot.image: string oppure {url, large, src, thumbnails:[{url}]}
-        // - lot.images: [{url, large, src, secureuri}, ...]
-        // - lot.thumbnail / lot.cover_image
-        if (typeof lot.image_url === 'string') image = lot.image_url;
-        else if (typeof lot.image === 'string') image = lot.image;
-        else if (lot.image && typeof lot.image === 'object') {
-          image = lot.image.url || lot.image.large || lot.image.src || lot.image.secureuri;
-          // Thumbnails array
-          if (!image && Array.isArray(lot.image.thumbnails) && lot.image.thumbnails.length) {
-            // Prendi la più grande (di solito ultima)
-            var tlast = lot.image.thumbnails[lot.image.thumbnails.length - 1];
-            image = (typeof tlast === 'string') ? tlast : (tlast.url || tlast.src);
-          }
-        }
-        else if (Array.isArray(lot.images) && lot.images.length) {
-          var first = lot.images[0];
-          if (typeof first === 'string') image = first;
-          else if (first && typeof first === 'object') {
-            image = first.url || first.large || first.src || first.secureuri;
-            // Stesso pattern thumbnails dentro images[0]
-            if (!image && Array.isArray(first.thumbnails) && first.thumbnails.length) {
-              var t2 = first.thumbnails[first.thumbnails.length - 1];
-              image = (typeof t2 === 'string') ? t2 : (t2.url || t2.src);
-            }
-          }
-        }
-        if (!image && typeof lot.thumbnail === 'string') image = lot.thumbnail;
-        if (!image && typeof lot.cover_image === 'string') image = lot.cover_image;
-        // Normalizza protocol-relative
-        if (image && image.indexOf('//') === 0) image = 'https:' + image;
-
-        return {
-          title: String(lot.title || lot.name || '').slice(0, 300),
-          price: price,
-          currency: currency,
-          image_url: image,
-          url: fullUrl.split('?')[0].split('#')[0],
-          end_time: lot.end_time || lot.bidding_end_time || lot.closing_at || null,
-          location: lot.location || lot.seller_country || null,
-          seller: lot.seller_name || null,
-          is_auction: true,
-          source: 'catawiki',
-          lot_id: lot.id ? String(lot.id) : null,
-          bids: typeof lot.bid_count === 'number' ? lot.bid_count : null,
-          shipping: null,
-        };
-      }).filter(Boolean);
-    } catch (e) {
-      console.warn('[RB Catawiki] NEXT_DATA parse:', e);
-      return null;
+  // ── Helper: estrai immagine dal lot JSON ────────────────────────────
+  function extractImageFromLot(lot) {
+    if (!lot) return null;
+    // Catawiki mette spesso originalImageUrl + thumbImageUrl. Preferiamo thumb (più
+    // veloce da caricare e basta come preview).
+    if (typeof lot.thumbImageUrl === 'string') return lot.thumbImageUrl;
+    if (typeof lot.thumb_image_url === 'string') return lot.thumb_image_url;
+    if (typeof lot.originalImageUrl === 'string') return lot.originalImageUrl;
+    if (typeof lot.original_image_url === 'string') return lot.original_image_url;
+    if (typeof lot.imageUrl === 'string') return lot.imageUrl;
+    if (typeof lot.image_url === 'string') return lot.image_url;
+    if (typeof lot.image === 'string') return lot.image;
+    if (lot.image && typeof lot.image === 'object') {
+      return lot.image.url || lot.image.large || lot.image.thumb || lot.image.src || null;
     }
+    if (Array.isArray(lot.images) && lot.images.length) {
+      var first = lot.images[0];
+      if (typeof first === 'string') return first;
+      if (first && typeof first === 'object') {
+        return first.url || first.large || first.thumbImageUrl || first.thumb || first.src || null;
+      }
+    }
+    return null;
   }
 
+  // ── Trova ricorsivamente l'array dei lots in qualsiasi nodo JSON ────
   function findLotsInJson(node, depth) {
     depth = depth || 0;
-    if (!node || depth > 12) return null;
+    if (!node || depth > 14) return null;
     if (Array.isArray(node)) {
+      // Heuristic: array di oggetti con id+title+(url|originalImageUrl|thumbImageUrl)
       if (node.length && node[0] && typeof node[0] === 'object') {
         var first = node[0];
-        if (first.id && (first.title || first.name) && (first.url || first.image || first.current_bid || first.price)) {
-          return node;
-        }
+        var hasIdent = first.id && (first.title || first.name);
+        var hasShape = first.url || first.thumbImageUrl || first.originalImageUrl
+                    || first.image || first.images || first.biddingHistory
+                    || first.biddingStartTime || first.auctionId;
+        if (hasIdent && hasShape) return node;
       }
       for (var i = 0; i < node.length; i++) {
         var r = findLotsInJson(node[i], depth + 1);
@@ -221,9 +167,10 @@ export async function scrapeCatawiki(job) {
       return null;
     }
     if (typeof node === 'object') {
-      var keys = ['lots', 'results', 'searchResults', 'items', 'products'];
-      for (var k = 0; k < keys.length; k++) {
-        var arr = node[keys[k]];
+      // Chiavi note dirette
+      var preferredKeys = ['lots', 'results', 'searchResults', 'items', 'products', 'hits', 'data'];
+      for (var k = 0; k < preferredKeys.length; k++) {
+        var arr = node[preferredKeys[k]];
         if (Array.isArray(arr) && arr.length && arr[0] && (arr[0].id || arr[0].title)) {
           var c = findLotsInJson(arr, depth + 1);
           if (c) return c;
@@ -238,15 +185,146 @@ export async function scrapeCatawiki(job) {
     return null;
   }
 
-  // ── Strategia 2: DOM scrape ──────────────────────────────────────────
+  // ── STRATEGIA 1: __NEXT_DATA__ con i nuovi field name ────────────────
+  function tryNextData() {
+    var nd = document.getElementById('__NEXT_DATA__');
+    if (!nd) return null;
+    try {
+      var data = JSON.parse(nd.textContent);
+      var lots = findLotsInJson(data);
+      if (!lots || !lots.length) return null;
+      return lots.map(function (lot) {
+        var u = lot.url || (lot.id ? '/it/l/' + lot.id : null);
+        if (!u) return null;
+        var fullUrl = u.indexOf('http') === 0 ? u : ('https://www.catawiki.com' + u);
+
+        var pp = extractPriceFromLot(lot);
+        var image = extractImageFromLot(lot);
+        var endT = extractEndTimeFromLot(lot);
+
+        return {
+          title: String(lot.title || lot.name || '').slice(0, 300),
+          subtitle: String(lot.subtitle || '').slice(0, 200),
+          price: pp.price,
+          currency: pp.currency,
+          image_url: image,
+          url: fullUrl.split('?')[0].split('#')[0],
+          end_time: endT,
+          location: (lot.seller && (lot.seller.country_code || lot.seller.country)) || null,
+          seller: (lot.seller && (lot.seller.shop_name || lot.seller.name)) || null,
+          is_auction: true,
+          source: 'catawiki',
+          lot_id: lot.id ? String(lot.id) : null,
+          bids: Array.isArray(lot.biddingHistory) ? lot.biddingHistory.length :
+                (Array.isArray(lot.bidding_history) ? lot.bidding_history.length : null),
+          shipping: null,
+          favorite_count: typeof lot.favoriteCount === 'number' ? lot.favoriteCount : null,
+        };
+      }).filter(Boolean);
+    } catch (e) {
+      console.warn('[RB Catawiki] NEXT_DATA parse:', e);
+      return null;
+    }
+  }
+
+  // ── DOM helpers per fallback strategy ───────────────────────────────
+  function pickFromSrcset(srcset) {
+    if (!srcset) return null;
+    var parts = srcset.split(',').map(function (s) { return s.trim(); });
+    if (!parts.length) return null;
+    var last = parts[parts.length - 1];
+    return last.split(/\s+/)[0] || null;
+  }
+
+  function isValidImageUrl(u) {
+    if (!u) return false;
+    if (u.indexOf('data:image/') === 0 && u.length < 200) return false;
+    if (u.indexOf('blank.') >= 0 || u.indexOf('placeholder') >= 0) return false;
+    if (/^data:image\/svg\+xml/.test(u)) return false;
+    return /^https?:\/\//.test(u) || u.indexOf('//') === 0;
+  }
+
+  function extractImageUrlDom(card) {
+    if (!card) return null;
+    var picture = card.querySelector('picture');
+    if (picture) {
+      var sources = picture.querySelectorAll('source');
+      for (var i = 0; i < sources.length; i++) {
+        var ss = sources[i].getAttribute('srcset') || sources[i].getAttribute('data-srcset');
+        var u = pickFromSrcset(ss);
+        if (isValidImageUrl(u)) return u.indexOf('//') === 0 ? 'https:' + u : u;
+      }
+    }
+    var imgs = card.querySelectorAll('img');
+    for (var j = 0; j < imgs.length; j++) {
+      var imgEl = imgs[j];
+      var attrs = ['data-src', 'data-lazy-src', 'data-original', 'data-defer-src'];
+      for (var k = 0; k < attrs.length; k++) {
+        var v = imgEl.getAttribute(attrs[k]);
+        if (isValidImageUrl(v)) return v.indexOf('//') === 0 ? 'https:' + v : v;
+      }
+      if (imgEl.currentSrc && isValidImageUrl(imgEl.currentSrc)) return imgEl.currentSrc;
+      var ss2 = imgEl.getAttribute('srcset') || imgEl.getAttribute('data-srcset');
+      var fromSs = pickFromSrcset(ss2);
+      if (isValidImageUrl(fromSs)) return fromSs.indexOf('//') === 0 ? 'https:' + fromSs : fromSs;
+      if (isValidImageUrl(imgEl.src)) return imgEl.src;
+    }
+    return null;
+  }
+
+  function triggerLazyLoad() {
+    try {
+      window.scrollTo(0, document.body.scrollHeight);
+      window.scrollTo(0, 0);
+      document.querySelectorAll('img[data-src]').forEach(function (img) {
+        var ds = img.getAttribute('data-src');
+        if (ds) { try { img.src = ds; } catch (_) {} }
+      });
+      document.querySelectorAll('img[loading="lazy"]').forEach(function (img) {
+        try { img.loading = 'eager'; } catch (_) {}
+      });
+    } catch (_) {}
+  }
+
+  async function ensureImagesLoaded(maxWaitMs) {
+    triggerLazyLoad();
+    await sleep(300);
+    triggerLazyLoad();
+    var deadline = Date.now() + (maxWaitMs || 4000);
+    while (Date.now() < deadline) {
+      var pending = Array.from(document.querySelectorAll('img')).filter(function (img) {
+        if (img.naturalWidth > 0) return false;
+        if (!img.src && !img.getAttribute('data-src')) return false;
+        return true;
+      });
+      if (pending.length === 0) break;
+      pending.forEach(function (img) {
+        var ds = img.getAttribute('data-src') || img.getAttribute('data-lazy-src');
+        if (ds && img.src !== ds) { try { img.src = ds; } catch (_) {} }
+      });
+      await sleep(250);
+    }
+  }
+
+  function parseCountdownText(s) {
+    if (!s) return null;
+    var d = s.match(/(\d+)\s*(g|d|day|giorni|giorno)/i);
+    var h = s.match(/(\d+)\s*h/i);
+    var min = s.match(/(\d+)\s*m\b/i);
+    if (!d && !h && !min) return null;
+    var ms = 0;
+    if (d) ms += parseInt(d[1]) * 86400000;
+    if (h) ms += parseInt(h[1]) * 3600000;
+    if (min) ms += parseInt(min[1]) * 60000;
+    return ms > 0 ? new Date(Date.now() + ms).toISOString() : null;
+  }
+
+  // ── STRATEGIA 2: DOM scrape ─────────────────────────────────────────
   function tryDom() {
     var items = [];
     var processed = {};
-
     var rows = document.querySelectorAll('[data-testid*="lot-card"], article[class*="lot"], [class*="LotCard"]');
-    if (!rows.length) {
-      rows = document.querySelectorAll('a[href*="/l/"]');
-    }
+    if (!rows.length) rows = document.querySelectorAll('a[href*="/l/"]');
 
     rows.forEach(function (row) {
       var linkEl = row.tagName === 'A' ? row : row.querySelector('a[href*="/l/"]');
@@ -266,12 +344,11 @@ export async function scrapeCatawiki(job) {
       if (!title) return;
 
       var priceEl = card.querySelector('[class*="bid"], [class*="price"], [data-testid*="bid"], [data-testid*="price"]');
-      var price = parsePrice(priceEl ? priceEl.textContent : '');
+      var price = parsePriceText(priceEl ? priceEl.textContent : '');
 
-      var img = extractImageUrl(card);
-
+      var img = extractImageUrlDom(card);
       var endEl = card.querySelector('[class*="time-left"], [class*="countdown"], [class*="ends"], time');
-      var endsAt = endEl ? parseCountdown(endEl.textContent) : null;
+      var endsAt = endEl ? parseCountdownText(endEl.textContent) : null;
 
       items.push({
         title: title.slice(0, 300),
@@ -280,86 +357,21 @@ export async function scrapeCatawiki(job) {
         image_url: img,
         url: url.split('?')[0].split('#')[0],
         end_time: endsAt,
-        location: null,
-        seller: null,
-        is_auction: true,
-        source: 'catawiki',
+        location: null, seller: null,
+        is_auction: true, source: 'catawiki',
         lot_id: idMatch[1],
-        bids: null,
-        shipping: null,
+        bids: null, shipping: null,
       });
     });
-
     return items;
   }
 
-  // Cerca un'immagine per un lot identificato da lotId nel DOM corrente
-  function findImageInDomByLotId(lotId) {
-    if (!lotId) return null;
-    // Trova un anchor che linki a /l/<lotId> e risali al card
-    var anchor = document.querySelector('a[href*="/l/' + lotId + '"]');
-    if (!anchor) {
-      // Catawiki a volte usa ID diversi nel DOM, prova match parziale
-      var anchors = document.querySelectorAll('a[href*="/l/"]');
-      for (var i = 0; i < anchors.length; i++) {
-        if (anchors[i].href.indexOf(lotId) >= 0) { anchor = anchors[i]; break; }
-      }
-    }
-    if (!anchor) return null;
-    var card = anchor.closest('article, [data-testid], [class*="LotCard"], li, div[class*="card"]') || anchor;
-    return extractImageUrl(card);
-  }
-
-  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-
-  // Triggera lazy-loading e aspetta che le immagini si carichino
-  async function ensureImagesLoaded(maxWaitMs) {
-    triggerLazyLoad();
-    await sleep(300);                    // dai tempo all'observer
-    triggerLazyLoad();                   // secondo passaggio per sicurezza
-    var deadline = Date.now() + (maxWaitMs || 4000);
-    // Loop finché ci sono img non ancora caricate (naturalWidth==0) o passa il timeout
-    while (Date.now() < deadline) {
-      var imgs = Array.from(document.querySelectorAll('img'));
-      var pending = imgs.filter(function (img) {
-        // skip placeholder e già caricate
-        if (img.naturalWidth > 0) return false;
-        if (!img.src && !img.getAttribute('data-src')) return false;
-        return true;
-      });
-      if (pending.length === 0) break;
-      // Forza data-src → src per quelli ancora pendenti
-      pending.forEach(function (img) {
-        var ds = img.getAttribute('data-src') || img.getAttribute('data-lazy-src');
-        if (ds && img.src !== ds) {
-          try { img.src = ds; } catch (_) {}
-        }
-      });
-      await sleep(250);
-    }
-  }
-
-  // Provo prima NEXT_DATA, poi DOM. Aspetta carico immagini prima di ritornare.
+  // ── DISPATCH: NEXT_DATA prima, poi DOM con lazy-load wait ───────────
   var fromJson = tryNextData();
   if (fromJson && fromJson.length) {
-    var missingImages = fromJson.filter(function (it) { return !it.image_url; }).length;
-    if (missingImages > 0) {
-      // Se mancano immagini, attiva lazy-load e aspetta async
-      await ensureImagesLoaded(4000);
-      fromJson.forEach(function (it) {
-        if (!it.image_url && it.lot_id) {
-          var img = findImageInDomByLotId(it.lot_id);
-          if (img) it.image_url = img;
-        }
-      });
-    }
-    // Tag debug sul primo item per visibilità
-    if (fromJson[0]) fromJson[0]._debug = { strategy: 'next_data', missing_images_initially: missingImages };
     return fromJson;
   }
-  // Path DOM: triggera lazy + aspetta carico
+
   await ensureImagesLoaded(4000);
-  var domItems = tryDom();
-  if (domItems[0]) domItems[0]._debug = { strategy: 'dom' };
-  return domItems;
+  return tryDom();
 }
