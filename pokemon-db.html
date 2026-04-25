@@ -9089,10 +9089,13 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
   <div class="rad-layout">
 
     <!-- ═══ SIDEBAR ═══ -->
-    <div class="rad-sidebar">
+    <!-- I blocchi hanno data-sub-show che lista i sub-tab dove sono rilevanti.
+         Se vuoto/missing → visibile sempre. La sidebar intera viene nascosta
+         se nessun blocco è visibile per il sub-tab corrente. -->
+    <div class="rad-sidebar" id="radSidebar">
 
       <!-- Quick: nuovo target -->
-      <div class="rad-sidebar-block">
+      <div class="rad-sidebar-block" data-sub-show="feed,auctions,targets,alerts">
         <h3>🎯 Nuovo target</h3>
         <div class="rad-form-field">
           <label>Nome carta *</label>
@@ -9124,7 +9127,7 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
       </div>
 
       <!-- Quick: monitora URL asta manuale -->
-      <div class="rad-sidebar-block">
+      <div class="rad-sidebar-block" data-sub-show="auctions,feed">
         <h3>🔗 Monitora asta manuale</h3>
         <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;line-height:1.4">Incolla URL Catawiki o eBay da tenere d'occhio. Verrà mostrata in "Aste attive".</div>
         <div class="rad-form-field">
@@ -9151,7 +9154,7 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
       </div>
 
       <!-- Actions -->
-      <div class="rad-sidebar-block rad-sidebar-actions">
+      <div class="rad-sidebar-block rad-sidebar-actions" data-sub-show="feed,auctions,targets,alerts">
         <button class="btn" onclick="huntOpenAdminPanel()" style="width:100%;font-size:12px">⚙ Canali notifica</button>
         <button class="btn" onclick="radOpenAddRuleModal()" style="width:100%;margin-top:6px;font-size:12px">🔔 Nuova regola alert</button>
         <button class="btn" onclick="radScanMenu()" style="width:100%;margin-top:6px;font-size:12px">🔍 Apri portali (scan)</button>
@@ -9429,7 +9432,8 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
 .rad-stat-lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
 
 .rad-layout{display:flex;flex:1;overflow:hidden;min-height:0}
-.rad-sidebar{width:290px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);overflow-y:auto;display:flex;flex-direction:column}
+.rad-sidebar{width:290px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);overflow-y:auto;display:flex;flex-direction:column;transition:width .22s ease,border-right-width .22s ease}
+.rad-sidebar.rad-sidebar-hidden{width:0;border-right-width:0;overflow:hidden}
 .rad-sidebar-block{padding:14px;border-bottom:1px solid var(--border)}
 .rad-sidebar-block h3{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin:0 0 10px 0}
 .rad-sidebar-actions{margin-top:auto}
@@ -11883,7 +11887,8 @@ async function huntInit(){
     huntRequestBrowserPush();
     huntStartTick();
   }
-  huntRenderAll();
+  // Applica visibility sidebar in base al sub-tab corrente (default 'feed')
+  huntShowSub(_huntState.subtab || 'feed');
 }
 window.huntInit = huntInit;
 
@@ -12090,6 +12095,26 @@ function huntShowSub(sub){
   });
   var pfFilter = document.getElementById('huntPlatformFilter');
   if(pfFilter) pfFilter.style.display = (sub==='feed' || sub==='auctions') ? 'flex' : 'none';
+
+  // Sidebar contestuale: mostra/nascondi blocchi in base al sub-tab attivo.
+  // Se nessun blocco è visibile, la sidebar intera collassa per dare spazio.
+  var sidebar = document.getElementById('radSidebar');
+  if(sidebar){
+    var anyVisible = false;
+    sidebar.querySelectorAll('.rad-sidebar-block').forEach(function(blk){
+      var subList = blk.getAttribute('data-sub-show');
+      var show;
+      if(!subList){
+        show = true;       // blocchi senza data-sub-show sempre visibili
+      } else {
+        show = subList.split(',').map(function(s){return s.trim();}).indexOf(sub) >= 0;
+      }
+      blk.style.display = show ? '' : 'none';
+      if(show) anyVisible = true;
+    });
+    sidebar.classList.toggle('rad-sidebar-hidden', !anyVisible);
+  }
+
   huntRenderAll();
 }
 window.huntShowSub = huntShowSub;
