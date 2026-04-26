@@ -487,6 +487,7 @@ export async function scrapeCatawiki(job) {
           'https://www.catawiki.com/buyer/api/v2/lots/' + encodeURIComponent(id),
           'https://www.catawiki.com/it/api/v1/lots/' + encodeURIComponent(id),
         ];
+        var lastStatus = null;
         for (var i = 0; i < endpoints.length; i++) {
           try {
             var r = await fetch(endpoints[i], {
@@ -497,13 +498,20 @@ export async function scrapeCatawiki(job) {
               },
               credentials: 'include',
             });
+            lastStatus = r.status;
+            // 403 (Akamai), 404 (lot rimosso), 410 (gone): tutti irrecuperabili.
+            // Il lot è probabilmente CHIUSO / SCADUTO / RIMOSSO. Non perdere
+            // tempo con gli altri endpoint, ritorna marker di stato così
+            // chi chiama lo può loggare.
+            if (r.status === 403 || r.status === 404 || r.status === 410) {
+              return { __unavailable: true, __status: r.status };
+            }
             if (!r.ok) continue;
             var data = await r.json();
-            // L'endpoint può ritornare {lot:{...}}, {data:{...}}, o direttamente il lot
             return data.lot || data.data || data;
           } catch (_) { /* prova endpoint successivo */ }
         }
-        return null;
+        return lastStatus ? { __unavailable: true, __status: lastStatus } : null;
       } catch (e) { return null; }
     }
     async function runQueue(ids, concurrency) {
@@ -525,10 +533,19 @@ export async function scrapeCatawiki(job) {
     var enriched = await runQueue(ids, 6);
     var enrichedCount = 0;
     var stillMissing = 0;
+    var expiredCount = 0;
     enriched.forEach(function (lot, idx) {
       var origItem = byId[ids[idx]];
       if (!origItem) return;
       if (!lot) { stillMissing++; return; }
+      // Lot rimosso/scaduto/chiuso → marca così l'UI può nasconderlo o
+      // mostrare etichetta "non più disponibile"
+      if (lot.__unavailable) {
+        expiredCount++;
+        origItem.is_unavailable = true;
+        origItem.unavailable_status = lot.__status;
+        return;
+      }
       enrichedCount++;
       // Override (l'API è source of truth) — ma solo se ritorna valori validi
       var pp = extractPriceFromLot(lot);
@@ -555,14 +572,14 @@ export async function scrapeCatawiki(job) {
       }
     });
     // Diagnostica in console: sempre visibile da DevTools della tab Catawiki
-    // (oppure dal worker dell'estensione tramite chrome://extensions)
     var stats = {
       total: items.length,
       with_id: withId.length,
       api_fetched: enrichedCount,
       api_failed: stillMissing,
-      missing_price_after: items.filter(function(x){return x.price===null;}).length,
-      missing_endtime_after: items.filter(function(x){return x.end_time===null;}).length,
+      api_unavailable: expiredCount,
+      missing_price_after: items.filter(function(x){return x.price===null && !x.is_unavailable;}).length,
+      missing_endtime_after: items.filter(function(x){return x.end_time===null && !x.is_unavailable;}).length,
     };
     try { console.log('[RB Catawiki Scraper] enrichment stats:', stats); } catch(_){}
     return items;
