@@ -9844,6 +9844,33 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
 .rad-modal-row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media (max-width:600px){.rad-modal-row2{grid-template-columns:1fr}}
 
+/* ─── Confirm dialog custom (sostituisce window.confirm) ─── */
+.rad-confirm-bg{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px);animation:radCfFadeIn .15s ease-out}
+.rad-confirm-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:100%;max-width:400px;box-shadow:var(--shadow-lg),0 0 0 1px rgba(255,255,255,.04);overflow:hidden;animation:radCfPopIn .18s cubic-bezier(.34,1.56,.64,1)}
+.rad-confirm-head{display:flex;align-items:flex-start;gap:14px;padding:18px 20px 12px}
+.rad-confirm-icon{flex-shrink:0;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--surface2);border:1px solid var(--border)}
+.rad-confirm-icon .rb-i{width:22px;height:22px}
+.rad-confirm-icon.danger{background:rgba(248,81,73,.1);border-color:rgba(248,81,73,.3)}
+.rad-confirm-icon.danger .rb-i{color:var(--danger)}
+.rad-confirm-icon.warn{background:rgba(210,153,34,.1);border-color:rgba(210,153,34,.3)}
+.rad-confirm-icon.warn .rb-i{color:var(--warning)}
+.rad-confirm-icon.info{background:rgba(88,166,255,.1);border-color:rgba(88,166,255,.3)}
+.rad-confirm-icon.info .rb-i{color:var(--accent)}
+.rad-confirm-text{flex:1;min-width:0}
+.rad-confirm-title{font-size:14px;font-weight:600;color:var(--text);margin:0 0 6px;line-height:1.3}
+.rad-confirm-msg{font-size:12px;color:var(--text-muted);line-height:1.5;margin:0;white-space:pre-line}
+.rad-confirm-msg b{color:var(--text);font-weight:600}
+.rad-confirm-foot{display:flex;gap:8px;padding:12px 20px 16px;justify-content:flex-end}
+.rad-confirm-foot .btn{font-size:12px;padding:7px 16px;min-width:80px}
+.rad-confirm-foot .btn-danger{background:var(--danger);color:#fff;border-color:var(--danger);font-weight:600}
+.rad-confirm-foot .btn-danger:hover{background:#d83a36;border-color:#d83a36}
+.rad-confirm-foot .btn-primary{font-weight:600}
+
+@keyframes radCfFadeIn{from{opacity:0}to{opacity:1}}
+@keyframes radCfPopIn{from{opacity:0;transform:scale(.92) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes radCfFadeOut{to{opacity:0}}
+.rad-confirm-bg.closing{animation:radCfFadeOut .12s ease-in forwards}
+
 .rad-form-field label .opt{color:var(--text-subtle);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0}
 
 .rad-scan-radio,.rad-scan-sites{display:flex;flex-direction:column;gap:5px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:7px 9px}
@@ -13734,6 +13761,86 @@ function radCloseModal(){
 }
 window.radCloseModal = radCloseModal;
 
+// ── CONFIRM DIALOG CUSTOM ────────────────────────────────────────────────
+// Sostituisce window.confirm() con una modal coerente con il design app.
+// Promise-based: const ok = await radConfirm({title, message, danger}); if(!ok) return;
+//
+// Opzioni:
+//   title       : string — titolo del dialog (richiesto)
+//   message     : string — testo body, supporta \n e tag <b>
+//   confirmText : string — label bottone OK (default 'Conferma')
+//   cancelText  : string — label bottone annulla (default 'Annulla')
+//   danger      : bool   — bottone OK rosso, icona rb-i-trash (default false)
+//   icon        : string — nome classe rb-i-* (default: 'warn' se danger, 'info' altrimenti)
+//   variant     : 'danger'|'warn'|'info' — colore icona (auto-derivato se mancante)
+var _radConfirmCount = 0;
+function radConfirm(opts){
+  opts = opts || {};
+  var title = opts.title || 'Confermi?';
+  var message = opts.message || '';
+  var confirmText = opts.confirmText || 'Conferma';
+  var cancelText = opts.cancelText || 'Annulla';
+  var isDanger = !!opts.danger;
+  var variant = opts.variant || (isDanger ? 'danger' : 'info');
+  var iconClass = opts.icon || (isDanger ? 'rb-i-trash' : (variant === 'warn' ? 'rb-i-warn' : 'rb-i-info'));
+  var modalId = 'radConfirmDlg_' + (++_radConfirmCount);
+
+  return new Promise(function(resolve){
+    var bg = document.createElement('div');
+    bg.className = 'rad-confirm-bg';
+    bg.id = modalId;
+    bg.setAttribute('role', 'dialog');
+    bg.setAttribute('aria-modal', 'true');
+    bg.setAttribute('aria-labelledby', modalId + '_title');
+
+    bg.innerHTML =
+      '<div class="rad-confirm-box">'
+      +'  <div class="rad-confirm-head">'
+      +'    <div class="rad-confirm-icon '+variant+'"><span class="rb-i '+iconClass+'"></span></div>'
+      +'    <div class="rad-confirm-text">'
+      +'      <h4 class="rad-confirm-title" id="'+modalId+'_title">'+escapeHtml(title)+'</h4>'
+      +'      <p class="rad-confirm-msg">'+message+'</p>'
+      +'    </div>'
+      +'  </div>'
+      +'  <div class="rad-confirm-foot">'
+      +'    <button class="btn" data-act="cancel">'+escapeHtml(cancelText)+'</button>'
+      +'    <button class="btn '+(isDanger?'btn-danger':'btn-primary')+'" data-act="ok">'+escapeHtml(confirmText)+'</button>'
+      +'  </div>'
+      +'</div>';
+
+    function close(result){
+      bg.classList.add('closing');
+      document.removeEventListener('keydown', onKey);
+      setTimeout(function(){ try{ bg.remove(); }catch(_){} }, 130);
+      resolve(result);
+    }
+    function onKey(e){
+      if(e.key === 'Escape'){ e.stopPropagation(); close(false); }
+      else if(e.key === 'Enter'){ e.stopPropagation(); close(true); }
+    }
+
+    bg.addEventListener('click', function(e){
+      var btn = e.target.closest && e.target.closest('button[data-act]');
+      if(btn){
+        e.stopPropagation();
+        close(btn.getAttribute('data-act') === 'ok');
+        return;
+      }
+      // click outside box → cancel
+      if(e.target === bg) close(false);
+    });
+    document.addEventListener('keydown', onKey);
+
+    document.body.appendChild(bg);
+    // autofocus sul bottone primary per consentire Enter veloce
+    setTimeout(function(){
+      var btn = bg.querySelector('button[data-act="ok"]');
+      if(btn) btn.focus();
+    }, 50);
+  });
+}
+window.radConfirm = radConfirm;
+
 // ESC globale chiude qualunque modal radar
 document.addEventListener('keydown', function(e){
   if(e.key==='Escape'){
@@ -14139,8 +14246,21 @@ function radScanToggleJob(id){
 }
 window.radScanToggleJob = radScanToggleJob;
 
-function radScanDeleteJob(id){
-  if(!confirm('Eliminare questo job di scansione (e tutti i suoi risultati)?')) return;
+async function radScanDeleteJob(id){
+  var job = _radScanState.jobs.find(function(x){return x.id===id;});
+  if(!job) return;
+  var resCount = (_radScanState.results[id] || []).length;
+  var ok = await radConfirm({
+    title: 'Eliminare la scansione?',
+    message: 'Stai per eliminare il job <b>' + escapeHtml(job.card_name||'(senza nome)') + '</b>'
+      + (resCount ? ' insieme ai suoi <b>' + resCount + '</b> risultati salvati' : '')
+      + '.\nL\'azione è irreversibile.',
+    confirmText: 'Elimina',
+    cancelText: 'Annulla',
+    danger: true,
+    icon: 'rb-i-trash'
+  });
+  if(!ok) return;
   _radScanState.jobs = _radScanState.jobs.filter(function(x){return x.id!==id;});
   delete _radScanState.results[id];
   if(_radScanState.selectedJobId === id){
@@ -14163,10 +14283,23 @@ function radScanRunSelected(){
 }
 window.radScanRunSelected = radScanRunSelected;
 
-function radScanClearResults(){
+async function radScanClearResults(){
   var id = _radScanState.selectedJobId;
   if(!id) return;
-  if(!confirm('Pulire tutti i risultati di questo job?')) return;
+  var n = (_radScanState.results[id] || []).length;
+  if(n === 0) return;  // niente da pulire, skip silenziosamente
+  var job = _radScanState.jobs.find(function(x){return x.id===id;});
+  var ok = await radConfirm({
+    title: 'Pulire i risultati?',
+    message: 'Rimuovo i <b>' + n + '</b> risultati raccolti'
+      + (job ? ' per <b>' + escapeHtml(job.card_name||'(senza nome)') + '</b>' : '')
+      + '.\nIl job resta attivo: la prossima scansione ricomincerà a popolare la lista.',
+    confirmText: 'Pulisci',
+    cancelText: 'Annulla',
+    danger: true,
+    icon: 'rb-i-trash'
+  });
+  if(!ok) return;
   _radScanState.results[id] = [];
   var j = _radScanState.jobs.find(function(x){return x.id===id;});
   if(j){ j.last_count = 0; j.seen_urls = []; }
