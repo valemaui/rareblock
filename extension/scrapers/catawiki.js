@@ -34,15 +34,34 @@ export async function scrapeCatawiki(job) {
     var currency = 'EUR';
     if (!lot) return { price: null, currency: currency };
 
-    // 1. biddingHistory: l'ultimo elemento è il bid più recente (più alto)
-    if (Array.isArray(lot.biddingHistory) && lot.biddingHistory.length) {
+    // 1. live.bid: il path più affidabile per lots IN CORSO (real-time)
+    //    Es: lot.live = { bid: { EUR: 50, USD: 54, GBP: 42 } }
+    if (lot.live && lot.live.bid && typeof lot.live.bid === 'object') {
+      // Preferiamo EUR, fallback a USD, GBP, qualsiasi altro numero
+      if (typeof lot.live.bid.EUR === 'number') { price = lot.live.bid.EUR; currency = 'EUR'; }
+      else if (typeof lot.live.bid.USD === 'number') { price = lot.live.bid.USD; currency = 'USD'; }
+      else if (typeof lot.live.bid.GBP === 'number') { price = lot.live.bid.GBP; currency = 'GBP'; }
+      else {
+        var keys = Object.keys(lot.live.bid);
+        for (var i = 0; i < keys.length; i++) {
+          if (typeof lot.live.bid[keys[i]] === 'number') {
+            price = lot.live.bid[keys[i]];
+            currency = keys[i];
+            break;
+          }
+        }
+      }
+    }
+
+    // 2. biddingHistory: l'ultimo elemento è il bid più recente (più alto)
+    if (price === null && Array.isArray(lot.biddingHistory) && lot.biddingHistory.length) {
       var last = lot.biddingHistory[lot.biddingHistory.length - 1];
       if (last && typeof last.amount === 'number') {
         price = last.amount;
         if (last.currency_code) currency = last.currency_code;
       }
     }
-    // 2. bidding_history (snake_case alt)
+    // 3. bidding_history (snake_case alt)
     if (price === null && Array.isArray(lot.bidding_history) && lot.bidding_history.length) {
       var last2 = lot.bidding_history[lot.bidding_history.length - 1];
       if (last2 && typeof last2.amount === 'number') {
@@ -50,7 +69,7 @@ export async function scrapeCatawiki(job) {
         if (last2.currency_code) currency = last2.currency_code;
       }
     }
-    // 3. currentBid object
+    // 4. currentBid object
     if (price === null && lot.currentBid && typeof lot.currentBid === 'object') {
       if (typeof lot.currentBid.amount === 'number') {
         price = lot.currentBid.amount;
@@ -58,7 +77,7 @@ export async function scrapeCatawiki(job) {
         else if (lot.currentBid.currency) currency = lot.currentBid.currency;
       }
     }
-    // 4. current_bid object snake_case
+    // 5. current_bid object snake_case
     if (price === null && lot.current_bid && typeof lot.current_bid === 'object') {
       if (typeof lot.current_bid.amount === 'number') {
         price = lot.current_bid.amount;
@@ -66,7 +85,7 @@ export async function scrapeCatawiki(job) {
         else if (lot.current_bid.currency) currency = lot.current_bid.currency;
       }
     }
-    // 5. minimum_bid / starting_bid (per lots senza offerte ancora)
+    // 6. minimum_bid / starting_bid (per lots senza offerte ancora)
     if (price === null) {
       var mbid = lot.minimumBid || lot.minimum_bid || lot.startingBid || lot.starting_bid;
       if (mbid && typeof mbid === 'object' && typeof mbid.amount === 'number') {
@@ -77,21 +96,18 @@ export async function scrapeCatawiki(job) {
         price = mbid;
       }
     }
-    // 6. buyNow (compra subito) — se non c'è altro
+    // 7. buyNow (compra subito) — se non c'è altro
     if (price === null && typeof lot.buyNow === 'number') price = lot.buyNow;
     if (price === null && lot.buyNow && typeof lot.buyNow === 'object' && typeof lot.buyNow.amount === 'number') {
       price = lot.buyNow.amount;
       if (lot.buyNow.currency_code) currency = lot.buyNow.currency_code;
     }
-    // 7. price plain
+    // 8. price plain
     if (price === null && typeof lot.price === 'number') price = lot.price;
     if (price === null && lot.price && typeof lot.price === 'object' && typeof lot.price.amount === 'number') {
       price = lot.price.amount;
       if (lot.price.currency_code) currency = lot.price.currency_code;
     }
-
-    // Sanity: se price > 100000 ed è probabilmente in centesimi (qualche endpoint)
-    // ma molti lot Catawiki hanno prezzi reali alti, quindi NON convertiamo automaticamente.
 
     return { price: price, currency: currency || 'EUR' };
   }
@@ -366,12 +382,91 @@ export async function scrapeCatawiki(job) {
     return items;
   }
 
+  // ── STRATEGIA 3: enrichment via API per lots con dati mancanti ──────
+  // Catawiki non sempre serializza biddingHistory/live.bid/closingAt nel
+  // NEXT_DATA. Per i lots che hanno price=null OR end_time=null, facciamo
+  // un fetch parallelo (limitato) all'API buyer/v3/lots/<id> dal browser
+  // dell'utente (residenziale → niente Cloudflare).
+  async function enrichMissing(items) {
+    var lang = (location.pathname.match(/^\/([a-z]{2})\//)?.[1]) || 'it';
+    var needsEnrich = items.filter(function (it) {
+      return it.lot_id && (it.price === null || it.end_time === null);
+    });
+    if (!needsEnrich.length) return items;
+    // Limita a 30 max per non saturare
+    var batch = needsEnrich.slice(0, 30);
+    var byId = {};
+    items.forEach(function (it) { if (it.lot_id) byId[it.lot_id] = it; });
+
+    // Fetch in parallelo con concurrency 6
+    async function fetchOne(id) {
+      try {
+        var url = 'https://www.catawiki.com/buyer/api/v3/lots/' + encodeURIComponent(id);
+        var r = await fetch(url, {
+          headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-Application-Type': 'web',
+          },
+          credentials: 'include',
+        });
+        if (!r.ok) return null;
+        var data = await r.json();
+        // L'endpoint può ritornare {lot: {...}} o direttamente il lot
+        return data.lot || data.data || data;
+      } catch (e) { return null; }
+    }
+    async function runQueue(ids, concurrency) {
+      var i = 0;
+      var results = [];
+      async function worker() {
+        while (i < ids.length) {
+          var idx = i++;
+          var d = await fetchOne(ids[idx]);
+          results[idx] = d;
+        }
+      }
+      var workers = [];
+      for (var w = 0; w < concurrency; w++) workers.push(worker());
+      await Promise.all(workers);
+      return results;
+    }
+    var ids = batch.map(function (it) { return it.lot_id; });
+    var enriched = await runQueue(ids, 6);
+    enriched.forEach(function (lot, idx) {
+      if (!lot) return;
+      var origItem = byId[ids[idx]];
+      if (!origItem) return;
+      if (origItem.price === null) {
+        var pp = extractPriceFromLot(lot);
+        if (pp.price !== null) {
+          origItem.price = pp.price;
+          origItem.currency = pp.currency;
+        }
+      }
+      if (origItem.end_time === null) {
+        origItem.end_time = extractEndTimeFromLot(lot);
+      }
+      if (!origItem.image_url) {
+        origItem.image_url = extractImageFromLot(lot);
+      }
+    });
+    return items;
+  }
+
   // ── DISPATCH: NEXT_DATA prima, poi DOM con lazy-load wait ───────────
   var fromJson = tryNextData();
   if (fromJson && fromJson.length) {
+    // Arricchisci items con dati mancanti via API
+    fromJson = await enrichMissing(fromJson);
     return fromJson;
   }
 
   await ensureImagesLoaded(4000);
-  return tryDom();
+  var domItems = tryDom();
+  // Anche per items DOM proviamo enrichment se hanno lot_id
+  if (domItems.length) {
+    domItems = await enrichMissing(domItems);
+  }
+  return domItems;
 }

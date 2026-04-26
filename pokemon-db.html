@@ -9245,6 +9245,8 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
 
       <!-- ════ SCANSIONI SCHEDULATE (auction-site scraper) ════ -->
       <div id="huntSub-scans" class="rad-sub" style="display:none">
+        <!-- Overlay zoom miniatura (mostrato in hover via JS) -->
+        <div id="radScanZoomOverlay" aria-hidden="true"><img alt="" src=""></div>
         <!-- Header: stato + azioni globali -->
         <div class="rad-scan-header">
           <details id="radScanInfoBanner" class="rad-scan-info">
@@ -9626,8 +9628,13 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
 .rad-scan-table tbody tr.monitored{box-shadow:inset 3px 0 0 var(--warning)}
 .rad-scan-table td{padding:5px 8px;vertical-align:middle}
 .rad-scan-table td.img{width:44px;padding:3px}
-.rad-scan-table td.img img{width:38px;height:38px;object-fit:cover;border-radius:3px;border:1px solid var(--border);display:block;background:var(--bg)}
+.rad-scan-table td.img img{width:38px;height:38px;object-fit:cover;border-radius:3px;border:1px solid var(--border);display:block;background:var(--bg);cursor:zoom-in;transition:border-color .12s}
+.rad-scan-table td.img img:hover{border-color:var(--accent)}
 .rad-scan-table td.img .ph{width:38px;height:38px;border-radius:3px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--text-subtle)}
+
+/* Overlay zoom posizionato dinamicamente in JS */
+#radScanZoomOverlay{position:fixed;display:none;z-index:99999;pointer-events:none;background:var(--surface);border:2px solid var(--accent);border-radius:6px;padding:4px;box-shadow:0 12px 40px rgba(0,0,0,.7);transition:opacity .12s}
+#radScanZoomOverlay img{display:block;width:240px;height:240px;object-fit:contain;border-radius:3px;background:var(--bg)}
 .rad-scan-table td.title{max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rad-scan-table td.title a{color:var(--text);text-decoration:none}
 .rad-scan-table td.title a:hover{color:var(--accent);text-decoration:underline}
@@ -14878,13 +14885,15 @@ function radScanResultTr(it, jobId, isMonitored){
   // Site
   var siteCell = '<span class="pf">'+(it._site||it.source||'?').toUpperCase()+'</span>';
 
-  // Actions
+  // Actions: usiamo data-attrs + event delegation per evitare il bug delle virgolette
+  // doppie nell'onclick inline (l'URL conteneva " che chiudeva prematuramente l'attr)
   var monClass = isMonitored ? 'monitor active' : 'monitor';
   var monLabel = isMonitored ? 'monitoraggio attivo (click per disattivare)' : 'attiva monitoraggio prezzo';
+  var encUrl = escapeHtml(it.url);
   var actionsCell =
-    '<a href="'+escapeHtml(it.url)+'" target="_blank" rel="noopener" title="Apri inserzione">↗</a>'+
-    '<button class="'+monClass+'" onclick="radScanToggleMonitor(\''+jobId+'\','+JSON.stringify(it.url)+')" title="'+monLabel+'">'+(isMonitored?'🔔':'🔕')+'</button>'+
-    '<button class="del" onclick="radScanRemoveResult(\''+jobId+'\','+JSON.stringify(it.url)+')" title="Rimuovi (match errato)">✕</button>';
+    '<a href="'+encUrl+'" target="_blank" rel="noopener" title="Apri inserzione">↗</a>'+
+    '<button class="'+monClass+'" data-act="monitor" data-job="'+escapeHtml(jobId)+'" data-url="'+encUrl+'" title="'+monLabel+'">'+(isMonitored?'🔔':'🔕')+'</button>'+
+    '<button class="del" data-act="remove" data-job="'+escapeHtml(jobId)+'" data-url="'+encUrl+'" title="Rimuovi (match errato)">✕</button>';
 
   var rowClass = '';
   if(it.is_new) rowClass += ' new';
@@ -15001,22 +15010,90 @@ function radScanInit(){
   radScanRenderJobs();
   radScanStartScheduler();
   _radScanInstallMessageListener();
+  _radScanInstallZoomDelegation();   // hover zoom su miniatura
   // Render iniziale provider status (ritardato per dare tempo all'estensione di annunciarsi)
   setTimeout(radScanRenderProviderStatus, 500);
   setTimeout(radScanRenderProviderStatus, 2500);
   // Ri-render periodico per aggiornare i countdown e i "tra Xm"
+  // Solo se nessuna img è in hover (per evitare di rompere lo zoom)
   setInterval(function(){
     if(_radScanState.jobs.length){
-      // refresh solo se Radar tab aperto + Scansioni sub-tab attivo
       var subActive = document.getElementById('huntSub-scans');
-      if(subActive && subActive.style.display !== 'none'){
+      if(subActive && subActive.style.display !== 'none' && !_radScanZoomActive){
         radScanRenderJobs();
         if(_radScanState.selectedJobId) radScanRenderResults();
       }
     }
   }, 30000);
-  // Re-check provider status ogni 60s (cattura installazione tardiva dell'estensione)
   setInterval(radScanRenderProviderStatus, 60000);
+}
+
+// ── Hover zoom: event delegation su tutto il sub-tab Scansioni ────────
+var _radScanZoomActive = false;
+function _radScanInstallZoomDelegation(){
+  var sub = document.getElementById('huntSub-scans');
+  if(!sub || sub._zoomDelegated) return;
+  sub._zoomDelegated = true;
+
+  var overlay = document.getElementById('radScanZoomOverlay');
+  if(!overlay) return;
+  var overlayImg = overlay.querySelector('img');
+
+  function showZoom(srcImg){
+    if(!srcImg || !srcImg.src) return;
+    // Posiziona overlay vicino al cursore o alla destra dell'img
+    var rect = srcImg.getBoundingClientRect();
+    var ovW = 248;  // ~ width overlay
+    var ovH = 248;
+    // Default: a destra della miniatura
+    var x = rect.right + 12;
+    var y = rect.top + (rect.height/2) - (ovH/2);
+    // Clamp a viewport
+    if(x + ovW > window.innerWidth - 10) x = rect.left - ovW - 12;     // se non ci sta a dx, a sx
+    if(y < 10) y = 10;
+    if(y + ovH > window.innerHeight - 10) y = window.innerHeight - ovH - 10;
+    overlay.style.left = x + 'px';
+    overlay.style.top = y + 'px';
+    overlayImg.src = srcImg.src;
+    overlayImg.referrerPolicy = 'no-referrer';
+    overlay.style.display = 'block';
+    _radScanZoomActive = true;
+  }
+  function hideZoom(){
+    overlay.style.display = 'none';
+    overlayImg.src = '';
+    _radScanZoomActive = false;
+  }
+
+  sub.addEventListener('mouseover', function(e){
+    var t = e.target;
+    if(t && t.tagName === 'IMG' && t.closest && t.closest('.rad-scan-table td.img')){
+      showZoom(t);
+    }
+  });
+  sub.addEventListener('mouseout', function(e){
+    var t = e.target;
+    if(t && t.tagName === 'IMG' && t.closest && t.closest('.rad-scan-table td.img')){
+      hideZoom();
+    }
+  });
+  sub.addEventListener('scroll', hideZoom, true);
+
+  // Event delegation per i bottoni della tabella (evita il bug onclick inline
+  // con URL contenenti virgolette).
+  sub.addEventListener('click', function(e){
+    var btn = e.target.closest && e.target.closest('button[data-act]');
+    if(!btn) return;
+    var act = btn.getAttribute('data-act');
+    var jobId = btn.getAttribute('data-job');
+    var url = btn.getAttribute('data-url');
+    if(!act || !jobId || !url) return;
+    if(act === 'monitor'){
+      radScanToggleMonitor(jobId, url);
+    } else if(act === 'remove'){
+      radScanRemoveResult(jobId, url);
+    }
+  });
 }
 // Auto-init dopo che il DOM è pronto e le costanti SUPA_* sono disponibili
 if(document.readyState === 'loading'){
