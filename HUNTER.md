@@ -99,9 +99,19 @@ Alternativa: **cron-job.org** / **GitHub Actions** con POST ogni 5min.
 ```
 RESEND_API_KEY          # per email (Resend)
 TELEGRAM_BOT_TOKEN      # crea bot con @BotFather su Telegram
+VAPID_PUBLIC_KEY        # generato con: npx web-push generate-vapid-keys
+VAPID_PRIVATE_KEY       # idem (mai esporre lato client)
+VAPID_SUBJECT           # opz, default mailto:radar@rareblock.eu
 ```
 
-Canali notifica disponibili: **push browser** (via Realtime), **email** (Resend), **Telegram**.
+**Importante**: la `VAPID_PUBLIC_KEY` deve essere uguale a quella hardcoded
+in `pokemon-db.html` come `RAD_VAPID_PUB`. Generale una sola volta e usala
+in entrambi. Se la cambi, tutte le subscription esistenti vanno invalidate.
+
+Canali notifica disponibili:
+- **Push browser via Service Worker** (sw.js, anche con browser chiuso, multi-device)
+- **Email** (Resend)
+- **Telegram** (bot)
 
 ### 5. Userscript (per scraping automatico)
 Installa `rareblock-hunter-scraper.user.js` in Tampermonkey/Violentmonkey.
