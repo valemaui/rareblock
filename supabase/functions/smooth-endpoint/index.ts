@@ -1492,16 +1492,33 @@ function extractCatawikiLot(lot: any, items: SearchItem[], seen: Set<string>): v
   if (seen.has(fullUrl)) return;
   seen.add(fullUrl);
 
-  // Prezzo: catawiki ha varie forme
+  // Prezzo: catawiki ha varie forme. Per lots in corso il path canonico (Apr 2025+)
+  // è lot.live.bid.{currency}. Preferiamo EUR > USD > GBP > prima disponibile.
   let price: number | null = null;
   let currency = 'EUR';
-  const bidObj = lot.current_bid || lot.minimum_bid || lot.starting_bid;
-  if (bidObj && typeof bidObj === 'object') {
-    if (typeof bidObj.amount === 'number') price = bidObj.amount;
-    else if (typeof bidObj.value === 'number') price = bidObj.value;
-    else if (bidObj.EUR) price = Number(bidObj.EUR);
-    else if (bidObj.formatted) price = priceFromText(bidObj.formatted).price;
-    if (bidObj.currency) currency = bidObj.currency;
+
+  // 1. Live bid (lot in corso d'asta) — formato verificato 2025
+  if (lot.live && lot.live.bid && typeof lot.live.bid === 'object') {
+    const bid = lot.live.bid;
+    if (typeof bid.EUR === 'number') { price = bid.EUR; currency = 'EUR'; }
+    else if (typeof bid.USD === 'number') { price = bid.USD; currency = 'USD'; }
+    else if (typeof bid.GBP === 'number') { price = bid.GBP; currency = 'GBP'; }
+    else {
+      const firstK = Object.keys(bid)[0];
+      if (firstK && typeof bid[firstK] === 'number') { price = bid[firstK]; currency = firstK; }
+    }
+  }
+
+  // 2. Fallback: current_bid / minimum_bid / starting_bid
+  if (price === null) {
+    const bidObj = lot.current_bid || lot.minimum_bid || lot.starting_bid;
+    if (bidObj && typeof bidObj === 'object') {
+      if (typeof bidObj.amount === 'number') price = bidObj.amount;
+      else if (typeof bidObj.value === 'number') price = bidObj.value;
+      else if (bidObj.EUR) price = Number(bidObj.EUR);
+      else if (bidObj.formatted) price = priceFromText(bidObj.formatted).price;
+      if (bidObj.currency) currency = bidObj.currency;
+    }
   }
   if (price === null && typeof lot.price === 'number') price = lot.price;
   if (price === null && lot.price && typeof lot.price === 'object') {
@@ -1509,6 +1526,15 @@ function extractCatawikiLot(lot: any, items: SearchItem[], seen: Set<string>): v
     if (lot.price.currency) currency = lot.price.currency;
   }
   if (price !== null && price > 100000) price = price / 100; // alcune API ritornano centesimi
+
+  // End time: prova MOLTI nomi campo (Catawiki ha cambiato schema più volte)
+  const endTime = lot.expiresAt || lot.expires_at
+    || lot.closingAt || lot.closing_at
+    || lot.biddingEndTime || lot.bidding_end_time
+    || lot.end_time || lot.endsAt || lot.ends_at
+    || lot.live?.expiresAt || lot.live?.expires_at
+    || lot.live?.endTime || lot.live?.end_time
+    || null;
 
   // Immagine
   let image_url: string | null = null;
@@ -1525,7 +1551,7 @@ function extractCatawikiLot(lot: any, items: SearchItem[], seen: Set<string>): v
     price, currency,
     image_url,
     url: fullUrl,
-    end_time: lot.end_time || lot.bidding_end_time || lot.closing_at || null,
+    end_time: endTime,
     location: lot.location || lot.seller_country || null,
     seller: lot.seller_name || lot.seller || null,
     is_auction: true,
@@ -1577,35 +1603,50 @@ async function handleEbaySearch(url: string, debug = false): Promise<Response> {
   const items: SearchItem[] = [];
   const seen = new Set<string>();
 
-  // eBay pattern: <li class="s-item ..."> ... </li>
-  const liRe = /<li[^>]+class="[^"]*s-item[^"]*"[^>]*>([\s\S]*?)<\/li>/g;
+  // eBay pattern: <li class="s-item ..."> ... </li> (legacy)
+  // oppure <li class="s-card ..."> ... </li> (nuovo layout 2025)
+  const liRe = /<li[^>]+class="[^"]*(?:s-item|s-card)[^"]*"[^>]*>([\s\S]*?)<\/li>/g;
   let m: RegExpExecArray | null;
   let count = 0;
   while ((m = liRe.exec(html)) !== null && count < 80) {
     const block = m[1];
     if (/s-item__title--tagblock|s-item--placeholder/.test(block)) continue;
 
-    const linkM = block.match(/<a[^>]+class="s-item__link"[^>]*href="([^"]+)"/) || block.match(/<a[^>]+href="(https?:\/\/www\.ebay\.[^"]+\/itm\/[^"]+)"/);
+    const linkM = block.match(/<a[^>]+class="[^"]*(?:s-item__link|s-card__title)[^"]*"[^>]*href="([^"]+)"/)
+      || block.match(/<a[^>]+href="(https?:\/\/www\.ebay\.[^"]+\/itm\/[^"]+)"/);
     if (!linkM) continue;
     const itemUrl = linkM[1].split('?')[0];
     if (seen.has(itemUrl)) continue;
     seen.add(itemUrl);
 
-    const titleM = block.match(/<(?:span|div|h3)[^>]*class="[^"]*s-item__title[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|h3)>/);
+    const titleM = block.match(/<(?:span|div|h3)[^>]*class="[^"]*(?:s-item__title|s-card__title)[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|h3)>/);
     const title = titleM ? unentity(stripTags(titleM[1])) : '';
     if (!title || /^Shop on eBay$/i.test(title)) continue;
 
-    const priceM = block.match(/<span[^>]*class="[^"]*s-item__price[^"]*"[^>]*>([\s\S]*?)<\/span>/);
-    const priceTxt = priceM ? unentity(stripTags(priceM[1])) : '';
-    const { price, currency } = priceFromText(priceTxt);
+    // Price: estrai DAL BLOCCO COMPLETO e poi cerca testo prezzo (non importa se nested span)
+    // Pattern multipli: s-item__price, s-card__price, s-card-price, prx_price
+    const priceText = extractEbayPriceText(block);
+    const { price, currency } = priceText ? priceFromText(priceText) : { price: null, currency: 'EUR' };
 
-    const imgM = block.match(/<img[^>]+(?:src|data-src)="([^"]+)"/);
-    const image_url = imgM ? imgM[1] : null;
+    const imgM = block.match(/<img[^>]+(?:src|data-src|data-srcset)="([^"]+)"/);
+    const image_url = imgM ? imgM[1].split(' ')[0] : null;
 
-    const isAuction = /\bbid\b|\bAsta\b|s-item__bids|s-item__time-left/i.test(block);
-    const endM = block.match(/<span[^>]*class="[^"]*s-item__time-left[^"]*"[^>]*>([\s\S]*?)<\/span>/);
+    const isAuction = /\bbid\b|\bAsta\b|s-item__bids|s-item__time-left|s-card__time-left/i.test(block);
+
+    // End time: prova testo "time-left" + datetime structured
+    let end_time: string | null = null;
+    const endM = block.match(/<span[^>]*class="[^"]*(?:s-item__time-left|s-card__time-left)[^"]*"[^>]*>([\s\S]*?)<\/span>/);
     const endText = endM ? unentity(stripTags(endM[1])) : '';
-    const end_time = endText ? parseEbayEndText(endText) : null;
+    if (endText) end_time = parseEbayEndText(endText);
+    // Fallback: cerca un attributo data-end-date o un timestamp ISO nel blocco
+    if (!end_time) {
+      const isoM = block.match(/data-end-?(?:date|time)="([^"]+)"/i)
+        || block.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[^"<]*)/);
+      if (isoM) {
+        const d = new Date(isoM[1]);
+        if (!isNaN(d.getTime())) end_time = d.toISOString();
+      }
+    }
 
     const locM = block.match(/<span[^>]*class="[^"]*s-item__location[^"]*"[^>]*>([\s\S]*?)<\/span>/);
     const location = locM ? unentity(stripTags(locM[1])) : null;
@@ -1636,30 +1677,123 @@ async function handleEbaySearch(url: string, debug = false): Promise<Response> {
   }
 
   const resp: Record<string, unknown> = { source: 'ebay_search', url, items, count: items.length };
-  if (debug && items.length === 0) {
+  if (debug) {
+    const noPrice = items.filter(i => i.price == null).length;
+    const noEnd = items.filter(i => i.is_auction && !i.end_time).length;
     resp.debug = {
       html_len: html.length,
-      has_results: /s-item/.test(html),
-      preview: html.slice(0, 2000),
+      has_results: /s-item|s-card/.test(html),
+      missing_price: noPrice,
+      missing_end_time: noEnd,
+      preview: items.length === 0 ? html.slice(0, 2000) : undefined,
     };
   }
   return json(resp);
 }
 
+// Estrae il testo prezzo da un blocco HTML eBay item, robusto a nested span,
+// classi multiple (s-item__price, s-card__price, prx_price), e formati EUR/USD/GBP.
+function extractEbayPriceText(block: string): string {
+  // Cerca un container prezzo (qualsiasi tag), poi prendi tutto il testo dentro fino al
+  // closing del container — gestito tramite balance-aware extraction semplice.
+  const containerPatterns = [
+    /<span[^>]+class="[^"]*s-item__price[^"]*"[^>]*>/i,
+    /<span[^>]+class="[^"]*s-card__price[^"]*"[^>]*>/i,
+    /<span[^>]+class="[^"]*s-card-price[^"]*"[^>]*>/i,
+    /<div[^>]+class="[^"]*s-card__price[^"]*"[^>]*>/i,
+    /<span[^>]+class="[^"]*prx_price[^"]*"[^>]*>/i,
+  ];
+  for (const re of containerPatterns) {
+    const startM = re.exec(block);
+    if (!startM) continue;
+    // Trova chiusura span/div bilanciata dal punto startM.index + startM[0].length
+    const startTag = startM[0].startsWith('<div') ? 'div' : 'span';
+    const after = block.slice(startM.index + startM[0].length);
+    const closed = consumeBalanced(after, startTag);
+    if (closed) {
+      const txt = unentity(stripTags(closed));
+      if (/[€$£]|\bEUR\b|\bUSD\b|\bGBP\b/.test(txt) || /\d+[,.]\d{2}/.test(txt)) {
+        return txt.trim();
+      }
+    }
+  }
+  // Fallback assoluto: cerca qualsiasi pattern monetario nel blocco
+  const anyPrice = block.match(/(?:€|EUR|USD|GBP|\$|£)\s*[\d.,]+|[\d.,]+\s*(?:€|EUR|USD|GBP|\$|£)/);
+  return anyPrice ? unentity(anyPrice[0]) : '';
+}
+
+// Estrae il contenuto di un tag finché non trova la chiusura bilanciata.
+// Semplice e tollerante: conta solo le occorrenze del tag corrispondente.
+function consumeBalanced(html: string, tag: string): string {
+  const openRe = new RegExp(`<${tag}\\b`, 'gi');
+  const closeRe = new RegExp(`</${tag}>`, 'gi');
+  let depth = 1;
+  let pos = 0;
+  while (depth > 0 && pos < html.length) {
+    openRe.lastIndex = pos;
+    closeRe.lastIndex = pos;
+    const o = openRe.exec(html);
+    const c = closeRe.exec(html);
+    if (!c) return html;
+    if (o && o.index < c.index) {
+      depth++;
+      pos = o.index + 1;
+    } else {
+      depth--;
+      if (depth === 0) return html.slice(0, c.index);
+      pos = c.index + 1;
+    }
+  }
+  return html;
+}
+
 function parseEbayEndText(t: string): string|null {
-  // "1g 2h", "5h 12m", "3m 20s" → ISO timestamp
+  // Formati supportati:
+  //   "1g 2h" / "5h 12m" / "3m 20s" — durata residua (italiano)
+  //   "1d 2h" / "5h 12m"             — duration residua (english)
+  //   "Termina 25 apr 14:30"          — data assoluta italiana
+  //   "Ends 25 Apr at 14:30"          — data assoluta english
+  //   "Mer 25 Apr alle 14:30"
+  if (!t) return null;
+  const txt = t.trim();
   const now = Date.now();
+
+  // 1. Durata residua
   let ms = 0;
-  const dM = t.match(/(\d+)\s*g/i); // giorni in italiano
-  const dM2 = t.match(/(\d+)\s*d/i); // days in english
-  const hM = t.match(/(\d+)\s*h/i);
-  const mM = t.match(/(\d+)\s*m\b/i);
+  const dM = txt.match(/(\d+)\s*g(?:iorn[oi])?\b/i);   // giorni IT
+  const dM2 = txt.match(/(\d+)\s*d(?:ay)?\b/i);        // days EN
+  const hM = txt.match(/(\d+)\s*h(?:our)?\b/i);
+  const mM = txt.match(/(\d+)\s*m(?:in)?(?:s|ut[oi])?\b/i);
+  const sM = txt.match(/(\d+)\s*s(?:ec)?(?:ondi?)?\b/i);
   if (dM) ms += parseInt(dM[1]) * 86400000;
   else if (dM2) ms += parseInt(dM2[1]) * 86400000;
   if (hM) ms += parseInt(hM[1]) * 3600000;
   if (mM) ms += parseInt(mM[1]) * 60000;
-  if (ms === 0) return null;
-  return new Date(now + ms).toISOString();
+  if (sM) ms += parseInt(sM[1]) * 1000;
+  if (ms > 0) return new Date(now + ms).toISOString();
+
+  // 2. Data assoluta "DD MMM HH:MM" o "DD MMM at HH:MM"
+  const monthMap: Record<string, number> = {
+    gen:0, feb:1, mar:2, apr:3, mag:4, giu:5, lug:6, ago:7, set:8, ott:9, nov:10, dic:11,
+    jan:0, feb_en:1, may:4, jun:5, jul:6, aug:7, sep:8, oct:9, dec:11,
+  };
+  const dateM = txt.match(/(\d{1,2})\s+([A-Za-z]{3,})\.?\s*(?:at|alle)?\s*(\d{1,2}):(\d{2})/);
+  if (dateM) {
+    const day = parseInt(dateM[1]);
+    const monKey = dateM[2].toLowerCase().slice(0, 3);
+    const mon = monthMap[monKey];
+    if (mon !== undefined) {
+      const h = parseInt(dateM[3]);
+      const mi = parseInt(dateM[4]);
+      const d = new Date();
+      d.setMonth(mon, day);
+      d.setHours(h, mi, 0, 0);
+      // Se la data risulta nel passato, assume anno prossimo
+      if (d.getTime() < now) d.setFullYear(d.getFullYear() + 1);
+      return d.toISOString();
+    }
+  }
+  return null;
 }
 
 // ── SUBITO ────────────────────────────────────────────────────────────
@@ -1687,21 +1821,38 @@ async function handleSubitoSearch(url: string, debug = false): Promise<Response>
           if (!isFinite(priceN)) priceN = null;
         } else if (typeof ad.price === 'number') {
           priceN = ad.price;
+        } else if (ad.price?.value) {
+          priceN = parseFloat(String(ad.price.value).replace(/[^\d.,]/g,'').replace(',','.'));
+          if (!isFinite(priceN)) priceN = null;
         }
         const img = ad.images?.[0]?.scale?.[ad.images[0].scale.length-1]?.secureuri
                   || ad.images?.[0]?.uri
                   || ad.image?.url
                   || null;
+        // End time per le aste / annunci con scadenza:
+        // - features['/expiration_date'].values[0].value
+        // - features['/auction_end'].values[0].value
+        // - ad.expires_at / ad.expiration_date
+        let endTime: string | null = null;
+        const endRaw = ad.features?.['/expiration_date']?.values?.[0]?.value
+          || ad.features?.['/auction_end']?.values?.[0]?.value
+          || ad.features?.['/end_date']?.values?.[0]?.value
+          || ad.expires_at || ad.expiration_date || ad.end_at || null;
+        if (endRaw) {
+          const d = new Date(endRaw);
+          if (!isNaN(d.getTime())) endTime = d.toISOString();
+        }
+        const isAuction = !!(ad.features?.['/auction_end'] || ad.is_auction || /asta/i.test(String(ad.subject||ad.title||'')));
         items.push({
           title: String(ad.subject || ad.title || '').slice(0, 300),
           price: priceN,
           currency: 'EUR',
           image_url: img,
           url: u.startsWith('http') ? u : 'https://www.subito.it' + u,
-          end_time: null,
+          end_time: endTime,
           location: ad.geo?.city?.value || ad.geo?.town?.value || null,
           seller: ad.advertiser?.user_id || null,
-          is_auction: false,
+          is_auction: isAuction,
           source: 'subito',
         });
       }
