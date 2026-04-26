@@ -9454,6 +9454,7 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
               <div class="rad-scan-results-actions">
                 <span id="radScanResultsMeta" class="rad-scan-meta"></span>
                 <button class="btn" id="radScanRunNowBtn" onclick="radScanRunSelected()" style="font-size:11px;display:none">▶ Esegui ora</button>
+                <button class="btn" id="radScanValuateBtn" onclick="radValRunSelected()" style="font-size:11px;display:none" title="Analizza tutti i risultati: stima il valore di mercato in base a titolo (graded/grado) e prezzo Cardmarket"><span class="rb-i rb-i-chart"></span> Analizza prezzi <span id="radValProgressLabel" style="color:var(--text-subtle);font-family:var(--mono);font-size:10px"></span></button>
                 <button class="btn" id="radScanRemoveExpiredBtn" onclick="radScanRemoveExpired()" style="font-size:11px;display:none" title="Rimuovi i lotti che l'API Catawiki non restituisce più (scaduti/chiusi/rimossi)"><span class="rb-i rb-i-x"></span> Rimuovi scaduti</button>
                 <button class="btn" id="radScanClearBtn" onclick="radScanClearResults()" style="font-size:11px;display:none"><span class="rb-i rb-i-trash"></span> Pulisci</button>
               </div>
@@ -9802,6 +9803,24 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
 .rad-scan-table .unavail-text{color:var(--text-subtle);font-style:italic;font-size:10px}
 .rad-scan-table td.endtime.unavail,.rad-scan-table td.price.unavail{color:var(--text-subtle)}
 .rad-scan-table td.actions a.disabled{color:var(--text-subtle);cursor:not-allowed;opacity:.4;text-decoration:none}
+
+/* Valuation cells */
+.rad-scan-table td.val{text-align:right;font-family:var(--mono);font-size:11px}
+.rad-scan-table td.verdict{white-space:nowrap}
+.rad-scan-table .val-est{color:var(--text)}
+.rad-scan-table .val-na{color:var(--text-subtle);font-style:italic;font-size:10px}
+.rad-scan-table .val-loading{color:var(--text-subtle);font-style:italic;animation:radValPulse 1.4s ease-in-out infinite}
+@keyframes radValPulse{0%,100%{opacity:.4}50%{opacity:.9}}
+.rad-scan-table .val-runbtn{font-size:10px;padding:2px 8px;color:var(--text-muted);border-color:var(--border)}
+.rad-scan-table .val-runbtn:hover{color:var(--accent);border-color:var(--accent)}
+.rad-scan-table .val-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;letter-spacing:.04em;font-family:var(--mono);text-transform:uppercase;cursor:help;border:1px solid transparent}
+.rad-scan-table .val-affare  {background:rgba(63,185,80,.15);  color:var(--success); border-color:rgba(63,185,80,.4)}
+.rad-scan-table .val-buono   {background:rgba(122,154,110,.12);color:#7a9a6e;        border-color:rgba(122,154,110,.4)}
+.rad-scan-table .val-fair    {background:var(--surface2);      color:var(--text-muted);border-color:var(--border)}
+.rad-scan-table .val-caro    {background:rgba(210,153,34,.12); color:var(--warning); border-color:rgba(210,153,34,.4)}
+.rad-scan-table .val-costoso {background:rgba(248,81,73,.15);  color:var(--danger);  border-color:rgba(248,81,73,.4)}
+.rad-scan-table tr.val-affare-row{background:rgba(63,185,80,.05)}
+.rad-scan-table tr.val-affare-row:hover{background:rgba(63,185,80,.1)}
 .rad-scan-table td{padding:5px 8px;vertical-align:middle}
 .rad-scan-table td.img{width:44px;padding:3px}
 .rad-scan-table td.img img{width:38px;height:38px;object-fit:cover;border-radius:3px;border:1px solid var(--border);display:block;background:var(--bg);cursor:zoom-in;transition:border-color .12s}
@@ -15259,6 +15278,7 @@ function radScanRenderResults(){
   var runBtn = document.getElementById('radScanRunNowBtn');
   var clearBtn = document.getElementById('radScanClearBtn');
   var expiredBtn = document.getElementById('radScanRemoveExpiredBtn');
+  var valuateBtn = document.getElementById('radScanValuateBtn');
   if(!listEl) return;
 
   var id = _radScanState.selectedJobId;
@@ -15268,6 +15288,7 @@ function radScanRenderResults(){
     if(runBtn) runBtn.style.display = 'none';
     if(clearBtn) clearBtn.style.display = 'none';
     if(expiredBtn) expiredBtn.style.display = 'none';
+    if(valuateBtn) valuateBtn.style.display = 'none';
     listEl.innerHTML = '<div class="rad-empty" style="padding:50px 20px"><div class="rad-empty-icon"><span class="rb-i rb-i-radar"></span></div><div class="rad-empty-title">Nessun job selezionato</div><div class="rad-empty-sub">Click su un job a sinistra per vedere i risultati.</div></div>';
     return;
   }
@@ -15301,6 +15322,10 @@ function radScanRenderResults(){
     var hasExpired = (_radScanState.results[id] || []).some(function(it){return it.is_unavailable;});
     metaEl_btnExpired.style.display = hasExpired ? 'inline-block' : 'none';
   }
+  if(valuateBtn){
+    var live = (_radScanState.results[id] || []).filter(function(it){return !it.is_unavailable;});
+    valuateBtn.style.display = live.length > 0 ? 'inline-block' : 'none';
+  }
 
   var results = (_radScanState.results[id] || []).slice();
 
@@ -15326,7 +15351,7 @@ function radScanRenderResults(){
     var newCount = items.filter(function(i){return i.is_new;}).length;
     var searchUrl = items[0]._search_url || null;
     rows += '<tr class="rad-scan-group-divider">'+
-      '<td colspan="6">'+s.toUpperCase()+' · '+items.length+(newCount?' · '+newCount+' nuovi':'')+
+      '<td colspan="8">'+s.toUpperCase()+' · '+items.length+(newCount?' · '+newCount+' nuovi':'')+
         (searchUrl ? '<a href="'+escapeHtml(searchUrl)+'" target="_blank" rel="noopener" style="margin-left:10px;color:var(--accent);text-decoration:none;text-transform:none;font-size:10px">↗ apri ricerca</a>' : '')+
       '</td>'+
     '</tr>';
@@ -15342,6 +15367,8 @@ function radScanRenderResults(){
           '<th></th>'+
           '<th>Titolo</th>'+
           '<th class="num">Prezzo</th>'+
+          '<th class="num" title="Prezzo CM stimato per la condizione (raw/graded) rilevata dal titolo">Valore stimato</th>'+
+          '<th title="Valutazione: AFFARE = >25% sotto stimato · BUONO = 5-25% sotto · FAIR = ±5% · CARO = >5% sopra">Verdetto</th>'+
           '<th>Scadenza</th>'+
           '<th>Sito</th>'+
           '<th style="text-align:right">Azioni</th>'+
@@ -15404,11 +15431,43 @@ function radScanResultTr(it, jobId, isMonitored){
   // Site
   var siteCell = '<span class="pf">'+(it._site||it.source||'?').toUpperCase()+'</span>';
 
+  var encUrl = escapeHtml(it.url);
+
+  // Valuation cells (popolate da radValEstimate, async)
+  var valCell, verdictCell;
+  if(unavailable){
+    valCell = '<span class="unavail-text">—</span>';
+    verdictCell = '<span class="unavail-text">—</span>';
+  } else if(it._val_loading){
+    valCell = '<span class="val-loading">…</span>';
+    verdictCell = '<span class="val-loading">analisi…</span>';
+  } else if(it._val_error){
+    valCell = '<span class="val-na" title="'+escapeHtml(it._val_error||'')+'">n/d</span>';
+    verdictCell = '<span class="val-na">—</span>';
+  } else if(typeof it._val_cm === 'number' && isFinite(it._val_cm)){
+    var pinfo = it._val_parsed || {};
+    var multTxt = (pinfo.is_graded && pinfo.grade_multiplier && pinfo.grade_multiplier !== 1)
+      ? ' <span style="color:var(--text-subtle);font-size:9px">×'+pinfo.grade_multiplier.toFixed(1)+'</span>'
+      : '';
+    valCell = '<span class="val-est" title="'+escapeHtml(pinfo._val_explain||'')+'">€&nbsp;'+it._val_cm.toFixed(0)+multTxt+'</span>';
+    if(typeof it._val_delta === 'number' && it._val_verdict){
+      var deltaTxt = (it._val_delta>0?'+':'') + it._val_delta.toFixed(0)+'%';
+      verdictCell = '<span class="val-badge val-'+it._val_verdict+'" title="'+escapeHtml(pinfo._val_explain||'')+'">'+
+        radValVerdictLabel(it._val_verdict)+
+        ' <span style="font-family:var(--mono);font-size:9px;opacity:.85">'+deltaTxt+'</span>'+
+      '</span>';
+    } else {
+      verdictCell = '<span class="val-na">—</span>';
+    }
+  } else {
+    valCell = '<span class="val-na">—</span>';
+    verdictCell = '<button class="btn val-runbtn" data-act="valuate" data-job="'+escapeHtml(jobId)+'" data-url="'+encUrl+'" title="Stima il valore di mercato di questa carta">Analizza</button>';
+  }
+
   // Actions: usiamo data-attrs + event delegation per evitare il bug delle virgolette
   // doppie nell'onclick inline (l'URL conteneva " che chiudeva prematuramente l'attr)
   var monClass = isMonitored ? 'monitor active' : 'monitor';
   var monLabel = isMonitored ? 'monitoraggio attivo (click per disattivare)' : 'attiva monitoraggio prezzo';
-  var encUrl = escapeHtml(it.url);
   // Se SCADUTO non offriamo "Apri" (porta a 403 Akamai), solo "Rimuovi"
   var openLink = unavailable
     ? '<a class="disabled" title="Lotto non più disponibile">↗</a>'
@@ -15424,17 +15483,504 @@ function radScanResultTr(it, jobId, isMonitored){
   if(it.is_new) rowClass += ' new';
   if(isMonitored) rowClass += ' monitored';
   if(unavailable) rowClass += ' unavailable';
+  if(it._val_verdict === 'affare') rowClass += ' val-affare-row';
 
   return '<tr class="'+rowClass.trim()+'">'+
     '<td class="img">'+imgCell+'</td>'+
     '<td class="title">'+titleCell+'</td>'+
     '<td class="'+priceCellClass+'">'+priceText+'</td>'+
+    '<td class="val">'+valCell+'</td>'+
+    '<td class="verdict">'+verdictCell+'</td>'+
     '<td class="endtime '+endClass+'">'+endText+'</td>'+
     '<td class="site">'+siteCell+'</td>'+
     '<td class="actions">'+actionsCell+'</td>'+
   '</tr>';
 }
 window.radScanResultTr = radScanResultTr;
+
+// ═══════════════════════════════════════════════════════════════════════
+// 💰 RADAR VALUATION — analisi automatica prezzo carte da titolo asta
+//
+// Pipeline:
+//   1. Parse del titolo dell'inserzione → estrae nome carta, numero, set,
+//      lingua, edizione, condizione, casa+grado di gradazione
+//   2. Lookup prezzo CM "raw NM" via edge function smooth-endpoint (cache 24h)
+//   3. Applica multiplier graded (PSA10/9/...) per stimare il valore atteso
+//   4. Confronta col prezzo dell'asta → verdetto AFFARE/BUONO/FAIR/CARO
+//
+// Note:
+//  - Multipliers sono euristici basati su dati medi mercato Pokémon TCG.
+//    Sono indicativi, non oracoli. Vanno ricalibrati quando ci saranno
+//    abbastanza dati storici nel DB.
+//  - I nomi di carte/set sono estratti con heuristics: per casi ambigui
+//    il modulo restituisce confidence='low' e l'UI mostra il warning.
+// ═══════════════════════════════════════════════════════════════════════
+
+// Cache localStorage 24h per evitare di martellare CM
+var RAD_VAL_CACHE_KEY = 'pkm_radar_valuation_cache_v1';
+var RAD_VAL_CACHE_TTL_MS = 24 * 3600 * 1000;
+var _radValCache = null;
+function radValCacheLoad(){
+  if(_radValCache) return _radValCache;
+  try{
+    var raw = localStorage.getItem(RAD_VAL_CACHE_KEY);
+    _radValCache = raw ? JSON.parse(raw) : {};
+  }catch(_){ _radValCache = {}; }
+  return _radValCache;
+}
+function radValCachePersist(){
+  if(!_radValCache) return;
+  try{
+    // Vacuum: rimuovi entries scadute prima di salvare
+    var now = Date.now();
+    Object.keys(_radValCache).forEach(function(k){
+      if(!_radValCache[k] || (now - _radValCache[k].t) > RAD_VAL_CACHE_TTL_MS){
+        delete _radValCache[k];
+      }
+    });
+    localStorage.setItem(RAD_VAL_CACHE_KEY, JSON.stringify(_radValCache));
+  }catch(_){}
+}
+function radValCacheGet(key){
+  var c = radValCacheLoad();
+  var e = c[key];
+  if(!e) return null;
+  if((Date.now() - e.t) > RAD_VAL_CACHE_TTL_MS) return null;
+  return e.v;
+}
+function radValCacheSet(key, value){
+  var c = radValCacheLoad();
+  c[key] = { v: value, t: Date.now() };
+  radValCachePersist();
+}
+
+// ── PARSER TITOLO ────────────────────────────────────────────────────────
+// Estrae attributi strutturati dal titolo libero di un'inserzione.
+// Funziona meglio con titoli eBay/Catawiki/Subito che includono casa+grado.
+//
+// Esempi gestiti:
+//   "Charizard 4/102 Base Set Holo PSA 9"
+//   "Pikachu Illustrator CGC 8.5 Pristine 1998"
+//   "Lugia Neo Genesis 9/111 1st Edition Italian"
+//   "Pokémon Card Mew #151 Mint Condition 2023"
+function radValParseTitle(title){
+  if(!title) return null;
+  var t = String(title).trim();
+  var lo = t.toLowerCase();
+  var out = {
+    raw_title: t,
+    is_graded: false,
+    grading_house: null,    // PSA | BGS | CGC | SGC | ACE
+    grade: null,            // numero, es. 9.5
+    is_first_edition: false,
+    is_shadowless: false,
+    language: null,         // EN | IT | DE | FR | ES | JP | KO | CN
+    edition: null,          // raw text matched per debug
+    set_name_guess: null,
+    card_number: null,      // es. "4/102"
+    confidence: 'high',     // high | medium | low — stima quanto fidarsi del parse
+  };
+
+  // 1. GRADING — cerca pattern "<HOUSE> <number>" (anche attaccati: PSA10)
+  var graderRe = /\b(PSA|BGS|CGC|SGC|ACE|MNT)\s*([0-9]{1,2}(?:[.,][0-9])?)/i;
+  var gM = t.match(graderRe);
+  if(gM){
+    out.is_graded = true;
+    out.grading_house = gM[1].toUpperCase();
+    out.grade = parseFloat(gM[2].replace(',','.'));
+  } else {
+    // Casa senza grado esplicito? "PSA Graded" "in CGC slab" → graded ma grade null
+    var houseOnly = lo.match(/\b(psa|bgs|cgc|sgc|ace)\b\s*(?:graded|slab|gradat[ao]|gradate|case)/);
+    if(houseOnly){
+      out.is_graded = true;
+      out.grading_house = houseOnly[1].toUpperCase();
+      out.confidence = 'medium';
+    } else if(/\b(graded|gradat[ao]|gradate|grading|slabbed|slab)\b/.test(lo)){
+      out.is_graded = true;
+      out.confidence = 'medium';
+    }
+  }
+
+  // 2. EDITION — 1st Edition / shadowless
+  if(/\b(1st\s*ed|first\s*ed|prima\s*ed)/i.test(t)) out.is_first_edition = true;
+  if(/\bshadowless\b/i.test(t)) out.is_shadowless = true;
+
+  // 3. LANGUAGE — keywords espliciti
+  var langMap = {
+    'italian':'IT', 'italiana':'IT', 'italiano':'IT', 'ita':'IT',
+    'english':'EN', 'inglese':'EN', 'eng':'EN',
+    'german':'DE', 'tedesco':'DE', 'deutsch':'DE',
+    'french':'FR', 'francese':'FR', 'francais':'FR',
+    'spanish':'ES', 'spagnolo':'ES', 'español':'ES', 'espanol':'ES',
+    'japanese':'JP', 'giapponese':'JP', 'japan':'JP', 'jpn':'JP',
+    'korean':'KO', 'coreano':'KO',
+    'chinese':'CN', 'cinese':'CN'
+  };
+  for(var lk in langMap){
+    if(lo.indexOf(lk) >= 0){ out.language = langMap[lk]; break; }
+  }
+
+  // 4. CARD NUMBER — pattern "X/Y" (più popolare) o "#NNN"
+  var numM = t.match(/\b(\d{1,3}\/\d{1,3})\b/);
+  if(numM) out.card_number = numM[1];
+  else {
+    var hashM = t.match(/#\s?(\d{1,4})\b/);
+    if(hashM) out.card_number = hashM[1];
+  }
+
+  // 5. SET NAME GUESS — best effort
+  // Pattern comuni: "Base Set", "Neo Genesis", "Jungle", "Fossil", "Team Rocket",
+  // "Hidden Fates", "151", "Evolving Skies", "Astral Radiance", "Chilling Reign",
+  // "Lost Origin", "Crown Zenith", "Crystal Type" ecc.
+  var SET_HINTS = [
+    'Base Set', 'Jungle', 'Fossil', 'Team Rocket', 'Gym Heroes', 'Gym Challenge',
+    'Neo Genesis', 'Neo Discovery', 'Neo Revelation', 'Neo Destiny',
+    'Legendary Collection', 'Expedition', 'Aquapolis', 'Skyridge',
+    'Ruby & Sapphire', 'Sandstorm', 'Dragon', 'Team Magma', 'Team Aqua',
+    'Hidden Legends', 'FireRed', 'LeafGreen', 'Deoxys',
+    'Diamond & Pearl', 'Mysterious Treasures', 'Secret Wonders', 'Great Encounters',
+    'Majestic Dawn', 'Legends Awakened', 'Stormfront',
+    'Platinum', 'Rising Rivals', 'Supreme Victors', 'Arceus',
+    'HeartGold', 'SoulSilver', 'Unleashed', 'Undaunted', 'Triumphant',
+    'Black & White', 'Emerging Powers', 'Noble Victories', 'Next Destinies',
+    'XY', 'Flashfire', 'Furious Fists', 'Phantom Forces', 'Primal Clash', 'Ancient Origins',
+    'Sun & Moon', 'Guardians Rising', 'Burning Shadows', 'Crimson Invasion',
+    'Sword & Shield', 'Rebel Clash', 'Darkness Ablaze', 'Vivid Voltage',
+    'Battle Styles', 'Chilling Reign', 'Evolving Skies', 'Fusion Strike',
+    'Brilliant Stars', 'Astral Radiance', 'Lost Origin', 'Silver Tempest',
+    'Crown Zenith', 'Hidden Fates', 'Shining Fates', 'Celebrations',
+    'Pokemon GO', 'Scarlet & Violet', 'Paldea Evolved', 'Obsidian Flames',
+    '151', 'Paradox Rift', 'Paldean Fates', 'Temporal Forces',
+    'Dark Explorers'
+  ];
+  for(var i=0; i<SET_HINTS.length; i++){
+    var s = SET_HINTS[i];
+    var re = new RegExp('\\b'+s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/&/g,'(?:&|and)')+'\\b','i');
+    if(re.test(t)){ out.set_name_guess = s; break; }
+  }
+
+  // 6. CARD NAME — euristica: cerca primi token "name-like" (≥3 lettere)
+  // Strategia: prendiamo i token che NON sono in skip-list, in ordine di apparizione,
+  // accettando ALL_CAPS o Capitalized. Ci fermiamo quando incontriamo un numero/grading.
+  var skip = /^(PSA|BGS|CGC|SGC|ACE|MNT|Pokémon|Pokemon|Card|Cards|Carte|Carta|Holo|Foil|Mint|Near|Italian|English|German|French|Japanese|Spanish|Italiana|Inglese|Tedesca|Giapponese|Lot|Lots|Bundle|Set|Collection|Pack|Packs|Booster|Sealed|First|Shadowless|Edition|Graded|Gradata|Rare|Ultra|Secret|Promo|Trainer|Energy|Common|Uncommon|Reverse|Korean|Coreano|Chinese|Cinese|EX|GX|VMAX|VSTAR|Vmax|Vstar|Mega|TCG|TCGO|Original|Originale|Pristine|Slab|Slabbed|Vintage|Modern|New|Used|Nuovo|Usato|Eng|Ita|Jpn|Deu|Fra|Esp|Pcs|Pieces|Pezzi|Reg|Box|Tin|Bulk|Mixed|Mix|Random|Wholesale|Stock|Various|Vari|Varie|Misti|Misto|Misti|Job|Lot|Reseller|Resale|Bulk|Job|Random|Random)$/i;
+  // Tokens: lettere (Unicode) + accent + numeri possono separare nome
+  var tokens = t.split(/[\s\-_,;:.|()\[\]\/]+/).filter(Boolean);
+  var nameParts = [];
+  for(var ti = 0; ti < tokens.length; ti++){
+    var tok = tokens[ti];
+    if(!tok) continue;
+    // Stop su numeri puri o pattern X/Y o # o grading attaccato
+    if(/^\d/.test(tok) || /\//.test(tok) || /^[A-Z]{2,}\d/.test(tok)) {
+      if(nameParts.length) break;
+      continue;
+    }
+    if(skip.test(tok)){
+      if(nameParts.length) break;  // dopo aver iniziato un nome, una skip word lo termina
+      continue;
+    }
+    // Deve iniziare con lettera (no apostrofi/punctuation)
+    if(!/^[A-Za-zÀ-ÿ]/.test(tok)) continue;
+    // Deve avere almeno 3 chars
+    if(tok.length < 3) continue;
+    nameParts.push(tok);
+    if(nameParts.length >= 3) break;  // nome max 3 parole
+  }
+  if(nameParts.length){
+    // Normalize: "Capitalize" se è ALL_CAPS o all_lower (es. CHARIZARD → Charizard)
+    out.card_name_guess = nameParts.map(function(w){
+      if(w.length > 1 && w === w.toUpperCase()){
+        return w.charAt(0) + w.slice(1).toLowerCase();
+      }
+      return w;
+    }).join(' ');
+  }
+
+  // 7. CONFIDENCE — abbassiamo se mancano dati cruciali per la valuation
+  if(!out.card_name_guess && !out.card_number) out.confidence = 'low';
+
+  // Bulk lot detection: titoli con N alti (>=20 carte) sono lots indistinti
+  // → confidence='low' anche se nome sembra estratto correttamente.
+  var bulkM = lo.match(/\b(\d{2,4})\s*(carte|cards|pcs|pieces|pezzi|lot)/);
+  if(bulkM && parseInt(bulkM[1]) >= 20) out.confidence = 'low';
+  if(/\b(bulk|wholesale|mixed lot|job lot|misto|various|vari|varie)\b/i.test(t)) out.confidence = 'low';
+
+  return out;
+}
+
+// Multiplier graded medi (mercato Pokémon TCG, valori indicativi).
+// Usati per stimare il valore atteso di una carta gradata partendo dal
+// prezzo "raw NM" su Cardmarket.
+//
+// I valori sono LARGAMENTE conservativi e variano tantissimo per carta:
+// una Charizard 1st base set PSA10 vale 50× il raw, una common moderna
+// PSA10 può valere 2-3×. Questi multiplier sono BASE — andranno raffinati
+// quando il DB avrà dati storici sufficienti.
+var RAD_VAL_GRADE_MULTIPLIERS = {
+  PSA: { 10: 5.0, 9.5: 3.5, 9: 2.0, 8.5: 1.4, 8: 1.0, 7: 0.7, 6: 0.5, 5: 0.4 },
+  BGS: { 10: 8.0, 9.5: 4.5, 9: 2.5, 8.5: 1.6, 8: 1.1, 7: 0.7 },
+  CGC: { 10: 4.5, 9.5: 3.0, 9: 1.8, 8.5: 1.3, 8: 0.95, 7: 0.65 },
+  SGC: { 10: 4.0, 9.5: 2.8, 9: 1.7, 8.5: 1.2, 8: 0.9 },
+  ACE: { 10: 3.5, 9: 1.5, 8: 0.9 },
+};
+// Multiplier extra per attributi rari
+var RAD_VAL_FIRST_EDITION_MULT = 2.5;
+var RAD_VAL_SHADOWLESS_MULT = 1.8;
+// Multiplier graded "generico" se manca casa+grado
+var RAD_VAL_GENERIC_GRADED = 1.8;
+
+function radValGetGradeMultiplier(parsed){
+  if(!parsed.is_graded) return 1;
+  var m = 1;
+  if(parsed.grading_house && parsed.grade){
+    var house = RAD_VAL_GRADE_MULTIPLIERS[parsed.grading_house];
+    if(house){
+      // Trova l'entry più vicina (>=) al grade richiesto
+      var keys = Object.keys(house).map(parseFloat).sort(function(a,b){return b-a;});
+      for(var i=0; i<keys.length; i++){
+        if(parsed.grade >= keys[i]){ m = house[keys[i]]; break; }
+      }
+      if(m === 1) m = house[keys[keys.length-1]] || 1;  // grade < min noto
+    } else m = RAD_VAL_GENERIC_GRADED;
+  } else {
+    m = RAD_VAL_GENERIC_GRADED;
+  }
+  if(parsed.is_first_edition) m *= RAD_VAL_FIRST_EDITION_MULT;
+  if(parsed.is_shadowless) m *= RAD_VAL_SHADOWLESS_MULT;
+  return m;
+}
+
+// ── LOOKUP PREZZO CM RAW NM ──────────────────────────────────────────────
+// Usa l'edge function smooth-endpoint con il search di Cardmarket
+async function radValLookupCmRaw(parsed){
+  if(!parsed.card_name_guess && !parsed.card_number) return null;
+  // Cache key normalizzato
+  var key = [
+    (parsed.card_name_guess||'').toLowerCase(),
+    parsed.card_number||'',
+    (parsed.set_name_guess||'').toLowerCase(),
+    parsed.language||''
+  ].join('|');
+  var cached = radValCacheGet(key);
+  if(cached !== null) return Object.assign({}, cached, { _cached: true });
+
+  // Costruisci URL search Cardmarket
+  // Formato sicuro: searchString=name+number, searchMode=v2
+  var queryParts = [];
+  if(parsed.card_name_guess) queryParts.push(parsed.card_name_guess);
+  if(parsed.card_number) queryParts.push(parsed.card_number.split('/')[0]);
+  var queryStr = queryParts.join(' ');
+  if(!queryStr) return null;
+  var cmUrl = 'https://www.cardmarket.com/en/Pokemon/Products/Search?searchString='
+    + encodeURIComponent(queryStr) + '&searchMode=v2';
+
+  try{
+    var r = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + (window._rbSession?.access_token || SUPA_KEY)
+      },
+      body: JSON.stringify({ url: cmUrl, card_name: parsed.card_name_guess || queryStr, condition: 'NM' })
+    });
+    if(!r.ok) return { error: 'CM HTTP '+r.status };
+    var data = await r.json();
+    if(data.error) return { error: data.error };
+
+    var listings = data.listings && data.listings.length
+      ? data.listings
+      : (data.prices||[]).map(function(p){ return { price:p, condition:'NM', condRank:2 }; });
+    if(!listings.length) return { error: 'no listings' };
+
+    // smartCMPrice già esiste lato app (def globale): mediana top-3 + outlier removal
+    var smart = (typeof smartCMPrice === 'function') ? smartCMPrice(listings, 'NM') : null;
+    var rawNM = smart ? smart.price : listings[0].price;
+    var result = {
+      raw_nm: rawNM,
+      sample_size: listings.length,
+      cm_url: cmUrl,
+    };
+    radValCacheSet(key, result);
+    return result;
+  }catch(e){
+    return { error: String(e.message||e) };
+  }
+}
+
+// ── VALUTAZIONE COMPLETA ─────────────────────────────────────────────────
+// Pipeline: parse → lookup CM raw → apply multipliers → verdict
+async function radValEstimate(item){
+  var parsed = radValParseTitle(item.title || '');
+  if(!parsed){
+    return { error: 'titolo non parsabile' };
+  }
+  if(parsed.confidence === 'low'){
+    return { error: 'titolo ambiguo / bulk lot', parsed: parsed };
+  }
+  var cmRes = await radValLookupCmRaw(parsed);
+  if(!cmRes){
+    return { error: 'lookup CM fallito (parametri insufficienti)', parsed: parsed };
+  }
+  if(cmRes.error){
+    return { error: 'CM: '+cmRes.error, parsed: parsed };
+  }
+  var multiplier = radValGetGradeMultiplier(parsed);
+  var estimated = cmRes.raw_nm * multiplier;
+
+  // Verdict basato su delta vs prezzo asta
+  var verdict = null, deltaPct = null;
+  if(typeof item.price === 'number' && item.price > 0){
+    deltaPct = ((item.price - estimated) / estimated) * 100;
+    if(deltaPct < -25) verdict = 'affare';
+    else if(deltaPct < -5) verdict = 'buono';
+    else if(deltaPct < 5) verdict = 'fair';
+    else if(deltaPct < 25) verdict = 'caro';
+    else verdict = 'costoso';
+  }
+
+  // Spiegazione human-readable per tooltip
+  var explainParts = [];
+  explainParts.push('CM raw NM: €'+cmRes.raw_nm.toFixed(2)+' (n='+cmRes.sample_size+(cmRes._cached?', cache':'')+')');
+  if(parsed.is_graded){
+    var hg = parsed.grading_house ? parsed.grading_house+' '+(parsed.grade||'?') : 'graded gen.';
+    explainParts.push('×'+multiplier.toFixed(2)+' ('+hg+')');
+  }
+  if(parsed.is_first_edition) explainParts.push('×1st Ed');
+  if(parsed.is_shadowless) explainParts.push('×Shadowless');
+  explainParts.push('= €'+estimated.toFixed(0)+' stimato');
+  if(deltaPct !== null){
+    explainParts.push((deltaPct>0?'+':'') + deltaPct.toFixed(0)+'% vs asta');
+  }
+  parsed._val_explain = explainParts.join(' · ');
+  parsed.grade_multiplier = multiplier;
+
+  return {
+    cm_raw_nm: cmRes.raw_nm,
+    multiplier: multiplier,
+    estimated_value: estimated,
+    delta_pct: deltaPct,
+    verdict: verdict,
+    parsed: parsed,
+    sample_size: cmRes.sample_size,
+    cached: !!cmRes._cached,
+  };
+}
+
+function radValVerdictLabel(v){
+  return ({
+    'affare':'AFFARE',
+    'buono':'BUONO',
+    'fair':'FAIR',
+    'caro':'CARO',
+    'costoso':'COSTOSO'
+  })[v] || v;
+}
+
+// ── ORCHESTRATORE: lancia analisi su un set di items ─────────────────────
+// Conservative throttle: 2 in parallelo, 800ms tra batch — CM rate-limit safe.
+var _radValRunningJob = null;
+async function radValRunBatch(jobId, opts){
+  opts = opts || {};
+  var job = _radScanState.jobs.find(function(x){return x.id===jobId;});
+  if(!job) return;
+  var items = (_radScanState.results[jobId] || []).filter(function(it){
+    if(it.is_unavailable) return false;
+    if(opts.onlyMissing && (typeof it._val_cm === 'number' || it._val_error)) return false;
+    if(opts.minPrice && (typeof it.price !== 'number' || it.price < opts.minPrice)) return false;
+    return true;
+  });
+  if(!items.length){
+    huntShowToast('Valuation', 'Nessun risultato da analizzare', null, 60);
+    return;
+  }
+  if(_radValRunningJob){
+    huntShowToast('Valuation', 'Analisi già in corso, attendi…', null, 50);
+    return;
+  }
+  _radValRunningJob = jobId;
+  var done = 0, total = items.length;
+
+  // Marca tutti come loading subito → UI feedback istantaneo
+  items.forEach(function(it){ it._val_loading = true; });
+  radScanRenderResults();
+
+  function progress(){
+    var btn = document.getElementById('radValProgressLabel');
+    if(btn) btn.textContent = '('+done+'/'+total+')';
+  }
+  progress();
+
+  try{
+    // Process con concurrency 2
+    var i = 0;
+    async function worker(){
+      while(i < items.length){
+        var idx = i++;
+        var it = items[idx];
+        try{
+          var res = await radValEstimate(it);
+          if(res.error){
+            it._val_error = res.error;
+          } else {
+            it._val_cm = res.estimated_value;
+            it._val_delta = res.delta_pct;
+            it._val_verdict = res.verdict;
+            it._val_parsed = res.parsed;
+          }
+        }catch(e){
+          it._val_error = String(e.message||e);
+        }
+        delete it._val_loading;
+        done++;
+        progress();
+        // Re-render sporadico (ogni 5 risultati) per non pestare il DOM
+        if(done % 5 === 0 || done === total) radScanRenderResults();
+      }
+    }
+    var ws = [];
+    for(var k=0; k<2; k++) ws.push(worker());
+    await Promise.all(ws);
+    radScanPersist();
+    radScanRenderResults();
+    huntShowToast('Valuation completata', total+' carte analizzate · cache 24h attiva', null, 80);
+  } finally {
+    _radValRunningJob = null;
+  }
+}
+window.radValRunBatch = radValRunBatch;
+
+// Single-item: invocato dal bottone "Analizza" nella riga
+async function radValRunSingle(jobId, url){
+  var arr = _radScanState.results[jobId] || [];
+  var it = arr.find(function(x){return x.url === url;});
+  if(!it) return;
+  it._val_loading = true;
+  delete it._val_error;
+  radScanRenderResults();
+  try{
+    var res = await radValEstimate(it);
+    if(res.error){
+      it._val_error = res.error;
+    } else {
+      it._val_cm = res.estimated_value;
+      it._val_delta = res.delta_pct;
+      it._val_verdict = res.verdict;
+      it._val_parsed = res.parsed;
+    }
+  }catch(e){
+    it._val_error = String(e.message||e);
+  }
+  delete it._val_loading;
+  radScanPersist();
+  radScanRenderResults();
+}
+window.radValRunSingle = radValRunSingle;
+
+// Trigger batch dal bottone "Analizza prezzi" nella toolbar
+function radValRunSelected(){
+  if(!_radScanState.selectedJobId) return;
+  radValRunBatch(_radScanState.selectedJobId, { onlyMissing: true });
+}
+window.radValRunSelected = radValRunSelected;
 
 // ── Toggle monitoraggio (alert) di una specifica asta ────────────────────
 // Aggiunge / rimuove l'URL dalla lista monitored_urls del job. Quando un
@@ -15654,6 +16200,8 @@ function _radScanInstallZoomDelegation(){
       radScanToggleMonitor(jobId, url);
     } else if(act === 'remove'){
       radScanRemoveResult(jobId, url);
+    } else if(act === 'valuate'){
+      radValRunSingle(jobId, url);
     }
   });
 }
