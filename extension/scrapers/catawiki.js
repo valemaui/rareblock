@@ -112,6 +112,66 @@ export async function scrapeCatawiki(job) {
     return { price: price, currency: currency || 'EUR' };
   }
 
+  // ── Fallback ricorsivo: scan generico di tutti i campi numerici che ──
+  // potrebbero rappresentare un prezzo (Catawiki cambia spesso schema).
+  // Strategia: traccia il massimo valore PER currency, poi preferisce
+  // EUR > USD > GBP > prima trovata (max valori delle stesse unità =
+  // offerta corrente più alta = quella che vediamo sul sito).
+  function extractPriceFromLotDeep(lot) {
+    if (!lot || typeof lot !== 'object') return { price: null, currency: 'EUR' };
+    var byCurrency = {};   // { EUR: maxAmount, USD: maxAmount, ... }
+    var keyRe = /^(bid|price|amount|value|current|live|highest|leading|reserve|buy_?now|min(?:imum)?_?bid|start(?:ing)?_?bid)$/i;
+    var skipRe = /^(buyer_?fee|shipping|tax|vat|commission|fee)$/i;
+
+    function record(value, currency) {
+      if (!isFinite(value) || value <= 0 || value >= 10000000) return;
+      var v = value > 100000 ? value / 100 : value;
+      var c = currency || 'EUR';
+      if (byCurrency[c] === undefined || v > byCurrency[c]) {
+        byCurrency[c] = v;
+      }
+    }
+
+    function walk(node, parentKeyMatched, currCurrency) {
+      if (node === null || node === undefined) return;
+      if (typeof node === 'number') {
+        if (parentKeyMatched) record(node, currCurrency);
+        return;
+      }
+      if (typeof node !== 'object') return;
+      var ccy = currCurrency;
+      if (typeof node.currency_code === 'string') ccy = node.currency_code;
+      else if (typeof node.currency === 'string') ccy = node.currency;
+      if (Array.isArray(node)) {
+        for (var i = 0; i < node.length; i++) walk(node[i], parentKeyMatched, ccy);
+        return;
+      }
+      var keys = Object.keys(node);
+      for (var k = 0; k < keys.length; k++) {
+        var key = keys[k];
+        if (skipRe.test(key)) continue;
+        var matched = parentKeyMatched || keyRe.test(key);
+        // chiavi tipo EUR/USD/GBP indicano una currency value diretta
+        if (parentKeyMatched && /^[A-Z]{3}$/.test(key)) {
+          walk(node[key], true, key);
+        } else {
+          walk(node[key], matched, ccy);
+        }
+      }
+    }
+    walk(lot, false, 'EUR');
+    // Priorità: EUR > USD > GBP > prima trovata
+    var preferOrder = ['EUR', 'USD', 'GBP'];
+    for (var i = 0; i < preferOrder.length; i++) {
+      if (byCurrency[preferOrder[i]] !== undefined) {
+        return { price: byCurrency[preferOrder[i]], currency: preferOrder[i] };
+      }
+    }
+    var firstK = Object.keys(byCurrency)[0];
+    if (firstK) return { price: byCurrency[firstK], currency: firstK };
+    return { price: null, currency: 'EUR' };
+  }
+
   // ── Helper: estrai end_time dal lot JSON ────────────────────────────
   function extractEndTimeFromLot(lot) {
     if (!lot) return null;
@@ -210,9 +270,18 @@ export async function scrapeCatawiki(job) {
       var lots = findLotsInJson(data);
       if (!lots || !lots.length) return null;
       return lots.map(function (lot) {
-        var u = lot.url || (lot.id ? '/it/l/' + lot.id : null);
+        var u = lot.url || lot.web_url || (lot.id ? '/it/l/' + lot.id : null) || (lot.slug ? '/it/l/' + lot.slug : null);
         if (!u) return null;
         var fullUrl = u.indexOf('http') === 0 ? u : ('https://www.catawiki.com' + u);
+
+        // lot_id robusto: prova lot.id → lot.lot_id → estrai da URL
+        var lotId = null;
+        if (lot.id) lotId = String(lot.id);
+        else if (lot.lot_id) lotId = String(lot.lot_id);
+        else {
+          var idMatch = fullUrl.match(/\/l\/([0-9]+)(?:[\-\/?#]|$)/);
+          if (idMatch) lotId = idMatch[1];
+        }
 
         var pp = extractPriceFromLot(lot);
         var image = extractImageFromLot(lot);
@@ -230,7 +299,7 @@ export async function scrapeCatawiki(job) {
           seller: (lot.seller && (lot.seller.shop_name || lot.seller.name)) || null,
           is_auction: true,
           source: 'catawiki',
-          lot_id: lot.id ? String(lot.id) : null,
+          lot_id: lotId,
           bids: Array.isArray(lot.biddingHistory) ? lot.biddingHistory.length :
                 (Array.isArray(lot.bidding_history) ? lot.bidding_history.length : null),
           shipping: null,
@@ -348,8 +417,10 @@ export async function scrapeCatawiki(job) {
       var url = linkEl.href;
       if (processed[url]) return;
       processed[url] = true;
-      var idMatch = url.match(/\/l\/([^\/?#]+)/);
-      if (!idMatch) return;
+      // Estrai lot_id NUMERICO dall'URL (es. /it/l/12345-charizard → "12345")
+      // Lo slug puro non funziona per l'API enrichment.
+      var idMatch = url.match(/\/l\/([0-9]+)(?:[\-\/?#]|$)/);
+      var lotId = idMatch ? idMatch[1] : null;
 
       var card = row.tagName === 'A'
         ? (row.closest('article, [data-testid], [class*="LotCard"], li, div[class*="card"]') || row)
@@ -365,6 +436,14 @@ export async function scrapeCatawiki(job) {
       var img = extractImageUrlDom(card);
       var endEl = card.querySelector('[class*="time-left"], [class*="countdown"], [class*="ends"], time');
       var endsAt = endEl ? parseCountdownText(endEl.textContent) : null;
+      // Time element a volte ha datetime attribute direttamente ISO
+      if (!endsAt && endEl && endEl.getAttribute) {
+        var dtAttr = endEl.getAttribute('datetime');
+        if (dtAttr) {
+          var d = new Date(dtAttr);
+          if (!isNaN(d.getTime())) endsAt = d.toISOString();
+        }
+      }
 
       items.push({
         title: title.slice(0, 300),
@@ -375,45 +454,56 @@ export async function scrapeCatawiki(job) {
         end_time: endsAt,
         location: null, seller: null,
         is_auction: true, source: 'catawiki',
-        lot_id: idMatch[1],
+        lot_id: lotId,
         bids: null, shipping: null,
       });
     });
     return items;
   }
 
-  // ── STRATEGIA 3: enrichment via API per lots con dati mancanti ──────
-  // Catawiki non sempre serializza biddingHistory/live.bid/closingAt nel
-  // NEXT_DATA. Per i lots che hanno price=null OR end_time=null, facciamo
-  // un fetch parallelo (limitato) all'API buyer/v3/lots/<id> dal browser
-  // dell'utente (residenziale → niente Cloudflare).
+  // ── STRATEGIA 3: enrichment via API per TUTTI i lots ────────────────
+  // Catawiki spesso serializza nel NEXT_DATA della pagina di SEARCH una
+  // versione "scarna" dei lot (senza prezzo o solo con minimum_bid). L'API
+  // /buyer/api/v3/lots/<id> dal browser dell'utente (residenziale, niente CF)
+  // è la sorgente canonica.
+  //
+  // Strategia: fetch in parallelo (concurrency 6, max 30) per ogni lot con
+  // lot_id. Override price/end_time/image se l'API ritorna dati validi.
+  // Per lots senza price NEMMENO dopo enrichment, prova extractPriceFromLotDeep
+  // come ultima spiaggia.
   async function enrichMissing(items) {
-    var lang = (location.pathname.match(/^\/([a-z]{2})\//)?.[1]) || 'it';
-    var needsEnrich = items.filter(function (it) {
-      return it.lot_id && (it.price === null || it.end_time === null);
-    });
-    if (!needsEnrich.length) return items;
-    // Limita a 30 max per non saturare
-    var batch = needsEnrich.slice(0, 30);
+    var withId = items.filter(function (it) { return it.lot_id; });
+    if (!withId.length) return items;
+    // Limita a 30 max per rispettare il sito (concurrency 6 = ~6 req/s)
+    var batch = withId.slice(0, 30);
     var byId = {};
     items.forEach(function (it) { if (it.lot_id) byId[it.lot_id] = it; });
 
-    // Fetch in parallelo con concurrency 6
     async function fetchOne(id) {
       try {
-        var url = 'https://www.catawiki.com/buyer/api/v3/lots/' + encodeURIComponent(id);
-        var r = await fetch(url, {
-          headers: {
-            'Accept': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-Application-Type': 'web',
-          },
-          credentials: 'include',
-        });
-        if (!r.ok) return null;
-        var data = await r.json();
-        // L'endpoint può ritornare {lot: {...}} o direttamente il lot
-        return data.lot || data.data || data;
+        // v3 è il path canonico, fallback a v2 e a /it/api/v1 in ordine
+        var endpoints = [
+          'https://www.catawiki.com/buyer/api/v3/lots/' + encodeURIComponent(id),
+          'https://www.catawiki.com/buyer/api/v2/lots/' + encodeURIComponent(id),
+          'https://www.catawiki.com/it/api/v1/lots/' + encodeURIComponent(id),
+        ];
+        for (var i = 0; i < endpoints.length; i++) {
+          try {
+            var r = await fetch(endpoints[i], {
+              headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-Application-Type': 'web',
+              },
+              credentials: 'include',
+            });
+            if (!r.ok) continue;
+            var data = await r.json();
+            // L'endpoint può ritornare {lot:{...}}, {data:{...}}, o direttamente il lot
+            return data.lot || data.data || data;
+          } catch (_) { /* prova endpoint successivo */ }
+        }
+        return null;
       } catch (e) { return null; }
     }
     async function runQueue(ids, concurrency) {
@@ -433,24 +523,48 @@ export async function scrapeCatawiki(job) {
     }
     var ids = batch.map(function (it) { return it.lot_id; });
     var enriched = await runQueue(ids, 6);
+    var enrichedCount = 0;
+    var stillMissing = 0;
     enriched.forEach(function (lot, idx) {
-      if (!lot) return;
       var origItem = byId[ids[idx]];
       if (!origItem) return;
-      if (origItem.price === null) {
-        var pp = extractPriceFromLot(lot);
-        if (pp.price !== null) {
-          origItem.price = pp.price;
-          origItem.currency = pp.currency;
+      if (!lot) { stillMissing++; return; }
+      enrichedCount++;
+      // Override (l'API è source of truth) — ma solo se ritorna valori validi
+      var pp = extractPriceFromLot(lot);
+      if (pp.price !== null) {
+        origItem.price = pp.price;
+        origItem.currency = pp.currency;
+      } else {
+        // Ultima spiaggia: scan ricorsivo deep
+        var deep = extractPriceFromLotDeep(lot);
+        if (deep.price !== null) {
+          origItem.price = deep.price;
+          origItem.currency = deep.currency;
         }
       }
-      if (origItem.end_time === null) {
-        origItem.end_time = extractEndTimeFromLot(lot);
-      }
+      var et = extractEndTimeFromLot(lot);
+      if (et) origItem.end_time = et;
       if (!origItem.image_url) {
-        origItem.image_url = extractImageFromLot(lot);
+        var img = extractImageFromLot(lot);
+        if (img) origItem.image_url = img;
+      }
+      // Bids count se manca
+      if (origItem.bids === null && Array.isArray(lot.biddingHistory)) {
+        origItem.bids = lot.biddingHistory.length;
       }
     });
+    // Diagnostica in console: sempre visibile da DevTools della tab Catawiki
+    // (oppure dal worker dell'estensione tramite chrome://extensions)
+    var stats = {
+      total: items.length,
+      with_id: withId.length,
+      api_fetched: enrichedCount,
+      api_failed: stillMissing,
+      missing_price_after: items.filter(function(x){return x.price===null;}).length,
+      missing_endtime_after: items.filter(function(x){return x.end_time===null;}).length,
+    };
+    try { console.log('[RB Catawiki Scraper] enrichment stats:', stats); } catch(_){}
     return items;
   }
 

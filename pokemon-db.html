@@ -14919,8 +14919,14 @@ async function radScanRunNow(jobId){
         });
         var capWarn = (r.items.length > maxR) ? ' [capped a '+maxR+']' : '';
         var noImg = matched.filter(function(it){ return !it.image_url; }).length;
-        var imgWarn = noImg > 0 ? ' ('+noImg+' senza img)' : '';
-        job.last_log.push('  <span class="rb-i rb-i-check"></span> '+site+providerLabel+durLabel+': '+r.items.length+' totali'+capWarn+', '+matched.length+' match'+imgWarn);
+        var noPrice = matched.filter(function(it){ return it.price == null; }).length;
+        var noEnd = matched.filter(function(it){ return it.is_auction && !it.end_time; }).length;
+        var warnings = [];
+        if(noImg > 0)   warnings.push(noImg+' senza img');
+        if(noPrice > 0) warnings.push('<span style="color:var(--danger)">'+noPrice+' senza prezzo</span>');
+        if(noEnd > 0)   warnings.push('<span style="color:var(--warning)">'+noEnd+' senza scadenza</span>');
+        var warnStr = warnings.length ? ' ('+warnings.join(', ')+')' : '';
+        job.last_log.push('  <span class="rb-i rb-i-check"></span> '+site+providerLabel+durLabel+': '+r.items.length+' totali'+capWarn+', '+matched.length+' match'+warnStr);
         matched.forEach(function(m){
           allMatches.push(Object.assign({}, m, { _site: site, _search_url: r.search_url }));
         });
@@ -15406,6 +15412,19 @@ function radScanRemoveResult(jobId, url){
 window.radScanRemoveResult = radScanRemoveResult;
 
 // ── Render stato dei provider nel banner info ────────────────────────────
+var RAD_EXT_MIN_VERSION = '2.2.0';   // versione minima richiesta per Catawiki price/end fix completo
+
+function radSemverCmp(a, b){
+  // Ritorna negativo se a<b, 0 se uguali, positivo se a>b. Tollerante: solo dotted numbers.
+  var pa = String(a||'').split('.').map(function(x){return parseInt(x)||0;});
+  var pb = String(b||'').split('.').map(function(x){return parseInt(x)||0;});
+  for(var i=0;i<Math.max(pa.length, pb.length);i++){
+    var d = (pa[i]||0) - (pb[i]||0);
+    if(d !== 0) return d;
+  }
+  return 0;
+}
+
 async function radScanRenderProviderStatus(){
   var statusEl = document.getElementById('radScanProviderStatus');
   var detailsEl = document.getElementById('radScanProviderDetails');
@@ -15413,11 +15432,13 @@ async function radScanRenderProviderStatus(){
 
   var rows = [];
   var firstActive = null;
+  var extInfo = null;
   for(var i=0; i<RAD_SCAN_PROVIDERS.length; i++){
     var p = RAD_SCAN_PROVIDERS[i];
     var avail = false;
     try{ avail = await p.isAvailable('catawiki'); }catch(_){}
     if(avail && !firstActive) firstActive = p.name;
+    if(p.name === 'extension' && p._getInfo) extInfo = p._getInfo();
     var color = avail ? 'var(--success)' : 'var(--text-subtle)';
     var dot   = avail ? '●' : '○';
     var label = {
@@ -15426,16 +15447,37 @@ async function radScanRenderProviderStatus(){
       edge_function: 'Edge Function Supabase',
       userscript: 'Userscript Tampermonkey (manuale)'
     }[p.name] || p.name;
+    var versionTag = '';
+    if(p.name === 'extension' && extInfo && extInfo.version){
+      var outdated = radSemverCmp(extInfo.version, RAD_EXT_MIN_VERSION) < 0;
+      versionTag = outdated
+        ? ' <span style="color:var(--danger);font-family:var(--mono);font-size:9px">v'+escapeHtml(extInfo.version)+' OBSOLETA → aggiorna a v'+RAD_EXT_MIN_VERSION+'+</span>'
+        : ' <span style="color:var(--success);font-family:var(--mono);font-size:9px">v'+escapeHtml(extInfo.version)+'</span>';
+    }
     rows.push(
       '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:11px;border-bottom:1px dotted var(--border)">'+
-        '<span style="color:'+color+'"><span style="font-size:13px;line-height:1">'+dot+'</span> '+escapeHtml(label)+' <span style="color:var(--text-subtle);font-family:var(--mono);font-size:9px">['+p.name+']</span></span>'+
+        '<span style="color:'+color+'"><span style="font-size:13px;line-height:1">'+dot+'</span> '+escapeHtml(label)+versionTag+' <span style="color:var(--text-subtle);font-family:var(--mono);font-size:9px">['+p.name+']</span></span>'+
         '<span style="color:var(--text-subtle);font-family:var(--mono);font-size:10px">prio '+p.priority+' · '+(avail?'<span style="color:var(--success)">attivo</span>':'<span style="color:var(--text-subtle)">non rilevato</span>')+'</span>'+
       '</div>'
     );
   }
-  detailsEl.innerHTML = rows.join('');
+
+  // Banner avviso aggiornamento estensione (sopra la lista provider)
+  var warningRow = '';
+  if(extInfo && extInfo.available && extInfo.version && radSemverCmp(extInfo.version, RAD_EXT_MIN_VERSION) < 0){
+    warningRow = '<div style="background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.3);border-radius:var(--r);padding:8px 12px;margin-bottom:8px;font-size:11px;display:flex;align-items:flex-start;gap:8px">'
+      +'<span class="rb-i rb-i-warn" style="color:var(--danger);flex-shrink:0;margin-top:1px"></span>'
+      +'<div><b>Estensione obsoleta v'+escapeHtml(extInfo.version)+'</b> — i prezzi Catawiki non vengono estratti. Aggiorna a v'+RAD_EXT_MIN_VERSION+'+:<br>'
+      +'<code style="font-family:var(--mono);font-size:10px">chrome://extensions</code> → trova "RareBlock Hunter" → click <b>⟳ refresh</b>.</div>'
+      +'</div>';
+  }
+  detailsEl.innerHTML = warningRow + rows.join('');
   if(firstActive){
-    statusEl.innerHTML = '<span class="rb-i rb-i-check"></span> '+firstActive;
+    var lbl = firstActive;
+    if(firstActive === 'extension' && extInfo && extInfo.version){
+      lbl += ' v'+extInfo.version;
+    }
+    statusEl.innerHTML = '<span class="rb-i rb-i-check"></span> '+escapeHtml(lbl);
     statusEl.style.color = 'var(--success)';
   } else {
     statusEl.innerHTML = '<span class="rb-i rb-i-warn"></span> nessun provider';
