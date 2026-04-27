@@ -161,15 +161,28 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
   const hasAnyGrading = listings.some(l => l.grading);
   if (listings.length > 0 && !hasAnyGrading) {
     // Mappa: indice nell'HTML → prezzo (per associare grading al listing)
+    // CM usa "99,99 €" (€ DOPO il numero, con spazio). Il pattern precedente
+    // cercava solo "€ 99,99" (€ prima) — sui listing CM trovava 0 occorrenze.
+    // Includiamo entrambi i formati per coprire vetrina + listings.
     const priceIndices: Array<{ index: number; price: number }> = [];
-    const euroPat = /€\s*(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})/g;
-    let pm: RegExpExecArray | null;
-    while ((pm = euroPat.exec(html)) !== null) {
-      const n = parsePrice(pm[1]);
-      if (n != null && n >= 0.1 && n <= 9999) {
-        priceIndices.push({ index: pm.index, price: n });
+    const euroPats = [
+      // Formato listings CM (€ DOPO): "99,99 €" / "1.485,78 €"
+      /(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})\s*€/g,
+      // Formato fallback (€ PRIMA): "€ 99,99"
+      /€\s*(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})/g,
+    ];
+    for (const ep of euroPats) {
+      let pm: RegExpExecArray | null;
+      ep.lastIndex = 0;
+      while ((pm = ep.exec(html)) !== null) {
+        const n = parsePrice(pm[1]);
+        if (n != null && n >= 0.1 && n <= 9999) {
+          priceIndices.push({ index: pm.index, price: n });
+        }
       }
     }
+    // Ordina per posizione nel HTML (importante per dedup downstream)
+    priceIndices.sort((a, b) => a.index - b.index);
 
     // Trova grading markers nell'HTML grezzo
     const gradingProbes = [
@@ -249,7 +262,7 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
     // listings trovati ma senza commenti (= extractCommentFromRow fallisce)
     const nd = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
     const rowMatches = (html.match(/class="[^"]*article-row[^"]*"/gi) || []).length;
-    const euroMatches = (html.match(/€\s*\d{1,4}[,.]\d{2}/g) || []).length;
+    const euroMatches = (html.match(/(?:€\s*\d{1,4}[,.]\d{2}|\d{1,4}[,.]\d{2}\s*€)/g) || []).length;
     const priceJsonMatches = (html.match(/"price"\s*:\s*"?\d{1,4}[,.]\d{2}/g) || []).length;
     const titleMatch = html.match(/<title>([^<]*)<\/title>/i);
     const hasConsentWall = /cookie[- ]?consent|accetta (tutti i )?cookie|i understand|accept cookies/i.test(html);
@@ -402,14 +415,22 @@ function extractCMListings(html: string): Listing[] {
   // e per ogni prezzo prende una finestra di ±2.5KB attorno per cercare
   // commento + condizione + grading. Funziona INDIPENDENTEMENTE dal markup.
   const priceMatches: Array<{ index: number; price: number }> = [];
-  const euroPat = /€\s*(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})/g;
-  let pm: RegExpExecArray | null;
-  while ((pm = euroPat.exec(html)) !== null) {
-    const n = parsePrice(pm[1]);
-    if (n != null && n >= 0.1 && n <= 9999) {
-      priceMatches.push({ index: pm.index, price: n });
+  // CM usa "99,99 €" (€ DOPO il numero). Includiamo entrambi i formati.
+  const euroPats = [
+    /(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})\s*€/g,    // formato listings CM
+    /€\s*(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})/g,    // formato fallback
+  ];
+  for (const ep of euroPats) {
+    let pm: RegExpExecArray | null;
+    ep.lastIndex = 0;
+    while ((pm = ep.exec(html)) !== null) {
+      const n = parsePrice(pm[1]);
+      if (n != null && n >= 0.1 && n <= 9999) {
+        priceMatches.push({ index: pm.index, price: n });
+      }
     }
   }
+  priceMatches.sort((a, b) => a.index - b.index);
   // Skip dei primi prezzi (header pagina: lowest, trend, avg sono in vetrina)
   // se sono pochi e ravvicinati, si salta. Più sicuro skippare i primi 4
   // (lowestPrice, trendPrice, avg30, avg7) sempre presenti su ogni page CM.
@@ -481,29 +502,40 @@ function extractCMListings(html: string): Listing[] {
 // oppure attributi tooltip / data-bs-title sul container del commento.
 // Limitiamo a 200 char per sicurezza.
 function extractCommentFromRow(row: string): string | null {
-  // Strategia A: classi note di CardMarket per il blocco commento
-  // (CM cambia spesso questi nomi, quindi proviamo tutte le varianti viste)
-  const cmtPats = [
+  // ─── STRATEGIA A: classe `fst-italic` (CM 2024+) ──
+  // CM usa Bootstrap. Il commento del seller è SEMPRE dentro
+  //   <span class="... fst-italic ...">COMMENTO</span>
+  // Vista nel sample reale: <span class="d-block text-truncate text-muted fst-italic small">PSA 8</span>
+  // Questa è la strategia più affidabile.
+  const fstItalic = row.match(/<span[^>]*class="[^"]*fst-italic[^"]*"[^>]*>([\s\S]{1,250}?)<\/span>/i);
+  if (fstItalic) {
+    const txt = rowToText(fstItalic[1]);
+    if (txt && txt.length > 0 && txt.length < 250) return txt;
+  }
+
+  // ─── STRATEGIA B: container con classe product-comments / article-comments ──
+  // Manca il pattern kebab-case <div> — bug del fix precedente. Aggiunto qui.
+  const containerPats = [
+    // kebab-case <div> (CM moderno!): <div class="product-comments">...
+    /<div[^>]*class="[^"]*product-comments[^"]*"[^>]*>([\s\S]{1,500}?)<\/div>\s*<\/div>/i,
+    /<div[^>]*class="[^"]*product-comments[^"]*"[^>]*>([\s\S]{1,500}?)<\/div>/i,
+    /<div[^>]*class="[^"]*article-comments[^"]*"[^>]*>([\s\S]{1,500}?)<\/div>/i,
+    // span/div varianti camelCase
     /<span[^>]*class="[^"]*article-comments[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
-    /<div[^>]*class="[^"]*article-comments[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
     /<span[^>]*class="[^"]*product-comments[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
     /<span[^>]*class="[^"]*productComments[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
     /<div[^>]*class="[^"]*productComments[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
-    /<span[^>]*class="[^"]*articleComments[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
-    /<span[^>]*class="[^"]*comment[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
     /<small[^>]*class="[^"]*comment[^"]*"[^>]*>([\s\S]*?)<\/small>/i,
-    /<span[^>]*class="[^"]*sellerInfo[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
-    /<span[^>]*class="[^"]*note[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
   ];
-  for (const rx of cmtPats) {
+  for (const rx of containerPats) {
     const m = row.match(rx);
     if (m) {
       const txt = rowToText(m[1]);
       if (txt && txt.length > 0 && txt.length < 300) return txt;
     }
   }
-  // Strategia B: tag italici (CM mostra spesso i commenti in italic)
-  // <i>...</i>, <em>...</em>, <span style="font-style:italic">...</span>
+
+  // ─── STRATEGIA C: tag italici generici ──
   const italicPats = [
     /<i\b[^>]*>([\s\S]{2,200}?)<\/i>/gi,
     /<em\b[^>]*>([\s\S]{2,200}?)<\/em>/gi,
@@ -514,38 +546,59 @@ function extractCommentFromRow(row: string): string | null {
     rx.lastIndex = 0;
     while ((m = rx.exec(row)) !== null) {
       const txt = rowToText(m[1]);
-      // Skip se è solo un'icona / classe / vuoto / condizione
       if (!txt || txt.length < 2) continue;
       if (/^(Mint|Near Mint|Excellent|Good|Light Played|Played|Poor|NM|EX|GD|LP|PL|PO|MT|Italian|English|Japanese|German|French|Spanish|Italiano|Inglese|Foil|Holo|Reverse|First Edition|1st)$/i.test(txt)) continue;
-      // Preferisci se contiene grading o testo descrittivo
       if (parseGradingFromText(txt) || /[a-zA-Z]{3,}/.test(txt)) {
         return txt.substring(0, 200);
       }
     }
   }
-  // Strategia C: attributi tooltip/title con commento
+
+  // ─── STRATEGIA D: tooltip con commento (FILTRO STRINGENTE) ──
+  // Bug del fix precedente: prendeva il primo title="..." disponibile, che su
+  // CM moderna è il tooltip del badge sell-count "X Vendite | Y Articoli
+  // disponibili" del seller — NON il commento del listing!
+  // Ora escludiamo TUTTI i pattern noti che NON sono commenti del seller.
   const tooltipPats = [
     /data-bs-(?:title|content|original-title)="([^"]{2,200})"/gi,
-    /(?:title|aria-label)="([^"]{5,200})"/gi,
+    /(?:^|[^a-z])(?:title|aria-label)="([^"]{5,200})"/gi,
+  ];
+  // Pattern di blacklist: tooltip che CM mette su elementi diversi dal commento
+  const tooltipBlacklist = [
+    /^\d+(?:&nbsp;|\s)+(Vendite|Articoli|Sales|Items|Verkäufe|Artikel)/i,  // "X Vendite | Y Articoli..."
+    /^(Mint|Near Mint|Excellent|Good|Light Played|Played|Poor|Italian|English|Japanese|German|French|Spanish|Portuguese|Korean|Chinese|Russian|Italiano|Inglese|Reverse Holo|Foil|Holo|First Edition|1st Edition)$/i,
+    /^Locazione dell'oggetto/i,           // "Locazione dell'oggetto: Germania"
+    /^Item location:/i,
+    /^Devi aver effettuato/i,             // tooltip pulsante carrello
+    /^You must be logged/i,
+    /^Verkäufer Standort/i,
+    /^<img\s/i,                            // tooltip che è un'immagine (scan tooltip)
+    /^Pokémon$|^Pokemon$/i,                // tooltip categoria
   ];
   for (const rx of tooltipPats) {
     let m: RegExpExecArray | null;
     rx.lastIndex = 0;
     while ((m = rx.exec(row)) !== null) {
       const txt = m[1].trim();
-      if (/^(Mint|Near Mint|Excellent|Good|Light Played|Played|Poor|Italian|English|Japanese|German|French|Spanish|Portuguese|Korean|Chinese|Russian|Italiano|Inglese|Reverse Holo|Foil|Holo|First Edition|1st Edition)$/i.test(txt)) continue;
-      if (parseGradingFromText(txt) || (txt.length > 8 && /[a-zA-Z]/.test(txt))) {
+      // Test blacklist
+      let isBlacklisted = false;
+      for (const bl of tooltipBlacklist) {
+        if (bl.test(txt)) { isBlacklisted = true; break; }
+      }
+      if (isBlacklisted) continue;
+      // Preferiamo testi che hanno grading parsato — più sicuri
+      if (parseGradingFromText(txt)) return txt;
+      // Altrimenti accettiamo solo testi "pulizi" (no badge counts numerici)
+      if (txt.length > 8 && txt.length < 150 && /^[A-Za-z]/.test(txt) && !/\bVendite|Articoli|Sales|Items\b/i.test(txt)) {
         return txt;
       }
     }
   }
-  // Strategia D — KITCHEN SINK: scan dell'intero testo della row.
-  // Se la row contiene un grading marker (PSA X, BGS Y, ACE 9, ...), questo
-  // è quasi sicuramente il commento del seller. Restituiamo il contesto.
-  // Funziona indipendentemente dalla struttura HTML — robusta a cambi di CM.
+
+  // ─── STRATEGIA E: KITCHEN SINK — scan dell'intero testo della row ──
   const fullText = rowToText(row);
-  if (fullText && fullText.length < 2000) {
-    const gradingScan = fullText.match(/\b(PSA|BGS|Beckett|CGC|SGC|HGA|GMA|TAG|ARS|GetGraded|GG|ACE|MNT)\s*[-:.\s]?\s*(10(?:\.0)?|[1-9](?:\.5)?)\b/i);
+  if (fullText && fullText.length < 4000) {
+    const gradingScan = fullText.match(/\b(PSA|BGS|Beckett|CGC|SGC|HGA|GMA|TAG|ARS|GetGraded|GG|ACE)(?:\s*[A-Za-z]{0,8})?\s*[-:.\s]?\s*(10(?:\.0)?|[1-9](?:\.5)?)\b/i);
     if (gradingScan && gradingScan[0]) {
       const idx = fullText.indexOf(gradingScan[0]);
       const start = Math.max(0, idx - 15);
