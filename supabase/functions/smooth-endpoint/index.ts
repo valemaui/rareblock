@@ -23,23 +23,40 @@ const COND_ORDER: Record<string,number> = {
 interface Listing { price: number; condition: string; condRank: number; seller?: string; comment?: string; grading?: { house: string; score: number; raw: string } | null; language?: string | null; }
 
 const USER_AGENTS = [
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0',
+  // Desktop Chrome — ultime versioni stabili (più aggiornate possibili).
+  // Header recenti hanno meno probabilità di essere fingerprintati come bot.
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0',
 ];
-const getRandomUA = () => USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 
-function buildHeaders(url: string, lang = 'it', referer?: string): Record<string,string> {
-  const ua = getRandomUA();
+// UA mobile separati: usati per eBay quando il sito desktop blocca.
+// Il bot detection di eBay è molto più rilassato sul subdomain m.ebay.* perché
+// è ottimizzato per traffico mobile reale.
+const MOBILE_USER_AGENTS = [
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
+  'Mozilla/5.0 (Linux; Android 14; SM-S921B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36',
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+];
+
+const getRandomUA = () => USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+const getRandomMobileUA = () => MOBILE_USER_AGENTS[Math.floor(Math.random() * MOBILE_USER_AGENTS.length)];
+
+function buildHeaders(url: string, lang = 'it', referer?: string, opts?: { mobile?: boolean }): Record<string,string> {
+  const isMobile = opts?.mobile === true;
+  const ua = isMobile ? getRandomMobileUA() : getRandomUA();
   const isIt = lang === 'it';
   const host = new URL(url).host;
   const isPc = host.includes('pricecharting.com');
 
+  // Sec-CH-UA deve essere coerente con l'UA per non essere flaggati come bot.
+  // Per UA mobile NON inviamo Sec-CH-UA (Safari iOS non manda questi header).
   const headers: Record<string,string> = {
     'User-Agent': ua,
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
     'Accept-Language': isIt ? 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7' : 'en-US,en;q=0.9',
     'Accept-Encoding': 'gzip, deflate, br',
     'Cache-Control': 'max-age=0',
@@ -49,15 +66,22 @@ function buildHeaders(url: string, lang = 'it', referer?: string): Record<string
     'Sec-Fetch-Mode': 'navigate',
     'Sec-Fetch-Site': referer ? 'same-origin' : 'none',
     'Sec-Fetch-User': '?1',
-    'Sec-CH-UA': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-    'Sec-CH-UA-Mobile': '?0',
-    'Sec-CH-UA-Platform': '"Windows"',
     'DNT': '1',
     'Referer': referer ?? `https://${host}/`,
   };
 
+  if (!isMobile) {
+    // Sec-CH-UA per Chrome desktop — coerente con UA Chrome 132
+    headers['Sec-CH-UA'] = '"Google Chrome";v="132", "Chromium";v="132", "Not_A Brand";v="24"';
+    headers['Sec-CH-UA-Mobile'] = '?0';
+    headers['Sec-CH-UA-Platform'] = '"Windows"';
+  } else {
+    // Mobile: minimal Sec-CH-UA per coerenza ma con flag mobile
+    headers['Sec-CH-UA-Mobile'] = '?1';
+    headers['Sec-CH-UA-Platform'] = '"iOS"';
+  }
+
   // PriceCharting decide la valuta mostrata principalmente via cookie utente.
-  // Vari nomi di cookie possibili — li setto tutti per robustezza.
   if (isPc) {
     headers['Cookie'] = 'preferred_currency=EUR; currency=EUR; country=IT; locale=it_IT';
   }
@@ -66,20 +90,59 @@ function buildHeaders(url: string, lang = 'it', referer?: string): Record<string
 }
 
 async function fetchWithRetry(url: string, maxRetries = 2, referer?: string): Promise<{ html: string; ok: boolean; status: number }> {
+  const isCm = url.includes('cardmarket.com');
+  const isEbay = url.includes('ebay.');
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    if (attempt > 0) await new Promise(r => setTimeout(r, 600 + Math.random() * 500));
-    const isCm = url.includes('cardmarket.com');
+    if (attempt > 0) await new Promise(r => setTimeout(r, 600 + Math.random() * 800));
+
+    // Strategia per attempt:
+    // - eBay: alternare desktop ↔ mobile UA (mobile è meno blacklistato).
+    //         Sul retry mobile, anche l'URL può essere riscritto a m.ebay.*
+    //         (ha bot detection più rilassata).
+    // - CM: alternare lingua it ↔ de (cookie regional)
+    // - Altri: solo retry con UA randomizzato
+    const useMobile = isEbay && attempt > 0;
     const lang = (isCm && attempt % 2 === 1) ? 'de' : 'it';
-    const fetchUrl = isCm && attempt > 0
-      ? url.replace('/it/Pokemon', `/${lang}/Pokemon`)
-      : url;
+
+    let fetchUrl = url;
+    if (isCm && attempt > 0) {
+      fetchUrl = url.replace('/it/Pokemon', `/${lang}/Pokemon`);
+    }
+    if (isEbay && useMobile) {
+      // Riscrivi ebay.it/sch → m.ebay.it/sch (mobile site, stessa struttura URL)
+      fetchUrl = url
+        .replace('://www.ebay.', '://m.ebay.')
+        .replace('://ebay.', '://m.ebay.');
+    }
+
     try {
-      const resp = await fetch(fetchUrl, { headers: buildHeaders(fetchUrl, lang, referer) });
+      const headers = buildHeaders(fetchUrl, lang, referer, { mobile: useMobile });
+      const resp = await fetch(fetchUrl, { headers });
       const html = await resp.text();
-      if (html.length < 1000 || /Just a moment|cf-browser-verification|Attention Required/i.test(html)) {
-        if (attempt === maxRetries) return { html, ok: false, status: 403 };
+
+      // ─── DETECTION soft-block ──
+      // 1. Pagina troppo corta (challenge HTML minimal)
+      // 2. Cloudflare challenge classic
+      // 3. eBay-specific: redirect a signin, captcha, "robot check"
+      const tooShort = html.length < 1000;
+      const cfChallenge = /Just a moment|cf-browser-verification|Attention Required|challenge-platform/i.test(html);
+      const ebaySoftBlock = isEbay && (
+        /Pardon Our Interruption|Robot or human|Please verify yourself|Botbot Be Gone/i.test(html) ||
+        /signin\.ebay\.[a-z.]+\/(?:ws\/)?eBayISAPI\.dll\?SignIn/i.test(html) ||
+        // Pagina "no results" SOLO quando c'è il marker specifico (non confonderla
+        // con pagina valida 0 hits). Tipico del soft-block: redirect a generic SRP.
+        (html.length < 50000 && !/srp-results|s-item|\/itm\//i.test(html))
+      );
+
+      if (tooShort || cfChallenge || ebaySoftBlock) {
+        if (attempt === maxRetries) {
+          // Restituiamo comunque l'HTML per la diagnostica client
+          return { html, ok: false, status: cfChallenge ? 403 : (ebaySoftBlock ? 451 : 403) };
+        }
         continue;
       }
+
       return { html, ok: resp.ok, status: resp.status };
     } catch (e) {
       if (attempt === maxRetries) return { html: '', ok: false, status: 0 };
@@ -1635,7 +1698,10 @@ async function handleEbaySoldCascade(urls: string[], minHits: number, merge = fa
       if (!/LH_Sold=1/.test(u))     u += (u.includes('?') ? '&' : '?') + 'LH_Sold=1';
       if (!/LH_Complete=1/.test(u)) u += '&LH_Complete=1';
       const host = new URL(u).host;
-      const r = await fetchWithRetry(u, 1, `https://${host}/`);
+      // maxRetries=2 (era 1): permette il fallback a m.ebay.* in caso di
+      // soft-block. Latency aggiuntiva tollerabile (con concorrenza 3 in
+      // parallelo l'overhead totale è ~+1.5s nei casi peggiori).
+      const r = await fetchWithRetry(u, 2, `https://${host}/`);
       const currency = /ebay\.com\//.test(u) ? 'USD'
         : /ebay\.co\.uk/.test(u) ? 'GBP'
         : 'EUR';
@@ -1732,7 +1798,7 @@ async function handleEbaySoldCascade(urls: string[], minHits: number, merge = fa
     if (!/LH_Complete=1/.test(u)) u += '&LH_Complete=1';
 
     const host = new URL(u).host;
-    const { html, ok, status } = await fetchWithRetry(u, 1, `https://${host}/`);
+    const { html, ok, status } = await fetchWithRetry(u, 2, `https://${host}/`);
     if (!ok) {
       attempts.push({ url: u, count: 0, error: `HTTP ${status}` });
       continue;
@@ -1806,6 +1872,7 @@ function extractEbayPrices(html: string, currency: string): EbaySoldResult {
     const priceProbes: Array<[RegExp, string]> = [
       [/€\s*([\d.]+,\d{2})/, 'EUR'],
       [/€\s*([\d,]+\.\d{2})/, 'EUR'],
+      [/(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})\s*€/, 'EUR'],  // "XX,XX €" mobile IT
       [/EUR\s*([\d.,]+)/i, 'EUR'],
       [/\$\s*([\d,]+\.\d{2})/, 'USD'],
       [/USD\s*([\d.,]+)/i, 'USD'],
@@ -1889,12 +1956,17 @@ function extractEbayPrices(html: string, currency: string): EbaySoldResult {
       const win = html.substring(winStart, winEnd);
 
       // Cerca prezzo: pattern "EUR XX,XX" / "$XX.XX" / "€XX,XX" / "£XX.XX"
+      // ANCHE pattern "XX,XX €" (€ dopo, formato CM/eBay-mobile-IT)
       let p: number | null = null;
       let cur: string = currency;
       const probes: Array<[RegExp, string]> = [
+        // € prima
         [/€\s*([\d.]+,\d{2})\b/, 'EUR'],
         [/€\s*([\d,]+\.\d{2})\b/, 'EUR'],
+        // € dopo (eBay mobile IT)
+        [/(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})\s*€/, 'EUR'],
         [/EUR\s*([\d.,]+)\b/i, 'EUR'],
+        // USD/GBP (eBay.com / .co.uk)
         [/\$\s*([\d,]+\.\d{2})\b/, 'USD'],
         [/USD\s*([\d.,]+)\b/i, 'USD'],
         [/£\s*([\d,]+\.\d{2})\b/, 'GBP'],
@@ -1904,8 +1976,6 @@ function extractEbayPrices(html: string, currency: string): EbaySoldResult {
         const mm = win.match(rx);
         if (mm) {
           const n = parsePrice(mm[1]);
-          // Filtro: prezzo plausibile per single trading card (>=1, <=10k);
-          // in modalità sold il prezzo finale è quello che vediamo nella card
           if (n != null && n >= 1 && n <= 9999) { p = n; cur = c; break; }
         }
       }
@@ -1947,11 +2017,11 @@ function extractEbayPrices(html: string, currency: string): EbaySoldResult {
       has_cf_challenge: /Just a moment|cf-browser-verification|challenge-platform/i.test(html),
       has_captcha: /captcha|robot|verification|verifica|are you human/i.test(html),
       has_no_results: /No exact matches found|0 results found|Nessun risultato|sorry, your search/i.test(html),
-      has_signin_redirect: /Sign in to continue|signin\.ebay/i.test(html),
-      has_srp_results_marker: /srp-results|s-item|su-card-container/i.test(html),
+      has_signin_redirect: /Sign in to continue|signin\.ebay|SignIn/i.test(html),
+      has_pardon_interruption: /Pardon Our Interruption|Robot or human|Please verify yourself/i.test(html),
+      has_srp_results_marker: /srp-results|s-item|su-card-container|lstng-link|result-set/i.test(html),
       has_itm_links: /\/itm\/\d{8,}/.test(html),
       itm_link_count: (html.match(/\/itm\/\d{8,}/g) || []).length,
-      // Sample del head per identificare se è una pagina valida
       head_sample: html.substring(0, 800).replace(/\s+/g, ' '),
     };
     return { prices: [], count: 0, currency, _diag } as EbaySoldResult & { _diag: typeof _diag };
