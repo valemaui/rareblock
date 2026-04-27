@@ -1,0 +1,1220 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex,nofollow" />
+<title>RareBlock — Private Memorandum</title>
+<meta name="description" content="Documento riservato. Accesso su invito." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,200;9..144,300;9..144,400&family=Figtree:wght@300;400;500;600&family=Inter:wght@200;300;400;500&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg: #0a0a0a;
+  --bg-soft: #111111;
+  --bg-card: #131211;
+  --ink: #f5f1e8;
+  --ink-soft: #a8a39a;
+  --ink-faint: #5a564f;
+  --ink-dim: #38342f;
+  --gold: #c9a961;
+  --gold-bright: #e0c074;
+  --gold-soft: rgba(201, 169, 97, 0.14);
+  --gold-line: rgba(201, 169, 97, 0.30);
+  --rule: rgba(245, 241, 232, 0.08);
+  --rule-strong: rgba(245, 241, 232, 0.18);
+  --shadow-1: 0 1px 0 rgba(255,255,255,0.04) inset, 0 30px 80px -30px rgba(0,0,0,0.9);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Figtree', system-ui, sans-serif;
+  font-weight: 400;
+  font-size: 17px;
+  line-height: 1.7;
+  overflow-x: hidden;
+}
+
+/* ============ TYPOGRAPHY ============ */
+.serif { font-family: 'Fraunces', Georgia, serif; font-optical-sizing: auto; }
+.mono  { font-family: 'Inter', sans-serif; font-feature-settings: 'tnum'; }
+
+h1, h2, h3 { font-family: 'Fraunces', serif; font-weight: 300; letter-spacing: -0.015em; line-height: 1.05; }
+
+.eyebrow {
+  font-family: 'Inter', sans-serif;
+  font-weight: 400;
+  font-size: 0.72rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.eyebrow.muted { color: var(--ink-faint); }
+
+.kicker {
+  font-family: 'Inter', sans-serif;
+  font-weight: 300;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+p.lead {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: clamp(1.25rem, 1.8vw, 1.5rem);
+  line-height: 1.55;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+p.body {
+  color: var(--ink-soft);
+  max-width: 60ch;
+  font-size: 1.02rem;
+}
+p.body + p.body { margin-top: 1.2em; }
+
+/* ============ LAYOUT ============ */
+.wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 clamp(1.5rem, 4vw, 3rem);
+}
+
+section {
+  padding: clamp(6rem, 12vh, 10rem) 0;
+  position: relative;
+}
+section.tight { padding: clamp(4rem, 8vh, 7rem) 0; }
+section.alt { background: var(--bg-soft); }
+
+.section-head {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 4rem;
+  margin-bottom: 4rem;
+  align-items: start;
+}
+.section-head .meta { padding-top: 0.5rem; }
+.section-head h2 {
+  font-size: clamp(2.4rem, 4.8vw, 4.2rem);
+  max-width: 18ch;
+}
+.section-head h2 em { font-style: italic; color: var(--gold); font-weight: 300; }
+
+@media (max-width: 820px) {
+  .section-head { grid-template-columns: 1fr; gap: 1.5rem; }
+}
+
+/* ============ NAV (scroll-revealed) ============ */
+.topbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  padding: 1.1rem clamp(1.5rem, 4vw, 3rem);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 50;
+  background: linear-gradient(to bottom, rgba(10,10,10,0.95), rgba(10,10,10,0.6));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--rule);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.6s var(--ease);
+}
+.topbar.show { opacity: 1; pointer-events: auto; }
+.topbar .mark { font-family: 'Montserrat', 'Figtree', sans-serif; font-weight: 300; font-size: 0.95rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); }
+.topbar .mark .b { color: var(--gold); }
+.topbar .doc-id {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+}
+
+/* ============ HERO ============ */
+.hero {
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  padding: 8rem 1.5rem 6rem;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 50%, rgba(201, 169, 97, 0.08), transparent 70%),
+    radial-gradient(ellipse 80% 60% at 50% 100%, rgba(201, 169, 97, 0.04), transparent 70%);
+  pointer-events: none;
+}
+.hero-mark {
+  font-family: 'Montserrat', 'Figtree', sans-serif;
+  font-weight: 200;
+  font-size: clamp(2.4rem, 6vw, 4.5rem);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin-bottom: 4rem;
+  position: relative;
+}
+.hero-mark .b { color: var(--gold); }
+.hero-mark::after {
+  content: '';
+  display: block;
+  width: 1px;
+  height: 64px;
+  background: var(--gold-line);
+  margin: 2.5rem auto 0;
+}
+.hero h1 {
+  font-size: clamp(2.6rem, 6vw, 5.5rem);
+  font-weight: 200;
+  max-width: 14ch;
+  margin: 0 auto 1.5rem;
+  letter-spacing: -0.02em;
+}
+.hero h1 em { font-style: italic; font-weight: 300; color: var(--gold); }
+.hero .tagline {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(1.05rem, 1.6vw, 1.3rem);
+  color: var(--ink-soft);
+  max-width: 36ch;
+  margin: 0 auto;
+}
+.scroll-cue {
+  position: absolute;
+  bottom: 3rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+}
+.scroll-cue .line {
+  width: 1px;
+  height: 32px;
+  background: var(--ink-faint);
+  position: relative;
+  overflow: hidden;
+}
+.scroll-cue .line::after {
+  content: '';
+  position: absolute;
+  top: -100%;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--gold);
+  animation: scrollLine 2.4s var(--ease) infinite;
+}
+@keyframes scrollLine {
+  0% { top: -100%; }
+  60%, 100% { top: 100%; }
+}
+
+/* Document watermark (top-left) */
+.doc-watermark {
+  position: absolute;
+  top: 2rem;
+  left: clamp(1.5rem, 4vw, 3rem);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.28em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  z-index: 10;
+}
+.doc-watermark .num { color: var(--gold); }
+
+/* ============ TESIS / NARRATIVE ============ */
+.prose-block {
+  max-width: 60ch;
+}
+.prose-block p + p { margin-top: 1.4em; }
+.prose-block p {
+  font-size: 1.05rem;
+  color: var(--ink-soft);
+  line-height: 1.8;
+}
+.prose-block p:first-child {
+  font-family: 'Fraunces', serif;
+  font-size: clamp(1.2rem, 1.6vw, 1.4rem);
+  font-weight: 300;
+  color: var(--ink);
+  line-height: 1.55;
+}
+
+/* Stats grid */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  margin-top: 5rem;
+  background: var(--rule);
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+.stat {
+  background: var(--bg);
+  padding: 3rem 2rem;
+  text-align: left;
+}
+.stat .num {
+  font-family: 'Fraunces', serif;
+  font-weight: 200;
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  color: var(--gold);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  display: block;
+  margin-bottom: 1rem;
+}
+.stat .num .unit {
+  font-size: 0.5em;
+  color: var(--ink-soft);
+  margin-left: 0.2em;
+}
+.stat .label {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  line-height: 1.5;
+  max-width: 26ch;
+}
+.stat .source {
+  display: block;
+  margin-top: 1rem;
+  font-size: 0.68rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.06em;
+  text-transform: none;
+}
+@media (max-width: 820px) {
+  .stats { grid-template-columns: 1fr; }
+}
+
+/* ============ THREE COLUMN ============ */
+.tri {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  background: var(--rule);
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+.tri-cell {
+  background: var(--bg);
+  padding: 3.5rem 2.5rem;
+  display: flex;
+  flex-direction: column;
+}
+.tri-cell .icon {
+  width: 28px;
+  height: 28px;
+  margin-bottom: 2.5rem;
+  color: var(--gold);
+}
+.tri-cell h3 {
+  font-size: 1.6rem;
+  font-weight: 300;
+  margin-bottom: 1.5rem;
+  color: var(--ink);
+}
+.tri-cell p {
+  color: var(--ink-soft);
+  font-size: 0.98rem;
+  line-height: 1.7;
+}
+@media (max-width: 820px) {
+  .tri { grid-template-columns: 1fr; }
+}
+
+/* ============ TIMELINE (the hero data viz) ============ */
+.timeline-section {
+  background: var(--bg-soft);
+  padding: clamp(7rem, 14vh, 12rem) 0;
+  position: relative;
+  overflow: hidden;
+}
+.timeline-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 80% 30%, rgba(201, 169, 97, 0.06), transparent 60%);
+  pointer-events: none;
+}
+.timeline-frame {
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  padding: clamp(2rem, 4vw, 3.5rem);
+  margin-top: 4rem;
+  position: relative;
+}
+.timeline-frame .frame-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--rule);
+}
+.timeline-frame .frame-label .title {
+  font-family: 'Fraunces', serif;
+  font-size: 1.15rem;
+  font-weight: 300;
+  color: var(--ink);
+}
+.timeline-frame .frame-label .meta {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.timeline-svg {
+  width: 100%;
+  height: clamp(280px, 40vh, 420px);
+  display: block;
+}
+.timeline-svg .grid-line { stroke: var(--rule); stroke-width: 1; }
+.timeline-svg .axis-text { fill: var(--ink-faint); font-family: 'Inter', sans-serif; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+.timeline-svg .value-text { fill: var(--ink-soft); font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 400; }
+.timeline-svg .area { fill: url(#goldArea); opacity: 0; transition: opacity 1.4s var(--ease) 0.4s; }
+.timeline-svg.in .area { opacity: 1; }
+.timeline-svg .line {
+  stroke: var(--gold);
+  stroke-width: 1.5;
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  stroke-dasharray: 2400;
+  stroke-dashoffset: 2400;
+  transition: stroke-dashoffset 2.6s var(--ease);
+}
+.timeline-svg.in .line { stroke-dashoffset: 0; }
+.timeline-svg .point {
+  fill: var(--bg);
+  stroke: var(--gold);
+  stroke-width: 1.5;
+  r: 4;
+  opacity: 0;
+  transition: opacity 0.6s var(--ease);
+}
+.timeline-svg.in .point { opacity: 1; }
+.timeline-svg .point-label {
+  fill: var(--gold);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0;
+  transition: opacity 0.8s var(--ease);
+}
+.timeline-svg.in .point-label { opacity: 1; }
+
+.timeline-footnote {
+  margin-top: 2rem;
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+  font-style: italic;
+  line-height: 1.6;
+  max-width: 70ch;
+}
+
+/* ============ MECHANICS (3 routes) ============ */
+.routes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  margin-top: 4rem;
+}
+.route {
+  background: var(--bg-card);
+  border: 1px solid var(--rule);
+  padding: 2.8rem 2.2rem;
+  position: relative;
+  transition: border-color 0.6s var(--ease), transform 0.6s var(--ease);
+}
+.route:hover { border-color: var(--gold-line); transform: translateY(-2px); }
+.route .num {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.24em;
+  color: var(--gold);
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+  display: block;
+}
+.route h3 {
+  font-size: 1.7rem;
+  font-weight: 300;
+  margin-bottom: 1.2rem;
+}
+.route .desc {
+  color: var(--ink-soft);
+  font-size: 0.96rem;
+  line-height: 1.7;
+  margin-bottom: 2rem;
+}
+.route .terms {
+  border-top: 1px solid var(--rule);
+  padding-top: 1.5rem;
+  display: grid;
+  gap: 0.8rem;
+}
+.route .term {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.85rem;
+  gap: 1rem;
+}
+.route .term .k {
+  color: var(--ink-faint);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.route .term .v {
+  color: var(--ink);
+  text-align: right;
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+}
+@media (max-width: 980px) {
+  .routes { grid-template-columns: 1fr; }
+}
+
+/* ============ RISK ============ */
+.risk-block {
+  border-left: 1px solid var(--gold-line);
+  padding: 0.5rem 0 0.5rem 2.5rem;
+  max-width: 70ch;
+}
+.risk-block p { color: var(--ink-soft); font-size: 1.02rem; line-height: 1.8; }
+.risk-block p + p { margin-top: 1.2em; }
+.risk-block p:first-child { color: var(--ink); }
+
+/* ============ CLUB (founder note) ============ */
+.club {
+  text-align: center;
+  max-width: 60ch;
+  margin: 0 auto;
+}
+.club h2 { font-size: clamp(2.2rem, 4.5vw, 3.6rem); margin-bottom: 2rem; }
+.club p { color: var(--ink-soft); font-size: 1.1rem; line-height: 1.75; }
+.club p + p { margin-top: 1.4em; }
+.club .signature {
+  margin-top: 3.5rem;
+  padding-top: 2.5rem;
+  border-top: 1px solid var(--rule);
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  color: var(--gold);
+  font-size: 1.1rem;
+  font-weight: 300;
+}
+.club .signature .role {
+  display: block;
+  margin-top: 0.4rem;
+  font-family: 'Inter', sans-serif;
+  font-style: normal;
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* ============ CTA TRIO ============ */
+.cta-section { background: var(--bg-soft); }
+.cta-trio {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  margin-top: 3.5rem;
+}
+.cta-card {
+  border: 1px solid var(--rule);
+  padding: 3rem 2.2rem;
+  text-align: center;
+  transition: all 0.6s var(--ease);
+  background: var(--bg);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 280px;
+}
+.cta-card:hover {
+  border-color: var(--gold);
+  background: var(--bg-card);
+}
+.cta-card:hover .cta-arrow { transform: translateX(6px); color: var(--gold-bright); }
+.cta-card .for {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 1.5rem;
+}
+.cta-card .label {
+  font-family: 'Fraunces', serif;
+  font-size: 1.45rem;
+  font-weight: 300;
+  color: var(--ink);
+  margin-bottom: 1rem;
+  line-height: 1.3;
+}
+.cta-card .sub {
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  margin-bottom: 2rem;
+}
+.cta-card .cta-arrow {
+  display: inline-block;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  color: var(--gold);
+  text-transform: uppercase;
+  transition: transform 0.4s var(--ease), color 0.4s var(--ease);
+}
+@media (max-width: 980px) {
+  .cta-trio { grid-template-columns: 1fr; }
+}
+
+/* ============ FOOTER ============ */
+footer {
+  padding: 4rem 0 3rem;
+  border-top: 1px solid var(--rule);
+  text-align: center;
+}
+footer .mark {
+  font-family: 'Montserrat', 'Figtree', sans-serif;
+  font-weight: 200;
+  font-size: 1.2rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+}
+footer .mark .b { color: var(--gold); }
+footer .contact {
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+  margin-bottom: 2rem;
+}
+footer .contact a { color: var(--gold); text-decoration: none; }
+footer .contact a:hover { color: var(--gold-bright); }
+footer .legal {
+  font-size: 0.7rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+  line-height: 1.7;
+  max-width: 60ch;
+  margin: 0 auto;
+}
+footer .legal a { color: var(--ink-soft); text-decoration: none; border-bottom: 1px solid var(--ink-dim); }
+
+/* ============ IMAGE PLACEHOLDERS (CSS-art, swap for AI) ============ */
+.img-slot {
+  position: relative;
+  background: var(--bg-soft);
+  border: 1px solid var(--rule);
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+  margin-bottom: 3rem;
+}
+.img-slot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 30% 40%, rgba(201, 169, 97, 0.18), transparent 55%),
+    radial-gradient(ellipse at 70% 70%, rgba(201, 169, 97, 0.08), transparent 60%),
+    linear-gradient(135deg, transparent 40%, rgba(201, 169, 97, 0.04) 50%, transparent 60%);
+}
+.img-slot::after {
+  content: '';
+  position: absolute;
+  inset: 8%;
+  border: 1px solid var(--gold-line);
+  pointer-events: none;
+}
+.img-slot .slot-tag {
+  position: absolute;
+  bottom: 1.2rem;
+  left: 1.5rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.img-slot.tall { aspect-ratio: 4 / 5; }
+.img-slot.wide { aspect-ratio: 21 / 9; }
+
+/* Custom geometric placeholder for hero "tesi" — abstract gold lines */
+.geometric-slot {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  overflow: hidden;
+}
+.geometric-slot svg { width: 100%; height: 100%; display: block; }
+
+/* ============ REVEAL ANIMATIONS ============ */
+.reveal { opacity: 0; transform: translateY(24px); transition: opacity 1.2s var(--ease), transform 1.2s var(--ease); }
+.reveal.in { opacity: 1; transform: translateY(0); }
+.reveal.delay-1 { transition-delay: 0.15s; }
+.reveal.delay-2 { transition-delay: 0.3s; }
+.reveal.delay-3 { transition-delay: 0.45s; }
+
+/* ============ PASSWORD GATE ============ */
+.gate {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  text-align: center;
+  transition: opacity 0.8s var(--ease), visibility 0.8s var(--ease);
+}
+.gate.unlocked { opacity: 0; visibility: hidden; }
+.gate-mark {
+  font-family: 'Montserrat', 'Figtree', sans-serif;
+  font-weight: 200;
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-bottom: 3rem;
+}
+.gate-mark .b { color: var(--gold); }
+.gate h1 {
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-weight: 300;
+  max-width: 24ch;
+  margin-bottom: 1rem;
+}
+.gate .gate-sub {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  color: var(--ink-soft);
+  margin-bottom: 3rem;
+  max-width: 38ch;
+}
+.gate-form {
+  display: flex;
+  gap: 0;
+  width: 100%;
+  max-width: 420px;
+  border-bottom: 1px solid var(--gold-line);
+}
+.gate-form input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--ink);
+  font-family: 'Fraunces', serif;
+  font-size: 1.1rem;
+  padding: 1rem 0;
+  font-weight: 300;
+  text-align: center;
+  letter-spacing: 0.1em;
+}
+.gate-form input::placeholder { color: var(--ink-faint); font-style: italic; letter-spacing: 0.05em; }
+.gate-form button {
+  background: transparent;
+  border: none;
+  color: var(--gold);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  padding: 1rem 1.5rem;
+  cursor: pointer;
+  transition: color 0.4s var(--ease);
+}
+.gate-form button:hover { color: var(--gold-bright); }
+.gate-error {
+  margin-top: 1.5rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  color: #c97c61;
+  height: 1.5rem;
+  opacity: 0;
+  transition: opacity 0.4s var(--ease);
+}
+.gate-error.show { opacity: 1; }
+.gate-foot {
+  position: absolute;
+  bottom: 2rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+}
+
+@media print {
+  .gate, .topbar, .scroll-cue { display: none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============ PASSWORD GATE ============ -->
+<div class="gate" id="gate">
+  <div class="gate-mark">RARE<span class="b">BLOCK</span></div>
+  <h1 class="serif">Documento riservato</h1>
+  <p class="gate-sub">Accesso su invito.<br/>Inserisci la chiave fornita per visualizzare il memorandum.</p>
+  <form class="gate-form" id="gateForm" autocomplete="off">
+    <input type="password" id="gateInput" placeholder="chiave di accesso" autofocus />
+    <button type="submit">Entra</button>
+  </form>
+  <div class="gate-error" id="gateError">Chiave non valida</div>
+  <div class="gate-foot">RareBlock — Private Memorandum · 2026</div>
+</div>
+
+<!-- ============ TOP BAR (revealed on scroll) ============ -->
+<nav class="topbar" id="topbar">
+  <div class="mark">RARE<span class="b">BLOCK</span></div>
+  <div class="doc-id">Memorandum · 26.01</div>
+</nav>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="doc-watermark">Documento riservato · <span class="num">N° 26.01</span></div>
+
+  <div class="hero-mark reveal">RARE<span class="b">BLOCK</span></div>
+
+  <h1 class="serif reveal delay-1">Custodi.<br/><em>Non collezionisti.</em></h1>
+  <p class="tagline reveal delay-2">Un club privato per investire in sigillati Pokémon TCG.</p>
+
+  <div class="scroll-cue">
+    <span>Memorandum</span>
+    <span class="line"></span>
+  </div>
+</section>
+
+<!-- ============ TESI ============ -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <div class="meta">
+        <span class="eyebrow">I · Tesi</span>
+      </div>
+      <h2 class="reveal">Ciò che il tempo<br/><em>non riproduce.</em></h2>
+    </div>
+
+    <div class="prose-block reveal delay-1">
+      <p>Il mercato dei sigillati Pokémon ha attraversato negli ultimi quindici anni una traiettoria che pochi asset alternativi possono dichiarare. Una booster box Base Set sigillata, valutata 400 dollari nel 2010, oggi viene scambiata in cinque–sei cifre. Non è speculazione — è il comportamento prevedibile di un bene con offerta che decresce ogni anno e domanda culturale che non smette di espandersi.</p>
+
+      <p>Pokémon non è una nicchia. È il franchise di intrattenimento di maggior valore al mondo, con una base di pubblico che è cresciuta — non sostituita — da venticinque anni. I bambini del 1999 oggi sono i quarantenni che possono permettersi ciò che non ebbero allora.</p>
+
+      <p>Il sigillato è la forma più pura di questo asset. Non si grada, non si discute lo stato, non si autentica una carta singola. È una scatola chiusa, e ogni anno ne sopravvivono meno.</p>
+    </div>
+
+    <div class="stats reveal delay-2">
+      <div class="stat">
+        <span class="num mono">+38<span class="unit">%</span></span>
+        <span class="label">CAGR Base Set Booster Box, 2015 — 2025</span>
+        <span class="source">Stima su prezzi pubblici di aste e marketplace</span>
+      </div>
+      <div class="stat">
+        <span class="num mono">&lt;2<span class="unit">%</span></span>
+        <span class="label">Sigillati WotC stimati ancora in circolazione</span>
+        <span class="source">Stima settoriale, fonti aggregate</span>
+      </div>
+      <div class="stat">
+        <span class="num mono">$98<span class="unit"> mld</span></span>
+        <span class="label">Franchise Pokémon, valore globale cumulato</span>
+        <span class="source">The Pokémon Company / report di settore</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PROBLEMA ============ -->
+<section class="alt">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="meta">
+        <span class="eyebrow">II · Mercato</span>
+      </div>
+      <h2 class="reveal">Un mercato fatto<br/><em>per dilettanti.</em></h2>
+    </div>
+
+    <div class="prose-block reveal delay-1">
+      <p>Chi vuole costruire una posizione seria su questo asset si trova di fronte a un mercato strutturato per il consumatore casuale. eBay è una giungla di contraffazioni e dispute. Cardmarket è opaco sui volumi reali. Gli aggregatori di prezzo riportano il listino — non il bid. La custodia domestica espone a deterioramento, furto, contestazione assicurativa. La liquidità, quando serve, non c'è: vendere una booster box da cinquantamila euro richiede mesi e una rete che pochi hanno.</p>
+
+      <p>Il risultato è che un asset class promettente resta inaccessibile a chi avrebbe il capitale ma non il tempo, la rete e la competenza tecnica per parteciparvi.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RAREBLOCK — CURATELA / CUSTODIA / LIQUIDITÀ ============ -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <div class="meta">
+        <span class="eyebrow">III · Soluzione</span>
+      </div>
+      <h2 class="reveal">Tre funzioni.<br/><em>Una sola membership.</em></h2>
+    </div>
+  </div>
+
+  <div class="tri reveal delay-1">
+    <div class="tri-cell">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2 L3 7 L12 12 L21 7 Z"/>
+        <path d="M3 12 L12 17 L21 12"/>
+        <path d="M3 17 L12 22 L21 17"/>
+      </svg>
+      <h3 class="serif">Curatela</h3>
+      <p>Ogni allocazione è selezionata su criteri proprietari di scarsità storica, integrità del prodotto e profilo di liquidità a uscita. Non distribuiamo prodotto recente speculativo. Non distribuiamo ciò che non comprerémmo per noi.</p>
+    </div>
+    <div class="tri-cell">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="3" width="16" height="18" rx="1"/>
+        <circle cx="12" cy="12" r="3.5"/>
+        <path d="M12 8.5 L12 7 M15.5 12 L17 12 M12 15.5 L12 17 M8.5 12 L7 12"/>
+      </svg>
+      <h3 class="serif">Custodia</h3>
+      <p>Sigillati conservati in caveau a clima controllato, assicurati a valore di mercato, fotografati e documentati al momento dell'allocazione e a ogni audit semestrale. Il membro non vede mai il prodotto fisicamente, e questo è il punto.</p>
+    </div>
+    <div class="tri-cell">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 17 L9 11 L13 15 L21 7"/>
+        <path d="M15 7 L21 7 L21 13"/>
+      </svg>
+      <h3 class="serif">Liquidità</h3>
+      <p>Lock-up definito a contratto, finestra di uscita strutturata, possibilità di trasferimento di quote tra membri. Per il sigillato singolo di rilievo, exit primaria attraverso aste private o vendita diretta a istituzionali del settore.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TIMELINE — KILLER VISUAL ============ -->
+<section class="timeline-section">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="meta">
+        <span class="eyebrow">IV · Evidenza</span>
+      </div>
+      <h2 class="reveal">Venticinque anni.<br/><em>Una traiettoria.</em></h2>
+    </div>
+
+    <div class="timeline-frame reveal delay-1">
+      <div class="frame-label">
+        <span class="title">Booster Box Base Set 1999 · valore di scambio sigillato</span>
+        <span class="meta">Indice base 1999 = 100</span>
+      </div>
+
+      <svg class="timeline-svg" id="timelineSvg" viewBox="0 0 1000 380" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="goldArea" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#c9a961" stop-opacity="0.25"/>
+            <stop offset="100%" stop-color="#c9a961" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+
+        <!-- Grid lines (logarithmic feel) -->
+        <line class="grid-line" x1="60" y1="40" x2="980" y2="40"/>
+        <line class="grid-line" x1="60" y1="120" x2="980" y2="120"/>
+        <line class="grid-line" x1="60" y1="200" x2="980" y2="200"/>
+        <line class="grid-line" x1="60" y1="280" x2="980" y2="280"/>
+        <line class="grid-line" x1="60" y1="340" x2="980" y2="340"/>
+
+        <!-- Y-axis labels (log scale) -->
+        <text class="value-text" x="50" y="44" text-anchor="end">×10.000</text>
+        <text class="value-text" x="50" y="124" text-anchor="end">×1.000</text>
+        <text class="value-text" x="50" y="204" text-anchor="end">×100</text>
+        <text class="value-text" x="50" y="284" text-anchor="end">×10</text>
+        <text class="value-text" x="50" y="344" text-anchor="end">×1</text>
+
+        <!-- X-axis labels -->
+        <text class="axis-text" x="80"  y="370" text-anchor="middle">1999</text>
+        <text class="axis-text" x="260" y="370" text-anchor="middle">2005</text>
+        <text class="axis-text" x="440" y="370" text-anchor="middle">2010</text>
+        <text class="axis-text" x="620" y="370" text-anchor="middle">2015</text>
+        <text class="axis-text" x="800" y="370" text-anchor="middle">2020</text>
+        <text class="axis-text" x="960" y="370" text-anchor="middle">2025</text>
+
+        <!-- Area fill -->
+        <path class="area" d="M 80 340 L 260 290 L 440 220 L 620 165 L 800 70 L 960 32 L 960 350 L 80 350 Z"/>
+
+        <!-- Main line -->
+        <path class="line" d="M 80 340 L 260 290 L 440 220 L 620 165 L 800 70 L 960 32"/>
+
+        <!-- Data points -->
+        <circle class="point" cx="80"  cy="340" />
+        <circle class="point" cx="260" cy="290" />
+        <circle class="point" cx="440" cy="220" />
+        <circle class="point" cx="620" cy="165" />
+        <circle class="point" cx="800" cy="70"  />
+        <circle class="point" cx="960" cy="32"  />
+
+        <!-- Point value labels -->
+        <text class="point-label" x="80"  y="328" text-anchor="middle">×1</text>
+        <text class="point-label" x="260" y="278" text-anchor="middle">×12</text>
+        <text class="point-label" x="440" y="208" text-anchor="middle">×100</text>
+        <text class="point-label" x="620" y="153" text-anchor="middle">×375</text>
+        <text class="point-label" x="800" y="58"  text-anchor="middle">×7.500</text>
+        <text class="point-label" x="940" y="22"  text-anchor="end">×25.000+</text>
+      </svg>
+
+      <p class="timeline-footnote">
+        Elaborazione interna su prezzi pubblici di aste internazionali e marketplace specializzati per booster box Base Set 1999 sigillata, condizione presentabile. I dati storici non sono indicativi di rendimenti futuri. Indice arrotondato per ordine di grandezza.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MECCANICHE — TRE PERCORSI ============ -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <div class="meta">
+        <span class="eyebrow">V · Meccaniche</span>
+      </div>
+      <h2 class="reveal">Come si entra.</h2>
+    </div>
+
+    <div class="routes">
+      <div class="route reveal delay-1">
+        <span class="num mono">01 — Investitore</span>
+        <h3 class="serif">Allocazione strutturata</h3>
+        <p class="desc">Capitale impiegato in portfolio diversificato di sigillati di pregio, selezionati e custoditi dal club. Reporting trimestrale, fee trasparenti, posizione del founder allineata al membro su ogni singola allocazione.</p>
+        <div class="terms">
+          <div class="term"><span class="k">Ticket minimo</span><span class="v">€ 25.000</span></div>
+          <div class="term"><span class="k">Lock-up</span><span class="v">12 / 24 / 36 mesi</span></div>
+          <div class="term"><span class="k">Frequenza apertura</span><span class="v">Trimestrale</span></div>
+          <div class="term"><span class="k">Reporting</span><span class="v">Trimestrale, fotografico</span></div>
+        </div>
+      </div>
+
+      <div class="route reveal delay-2">
+        <span class="num mono">02 — Membro</span>
+        <h3 class="serif">Whole ownership</h3>
+        <p class="desc">Acquisto diretto di pezzi singoli di rilievo, con custodia presso il caveau del club, assicurazione inclusa, e accesso prioritario alle nuove acquisizioni. Concierge dedicato per ricerca di pezzi specifici fuori catalogo.</p>
+        <div class="terms">
+          <div class="term"><span class="k">Quota annuale</span><span class="v">Su invito</span></div>
+          <div class="term"><span class="k">Accesso allocazioni</span><span class="v">Anteprima 72h</span></div>
+          <div class="term"><span class="k">Concierge</span><span class="v">Incluso</span></div>
+          <div class="term"><span class="k">Network</span><span class="v">Privato, referral</span></div>
+        </div>
+      </div>
+
+      <div class="route reveal delay-3">
+        <span class="num mono">03 — Venditore</span>
+        <h3 class="serif">Conferimento o cessione</h3>
+        <p class="desc">Per chi possiede già sigillati di valore. Valutazione professionale gratuita, offerta in acquisto entro pochi giorni o conferimento a portfolio con quote proporzionali. Nessuna commissione, nessuna esposizione a marketplace pubblici.</p>
+        <div class="terms">
+          <div class="term"><span class="k">Valutazione</span><span class="v">Gratuita</span></div>
+          <div class="term"><span class="k">Tempo offerta</span><span class="v">5 — 10 giorni</span></div>
+          <div class="term"><span class="k">Pagamento</span><span class="v">Immediato a contratto</span></div>
+          <div class="term"><span class="k">Conferimento</span><span class="v">Quote in portfolio</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RISCHIO ============ -->
+<section class="alt">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="meta">
+        <span class="eyebrow muted">VI · Trasparenza</span>
+      </div>
+      <h2 class="reveal">Quello che diciamo<br/><em>prima di tutto il resto.</em></h2>
+    </div>
+
+    <div class="risk-block reveal delay-1">
+      <p>Il sigillato Pokémon è un asset alternativo, illiquido nel breve termine, esposto a rischio di mercato e a rischio specifico. Non garantiamo rendimenti. La performance storica del comparto non è proiettabile linearmente. Il capitale è soggetto a perdite.</p>
+
+      <p>Quello che garantiamo è il processo: autenticazione documentata, custodia assicurata, reporting verificabile, struttura fee invariata per tutta la durata del lock. La nostra posizione è allineata a quella del membro — investiamo capitale proprio in ogni allocazione che proponiamo.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ IL CLUB ============ -->
+<section>
+  <div class="wrap">
+    <div class="club">
+      <span class="eyebrow reveal">VII · Il Club</span>
+      <h2 class="serif reveal delay-1" style="margin-top: 1.5rem;">Per pochi.<br/><em>Volutamente.</em></h2>
+      <p class="reveal delay-2">RareBlock non opera in scala. La membership è limitata e la crescita del club è subordinata alla disponibilità di prodotto coerente con i nostri criteri. Preferiamo dire di no a un nuovo membro piuttosto che annacquare la qualità delle allocazioni.</p>
+      <p class="reveal delay-2">L'ammissione avviene su invito, referral di un membro esistente, o presentazione diretta. Tutti i candidati incontrano personalmente il founder.</p>
+      <div class="signature reveal delay-3">
+        Valentino Castigliola
+        <span class="role">Founder · RareBlock</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CTA TRIO ============ -->
+<section class="cta-section">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="meta">
+        <span class="eyebrow">VIII · Prossimi passi</span>
+      </div>
+      <h2 class="reveal">Tre conversazioni<br/><em>diverse.</em></h2>
+    </div>
+
+    <div class="cta-trio">
+      <a class="cta-card reveal delay-1" href="https://cal.com/rareblock/30-minuti-rareblock" target="_blank" rel="noopener">
+        <div>
+          <div class="for">Per l'investitore</div>
+          <div class="label">Discutere<br/>un'allocazione</div>
+          <div class="sub">30 minuti, riservato</div>
+        </div>
+        <div class="cta-arrow">Cal.com →</div>
+      </a>
+
+      <a class="cta-card reveal delay-2" href="mailto:valentino@rareblock.eu?subject=Richiesta%20ammissione%20RareBlock">
+        <div>
+          <div class="for">Per il candidato membro</div>
+          <div class="label">Richiedere<br/>ammissione</div>
+          <div class="sub">Su invito o referral</div>
+        </div>
+        <div class="cta-arrow">Scrivi al founder →</div>
+      </a>
+
+      <a class="cta-card reveal delay-3" href="mailto:valentino@rareblock.eu?subject=Valutazione%20collezione%20sigillata">
+        <div>
+          <div class="for">Per il venditore</div>
+          <div class="label">Valutazione<br/>collezione</div>
+          <div class="sub">Gratuita e riservata</div>
+        </div>
+        <div class="cta-arrow">Invia inventario →</div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="wrap">
+    <div class="mark">RARE<span class="b">BLOCK</span></div>
+    <div class="contact">
+      <a href="mailto:valentino@rareblock.eu">valentino@rareblock.eu</a><br/>
+      <span style="font-size:0.85rem;color:var(--ink-faint);">numero diretto su appuntamento</span>
+    </div>
+    <p class="legal">
+      Questo documento è strettamente riservato e indirizzato esclusivamente al destinatario nominato. Non costituisce sollecitazione al pubblico risparmio né offerta di prodotti o servizi finanziari. Le performance storiche citate non sono indicative di rendimenti futuri. Il capitale impiegato è soggetto a rischio di perdita totale.
+      <br/><br/>
+      RareBlock · P.IVA in fase di costituzione · Tutti i diritti riservati 2026
+    </p>
+  </div>
+</footer>
+
+<script>
+/* ============ PASSWORD GATE ============ */
+(function() {
+  const VALID_KEYS = ['centurion', 'centurion-2026', 'rareblock-26', '2026'];
+  const gate = document.getElementById('gate');
+  const form = document.getElementById('gateForm');
+  const input = document.getElementById('gateInput');
+  const error = document.getElementById('gateError');
+
+  // Auto-unlock if previously authenticated this session
+  if (sessionStorage.getItem('rb_gate') === '1') {
+    gate.classList.add('unlocked');
+  }
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const key = input.value.trim().toLowerCase();
+    if (VALID_KEYS.includes(key)) {
+      sessionStorage.setItem('rb_gate', '1');
+      gate.classList.add('unlocked');
+      error.classList.remove('show');
+    } else {
+      error.classList.add('show');
+      input.value = '';
+      setTimeout(() => error.classList.remove('show'), 2400);
+    }
+  });
+})();
+
+/* ============ SCROLL REVEAL ============ */
+(function() {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('in');
+        if (entry.target.id === 'timelineSvg') return; // handled separately
+      }
+    });
+  }, { threshold: 0.15, rootMargin: '0px 0px -80px 0px' });
+
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+})();
+
+/* ============ TIMELINE ANIMATION ============ */
+(function() {
+  const svg = document.getElementById('timelineSvg');
+  if (!svg) return;
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        setTimeout(() => svg.classList.add('in'), 200);
+      }
+    });
+  }, { threshold: 0.3 });
+  observer.observe(svg);
+})();
+
+/* ============ TOPBAR ON SCROLL ============ */
+(function() {
+  const topbar = document.getElementById('topbar');
+  let lastY = 0;
+  window.addEventListener('scroll', () => {
+    const y = window.scrollY;
+    if (y > 600) topbar.classList.add('show');
+    else topbar.classList.remove('show');
+    lastY = y;
+  }, { passive: true });
+})();
+</script>
+
+</body>
+</html>
