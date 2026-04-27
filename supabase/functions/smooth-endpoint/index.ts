@@ -205,29 +205,54 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
       }
     }
 
-    // Per ogni grading hit, trova il prezzo più vicino (entro 3KB) e associa
-    // il grading al listing con quel prezzo. Se più listings hanno lo stesso
-    // prezzo, scegli quello in ordine di occorrenza. SKIP i listing che hanno
-    // già grading (via fst-italic / extractCommentFromRow) — il post-extraction
-    // serve SOLO a recuperare i missing, non a sovrascrivere dati validi.
+    // ─── DEDUP grading hits ravvicinati ──
+    // Lo stesso commento appare spesso 2-3 volte nell'HTML (desktop+mobile DOM,
+    // tooltip data-bs-title sull'icona). Senza dedup, il post-extraction
+    // associa lo stesso grading a 2 listing diversi con stesso prezzo,
+    // creando ghost listings (es. raw vicino marcato come PSA 8).
+    // Strategia: dedup hits che sono entro 800 char l'uno dall'altro E hanno
+    // identico (house, score). Tieni solo il primo.
+    const dedupedHits: typeof gradingHits = [];
+    for (const hit of gradingHits) {
+      const dup = dedupedHits.some(prev =>
+        prev.house === hit.house &&
+        prev.score === hit.score &&
+        Math.abs(prev.index - hit.index) < 800
+      );
+      if (!dup) dedupedHits.push(hit);
+    }
+
+    // Per ogni hit deduplicato, trova il prezzo più vicino e associa il
+    // grading. SKIP se il prezzo più vicino corrisponde a un listing già
+    // graded — quel hit appartiene a quel listing (già processato via
+    // fst-italic), non a un raw "vicino" con stesso prezzo.
     const usedListingIdxs = new Set<number>();
-    // Pre-popola usedListingIdxs con i listing già graded — non possono essere
-    // ri-associati e sono "consumati" per logica di matching.
+    // Pre-popola con i listing già graded — non possono essere ri-associati
     for (let li = 0; li < listings.length; li++) {
       if (listings[li].grading) usedListingIdxs.add(li);
     }
-    for (const hit of gradingHits) {
+    // Distanza ridotta da 3000 a 1500: i grading marker realmente associati
+    // a un listing sono dentro la stessa article-row (~1-2KB di markup),
+    // 3000 era troppo permissivo e attraversava i confini delle row.
+    const MAX_DIST = 1500;
+    for (const hit of dedupedHits) {
       let nearestPrice: number | null = null;
       let nearestDist = Infinity;
       for (const pi of priceIndices) {
         const dist = Math.abs(pi.index - hit.index);
-        if (dist < nearestDist && dist < 3000) {
+        if (dist < nearestDist && dist < MAX_DIST) {
           nearestDist = dist;
           nearestPrice = pi.price;
         }
       }
       if (nearestPrice == null) continue;
-      // Trova primo listing con quel prezzo non ancora usato
+      // Verifica: il listing più vicino con questo prezzo è già graded?
+      // Se sì, il hit appartiene a lui → skip (no fallback su altri listing
+      // con stesso prezzo, che sarebbero raw incorrectly marcati come graded).
+      const nearestListingIdx = listings.findIndex(l => Math.abs(l.price - nearestPrice!) < 0.01);
+      if (nearestListingIdx >= 0 && listings[nearestListingIdx].grading) continue;
+
+      // Cerca primo listing senza grading con quel prezzo
       for (let li = 0; li < listings.length; li++) {
         if (usedListingIdxs.has(li)) continue;
         if (Math.abs(listings[li].price - nearestPrice) < 0.01) {
