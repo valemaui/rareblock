@@ -1100,7 +1100,7 @@ footer .legal a { color: var(--ink-soft); text-decoration: none; border-bottom: 
     </div>
 
     <div class="cta-trio">
-      <a class="cta-card reveal delay-1" href="https://cal.com/rareblock/30-minuti-rareblock" target="_blank" rel="noopener">
+      <a class="cta-card reveal delay-1" data-cta="investitore" href="https://cal.com/rareblock/30-minuti-rareblock" target="_blank" rel="noopener">
         <div>
           <div class="for">Per l'investitore</div>
           <div class="label">Discutere<br/>un'allocazione</div>
@@ -1109,7 +1109,7 @@ footer .legal a { color: var(--ink-soft); text-decoration: none; border-bottom: 
         <div class="cta-arrow">Cal.com →</div>
       </a>
 
-      <a class="cta-card reveal delay-2" href="mailto:valentino@rareblock.eu?subject=Richiesta%20ammissione%20RareBlock">
+      <a class="cta-card reveal delay-2" data-cta="membro" href="mailto:valentino@rareblock.eu?subject=Richiesta%20ammissione%20RareBlock">
         <div>
           <div class="for">Per il candidato membro</div>
           <div class="label">Richiedere<br/>ammissione</div>
@@ -1118,7 +1118,7 @@ footer .legal a { color: var(--ink-soft); text-decoration: none; border-bottom: 
         <div class="cta-arrow">Scrivi al founder →</div>
       </a>
 
-      <a class="cta-card reveal delay-3" href="mailto:valentino@rareblock.eu?subject=Valutazione%20collezione%20sigillata">
+      <a class="cta-card reveal delay-3" data-cta="venditore" href="mailto:valentino@rareblock.eu?subject=Valutazione%20collezione%20sigillata">
         <div>
           <div class="for">Per il venditore</div>
           <div class="label">Valutazione<br/>collezione</div>
@@ -1147,26 +1147,120 @@ footer .legal a { color: var(--ink-soft); text-decoration: none; border-bottom: 
 </footer>
 
 <script>
+/* ============ SUPABASE CONFIG ============ */
+const SUPA_URL = 'https://rbjaaeyjeeqfpbzyavag.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
+
+/* Stato sessione: log_id corrente + tracking engagement */
+let RB_LOG_ID = null;
+let RB_PROSPECT = null;
+let RB_PAGE_START = null;
+let RB_MAX_SCROLL = 0;
+let RB_LAST_CTA = null;
+let RB_GEO = null;
+
+/* ─── Helper RPC ──────────────────────────────────────────────── */
+async function rbRpc(fn, body) {
+  try {
+    const r = await fetch(`${SUPA_URL}/rest/v1/rpc/${fn}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPA_KEY,
+        'Authorization': `Bearer ${SUPA_KEY}`
+      },
+      body: JSON.stringify(body || {}),
+      keepalive: true
+    });
+    if (!r.ok) return null;
+    const t = await r.text();
+    return t ? JSON.parse(t) : null;
+  } catch (e) { return null; }
+}
+
+/* ─── Geo lookup leggero (best effort, non blocca il gate) ────── */
+async function rbFetchGeo() {
+  try {
+    const r = await fetch('https://ipapi.co/json/', { cache: 'no-store' });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return {
+      ip: j.ip || null,
+      country: j.country_name || null,
+      city: j.city || null
+    };
+  } catch (e) { return null; }
+}
+
+// Pre-fetch geo in parallelo, non blocca il rendering del gate
+rbFetchGeo().then(g => { RB_GEO = g; });
+
 /* ============ PASSWORD GATE ============ */
 (function() {
-  const VALID_KEYS = ['centurion', 'centurion-2026', 'rareblock-26', '2026'];
-  const gate = document.getElementById('gate');
-  const form = document.getElementById('gateForm');
-  const input = document.getElementById('gateInput');
-  const error = document.getElementById('gateError');
+  const gate   = document.getElementById('gate');
+  const form   = document.getElementById('gateForm');
+  const input  = document.getElementById('gateInput');
+  const error  = document.getElementById('gateError');
+  const button = form.querySelector('button');
 
-  // Auto-unlock if previously authenticated this session
-  if (sessionStorage.getItem('rb_gate') === '1') {
-    gate.classList.add('unlocked');
+  // Auto-unlock se già autenticati in questa sessione
+  const cached = sessionStorage.getItem('rb_gate');
+  if (cached) {
+    try {
+      const c = JSON.parse(cached);
+      RB_LOG_ID = c.log_id;
+      RB_PROSPECT = { name: c.name, type: c.type };
+      gate.classList.add('unlocked');
+      startEngagementTracking();
+      return;
+    } catch(e) { sessionStorage.removeItem('rb_gate'); }
   }
 
-  form.addEventListener('submit', function(e) {
+  // Auto-submit se chiave passata via URL ?k=...
+  const params = new URLSearchParams(location.search);
+  const urlKey = params.get('k');
+  if (urlKey) {
+    input.value = urlKey;
+    // Pulisce URL per non lasciare la chiave esposta in cronologia/condivisione
+    history.replaceState(null, '', location.pathname);
+    // Aspetta qualche centinaio di ms per dare tempo al geo-fetch
+    setTimeout(() => {
+      form.dispatchEvent(new Event('submit', { cancelable: true }));
+    }, 600);
+  }
+
+  form.addEventListener('submit', async function(e) {
     e.preventDefault();
     const key = input.value.trim().toLowerCase();
-    if (VALID_KEYS.includes(key)) {
-      sessionStorage.setItem('rb_gate', '1');
+    if (!key) return;
+
+    button.textContent = '···';
+    button.disabled = true;
+    error.classList.remove('show');
+
+    const result = await rbRpc('validate_memorandum_key', {
+      p_key: key,
+      p_user_agent: navigator.userAgent,
+      p_referrer: document.referrer || null,
+      p_ip_hint: RB_GEO ? RB_GEO.ip : null,
+      p_country_hint: RB_GEO ? RB_GEO.country : null,
+      p_city_hint: RB_GEO ? RB_GEO.city : null,
+      p_language: navigator.language || null
+    });
+
+    button.textContent = 'Entra';
+    button.disabled = false;
+
+    if (result && result.valid) {
+      RB_LOG_ID = result.log_id;
+      RB_PROSPECT = { name: result.prospect_name, type: result.prospect_type };
+      sessionStorage.setItem('rb_gate', JSON.stringify({
+        log_id: result.log_id,
+        name: result.prospect_name,
+        type: result.prospect_type
+      }));
       gate.classList.add('unlocked');
-      error.classList.remove('show');
+      startEngagementTracking();
     } else {
       error.classList.add('show');
       input.value = '';
@@ -1174,6 +1268,50 @@ footer .legal a { color: var(--ink-soft); text-decoration: none; border-bottom: 
     }
   });
 })();
+
+/* ============ ENGAGEMENT TRACKING ============ */
+function startEngagementTracking() {
+  if (!RB_LOG_ID) return;
+  RB_PAGE_START = Date.now();
+
+  function updateScroll() {
+    const docH = document.documentElement.scrollHeight - window.innerHeight;
+    if (docH <= 0) return;
+    const pct = Math.round((window.scrollY / docH) * 100);
+    if (pct > RB_MAX_SCROLL) RB_MAX_SCROLL = Math.min(100, pct);
+  }
+  window.addEventListener('scroll', updateScroll, { passive: true });
+  updateScroll();
+
+  // Click sulle CTA: registra quale rotta interessa al prospect
+  document.querySelectorAll('[data-cta]').forEach(el => {
+    el.addEventListener('click', () => {
+      RB_LAST_CTA = el.dataset.cta;
+      flushEngagement();
+    });
+  });
+
+  // Flush periodico (ogni 30s) per catturare sessioni lunghe
+  setInterval(flushEngagement, 30000);
+
+  // Flush alla chiusura / cambio tab
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushEngagement();
+  });
+  window.addEventListener('pagehide', flushEngagement);
+  window.addEventListener('beforeunload', flushEngagement);
+}
+
+function flushEngagement() {
+  if (!RB_LOG_ID || !RB_PAGE_START) return;
+  const elapsed = Math.round((Date.now() - RB_PAGE_START) / 1000);
+  rbRpc('update_memorandum_engagement', {
+    p_log_id: RB_LOG_ID,
+    p_scroll_depth: RB_MAX_SCROLL,
+    p_time_seconds: elapsed,
+    p_cta_clicked: RB_LAST_CTA
+  });
+}
 
 /* ============ SCROLL REVEAL ============ */
 (function() {
