@@ -590,25 +590,29 @@ function extractLanguageFromRow(row: string): string | null {
 }
 
 function extractCommentFromRow(row: string): string | null {
-  // ─── STRATEGIA A: classe `fst-italic` (CM 2024+) ──
-  // CM usa Bootstrap. Il commento del seller è SEMPRE dentro
-  //   <span class="... fst-italic ...">COMMENTO</span>
-  // Vista nel sample reale: <span class="d-block text-truncate text-muted fst-italic small">PSA 8</span>
-  // Questa è la strategia più affidabile.
-  const fstItalic = row.match(/<span[^>]*class="[^"]*fst-italic[^"]*"[^>]*>([\s\S]{1,250}?)<\/span>/i);
-  if (fstItalic) {
-    const txt = rowToText(fstItalic[1]);
-    if (txt && txt.length > 0 && txt.length < 250) return txt;
+  // Strategia: ogni pattern produce un candidate. Alla fine ritorniamo il
+  // candidate "migliore": preferiamo quelli che producono grading parsato
+  // (PSA/BGS/...), perché sono i più importanti per l'app. Se nessuno ha
+  // grading, ritorniamo il primo candidate testuale "pulito" (niente
+  // tooltip falsi tipo "2 Vendite | 13 Articoli").
+  const candidates: Array<{ text: string; source: string; hasGrading: boolean }> = [];
+
+  function consider(text: string, source: string): void {
+    if (!text || text.length < 1 || text.length > 250) return;
+    candidates.push({ text, source, hasGrading: !!parseGradingFromText(text) });
   }
 
-  // ─── STRATEGIA B: container con classe product-comments / article-comments ──
-  // Manca il pattern kebab-case <div> — bug del fix precedente. Aggiunto qui.
+  // ─── A: fst-italic class (CM 2024+) — most reliable ──
+  const fstItalic = row.match(/<span[^>]*class="[^"]*fst-italic[^"]*"[^>]*>([\s\S]{1,250}?)<\/span>/i);
+  if (fstItalic) {
+    consider(rowToText(fstItalic[1]), 'fst-italic');
+  }
+
+  // ─── B: container product-comments / article-comments ──
   const containerPats = [
-    // kebab-case <div> (CM moderno!): <div class="product-comments">...
     /<div[^>]*class="[^"]*product-comments[^"]*"[^>]*>([\s\S]{1,500}?)<\/div>\s*<\/div>/i,
     /<div[^>]*class="[^"]*product-comments[^"]*"[^>]*>([\s\S]{1,500}?)<\/div>/i,
     /<div[^>]*class="[^"]*article-comments[^"]*"[^>]*>([\s\S]{1,500}?)<\/div>/i,
-    // span/div varianti camelCase
     /<span[^>]*class="[^"]*article-comments[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
     /<span[^>]*class="[^"]*product-comments[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
     /<span[^>]*class="[^"]*productComments[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
@@ -618,12 +622,12 @@ function extractCommentFromRow(row: string): string | null {
   for (const rx of containerPats) {
     const m = row.match(rx);
     if (m) {
-      const txt = rowToText(m[1]);
-      if (txt && txt.length > 0 && txt.length < 300) return txt;
+      consider(rowToText(m[1]), 'container');
+      break; // un container basta
     }
   }
 
-  // ─── STRATEGIA C: tag italici generici ──
+  // ─── C: tag italici generici ──
   const italicPats = [
     /<i\b[^>]*>([\s\S]{2,200}?)<\/i>/gi,
     /<em\b[^>]*>([\s\S]{2,200}?)<\/em>/gi,
@@ -636,54 +640,15 @@ function extractCommentFromRow(row: string): string | null {
       const txt = rowToText(m[1]);
       if (!txt || txt.length < 2) continue;
       if (/^(Mint|Near Mint|Excellent|Good|Light Played|Played|Poor|NM|EX|GD|LP|PL|PO|MT|Italian|English|Japanese|German|French|Spanish|Italiano|Inglese|Foil|Holo|Reverse|First Edition|1st)$/i.test(txt)) continue;
-      if (parseGradingFromText(txt) || /[a-zA-Z]{3,}/.test(txt)) {
-        return txt.substring(0, 200);
-      }
+      consider(txt, 'italic');
     }
   }
 
-  // ─── STRATEGIA D: tooltip con commento (FILTRO STRINGENTE) ──
-  // Bug del fix precedente: prendeva il primo title="..." disponibile, che su
-  // CM moderna è il tooltip del badge sell-count "X Vendite | Y Articoli
-  // disponibili" del seller — NON il commento del listing!
-  // Ora escludiamo TUTTI i pattern noti che NON sono commenti del seller.
-  const tooltipPats = [
-    /data-bs-(?:title|content|original-title)="([^"]{2,200})"/gi,
-    /(?:^|[^a-z])(?:title|aria-label)="([^"]{5,200})"/gi,
-  ];
-  // Pattern di blacklist: tooltip che CM mette su elementi diversi dal commento
-  const tooltipBlacklist = [
-    /^\d+(?:&nbsp;|\s)+(Vendite|Articoli|Sales|Items|Verkäufe|Artikel)/i,  // "X Vendite | Y Articoli..."
-    /^(Mint|Near Mint|Excellent|Good|Light Played|Played|Poor|Italian|English|Japanese|German|French|Spanish|Portuguese|Korean|Chinese|Russian|Italiano|Inglese|Reverse Holo|Foil|Holo|First Edition|1st Edition)$/i,
-    /^Locazione dell'oggetto/i,           // "Locazione dell'oggetto: Germania"
-    /^Item location:/i,
-    /^Devi aver effettuato/i,             // tooltip pulsante carrello
-    /^You must be logged/i,
-    /^Verkäufer Standort/i,
-    /^<img\s/i,                            // tooltip che è un'immagine (scan tooltip)
-    /^Pokémon$|^Pokemon$/i,                // tooltip categoria
-  ];
-  for (const rx of tooltipPats) {
-    let m: RegExpExecArray | null;
-    rx.lastIndex = 0;
-    while ((m = rx.exec(row)) !== null) {
-      const txt = m[1].trim();
-      // Test blacklist
-      let isBlacklisted = false;
-      for (const bl of tooltipBlacklist) {
-        if (bl.test(txt)) { isBlacklisted = true; break; }
-      }
-      if (isBlacklisted) continue;
-      // Preferiamo testi che hanno grading parsato — più sicuri
-      if (parseGradingFromText(txt)) return txt;
-      // Altrimenti accettiamo solo testi "pulizi" (no badge counts numerici)
-      if (txt.length > 8 && txt.length < 150 && /^[A-Za-z]/.test(txt) && !/\bVendite|Articoli|Sales|Items\b/i.test(txt)) {
-        return txt;
-      }
-    }
-  }
-
-  // ─── STRATEGIA E: KITCHEN SINK — scan dell'intero testo della row ──
+  // ─── D: KITCHEN SINK — scan dell'intero testo della row per grading ──
+  // Spostato PRIMA dei tooltip: i grading marker nel testo della row sono
+  // sempre validi, mentre i tooltip possono avere falsi positivi (es. badge
+  // sell-count, location). Se trovo un grading marker via scan testuale,
+  // lo registro come candidate ad alta priorità.
   const fullText = rowToText(row);
   if (fullText && fullText.length < 4000) {
     const gradingScan = fullText.match(/\b(PSA|BGS|Beckett|CGC|SGC|HGA|GMA|TAG|ARS|GetGraded|GG|ACE)(?:\s*[A-Za-z]{0,8})?\s*[-:.\s]?\s*(10(?:\.0)?|[1-9](?:\.5)?)\b/i);
@@ -691,9 +656,60 @@ function extractCommentFromRow(row: string): string | null {
       const idx = fullText.indexOf(gradingScan[0]);
       const start = Math.max(0, idx - 15);
       const end = Math.min(fullText.length, idx + 80);
-      return fullText.substring(start, end).trim().substring(0, 200);
+      const ctx = fullText.substring(start, end).trim().substring(0, 200);
+      consider(ctx, 'kitchen-sink');
     }
   }
+
+  // ─── E: tooltip con commento (FILTRO STRINGENTE) ──
+  // Ultima chance — i tooltip sono il source meno affidabile (badge sell-count,
+  // location, etc.). Solo se nessun altro source ha trovato un grading.
+  if (!candidates.some(c => c.hasGrading)) {
+    const tooltipPats = [
+      /data-bs-(?:title|content|original-title)="([^"]{2,200})"/gi,
+      /(?:^|[^a-z])(?:title|aria-label)="([^"]{5,200})"/gi,
+    ];
+    const tooltipBlacklist = [
+      /^\d+(?:&nbsp;|\s)+(Vendite|Articoli|Sales|Items|Verkäufe|Artikel)/i,
+      /^(Mint|Near Mint|Excellent|Good|Light Played|Played|Poor|Italian|English|Japanese|German|French|Spanish|Portuguese|Korean|Chinese|Russian|Italiano|Inglese|Reverse Holo|Foil|Holo|First Edition|1st Edition)$/i,
+      /^Locazione dell'oggetto/i,
+      /^Item location:/i,
+      /^Devi aver effettuato/i,
+      /^You must be logged/i,
+      /^Verkäufer Standort/i,
+      /^<img\s/i,
+      /^Pokémon$|^Pokemon$/i,
+    ];
+    for (const rx of tooltipPats) {
+      let m: RegExpExecArray | null;
+      rx.lastIndex = 0;
+      while ((m = rx.exec(row)) !== null) {
+        const txt = m[1].trim();
+        let isBlacklisted = false;
+        for (const bl of tooltipBlacklist) {
+          if (bl.test(txt)) { isBlacklisted = true; break; }
+        }
+        if (isBlacklisted) continue;
+        // Solo se ha grading parsato — i tooltip senza grading sono troppo
+        // rischiosi (badge counts, generic info)
+        if (parseGradingFromText(txt)) {
+          consider(txt, 'tooltip-graded');
+        }
+      }
+    }
+  }
+
+  // ── Ranking finale ──
+  // 1. Preferiamo candidate con grading parsato (priorità assoluta)
+  // 2. Tra quelli con grading, il primo (in ordine: fst-italic → container → italic → kitchen → tooltip)
+  // 3. Se nessuno ha grading, ritorniamo il primo candidate "pulito" (no tooltip)
+  const withGrading = candidates.find(c => c.hasGrading);
+  if (withGrading) return withGrading.text;
+
+  // Nessun grading — ritorniamo il primo candidate non-tooltip (commento raw genuino)
+  const cleanCandidate = candidates.find(c => c.source !== 'tooltip-graded');
+  if (cleanCandidate) return cleanCandidate.text;
+
   return null;
 }
 
