@@ -152,14 +152,14 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
   const listings = extractCMListings(html);
 
   // ─── POST-EXTRACTION GLOBAL GRADING SCAN ──
-  // Last-resort: se la fase di extraction non ha attribuito grading a nessun
-  // listing (extractCommentFromRow ha fallito su tutti), cerca grading marker
-  // GLOBALMENTE nell'HTML grezzo. Per ogni marker trovato, lo associa al
-  // prezzo più vicino (entro 3KB) tra i listings già estratti, e popola il
-  // campo grading + comment di quel listing.
-  // Funziona indipendentemente dalla struttura HTML.
-  const hasAnyGrading = listings.some(l => l.grading);
-  if (listings.length > 0 && !hasAnyGrading) {
+  // Last-resort: per OGNI listing senza grading, cerca grading marker
+  // GLOBALMENTE nell'HTML grezzo. Se ne trova uno entro 3KB dal prezzo del
+  // listing, lo associa. Funziona indipendentemente da extractCommentFromRow.
+  // FIX: prima girava solo se TUTTI i listing erano senza grading (`!hasAnyGrading`),
+  // ora gira sempre se almeno 1 listing è senza grading. Questo aiuta a
+  // recuperare listing parzialmente persi (es. ultima row).
+  const missingGradingCount = listings.filter(l => !l.grading).length;
+  if (listings.length > 0 && missingGradingCount > 0) {
     // Mappa: indice nell'HTML → prezzo (per associare grading al listing)
     // CM usa "99,99 €" (€ DOPO il numero, con spazio). Il pattern precedente
     // cercava solo "€ 99,99" (€ prima) — sui listing CM trovava 0 occorrenze.
@@ -207,8 +207,15 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
 
     // Per ogni grading hit, trova il prezzo più vicino (entro 3KB) e associa
     // il grading al listing con quel prezzo. Se più listings hanno lo stesso
-    // prezzo, scegli quello in ordine di occorrenza.
+    // prezzo, scegli quello in ordine di occorrenza. SKIP i listing che hanno
+    // già grading (via fst-italic / extractCommentFromRow) — il post-extraction
+    // serve SOLO a recuperare i missing, non a sovrascrivere dati validi.
     const usedListingIdxs = new Set<number>();
+    // Pre-popola usedListingIdxs con i listing già graded — non possono essere
+    // ri-associati e sono "consumati" per logica di matching.
+    for (let li = 0; li < listings.length; li++) {
+      if (listings[li].grading) usedListingIdxs.add(li);
+    }
     for (const hit of gradingHits) {
       let nearestPrice: number | null = null;
       let nearestDist = Infinity;
@@ -391,7 +398,10 @@ function extractCMListings(html: string): Listing[] {
 
   // ─── PHASE 1: row-based extraction ──
   // Pattern dipendente da class="article-row". Funziona se CM non ha cambiato la classe.
-  const rowPattern = /<div[^>]*class="[^"]*article-row[^"]*"[^>]*>([\s\S]*?)(?=<div[^>]*class="[^"]*article-row|<\/section|<\/main|<div[^>]*class="[^"]*(?:article-table-footer|pagination|loadMore))/gi;
+  // FIX: il lookahead ora include $ (end of string) — l'ultima row non era
+  // catturata se non era seguita da <div article-row> o </section>/</main>.
+  // Esempio: ultima row → </body>, footer, aside → match falliva.
+  const rowPattern = /<div[^>]*class="[^"]*article-row[^"]*"[^>]*>([\s\S]*?)(?=<div[^>]*class="[^"]*article-row|<\/section|<\/main|<\/body|<footer|<aside|<div[^>]*class="[^"]*(?:article-table-footer|pagination|loadMore|d-none)|$(?![\s\S]))/gi;
   let rowMatch: RegExpExecArray | null;
   while ((rowMatch = rowPattern.exec(html)) !== null) {
     const row = rowMatch[1];
