@@ -9454,9 +9454,6 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
               <div class="rad-scan-results-actions">
                 <span id="radScanResultsMeta" class="rad-scan-meta"></span>
                 <button class="btn" id="radScanRunNowBtn" onclick="radScanRunSelected()" style="font-size:11px;display:none">▶ Esegui ora</button>
-                <button class="btn" id="radScanValuateBtn" onclick="radValRunSelected()" style="font-size:11px;display:none" title="Analizza tutti i risultati: stima il valore di mercato in base a titolo (graded/grado) e prezzo Cardmarket"><span class="rb-i rb-i-chart"></span> Analizza prezzi <span id="radValProgressLabel" style="color:var(--text-subtle);font-family:var(--mono);font-size:10px"></span></button>
-                <button class="btn" id="radScanRemoveStaleBtn" onclick="radScanRemoveStale()" style="font-size:11px;display:none" title="Rimuovi i risultati STALE (non riconfermati da >24h) e SCADUTI in un colpo"><span class="rb-i rb-i-trash"></span> Pulisci stale/scaduti</button>
-                <button class="btn" id="radScanRemoveExpiredBtn" onclick="radScanRemoveExpired()" style="font-size:11px;display:none" title="Rimuovi i lotti che l'API Catawiki non restituisce più (scaduti/chiusi/rimossi)"><span class="rb-i rb-i-x"></span> Rimuovi scaduti</button>
                 <button class="btn" id="radScanClearBtn" onclick="radScanClearResults()" style="font-size:11px;display:none"><span class="rb-i rb-i-trash"></span> Pulisci</button>
               </div>
             </div>
@@ -14961,28 +14958,78 @@ function _radScanInstallMessageListener(){
     (_radScanState.results[job.id]||[]).forEach(function(p){ prevByUrl[p.url] = p; });
     var nowIso = new Date().toISOString();
     var newItems = 0;
+    // Userscript flow: applica HARD PURGE come nel main flow.
+    // Differenza: l'userscript scraper di un singolo sito non vede gli altri
+    // siti, quindi NON purgiamo i risultati di altri siti — solo quelli
+    // dello stesso platform.
+    var thisPlatform = d.platform;
+    var seenInThisScan = {};
     matched.forEach(function(m){
       if(!m.url) return;
+      seenInThisScan[m.url] = true;
       var existing = prevByUrl[m.url];
       var isNew = !seenSet[m.url];
       if(isNew) newItems++;
-      prevByUrl[m.url] = Object.assign({}, existing||{}, m, {
+      var record = Object.assign({}, existing||{}, m, {
         scanned_at: nowIso,
+        last_seen_in_scan: nowIso,
         first_seen_at: existing && existing.first_seen_at ? existing.first_seen_at : nowIso,
         is_new: isNew,
+        is_unlisted: false,
       });
+      delete record.is_stale;
+      delete record.is_unavailable;
+      delete record.unavailable_status;
+      prevByUrl[m.url] = record;
       seenSet[m.url] = true;
     });
+
+    // HARD PURGE solo per record del MEDESIMO platform che non sono stati
+    // visti adesso. Aste chiuse (end_time passato) sempre rimosse, anche
+    // se monitorate (asta finita = fine).
+    var monSet = {};
+    (job.monitored_urls||[]).forEach(function(u){ monSet[u] = true; });
+    var purgedOrphan = 0, purgedEnded = 0;
+    var nowMs = Date.now();
+    Object.keys(prevByUrl).forEach(function(u){
+      var rec = prevByUrl[u];
+      if(seenInThisScan[u]) return;
+      // Solo records dello stesso platform: non possiamo giudicare gli altri
+      var recPlat = rec._site || rec.source;
+      if(recPlat !== thisPlatform) return;
+
+      var endedByTime = false;
+      if(rec.end_time){
+        try{ endedByTime = (new Date(rec.end_time).getTime() < nowMs - 5*60000); }catch(_){}
+      }
+      if(endedByTime){
+        delete prevByUrl[u];
+        purgedEnded++;
+        return;
+      }
+      if(monSet[u]){
+        rec.is_unlisted = true;
+        return;
+      }
+      delete prevByUrl[u];
+      purgedOrphan++;
+    });
+
     var merged = Object.values(prevByUrl).sort(function(a,b){
       if(a.is_new !== b.is_new) return a.is_new ? -1 : 1;
       return (b.scanned_at||'').localeCompare(a.scanned_at||'');
     }).slice(0, RAD_SCAN_RESULTS_MAX);
     _radScanState.results[job.id] = merged;
-    job.seen_urls = Object.keys(seenSet).slice(0, RAD_SCAN_HISTORY_MAX);
+    // seen_urls riflette solo i VIVI dopo la purge
+    job.seen_urls = merged.map(function(r){return r.url;}).slice(0, RAD_SCAN_HISTORY_MAX);
     job.last_count = merged.length;
     job.last_run_at = nowIso;
+    var logParts = [];
+    if(purgedEnded) logParts.push('<span style="color:var(--danger)">'+purgedEnded+' chiuse</span>');
+    if(purgedOrphan) logParts.push('<span style="color:var(--text-muted)">'+purgedOrphan+' fuori dal listing</span>');
+    var purgeStr = logParts.length ? ' · 🧹 '+logParts.join(' · ') : '';
     job.last_log = (job.last_log||[]).concat([
-      '['+(new Date()).toLocaleTimeString()+'] '+(d.platform||'?')+' (userscript): '+transformed.length+' totali, '+matched.length+' match, '+newItems+' nuovi'
+      '['+(new Date()).toLocaleTimeString()+'] '+(d.platform||'?')+' (userscript): '+transformed.length+' totali, '+matched.length+' match, '+newItems+' nuovi'+purgeStr
     ]);
     if(job.userscript_fallbacks) delete job.userscript_fallbacks[d.platform];
     radScanPersist();
@@ -15123,51 +15170,52 @@ async function radScanRunNow(jobId){
     seenSet[u] = true;
   });
 
-  // ── DECADIMENTO STALE + AUTO-PURGE ──────────────────────────────────
-  // Per i record che NON sono apparsi in questo scan:
-  //  - se end_time è passato → li marchiamo is_unavailable
-  //  - se non visti da >24h → marchiamo is_stale (UI mostra badge giallo)
-  //  - se non visti da >7gg E (is_unavailable OR is_stale) → AUTO-PURGE
-  var STALE_AGE_MS = 24 * 3600000;     // 24h
-  var PURGE_AGE_MS = 7 * 86400000;     // 7 giorni
-  var purgedCount = 0;
-  var staleCount = 0;
+  // ── HARD PURGE: i risultati del job riflettono SEMPRE ciò che il portale
+  //    sta servendo ADESSO. Ogni record che non è apparso in questo scan
+  //    viene rimosso. Eccezioni:
+  //     - aste monitorate dall'utente (job.monitored_urls): le teniamo per
+  //       continuità di monitoraggio anche se Catawiki temporaneamente non
+  //       le mostra. Ma se end_time è passato, vengono comunque rimosse
+  //       (asta chiusa = fine).
+  //  Niente più stati "stale" 24h/7gg di grazia: se Catawiki non lo dà,
+  //  via dalla lista. (l'utente lo ha richiesto esplicitamente)
+  var purgedOrphan = 0;
+  var purgedEnded = 0;
   Object.keys(prevByUrl).forEach(function(u){
-    if(seenInThisScan[u]) return;  // questo è stato visto, già aggiornato
+    if(seenInThisScan[u]) return;  // visto in questo scan → mantenuto e aggiornato
     var rec = prevByUrl[u];
-    var lastSeenMs = rec.last_seen_in_scan ? new Date(rec.last_seen_in_scan).getTime()
-                   : (rec.scanned_at ? new Date(rec.scanned_at).getTime() : nowMs);
-    var ageMs = nowMs - lastSeenMs;
 
-    // 1. End time passato → unavailable (sovrascrive eventuale stato precedente)
-    if(rec.end_time && !rec.is_unavailable){
-      try{
-        if(new Date(rec.end_time).getTime() < nowMs - 5*60000){
-          rec.is_unavailable = true;
-          rec.unavailable_status = rec.unavailable_status || 'ended_by_time_purge';
-        }
-      }catch(_){}
+    // Asta CHIUSA per orario: rimuovi sempre (anche se monitorata)
+    var endedByTime = false;
+    if(rec.end_time){
+      try{ endedByTime = (new Date(rec.end_time).getTime() < nowMs - 5*60000); }catch(_){}
     }
-
-    // 2. Auto-purge: vecchi >7gg E (unavailable OR già stale)
-    if(ageMs > PURGE_AGE_MS && (rec.is_unavailable || rec.is_stale)){
+    if(endedByTime){
       delete prevByUrl[u];
-      purgedCount++;
+      purgedEnded++;
       return;
     }
 
-    // 3. Stale: non visti da >24h (i dati sono datati e dovrebbero esserne segnalati)
-    if(ageMs > STALE_AGE_MS && !rec.is_stale){
-      rec.is_stale = true;
-      staleCount++;
+    // Asta MONITORATA dall'utente: la teniamo (potrebbe essere temporaneamente
+    // non listata da Catawiki ma noi vogliamo continuare a tracciarla).
+    if(monitoredSet[u]){
+      // Marca come "non più nel listing" per UI (badge), ma non rimuovere
+      rec.is_unlisted = true;
+      rec.is_stale = false;          // non usiamo più questa flag
+      rec.is_unavailable = false;
+      return;
     }
+
+    // Tutto il resto: ORPHAN → fuori
+    delete prevByUrl[u];
+    purgedOrphan++;
   });
 
-  if(purgedCount || staleCount){
+  if(purgedOrphan || purgedEnded){
     var pieces = [];
-    if(staleCount) pieces.push('<span style="color:var(--text-muted)">'+staleCount+' marcati STALE (>24h senza riconferma)</span>');
-    if(purgedCount) pieces.push('<span style="color:var(--text-muted)">'+purgedCount+' purgati (vecchi >7gg)</span>');
-    job.last_log.push('🧹 ' + pieces.join(' · '));
+    if(purgedEnded) pieces.push('<span style="color:var(--danger)">'+purgedEnded+' chiuse</span>');
+    if(purgedOrphan) pieces.push('<span style="color:var(--text-muted)">'+purgedOrphan+' fuori dal listing</span>');
+    job.last_log.push('🧹 rimosse ' + pieces.join(' · '));
   }
 
   // Lista finale ordinata per scanned_at desc, troncata
@@ -15177,7 +15225,9 @@ async function radScanRunNow(jobId){
   }).slice(0, RAD_SCAN_RESULTS_MAX);
 
   _radScanState.results[job.id] = merged;
-  job.seen_urls = Object.keys(seenSet).slice(0, RAD_SCAN_HISTORY_MAX);
+  // seen_urls riflette i soli URL VIVI (post-purge): se un lot torna in
+  // futuro dopo essere stato purgato, deve essere riflaggato is_new.
+  job.seen_urls = merged.map(function(r){return r.url;}).slice(0, RAD_SCAN_HISTORY_MAX);
   job.last_run_at = nowIso;
   job.last_count = merged.length;
   job.next_run_at = radScanComputeNextRun(job.schedule);
@@ -15398,9 +15448,6 @@ function radScanRenderResults(){
   var metaEl = document.getElementById('radScanResultsMeta');
   var runBtn = document.getElementById('radScanRunNowBtn');
   var clearBtn = document.getElementById('radScanClearBtn');
-  var expiredBtn = document.getElementById('radScanRemoveExpiredBtn');
-  var staleBtn = document.getElementById('radScanRemoveStaleBtn');
-  var valuateBtn = document.getElementById('radScanValuateBtn');
   if(!listEl) return;
 
   var id = _radScanState.selectedJobId;
@@ -15409,9 +15456,6 @@ function radScanRenderResults(){
     if(metaEl) metaEl.textContent = '';
     if(runBtn) runBtn.style.display = 'none';
     if(clearBtn) clearBtn.style.display = 'none';
-    if(expiredBtn) expiredBtn.style.display = 'none';
-    if(staleBtn) staleBtn.style.display = 'none';
-    if(valuateBtn) valuateBtn.style.display = 'none';
     listEl.innerHTML = '<div class="rad-empty" style="padding:50px 20px"><div class="rad-empty-icon"><span class="rb-i rb-i-radar"></span></div><div class="rad-empty-title">Nessun job selezionato</div><div class="rad-empty-sub">Click su un job a sinistra per vedere i risultati.</div></div>';
     return;
   }
@@ -15431,32 +15475,12 @@ function radScanRenderResults(){
     }
     titleEl.innerHTML = '<span class="rb-i rb-i-chart"></span> '+escapeHtml(job.card_name)+' <span style="color:var(--text-muted);font-weight:400;font-size:11px;margin-left:6px">· '+escapeHtml(stateLabel)+'</span>';
   }
-  var metaEl_btnExpired = expiredBtn;
   if(metaEl){
     var lr = job.last_run_at ? radScanFmtRel(job.last_run_at) : 'mai';
-    var allRes = _radScanState.results[id] || [];
-    var expCount = allRes.filter(function(it){return it.is_unavailable;}).length;
-    var staleCount = allRes.filter(function(it){return it.is_stale && !it.is_unavailable;}).length;
-    var bits = [];
-    if(expCount > 0)   bits.push('<span style="color:var(--danger)">'+expCount+' scaduti</span>');
-    if(staleCount > 0) bits.push('<span style="color:var(--warning)">'+staleCount+' stale</span>');
-    var extras = bits.length ? ' · '+bits.join(' · ') : '';
-    metaEl.innerHTML = (job.last_count||0)+' · '+escapeHtml(lr)+extras;
+    metaEl.innerHTML = (job.last_count||0)+' · '+escapeHtml(lr);
   }
   if(runBtn) runBtn.style.display = job._running ? 'none' : 'inline-block';
   if(clearBtn) clearBtn.style.display = 'inline-block';
-  if(metaEl_btnExpired){
-    var hasExpired = (_radScanState.results[id] || []).some(function(it){return it.is_unavailable;});
-    metaEl_btnExpired.style.display = hasExpired ? 'inline-block' : 'none';
-  }
-  if(staleBtn){
-    var hasStaleOrExp = (_radScanState.results[id] || []).some(function(it){return it.is_stale || it.is_unavailable;});
-    staleBtn.style.display = hasStaleOrExp ? 'inline-block' : 'none';
-  }
-  if(valuateBtn){
-    var live = (_radScanState.results[id] || []).filter(function(it){return !it.is_unavailable;});
-    valuateBtn.style.display = live.length > 0 ? 'inline-block' : 'none';
-  }
 
   var results = (_radScanState.results[id] || []).slice();
 
@@ -15482,7 +15506,7 @@ function radScanRenderResults(){
     var newCount = items.filter(function(i){return i.is_new;}).length;
     var searchUrl = items[0]._search_url || null;
     rows += '<tr class="rad-scan-group-divider">'+
-      '<td colspan="8">'+s.toUpperCase()+' · '+items.length+(newCount?' · '+newCount+' nuovi':'')+
+      '<td colspan="6">'+s.toUpperCase()+' · '+items.length+(newCount?' · '+newCount+' nuovi':'')+
         (searchUrl ? '<a href="'+escapeHtml(searchUrl)+'" target="_blank" rel="noopener" style="margin-left:10px;color:var(--accent);text-decoration:none;text-transform:none;font-size:10px">↗ apri ricerca</a>' : '')+
       '</td>'+
     '</tr>';
@@ -15498,8 +15522,6 @@ function radScanRenderResults(){
           '<th></th>'+
           '<th>Titolo</th>'+
           '<th class="num">Prezzo</th>'+
-          '<th class="num" title="Prezzo CM stimato per la condizione (raw/graded) rilevata dal titolo">Valore stimato</th>'+
-          '<th title="Valutazione: AFFARE = >25% sotto stimato · BUONO = 5-25% sotto · FAIR = ±5% · CARO = >5% sopra">Verdetto</th>'+
           '<th>Scadenza</th>'+
           '<th>Sito</th>'+
           '<th style="text-align:right">Azioni</th>'+
@@ -15593,37 +15615,6 @@ function radScanResultTr(it, jobId, isMonitored){
 
   var encUrl = escapeHtml(it.url);
 
-  // Valuation cells (popolate da radValEstimate, async)
-  var valCell, verdictCell;
-  if(unavailable){
-    valCell = '<span class="unavail-text">—</span>';
-    verdictCell = '<span class="unavail-text">—</span>';
-  } else if(it._val_loading){
-    valCell = '<span class="val-loading">…</span>';
-    verdictCell = '<span class="val-loading">analisi…</span>';
-  } else if(it._val_error){
-    valCell = '<span class="val-na" title="'+escapeHtml(it._val_error||'')+'">n/d</span>';
-    verdictCell = '<span class="val-na">—</span>';
-  } else if(typeof it._val_cm === 'number' && isFinite(it._val_cm)){
-    var pinfo = it._val_parsed || {};
-    var multTxt = (pinfo.is_graded && pinfo.grade_multiplier && pinfo.grade_multiplier !== 1)
-      ? ' <span style="color:var(--text-subtle);font-size:9px">×'+pinfo.grade_multiplier.toFixed(1)+'</span>'
-      : '';
-    valCell = '<span class="val-est" title="'+escapeHtml(pinfo._val_explain||'')+'">€&nbsp;'+it._val_cm.toFixed(0)+multTxt+'</span>';
-    if(typeof it._val_delta === 'number' && it._val_verdict){
-      var deltaTxt = (it._val_delta>0?'+':'') + it._val_delta.toFixed(0)+'%';
-      verdictCell = '<span class="val-badge val-'+it._val_verdict+'" title="'+escapeHtml(pinfo._val_explain||'')+'">'+
-        radValVerdictLabel(it._val_verdict)+
-        ' <span style="font-family:var(--mono);font-size:9px;opacity:.85">'+deltaTxt+'</span>'+
-      '</span>';
-    } else {
-      verdictCell = '<span class="val-na">—</span>';
-    }
-  } else {
-    valCell = '<span class="val-na">—</span>';
-    verdictCell = '<button class="btn val-runbtn" data-act="valuate" data-job="'+escapeHtml(jobId)+'" data-url="'+encUrl+'" title="Stima il valore di mercato di questa carta">Analizza</button>';
-  }
-
   // Actions: usiamo data-attrs + event delegation per evitare il bug delle virgolette
   // doppie nell'onclick inline (l'URL conteneva " che chiudeva prematuramente l'attr)
   var monClass = isMonitored ? 'monitor active' : 'monitor';
@@ -15644,14 +15635,11 @@ function radScanResultTr(it, jobId, isMonitored){
   if(isMonitored) rowClass += ' monitored';
   if(unavailable) rowClass += ' unavailable';
   if(it.is_stale && !unavailable) rowClass += ' stale';
-  if(it._val_verdict === 'affare') rowClass += ' val-affare-row';
 
   return '<tr class="'+rowClass.trim()+'">'+
     '<td class="img">'+imgCell+'</td>'+
     '<td class="title">'+titleCell+'</td>'+
     '<td class="'+priceCellClass+'">'+priceText+'</td>'+
-    '<td class="val">'+valCell+'</td>'+
-    '<td class="verdict">'+verdictCell+'</td>'+
     '<td class="endtime '+endClass+'">'+endText+'</td>'+
     '<td class="site">'+siteCell+'</td>'+
     '<td class="actions">'+actionsCell+'</td>'+
