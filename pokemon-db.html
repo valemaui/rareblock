@@ -15380,6 +15380,19 @@ function radScanRenderResults(){
 window.radScanRenderResults = radScanRenderResults;
 
 function radScanResultTr(it, jobId, isMonitored){
+  // Client-side guard: se end_time è passato di >5 min e l'item non è già
+  // marcato unavailable, lo marchiamo qui. Vale per items già nello state da
+  // scan precedenti (prima del fix scraper v2.2.2). I lots Catawiki dopo la
+  // chiusura ricevono 403 Akamai → click "Apri" mostrava errore brutto.
+  if(it && it.end_time && !it.is_unavailable){
+    try{
+      var endMs = new Date(it.end_time).getTime();
+      if(isFinite(endMs) && endMs < Date.now() - 5*60000){
+        it.is_unavailable = true;
+        it.unavailable_status = it.unavailable_status || 'ended_by_time_client';
+      }
+    }catch(_){}
+  }
   var unavailable = !!it.is_unavailable;
 
   // IMG cell con fallback robusto al fail di caricamento
@@ -16036,7 +16049,7 @@ function radScanRemoveResult(jobId, url){
 window.radScanRemoveResult = radScanRemoveResult;
 
 // ── Render stato dei provider nel banner info ────────────────────────────
-var RAD_EXT_MIN_VERSION = '2.2.1';   // versione minima richiesta per Catawiki price/end fix completo
+var RAD_EXT_MIN_VERSION = '2.2.2';   // versione minima richiesta per Catawiki price/end fix completo
 
 function radSemverCmp(a, b){
   // Ritorna negativo se a<b, 0 se uguali, positivo se a>b. Tollerante: solo dotted numbers.

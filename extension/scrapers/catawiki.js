@@ -570,6 +570,28 @@ export async function scrapeCatawiki(job) {
       if (origItem.bids === null && Array.isArray(lot.biddingHistory)) {
         origItem.bids = lot.biddingHistory.length;
       }
+
+      // Lot CHIUSO/TERMINATO: l'API ritorna ancora l'oggetto (è in catalogo
+      // come storico), ma:
+      //  - lot.status / lot.state contiene 'closed'/'ended'/'expired' ecc.
+      //  - oppure end_time è già nel passato di >0
+      // Catawiki rimuove l'URL pubblico dopo X giorni dalla chiusura → Akamai
+      // 403. Marchiamo come unavailable per disabilitare il link "Apri" e il
+      // monitoraggio.
+      var statusStr = String(
+        lot.status || lot.state || lot.lifecycle_state || lot.bidding_state || ''
+      ).toLowerCase();
+      var endedByStatus = /\b(closed|ended|expired|finished|sold|unsold|withdrawn|cancelled|removed)\b/.test(statusStr);
+      var endedByTime = false;
+      if (et) {
+        try { endedByTime = (new Date(et).getTime() < Date.now() - 60000); } catch (_) {}
+      }
+      if (endedByStatus || endedByTime) {
+        origItem.is_unavailable = true;
+        origItem.unavailable_status = endedByStatus ? ('lot_'+statusStr) : 'ended_by_time';
+        expiredCount++;
+        // Salviamo comunque il prezzo (utile per storico) ma lockiamo monitor/open
+      }
     });
     // Diagnostica in console: sempre visibile da DevTools della tab Catawiki
     var stats = {
