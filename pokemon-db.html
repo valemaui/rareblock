@@ -15019,6 +15019,19 @@ async function radScanRunNow(jobId){
 
   var nowIso = new Date().toISOString();
   var newItems = 0;
+  // Detect Akamai block: se almeno 1 match ha unavailable_status='akamai_403'
+  // → setta cooldown lato app per UI banner. Lo scraper extension ha già
+  // settato il proprio cooldown nel localStorage di catawiki.com (separate
+  // origin), ma noi vogliamo che l'UI app lo rifletta.
+  var hasAkamai = allMatches.some(function(m){
+    return m.unavailable_status === 'akamai_403' || m._val_error === 'akamai_blocked' || m._val_error === 'akamai_cooldown';
+  });
+  if(hasAkamai){
+    radSetAkamaiCooldown();
+    job.last_log = (job.last_log||[]).concat([
+      '<span style="color:var(--danger)">⚠ Akamai bot block rilevato su Catawiki — cooldown 1h attivato. Cancella i cookie catawiki.com per sbloccarti subito.</span>'
+    ]);
+  }
   allMatches.forEach(function(m){
     var u = m.url;
     if(!u) return;
@@ -16049,7 +16062,30 @@ function radScanRemoveResult(jobId, url){
 window.radScanRemoveResult = radScanRemoveResult;
 
 // ── Render stato dei provider nel banner info ────────────────────────────
-var RAD_EXT_MIN_VERSION = '2.2.2';   // versione minima richiesta per Catawiki price/end fix completo
+var RAD_EXT_MIN_VERSION = '2.3.0';   // versione minima richiesta per Catawiki price/end fix completo
+
+// Detect cooldown Akamai attivo (settato dallo scraper Catawiki dell'estensione)
+function radCheckAkamaiCooldown(){
+  try{
+    // L'estensione setta il flag in localStorage del CONTEXT della pagina
+    // catawiki.com, non del nostro origin. Per leggerlo serve un canale.
+    // Qui leggiamo solo il nostro flag mirror, settato dall'app quando lo
+    // scraper risponde con _val_error='akamai_blocked' o 'akamai_cooldown'.
+    var until = parseInt(localStorage.getItem('rb_akamai_cooldown_until') || '0');
+    if(until && until > Date.now()) return until;
+  }catch(_){}
+  return 0;
+}
+
+function radSetAkamaiCooldown(){
+  try{ localStorage.setItem('rb_akamai_cooldown_until', String(Date.now() + 60*60000)); }catch(_){}
+}
+
+function radClearAkamaiCooldown(){
+  try{ localStorage.removeItem('rb_akamai_cooldown_until'); }catch(_){}
+  if(typeof radScanRenderProviderStatus === 'function') radScanRenderProviderStatus();
+}
+window.radClearAkamaiCooldown = radClearAkamaiCooldown;
 
 function radSemverCmp(a, b){
   // Ritorna negativo se a<b, 0 se uguali, positivo se a>b. Tollerante: solo dotted numbers.
@@ -16106,6 +16142,20 @@ async function radScanRenderProviderStatus(){
       +'<span class="rb-i rb-i-warn" style="color:var(--danger);flex-shrink:0;margin-top:1px"></span>'
       +'<div><b>Estensione obsoleta v'+escapeHtml(extInfo.version)+'</b> — i prezzi Catawiki non vengono estratti. Aggiorna a v'+RAD_EXT_MIN_VERSION+'+:<br>'
       +'<code style="font-family:var(--mono);font-size:10px">chrome://extensions</code> → trova "RareBlock Hunter" → click <b>⟳ refresh</b>.</div>'
+      +'</div>';
+  }
+  // Banner Akamai cooldown attivo
+  var cdUntil = radCheckAkamaiCooldown();
+  if(cdUntil){
+    var minsLeft = Math.ceil((cdUntil - Date.now())/60000);
+    warningRow += '<div style="background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.4);border-radius:var(--r);padding:10px 12px;margin-bottom:8px;font-size:11px;display:flex;align-items:flex-start;gap:8px">'
+      +'<span class="rb-i rb-i-warn" style="color:var(--danger);flex-shrink:0;margin-top:1px"></span>'
+      +'<div><b>Akamai bot block attivo su Catawiki</b> — cooldown automatico per <b>'+minsLeft+' min</b>.<br>'
+      +'L\'estensione sta evitando nuovi fetch per non peggiorare il blocco.<br>'
+      +'<b>Per sbloccarti subito</b>: cancella i cookie Catawiki '
+      +'(<code style="font-family:var(--mono);font-size:10px">chrome://settings/cookies/detail?site=catawiki.com</code>), '
+      +'aspetta 30-60min prima di rifare scan.<br>'
+      +'<button class="btn" onclick="radClearAkamaiCooldown()" style="font-size:10px;margin-top:4px;padding:3px 8px">Reset cooldown</button></div>'
       +'</div>';
   }
   detailsEl.innerHTML = warningRow + rows.join('');

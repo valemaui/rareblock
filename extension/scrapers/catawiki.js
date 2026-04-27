@@ -462,22 +462,40 @@ export async function scrapeCatawiki(job) {
   }
 
   // ── STRATEGIA 3: enrichment via API per TUTTI i lots ────────────────
+  // CONSERVATIVE — Akamai bot detection è aggressivo. Throttling pesante:
+  //   - sequenziale (concurrency 1)
+  //   - max 12 lots per scan (era 30)
+  //   - 1.5s delay tra ogni fetch
+  //   - pre-flight: 1 fetch test PRIMA di iniziare; se 403 → abort
+  //   - cooldown globale: se rilevo block, salvo flag in localStorage
+  //     e blocco enrichment per 1h
+  //
   // Catawiki spesso serializza nel NEXT_DATA della pagina di SEARCH una
   // versione "scarna" dei lot (senza prezzo o solo con minimum_bid). L'API
   // /buyer/api/v3/lots/<id> dal browser dell'utente (residenziale, niente CF)
-  // è la sorgente canonica.
-  //
-  // Strategia: fetch in parallelo (concurrency 6, max 30) per ogni lot con
-  // lot_id. Override price/end_time/image se l'API ritorna dati validi.
-  // Per lots senza price NEMMENO dopo enrichment, prova extractPriceFromLotDeep
-  // come ultima spiaggia.
+  // è la sorgente canonica MA va usata con parsimonia.
   async function enrichMissing(items) {
     var withId = items.filter(function (it) { return it.lot_id; });
     if (!withId.length) return items;
-    // Limita a 30 max per rispettare il sito (concurrency 6 = ~6 req/s)
-    var batch = withId.slice(0, 30);
+
+    // ─── Cooldown globale: se Akamai ha bloccato negli ultimi 60min, skip
+    try {
+      var COOLDOWN_KEY = 'rb_catawiki_akamai_block_until';
+      var cooldownUntil = parseInt(localStorage.getItem(COOLDOWN_KEY) || '0');
+      if (cooldownUntil && cooldownUntil > Date.now()) {
+        var minsLeft = Math.ceil((cooldownUntil - Date.now()) / 60000);
+        try { console.warn('[RB Catawiki] cooldown attivo, ' + minsLeft + ' min rimasti — skip enrichment'); } catch(_){}
+        items.forEach(function(it){ if(it.lot_id) it._val_error = 'akamai_cooldown'; });
+        return items;
+      }
+    } catch(_){}
+
+    // Limita a 12 max per rispettare il sito (sequenziale + delay = ~20s totali)
+    var batch = withId.slice(0, 12);
     var byId = {};
     items.forEach(function (it) { if (it.lot_id) byId[it.lot_id] = it; });
+
+    var akamaiBlocked = false;
 
     async function fetchOne(id) {
       try {
@@ -499,11 +517,21 @@ export async function scrapeCatawiki(job) {
               credentials: 'include',
             });
             lastStatus = r.status;
-            // 403 (Akamai), 404 (lot rimosso), 410 (gone): tutti irrecuperabili.
-            // Il lot è probabilmente CHIUSO / SCADUTO / RIMOSSO. Non perdere
-            // tempo con gli altri endpoint, ritorna marker di stato così
-            // chi chiama lo può loggare.
-            if (r.status === 403 || r.status === 404 || r.status === 410) {
+            // 403 dall'API è quasi certamente Akamai bot detection (non lot rimosso).
+            // Probabile: TROPPI fetch in burst → blacklist temporanea.
+            // Stop endpoint cascade + flag globale.
+            if (r.status === 403) {
+              // Verifica se è davvero Akamai (HTML, non JSON)
+              try {
+                var bodyText = await r.text();
+                if (bodyText.indexOf('Access Denied') >= 0 || bodyText.indexOf('errors.edgesuite.net') >= 0) {
+                  akamaiBlocked = true;
+                  return { __unavailable: true, __status: 403, __akamai: true };
+                }
+              } catch(_){}
+              return { __unavailable: true, __status: 403 };
+            }
+            if (r.status === 404 || r.status === 410) {
               return { __unavailable: true, __status: r.status };
             }
             if (!r.ok) continue;
@@ -514,23 +542,44 @@ export async function scrapeCatawiki(job) {
         return lastStatus ? { __unavailable: true, __status: lastStatus } : null;
       } catch (e) { return null; }
     }
-    async function runQueue(ids, concurrency) {
-      var i = 0;
-      var results = [];
-      async function worker() {
-        while (i < ids.length) {
-          var idx = i++;
-          var d = await fetchOne(ids[idx]);
-          results[idx] = d;
-        }
+
+    // ─── Pre-flight: 1 fetch test sul primo lot. Se 403 Akamai → abort
+    var preflight = await fetchOne(batch[0].lot_id);
+    if (preflight && preflight.__akamai) {
+      // Salva cooldown 1h
+      try {
+        var COOLDOWN_KEY = 'rb_catawiki_akamai_block_until';
+        localStorage.setItem(COOLDOWN_KEY, String(Date.now() + 60 * 60000));
+      } catch(_){}
+      try { console.error('[RB Catawiki] AKAMAI BLOCK rilevato → cooldown 1h attivo. Cancella cookie catawiki.com per accelerare lo sblocco.'); } catch(_){}
+      items.forEach(function(it){ if(it.lot_id) it._val_error = 'akamai_blocked'; });
+      // Marca SOLO il primo come unavailable, gli altri restano integri
+      var firstItem = byId[batch[0].lot_id];
+      if (firstItem) {
+        firstItem.is_unavailable = true;
+        firstItem.unavailable_status = 'akamai_block';
       }
-      var workers = [];
-      for (var w = 0; w < concurrency; w++) workers.push(worker());
-      await Promise.all(workers);
-      return results;
+      return items;
     }
+
+    // Se preflight ok, processa il primo manualmente e poi sequenzialmente gli altri
+    var enriched = [preflight];
+    for (var i = 1; i < batch.length; i++) {
+      // 1.5s delay tra fetch — rispetta rate-limit "umano"
+      await new Promise(function(resolve){ setTimeout(resolve, 1500); });
+      // Se durante il loop scopro un 403 Akamai → stop immediato
+      if (akamaiBlocked) {
+        try {
+          var COOLDOWN_KEY = 'rb_catawiki_akamai_block_until';
+          localStorage.setItem(COOLDOWN_KEY, String(Date.now() + 60 * 60000));
+        } catch(_){}
+        try { console.warn('[RB Catawiki] block rilevato durante batch → stop a item '+i+'/'+batch.length); } catch(_){}
+        break;
+      }
+      enriched[i] = await fetchOne(batch[i].lot_id);
+    }
+
     var ids = batch.map(function (it) { return it.lot_id; });
-    var enriched = await runQueue(ids, 6);
     var enrichedCount = 0;
     var stillMissing = 0;
     var expiredCount = 0;
@@ -543,7 +592,7 @@ export async function scrapeCatawiki(job) {
       if (lot.__unavailable) {
         expiredCount++;
         origItem.is_unavailable = true;
-        origItem.unavailable_status = lot.__status;
+        origItem.unavailable_status = lot.__akamai ? 'akamai_403' : ('http_'+lot.__status);
         return;
       }
       enrichedCount++;
@@ -600,6 +649,7 @@ export async function scrapeCatawiki(job) {
       api_fetched: enrichedCount,
       api_failed: stillMissing,
       api_unavailable: expiredCount,
+      akamai_blocked: akamaiBlocked,
       missing_price_after: items.filter(function(x){return x.price===null && !x.is_unavailable;}).length,
       missing_endtime_after: items.filter(function(x){return x.end_time===null && !x.is_unavailable;}).length,
     };
