@@ -11307,7 +11307,7 @@ function anlRenderPcGradeTable(prices, targetHouse, targetScore){
   });
 
   var html = '<table>'
-    + '<thead><tr><th>Casa</th><th>Voto</th><th style="text-align:right">€</th><th style="text-align:center">Sample</th></tr></thead>'
+    + '<thead><tr><th>Casa</th><th>Voto</th><th>Lingua</th><th style="text-align:right">€</th><th style="text-align:center">Sample</th></tr></thead>'
     + '<tbody>'
     + rows.map(function(r){
         var priceVal, priceLabel;
@@ -11322,9 +11322,14 @@ function anlRenderPcGradeTable(prices, targetHouse, targetScore){
         var sampleStr = r.eurFromListings != null
           ? String(r.count || '?')
           : '<span style="opacity:0.5">agg</span>';
+        // PC aggrega esclusivamente sold da eBay US/UK in lingua inglese.
+        // Mostriamo sempre ENG per coerenza con le tabelle CM/eBay e per
+        // chiarire all'utente che i prezzi non vanno confrontati 1:1 con
+        // listings ITA su CM (premium ITA non riflesso).
         return '<tr'+(r.isTarget?' class="match-target"':'')+'>'
           + '<td class="col-grade">'+r.house+'</td>'
           + '<td class="col-grade">'+r.score+'</td>'
+          + '<td class="col-grade" style="font-size:10px">🇬🇧 ENG</td>'
           + '<td class="col-price">'+priceLabel+'</td>'
           + '<td class="col-count">'+sampleStr+'</td>'
           + '</tr>';
@@ -11933,6 +11938,9 @@ function anlPopPc(prices, err){
     var parts=[];
     if(srcLabel) parts.push(srcLabel);
     if(sourceNote) parts.push(sourceNote);
+    // PC = sold eBay US/UK aggregati, sempre lingua inglese. Mostriamo
+    // l'indicazione per chiarire che il prezzo non riflette il premium ITA.
+    parts.push('ENG');
     // Trend 12M (solo il più rilevante per il tipo selezionato)
     if(!graded && prices.trend_ungraded_12m!=null){
       parts.push('12M '+(prices.trend_ungraded_12m>=0?'+':'')+prices.trend_ungraded_12m.toFixed(1)+'%');
