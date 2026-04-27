@@ -150,6 +150,76 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
     return json({ error: 'Cloudflare challenge attivo', listings: [], prices: [], status: 403 });
   }
   const listings = extractCMListings(html);
+
+  // ─── POST-EXTRACTION GLOBAL GRADING SCAN ──
+  // Last-resort: se la fase di extraction non ha attribuito grading a nessun
+  // listing (extractCommentFromRow ha fallito su tutti), cerca grading marker
+  // GLOBALMENTE nell'HTML grezzo. Per ogni marker trovato, lo associa al
+  // prezzo più vicino (entro 3KB) tra i listings già estratti, e popola il
+  // campo grading + comment di quel listing.
+  // Funziona indipendentemente dalla struttura HTML.
+  const hasAnyGrading = listings.some(l => l.grading);
+  if (listings.length > 0 && !hasAnyGrading) {
+    // Mappa: indice nell'HTML → prezzo (per associare grading al listing)
+    const priceIndices: Array<{ index: number; price: number }> = [];
+    const euroPat = /€\s*(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})/g;
+    let pm: RegExpExecArray | null;
+    while ((pm = euroPat.exec(html)) !== null) {
+      const n = parsePrice(pm[1]);
+      if (n != null && n >= 0.1 && n <= 9999) {
+        priceIndices.push({ index: pm.index, price: n });
+      }
+    }
+
+    // Trova grading markers nell'HTML grezzo
+    const gradingProbes = [
+      /\b(PSA|BGS|Beckett|CGC|SGC|HGA|GMA|TAG|ARS|GG|GetGraded|ACE)(?:\s*[A-Za-z]{0,8})?\s*[-:.\s]?\s*(10(?:\.0)?|[1-9](?:\.5)?)\b/gi,
+    ];
+    const gradingHits: Array<{ index: number; raw: string; house: string; score: number }> = [];
+    for (const probe of gradingProbes) {
+      probe.lastIndex = 0;
+      let gm: RegExpExecArray | null;
+      while ((gm = probe.exec(html)) !== null) {
+        const parsed = parseGradingFromText(gm[0]);
+        if (parsed) {
+          gradingHits.push({
+            index: gm.index,
+            raw: gm[0],
+            house: parsed.house,
+            score: parsed.score,
+          });
+        }
+      }
+    }
+
+    // Per ogni grading hit, trova il prezzo più vicino (entro 3KB) e associa
+    // il grading al listing con quel prezzo. Se più listings hanno lo stesso
+    // prezzo, scegli quello in ordine di occorrenza.
+    const usedListingIdxs = new Set<number>();
+    for (const hit of gradingHits) {
+      let nearestPrice: number | null = null;
+      let nearestDist = Infinity;
+      for (const pi of priceIndices) {
+        const dist = Math.abs(pi.index - hit.index);
+        if (dist < nearestDist && dist < 3000) {
+          nearestDist = dist;
+          nearestPrice = pi.price;
+        }
+      }
+      if (nearestPrice == null) continue;
+      // Trova primo listing con quel prezzo non ancora usato
+      for (let li = 0; li < listings.length; li++) {
+        if (usedListingIdxs.has(li)) continue;
+        if (Math.abs(listings[li].price - nearestPrice) < 0.01) {
+          listings[li].grading = { house: hit.house, score: hit.score, raw: hit.raw };
+          if (!listings[li].comment) listings[li].comment = hit.raw;
+          usedListingIdxs.add(li);
+          break;
+        }
+      }
+    }
+  }
+
   const prices = listings.map(l => l.price);
 
   // Diagnostica: sempre inclusa quando debug=true, oppure sempre disponibile
@@ -204,9 +274,38 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
       } catch { /* */ }
     }
 
-    // Estrai sample della prima article-row (max 1500 chars)
-    const rowSampleMatch = html.match(/<div[^>]*class="[^"]*article-row[^"]*"[^>]*>([\s\S]{0,1500})/i);
-    const rowSample = rowSampleMatch ? rowSampleMatch[0].substring(0, 1500) : null;
+    // Estrai sample della prima article-row (max 4000 chars per vedere TUTTO,
+    // commento incluso — prima 1500 era troppo poco e tagliava prima del commento)
+    const rowSampleMatch = html.match(/<div[^>]*class="[^"]*article-row[^"]*"[^>]*>([\s\S]{0,4000})/i);
+    const rowSample = rowSampleMatch ? rowSampleMatch[0].substring(0, 4000) : null;
+
+    // ── NUOVO: GRADING-ANCHORED SAMPLES ──
+    // Per ogni occorrenza di un grading marker (PSA X, BGS X, ACE MINT X)
+    // nell'HTML grezzo prendi ±400 char attorno. Mostra ESATTAMENTE in quale
+    // tag/attributo CM mette il commento col grading. Indispensabile per
+    // capire come adattare l'extractor.
+    const gradingAnchorSamples: Array<{ marker: string; context: string }> = [];
+    const gradingProbes = [
+      /\b(PSA\s*[-:.\s]?\s*[1-9](?:\.5)?|PSA\s*10)\b/gi,
+      /\b(BGS\s*[-:.\s]?\s*[1-9](?:\.5)?|BGS\s*10|Beckett\s*[1-9](?:\.5)?|Beckett\s*10)\b/gi,
+      /\b(CGC\s*[-:.\s]?\s*[1-9](?:\.5)?|CGC\s*10)\b/gi,
+      /\b(ACE\s+(?:MINT\s+)?[1-9](?:\.5)?|ACE\s+(?:MINT\s+)?10)\b/gi,
+      /\b(SGC\s*[-:.\s]?\s*[1-9](?:\.5)?|SGC\s*10)\b/gi,
+    ];
+    for (const probe of gradingProbes) {
+      let gm: RegExpExecArray | null;
+      probe.lastIndex = 0;
+      while ((gm = probe.exec(html)) !== null && gradingAnchorSamples.length < 5) {
+        const idx = gm.index;
+        const start = Math.max(0, idx - 400);
+        const end = Math.min(html.length, idx + 400);
+        gradingAnchorSamples.push({
+          marker: gm[1],
+          context: html.substring(start, end),
+        });
+      }
+      if (gradingAnchorSamples.length >= 5) break;
+    }
 
     // ── NUOVO: SAMPLE PRICE-ANCHORED ──
     // Se ho trovato listings ma senza commenti, includi il sample del HTML
@@ -250,7 +349,8 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
       is_geo_block: isGeoBlock,
       html_head_500: html.substring(0, 500),
       article_row_sample: rowSample,
-      price_context_sample: priceContextSample,  // NUOVO
+      price_context_sample: priceContextSample,
+      grading_anchor_samples: gradingAnchorSamples,  // NUOVO
     };
   }
 
