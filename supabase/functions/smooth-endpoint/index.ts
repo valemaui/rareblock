@@ -1229,7 +1229,7 @@ async function handleEbaySoldCascade(urls: string[], minHits: number, merge = fa
     if (merged.length === 0) {
       return json({
         source: 'ebay_sold',
-        url: urls[urls.length-1] || '',
+        url: urlsCapped[urlsCapped.length-1] || '',
         attempts,
         prices: [],
         items: [],
@@ -1238,7 +1238,7 @@ async function handleEbaySoldCascade(urls: string[], minHits: number, merge = fa
         merge: true,
         per_query: perQueryCounts,
         _diag: diagPerUrl,           // nuove diagnostiche per debug client-side
-        error: 'nessun venduto su '+urls.length+' tentativi',
+        error: 'nessun venduto su '+urlsCapped.length+' query (totali sottomesse: '+urls.length+')',
       });
     }
 

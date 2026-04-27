@@ -10598,18 +10598,31 @@ async function anlGetUsdEur(){
       return window._anlUsdEur;
     }
   }catch(e){}
-  try{
-    var r=await fetch('https://api.frankfurter.app/latest?from=USD&to=EUR');
-    var d=await r.json();
-    if(d&&d.rates&&d.rates.EUR){
-      window._anlUsdEur=d.rates.EUR;
-      try{
-        sessionStorage.setItem('anl_usd_eur',String(d.rates.EUR));
-        sessionStorage.setItem('anl_usd_eur_t',String(Date.now()));
-      }catch(e){}
-      return window._anlUsdEur;
+  // Cascade di sorgenti — alcune potrebbero bloccare CORS in certi momenti.
+  // Ordine: fonti CORS-friendly per primo, poi frankfurter come ultima chance.
+  var sources = [
+    {url:'https://open.er-api.com/v6/latest/USD', extract:function(d){ return d&&d.rates&&d.rates.EUR; }},
+    {url:'https://api.exchangerate-api.com/v4/latest/USD', extract:function(d){ return d&&d.rates&&d.rates.EUR; }},
+    {url:'https://api.frankfurter.app/latest?from=USD&to=EUR', extract:function(d){ return d&&d.rates&&d.rates.EUR; }},
+  ];
+  for(var i=0;i<sources.length;i++){
+    try{
+      var r=await fetch(sources[i].url);
+      if(!r.ok) continue;
+      var d=await r.json();
+      var rate=sources[i].extract(d);
+      if(rate && typeof rate==='number' && rate>0.5 && rate<2){
+        window._anlUsdEur=rate;
+        try{
+          sessionStorage.setItem('anl_usd_eur',String(rate));
+          sessionStorage.setItem('anl_usd_eur_t',String(Date.now()));
+        }catch(e){}
+        return rate;
+      }
+    }catch(e){
+      // CORS, network error, ecc — prova prossima sorgente
     }
-  }catch(e){}
+  }
   window._anlUsdEur=ANL_USD_EUR_FALLBACK;
   return window._anlUsdEur;
 }
@@ -11206,22 +11219,35 @@ function anlPopEbay(data, err){
     // con info su cosa ha effettivamente ricevuto. Logghiamo tutto per debug.
     try{
       console.group('%c[Analizza] eBay sold — nessun venduto', 'color:#f59e0b;font-weight:bold');
-      if(err) console.warn('Errore di rete:', err);
+      if(err) console.warn('Messaggio errore:', err);
       if(data){
         console.log('attempts (per URL):', data.attempts);
         console.log('per_query:', data.per_query);
-        if(data._diag){
+        if(data._diag && Array.isArray(data._diag)){
           console.warn('Diagnostica per URL (cosa ha ricevuto l\'edge function):');
-          (Array.isArray(data._diag)?data._diag:[]).forEach(function(d, i){
-            console.group('URL #'+(i+1)+': '+(d.url||'').substring(0,100));
-            console.table(d.diag||{});
-            console.groupEnd();
+          data._diag.forEach(function(d, i){
+            var diag = d.diag || {};
+            // Stampa inline tutti i campi rilevanti — niente Object refs da espandere
+            var summary = [
+              'len='+(diag.html_length||'?'),
+              'title="'+(diag.page_title||'').substring(0,60)+'"',
+              'cf='+(diag.has_cf_challenge?'Y':'n'),
+              'captcha='+(diag.has_captcha?'Y':'n'),
+              'no_results='+(diag.has_no_results?'Y':'n'),
+              'signin='+(diag.has_signin_redirect?'Y':'n'),
+              'srp='+(diag.has_srp_results_marker?'Y':'n'),
+              'itm_links='+(diag.itm_link_count||0),
+            ].join(' · ');
+            console.log('%cURL #'+(i+1)+'%c '+summary, 'color:#06b6d4;font-weight:bold', 'color:#9ca3af');
+            console.log('  URL:', d.url);
+            if(diag.head_sample) console.log('  head_sample (first 800ch):', diag.head_sample);
+            if(diag.http_error) console.warn('  HTTP error:', diag.http_error);
           });
         }
         console.log('full response:', data);
       }
       console.groupEnd();
-    }catch(e){}
+    }catch(e){console.warn('diag log error', e);}
     anlRenderToday();
     anlRenderProjection();
     return;
