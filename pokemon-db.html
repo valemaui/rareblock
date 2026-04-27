@@ -10835,6 +10835,36 @@ async function anlStartLiveFetches(card){
       anlLiveData.pc=data.prices;
       anlLiveData.pcProductUrl=data.url||null;
       anlLiveData.pcProductTitle=(data.prices&&data.prices.productTitle)||null;
+
+      // Diagnostica: log dei sold listings per grade (sample size) + se il
+      // merge da /recent-sales ha avuto effetto.
+      try{
+        console.group('%c[Analizza] PC sold listings per grade','color:#10b981;font-weight:bold');
+        if(data._recent_sales_merged){
+          console.log('✓ /recent-sales merged ('+data._recent_sales_hits+' total hits)');
+          console.log('  URL:', data._recent_sales_url);
+        } else {
+          console.warn('✗ /recent-sales non disponibile o vuoto');
+        }
+        var gfl = data.prices && data.prices.grades_from_listings;
+        if(gfl){
+          var rows = Object.keys(gfl).map(function(k){
+            return {
+              key: k,
+              count: gfl[k].count || 0,
+              median: gfl[k].median,
+              currency: gfl[k].currency_symbol,
+              min: gfl[k].min,
+              max: gfl[k].max,
+            };
+          }).sort(function(a,b){ return b.count - a.count; });
+          console.table(rows);
+        } else {
+          console.warn('Nessun grades_from_listings — solo aggregati API');
+        }
+        console.groupEnd();
+      }catch(e){}
+
       anlPopPc(data.prices);
     }catch(e){ anlPopPc(null,e.message||'errore rete'); }
   })();

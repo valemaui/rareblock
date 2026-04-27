@@ -1010,7 +1010,27 @@ async function handlePriceChartingCascade(urls: string[], cardName?: string, deb
     const prices = extractPCPrices(html);
     prices.productUrl = productUrl;
     if (productTitle && !prices.productTitle) prices.productTitle = productTitle;
-    // Deduce la currency effettiva della pagina dal simbolo dominante nei listings
+
+    // Fetch addizionale a /recent-sales (path standard PC con tutti i sold
+    // listings dettagliati per grade — 30+ records per grade, vs ~5-10 della
+    // pagina prodotto). Best-effort, niente retry: se fallisce, restiamo coi
+    // dati della pagina prodotto.
+    const recentSalesUrl = productUrl.replace(/\/$/, '') + '/recent-sales';
+    const recentRes = await fetchWithRetry(recentSalesUrl, 1, productUrl).catch(() => ({ html: '', ok: false, status: 0 }));
+    if (recentRes.ok && recentRes.html.length > 1000) {
+      const recentGrades = extractAllGradesFromListingsOnePass(recentRes.html);
+      if (Object.keys(recentGrades).length > 0) {
+        if (!prices.grades_from_listings) prices.grades_from_listings = {};
+        for (const k of Object.keys(recentGrades)) {
+          const r = recentGrades[k];
+          const existing = prices.grades_from_listings[k];
+          if (!existing || (r.count || 0) > (existing.count || 0)) {
+            prices.grades_from_listings[k] = r;
+          }
+        }
+      }
+    }
+
     prices.currency = detectDominantCurrency(prices);
 
     // Consideriamo "hit" se abbiamo almeno ungraded O un grado
@@ -1060,17 +1080,57 @@ async function handlePriceCharting(url: string, cardName?: string): Promise<Resp
     productTitle = firstProduct.title;
   }
 
-  const { html, ok, status } = await fetchWithRetry(productUrl, 2, 'https://www.pricecharting.com/');
-  if (!ok) {
-    return json({ error: `PC product HTTP ${status}`, source: 'pricecharting', productUrl });
+  // ─── Fetch parallelo: pagina prodotto + pagina recent-sales dettagliata ──
+  // La pagina prodotto mostra sold listings recenti mescolati. La pagina
+  // /recent-sales (path standard PC) mostra tutti i sold listings per grade,
+  // tipicamente 30+ records per grade. Fetchamo entrambe in parallelo e
+  // mergiamo i grades_from_listings preferendo i count più alti per chiave.
+  const recentSalesUrl = productUrl.replace(/\/$/, '') + '/recent-sales';
+  const [productRes, recentRes] = await Promise.all([
+    fetchWithRetry(productUrl, 2, 'https://www.pricecharting.com/'),
+    fetchWithRetry(recentSalesUrl, 1, productUrl).catch(() => ({ html: '', ok: false, status: 0 })),
+  ]);
+
+  if (!productRes.ok) {
+    return json({ error: `PC product HTTP ${productRes.status}`, source: 'pricecharting', productUrl });
   }
 
-  const prices = extractPCPrices(html);
+  const prices = extractPCPrices(productRes.html);
   prices.productUrl = productUrl;
   if (productTitle && !prices.productTitle) prices.productTitle = productTitle;
+
+  // Merge: se /recent-sales risponde, estrai anche da lì e prendi il bucket
+  // con count maggiore per ogni chiave HOUSE_SCORE (più sold = più affidabile).
+  let recentSalesMerged = false;
+  let recentSalesHits = 0;
+  if (recentRes.ok && recentRes.html.length > 1000) {
+    const recentGrades = extractAllGradesFromListingsOnePass(recentRes.html);
+    if (Object.keys(recentGrades).length > 0) {
+      recentSalesMerged = true;
+      if (!prices.grades_from_listings) prices.grades_from_listings = {};
+      for (const k of Object.keys(recentGrades)) {
+        const r = recentGrades[k];
+        const existing = prices.grades_from_listings[k];
+        // Prefer recent-sales se ha più count (più affidabile statisticamente).
+        // Se la pagina prodotto aveva 5 PSA 8 e recent-sales ne ha 29, usiamo i 29.
+        if (!existing || (r.count || 0) > (existing.count || 0)) {
+          prices.grades_from_listings[k] = r;
+          recentSalesHits += r.count || 0;
+        }
+      }
+    }
+  }
+
   prices.currency = detectDominantCurrency(prices);
 
-  return json({ source: 'pricecharting', prices, url: productUrl });
+  return json({
+    source: 'pricecharting',
+    prices,
+    url: productUrl,
+    _recent_sales_merged: recentSalesMerged,
+    _recent_sales_url: recentSalesUrl,
+    _recent_sales_hits: recentSalesHits,
+  });
 }
 
 // Determina la valuta della pagina PC dal simbolo dominante nei sold listings
@@ -1276,7 +1336,10 @@ function extractAllGradesFromListingsOnePass(html: string): Record<string, Grade
 
     const key = `${house}_${score}`;
     if (!buckets[key]) buckets[key] = { prices: [], symbols: [] };
-    if (buckets[key].prices.length < 20) {
+    // Cap aumentato da 20 a 60 per coprire pagine PC con molte sold per
+    // grade (29+ visti in casi reali). PC mostra fino a ~30 sold per grade
+    // sulla pagina prodotto, e potrebbero esserci più grade insieme.
+    if (buckets[key].prices.length < 60) {
       buckets[key].prices.push(n);
       buckets[key].symbols.push(sym);
     }
