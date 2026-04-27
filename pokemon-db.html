@@ -10244,22 +10244,20 @@ function anlSourcesScaffold(card){
   +  '<a class="anl-src-link" id="anlSrcPcLink" href="'+pcUrl+'" target="_blank" rel="noopener">apri →</a>'
   +'</div>'
   +'<div class="'+cmClass+'">'
-  +  '<div class="anl-src-head"><span class="anl-src-tag">'+cmTag+'</span><span>'+cmTitle+'</span></div>'
-  +  '<div class="anl-src-price" id="anlSrcCm">'+(function(){
+  +  '<div class="anl-src-head"><span class="anl-src-tag">'+cmTag+'</span><span>'+cmTitle+'</span><span class="anl-src-dot" id="anlSrcCmDot"></span></div>'
+  +  '<div class="anl-src-price loading" id="anlSrcCm">'+(function(){
         var p=card.cardmarket&&card.cardmarket.prices;
         var nm=p?(p.trendPrice||p.avg30||null):null;
         return nm?'€'+nm.toFixed(2):'—';
      })()+'</div>'
   +  '<div class="anl-src-note" id="anlSrcCmNote">'+(function(){
         var p=card.cardmarket&&card.cardmarket.prices;
-        if(!p) return 'prezzo non disponibile';
-        var parts=[];
+        if(!p) return 'caricamento listings…';
+        var parts=['caricamento listings…'];
         if(p.trendPrice) parts.push('trend €'+p.trendPrice.toFixed(2));
-        if(p.avg30) parts.push('30gg €'+p.avg30.toFixed(2));
-        if(p.lowPrice) parts.push('low €'+p.lowPrice.toFixed(2));
-        return parts.length?parts.join(' · '):'—';
+        return parts.join(' · ');
      })()+'</div>'
-  +  '<a class="anl-src-link" href="'+cmUrl+'" target="_blank" rel="noopener">apri →</a>'
+  +  '<a class="anl-src-link" id="anlSrcCmLink" href="'+cmUrl+'" target="_blank" rel="noopener">apri →</a>'
   +'</div>';
 }
 
@@ -10713,7 +10711,7 @@ async function anlStartLiveFetches(card){
   var setNm = card.set?card.set.name:'';
   var graded = anlMode==='graded';
 
-  // eBay — cascata multi-query
+  // eBay — cascata multi-query in MERGE mode (combina e dedup tutti i risultati)
   (async function(){
     var user = window._anlUserInput || {};
     var houseLabel = graded ? ANL_HOUSES[document.getElementById('anlHouse').value].label : '';
@@ -10722,49 +10720,63 @@ async function anlStartLiveFetches(card){
     var nameUser = user.name || card.name;
     var nameApi  = card.name;
     var num      = card.number || user.number || '';
+    // Variante "nome semplificato": rimuove suffix come -EX, -GX, -V, -VMAX, -VSTAR
+    // (es. "Groudon-EX" → "Groudon"). Spesso i venditori non includono il suffisso.
+    var nameSimple = nameUser ? nameUser.replace(/[-\s]?(EX|GX|V|VMAX|VSTAR|VUNION|TAG TEAM|BREAK|LEGEND)$/i,'').trim() : '';
+    if(nameSimple && nameSimple!==nameUser && nameSimple.length<3) nameSimple = ''; // troppo corto, scarta
 
     // Varianti di scrittura del grade (molti venditori usano forme diverse)
-    // "PSA 8" è la più comune, ma "PSA-8" e "PSA8" appaiono spesso su eBay.
     var gradeVariants = graded
       ? [' '+houseLabel+' '+scoreVal, ' '+houseLabel+'-'+scoreVal, ' '+houseLabel+scoreVal]
       : [''];
+    var gradeSfx = gradeVariants[0];
 
     var queries = [];
     function addQ(s){ s=s.trim().replace(/\s+/g,' '); if(s && queries.indexOf(s)<0) queries.push(s); }
 
-    // Per la query principale uso SOLO la forma canonica "PSA 8".
-    // Le varianti "PSA-8" / "PSA8" vanno in fondo come ultima chance.
-    var gradeSfx = gradeVariants[0];
-
-    // Ordine: dalla più specifica alla più larga
+    // ─── Query specifiche → larghe → "magre" (utili per merge) ───
+    // 1. Specifiche con set + "pokemon"
     if(nameUser && num && setNm) addQ(nameUser+' '+num+' '+setNm+gradeSfx+' pokemon');
+    // 2. Senza set ma con "pokemon" — la query suggerita dal feedback utente
     if(nameUser && num)          addQ(nameUser+' '+num+gradeSfx+' pokemon');
-    if(nameUser && num && setNm) addQ(nameUser+' '+num+' '+setNm+gradeSfx);  // senza "pokemon"
+    // 3. Stesso senza "pokemon"
+    if(nameUser && num && setNm) addQ(nameUser+' '+num+' '+setNm+gradeSfx);
+    // 4. NEW · query con NOME SEMPLIFICATO (es. "Groudon" invece di "Groudon-EX")
+    //    User report: "Groudon 106 PSA 8" trova 16 risultati, "Groudon-EX 106 ..." solo 12
+    if(nameSimple && num)        addQ(nameSimple+' '+num+gradeSfx);
+    if(nameSimple && num)        addQ(nameSimple+' '+num+gradeSfx+' pokemon');
+    // 5. Solo nome + grade
     if(nameUser)                 addQ(nameUser+gradeSfx+' pokemon');
+    // 6. Nome API ufficiale (se diverso da quello digitato)
     if(nameApi && nameApi!==nameUser && num) addQ(nameApi+' '+num+gradeSfx+' pokemon');
-    if(nameUser && !graded)      addQ(nameUser+' '+num+' pokemon');  // raw senza grade
+    // 7. Raw senza grade — solo se mode raw
+    if(nameUser && num && !graded) addQ(nameUser+' '+num+' pokemon');
 
-    // URL su eBay IT (valuta EUR)
+    // URL su eBay IT (EUR) — valuta primaria
     var urls = queries.map(function(q){
-      return 'https://www.ebay.it/sch/i.html?_nkw='+encodeURIComponent(q)+'&LH_Sold=1&LH_Complete=1&_sacat=2611';
+      return 'https://www.ebay.it/sch/i.html?_nkw='+encodeURIComponent(q)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_ipg=240';
     });
 
-    // Fallback EU: eBay.de (molti venditori tedeschi per Pokémon)
+    // Fallback EU: eBay.de
     if(nameUser && num){
-      urls.push('https://www.ebay.de/sch/i.html?_nkw='+encodeURIComponent(nameUser+' '+num+gradeSfx+' pokemon')+'&LH_Sold=1&LH_Complete=1&_sacat=2611');
+      urls.push('https://www.ebay.de/sch/i.html?_nkw='+encodeURIComponent(nameUser+' '+num+gradeSfx+' pokemon')+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_ipg=240');
     }
-
-    // Fallback internazionale: eBay.com con query larga + varianti grade
+    // Fallback internazionale: eBay.com con varianti grade
     if(nameUser){
       gradeVariants.forEach(function(g){
-        urls.push('https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(nameUser+g+' pokemon')+'&LH_Sold=1&LH_Complete=1&_sacat=2611');
+        urls.push('https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(nameUser+g+' pokemon')+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_ipg=240');
       });
+    }
+    // eBay.com con nome semplificato + numero (per simboli rari come "Groudon 106 PSA 8")
+    if(nameSimple && num){
+      urls.push('https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(nameSimple+' '+num+gradeSfx+' pokemon')+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_ipg=240');
     }
 
     try{
-      var data=await anlFetchSmooth({source:'ebay_sold', urls:urls, url:urls[0], min_hits:3});
-      if(data.error){ anlPopEbay(null,data.error); return; }
-      // anlPopEbay applica sanitize CM-anchored e assegna anlLiveData.ebay già normalizzato
+      // MERGE MODE: combina tutti gli URL, dedup per (titleNormalized, price, currency).
+      // Restituisce items[] con titoli — usati dal client per filtri raw/graded e lingua.
+      var data=await anlFetchSmooth({source:'ebay_sold', urls:urls, url:urls[0], min_hits:3, merge:true});
+      if(data.error && (!data.items || !data.items.length)){ anlPopEbay(null,data.error); return; }
       anlPopEbay(data);
     }catch(e){ anlPopEbay(null,e.message||'errore rete'); }
   })();
@@ -10798,6 +10810,24 @@ async function anlStartLiveFetches(card){
     }catch(e){ anlPopPc(null,e.message||'errore rete'); }
   })();
 
+  // Cardmarket — fetch listings reali, parse commenti per grading
+  // (sostituisce/integra il dato trend dalla TCG API)
+  (async function(){
+    try{
+      var cond = document.getElementById('anlCond').value;
+      var lang = document.getElementById('anlLang').value;
+      var is1st= document.getElementById('anl1st').value==='yes';
+      var setId= card.set?card.set.id:null;
+      var cmUrl = buildCMDirectUrl(card.name, setId, card.number, cond, lang, 'Normal', is1st, setNm);
+      // In graded mode forziamo minCondition a NM per non perdere listings (anche
+      // i venditori di carte gradate spesso non impostano la condizione raw).
+      // Per non interferire col link "apri →" esterno costruisco un URL parallelo.
+      var fetchUrl = cmUrl;
+      var data = await anlFetchSmooth({source:'cardmarket', url:fetchUrl, urls:[fetchUrl]});
+      anlPopCm(data, card);
+    }catch(e){ anlPopCm({error:e.message||'errore rete'}, card); }
+  })();
+
   // Render CM già disponibile e sezioni
   anlRenderToday();
   anlRenderProjection();
@@ -10814,23 +10844,130 @@ function anlSigFor(card){
   ].join('|');
 }
 
+// ─── HELPER condivise: parser grading + lingua su titoli/commenti ─────────────
+// Riconosce indicatori di grading in un testo (titolo eBay o commento CM).
+// Casi: "PSA 9", "PSA-9", "PSA9", "BGS 8.5", "CGC 10", "SGC 9", etc.
+// Ritorna {house, score} oppure null.
+function anlParseGrading(text){
+  if(!text) return null;
+  var s = String(text).replace(/\s+/g,' ').trim();
+  var houses = {
+    'PSA':/\bPSA\b/i, 'BGS':/\b(?:BGS|Beckett)\b/i, 'CGC':/\bCGC\b/i,
+    'SGC':/\bSGC\b/i, 'HGA':/\bHGA\b/i, 'GMA':/\bGMA\b/i,
+    'TAG':/\bTAG\b/i, 'ARS':/\bARS\b/i, 'GG':/\b(?:GG|GetGraded)\b/i
+  };
+  for(var house in houses){
+    if(!houses[house].test(s)) continue;
+    var houseStr = house==='BGS'?'(?:BGS|Beckett)' : house==='GG'?'(?:GG|GetGraded)' : house;
+    var rx = new RegExp('\\b'+houseStr+'\\s*[-:.\\s]?\\s*(10(?:\\.0)?|[1-9](?:\\.5)?)\\b','i');
+    var m = s.match(rx);
+    if(m){
+      var score = parseFloat(m[1]);
+      if(score>=1 && score<=10) return { house:house, score:score };
+    }
+  }
+  return null;
+}
+
+// Rileva la lingua dichiarata nel titolo eBay/CM. Marker espliciti hanno
+// priorità; assenza di marker = sconosciuto (NON assumiamo "EN by default").
+function anlDetectLang(text){
+  if(!text) return null;
+  var s = ' '+String(text).toLowerCase()+' ';
+  // Pattern ordinati: i più specifici prima
+  if(/\b(italian|italiana|italiano|ita)\b/.test(s) || /\bita\b/.test(s)) return 'ITA';
+  if(/\b(japanese|giapponese|japones|jpn|jap)\b/.test(s)) return 'JPN';
+  if(/\b(german|deutsch|tedesco|deu|ger)\b/.test(s)) return 'DEU';
+  if(/\b(french|francese|francais|français|fra|fr)\b/.test(s)) return 'FRA';
+  if(/\b(spanish|spagnolo|español|espanol|esp|spa)\b/.test(s)) return 'ESP';
+  if(/\b(portuguese|portoghese|português|portugues|por)\b/.test(s)) return 'POR';
+  if(/\b(korean|coreano|kor)\b/.test(s)) return 'KOR';
+  if(/\b(chinese|cinese|chs|cht)\b/.test(s)) return 'CHI';
+  if(/\b(english|inglese|eng)\b/.test(s)) return 'ENG';
+  return null; // unknown — non azzardiamo
+}
+
 // ─── HELPER: normalizza prezzi eBay usando CM come ancora di plausibilità ─
 // Converte tutto in EUR, filtra via banda [lo, hi] ancorata al CM trend (se disponibile),
 // poi applica una seconda passata MAD per gli outlier statistici residui.
-// Ritorna un oggetto aumentato: {median, avg, min, max, count, pricesEur, filteredOut, cmAnchor, confidence}
-function anlSanitizeEbay(data, cmRefEur, rate, graded){
+// Se data.items è presente, applica anche filtri raw/graded basati sul titolo
+// e calcola statistiche di lingua per warning di mismatch.
+function anlSanitizeEbay(data, cmRefEur, rate, graded, userLang){
   if(!data || !data.prices || !data.prices.length) return data;
 
-  // 1) Converti tutti i prezzi in EUR
-  var inEur = data.prices.map(function(p){
-    if(data.currency==='USD')      return p * rate;
-    if(data.currency==='GBP')      return p * 1.17 * rate;
-    return p;
-  });
+  // ── PRE-FILTER per items con titolo (se disponibili) ──
+  // Quando abbiamo i titoli (data.items) possiamo:
+  //   • In graded mode: tenere SOLO items con grading nel titolo (esclude raw)
+  //   • In raw mode:    escludere items con grading nel titolo (esclude graded)
+  //   • Rilevare lingua e segnalare mismatch
+  var langStats = { ITA:0, ENG:0, JPN:0, DEU:0, FRA:0, ESP:0, POR:0, KOR:0, CHI:0, unknown:0 };
+  var rawCount = 0, gradedCount = 0;
+  var filteredItems = null;
 
-  // 2) Se ho un'ancora CM, filtra banda plausibile
-  //    raw:    [0.3×, 4×]  → raw non dovrebbe discostarsi molto dal trend CM
-  //    graded: [0.5×, 80×] → graded può valere anche 50-100× il raw per vintage
+  if(data.items && data.items.length){
+    var keptItems = [];
+    var droppedByMode = 0;
+    data.items.forEach(function(it){
+      var g = anlParseGrading(it.title);
+      if(g) gradedCount++; else rawCount++;
+      var lang = anlDetectLang(it.title);
+      langStats[lang || 'unknown']++;
+
+      // Filtro per modalità
+      if(graded){
+        // Tieni solo items con grading nel titolo (qualsiasi casa+grado purché presente).
+        // Filtro più stretto sul match esatto avverrà nel sanitize a valle.
+        if(g) keptItems.push(Object.assign({}, it, {_grading:g, _lang:lang}));
+        else droppedByMode++;
+      } else {
+        if(!g) keptItems.push(Object.assign({}, it, {_grading:null, _lang:lang}));
+        else droppedByMode++;
+      }
+    });
+
+    // Se il filtro modalità lascia troppo poco (<3) e abbiamo abbastanza dati totali (>=6),
+    // disattiva il filtro e ritorna a tutti gli items con un warning.
+    if(keptItems.length < 3 && data.items.length >= 6){
+      // Manteniamo tutti gli items ma marchiamo come "filtro modalità inefficace"
+      filteredItems = data.items.map(function(it){
+        return Object.assign({}, it, {_grading:anlParseGrading(it.title), _lang:anlDetectLang(it.title)});
+      });
+      data._modeFilterAborted = true;
+    } else {
+      filteredItems = keptItems;
+      data._modeFilterDropped = droppedByMode;
+    }
+  }
+
+  // ── Normalizzazione prezzi in EUR ──
+  // Se abbiamo filteredItems usa quelli; altrimenti usa data.prices (legacy)
+  var inEur;
+  if(filteredItems){
+    inEur = filteredItems.map(function(it){
+      var c = it.currency || data.currency || 'EUR';
+      if(c==='USD') return it.price * rate;
+      if(c==='GBP') return it.price * 1.17 * rate;
+      return it.price;
+    });
+  } else {
+    inEur = data.prices.map(function(p){
+      if(data.currency==='USD')      return p * rate;
+      if(data.currency==='GBP')      return p * 1.17 * rate;
+      return p;
+    });
+  }
+
+  if(inEur.length === 0){
+    // Nessun item dopo il filtro modalità: ritorna struttura "vuota dopo filtro"
+    return Object.assign({}, data, {
+      pricesEur: [], medianEur: null, avgEur: null, minEur: null, maxEur: null,
+      countEur: 0, filteredOut: data.prices.length, cmAnchor: null,
+      confidenceLevel: 'none',
+      langStats: langStats, rawCount: rawCount, gradedCount: gradedCount,
+    });
+  }
+
+  // ── Filtro CM-anchored ──
   var lo=null, hi=null, anchored=false;
   if(cmRefEur && cmRefEur>0){
     if(graded){ lo = cmRefEur * 0.5;  hi = cmRefEur * 80; }
@@ -10839,14 +10976,12 @@ function anlSanitizeEbay(data, cmRefEur, rate, graded){
   }
 
   var plausible = anchored ? inEur.filter(function(p){return p>=lo && p<=hi;}) : inEur.slice();
-
-  // Se il filtro CM taglia troppo (meno del 40% o <3 samples), disattiva e usa raw
   if(anchored && (plausible.length < 3 || plausible.length < inEur.length*0.4)){
     plausible = inEur.slice();
     anchored = false;
   }
 
-  // 3) Seconda passata: MAD filter per outlier estremi residui
+  // ── MAD filter ──
   plausible.sort(function(a,b){return a-b;});
   var mid = Math.floor(plausible.length/2);
   var med = plausible.length%2===0 ? (plausible[mid-1]+plausible[mid])/2 : plausible[mid];
@@ -10855,7 +10990,7 @@ function anlSanitizeEbay(data, cmRefEur, rate, graded){
   var finalSet;
   if(plausible.length >= 5 && mad > 0){
     finalSet = plausible.filter(function(p){return Math.abs(p-med) <= 4*mad;});
-    if(finalSet.length < 3) finalSet = plausible; // fallback se troppo aggressivo
+    if(finalSet.length < 3) finalSet = plausible;
   } else {
     finalSet = plausible;
   }
@@ -10867,7 +11002,6 @@ function anlSanitizeEbay(data, cmRefEur, rate, graded){
   var sum = finalSet.reduce(function(a,b){return a+b;},0);
   var avg = sum/n;
 
-  // Confidence: high ≥10, medium 5-9, low 3-4, very-low <3
   var conf = n>=10 ? 'high' : (n>=5 ? 'medium' : (n>=3 ? 'low' : 'very-low'));
 
   return Object.assign({}, data, {
@@ -10880,6 +11014,9 @@ function anlSanitizeEbay(data, cmRefEur, rate, graded){
     filteredOut: data.prices.length - n,
     cmAnchor: anchored ? cmRefEur : null,
     confidenceLevel: conf,
+    langStats: langStats,
+    rawCount: rawCount,
+    gradedCount: gradedCount,
   });
 }
 
@@ -10906,12 +11043,163 @@ function anlSetDot(id, conf){
   }[conf] || '';
 }
 
+// ─── CARDMARKET — listings reali con split raw/graded da commenti ────────────
+// Parse delle listings restituite dall'edge function. Ogni listing può avere:
+//   • grading: { house, score } estratto dal commento
+//   • comment: testo originale del seller
+// Strategia:
+//   • Mode RAW: usa solo listings SENZA grading (raw), calcola mediana
+//     escludendo eventuali listing gradati che inquinerebbero la media
+//   • Mode GRADED: usa solo listings con grading match (house+score esatto),
+//     o gradate generiche se nessun match esatto + warning sul campione
+//   • Fallback: se troppo pochi listings dopo il filtro (<3) torna al trend
+//     dalla TCG API (che è il dato originale che avevamo)
+function anlPopCm(data, card){
+  var priceEl=document.getElementById('anlSrcCm');
+  var noteEl =document.getElementById('anlSrcCmNote');
+  var graded = anlMode==='graded';
+  var house  = graded ? document.getElementById('anlHouse').value : null;
+  var score  = graded ? parseFloat(document.getElementById('anlGradeScore').value) : null;
+
+  // Fallback al trend TCG-API se errore o nessun listing
+  function fallbackTrend(reason){
+    var p = card && card.cardmarket && card.cardmarket.prices;
+    var trend = p ? (p.trendPrice || p.avg30 || null) : null;
+    if(priceEl){
+      priceEl.classList.remove('loading');
+      if(trend != null){
+        priceEl.textContent = '€'+trend.toFixed(2);
+        priceEl.classList.remove('na');
+      } else {
+        priceEl.textContent = '—';
+        priceEl.classList.add('na');
+      }
+    }
+    if(noteEl){
+      var bits = [];
+      if(reason) bits.push(reason);
+      if(p && p.trendPrice) bits.push('trend €'+p.trendPrice.toFixed(2));
+      if(p && p.avg30)      bits.push('30gg €'+p.avg30.toFixed(2));
+      if(p && p.lowPrice)   bits.push('low €'+p.lowPrice.toFixed(2));
+      noteEl.textContent = bits.length ? bits.join(' · ') : 'nessun dato';
+    }
+    anlSetDot('anlSrcCmDot','low');
+    // anlLiveData.cm già impostato in anlStartLiveFetches dal trend TCG (con condition factor per raw)
+    anlRenderToday();
+    anlRenderProjection();
+  }
+
+  if(!data || data.error){
+    fallbackTrend(data && data.error ? ('CM ' + String(data.error).substring(0,40)) : 'fetch fallito');
+    return;
+  }
+
+  var listings = (data.listings || []).filter(function(l){ return l && typeof l.price === 'number'; });
+  if(!listings.length){
+    fallbackTrend('nessun listing');
+    return;
+  }
+
+  // Normalizza il grading: se NON è già stato parsato dall'edge function
+  // (es. risultati da NEXT_DATA fallback) prova a parsare il commento ora.
+  listings = listings.map(function(l){
+    if(!l.grading && l.comment) l.grading = anlParseGrading(l.comment);
+    return l;
+  });
+
+  var rawListings    = listings.filter(function(l){ return !l.grading; });
+  var gradedListings = listings.filter(function(l){ return  l.grading; });
+
+  var selected, label, droppedNote = '';
+  if(graded){
+    // Match esatto house+score (con tolleranza ±0.5 per voti decimali)
+    var exact = gradedListings.filter(function(l){
+      return l.grading.house === house && Math.abs(l.grading.score - score) < 0.01;
+    });
+    if(exact.length >= 2){
+      selected = exact;
+      label = 'CM '+house+' '+score;
+    } else {
+      // Match larga: stesso house qualsiasi grade
+      var sameHouse = gradedListings.filter(function(l){ return l.grading.house === house; });
+      if(sameHouse.length >= 2){
+        selected = sameHouse;
+        label = 'CM '+house+' (grado misto)';
+        droppedNote = '⚠ pochi '+house+' '+score+', uso media '+house+' generica';
+      } else if(gradedListings.length >= 2){
+        selected = gradedListings;
+        label = 'CM gradate (mix case)';
+        droppedNote = '⚠ pochi listings '+house+', uso media gradate generica';
+      } else {
+        // Solo raw o niente → fallback trend (CM raw non è affidabile per gradate)
+        fallbackTrend('solo listings raw — CM inaffidabile per gradate');
+        return;
+      }
+    }
+  } else {
+    // Mode RAW: escludi qualsiasi listing con grading
+    if(rawListings.length >= 2){
+      selected = rawListings;
+      label = 'CM raw';
+      if(gradedListings.length > 0){
+        droppedNote = gradedListings.length+' gradate escluse';
+      }
+    } else {
+      // Pochi listings raw → fallback trend (più stabile di poche listing raw)
+      fallbackTrend(rawListings.length+' raw, '+gradedListings.length+' gradate — uso trend');
+      return;
+    }
+  }
+
+  // Calcola mediana sui prezzi selezionati
+  var prices = selected.map(function(l){ return l.price; }).sort(function(a,b){ return a-b; });
+  var mid = Math.floor(prices.length/2);
+  var median = prices.length%2===0 ? (prices[mid-1]+prices[mid])/2 : prices[mid];
+  var min = prices[0], max = prices[prices.length-1];
+
+  // Aggiorna anlLiveData.cm con il valore filtrato (sostituisce il trend TCG)
+  // Per raw applichiamo condition factor (la mediana CM è in NM Italian per default)
+  if(graded){
+    anlLiveData.cm = Math.round(median*100)/100;
+  } else {
+    var cf = ANL_COND_FACTOR[document.getElementById('anlCond').value]||1.0;
+    var ef = document.getElementById('anl1st').value==='yes' ? ANL_FIRST_ED_MULT : 1.0;
+    anlLiveData.cm = Math.round(median*cf*ef*100)/100;
+  }
+
+  // Confidence dal sample
+  var conf = prices.length>=10 ? 'high' : (prices.length>=5 ? 'medium' : (prices.length>=3 ? 'low' : 'very-low'));
+
+  if(priceEl){
+    priceEl.textContent = '€'+median.toFixed(2);
+    priceEl.classList.remove('loading','na');
+    // Se siamo in graded e abbiamo dati reali, rimuovi la classe dim dal wrapper
+    var wrapper = priceEl.closest('.anl-src');
+    if(wrapper) wrapper.classList.remove('anl-src-dim');
+  }
+  if(noteEl){
+    var noteParts = [prices.length+' '+(graded?'gradate':'raw')];
+    if(min !== max) noteParts.push('€'+Math.round(min)+'–€'+Math.round(max));
+    if(droppedNote) noteParts.push(droppedNote);
+    else if(!graded && rawListings.length>0 && gradedListings.length===0){
+      // info: tutti raw, niente da escludere
+    }
+    noteEl.textContent = noteParts.join(' · ');
+  }
+  anlSetDot('anlSrcCmDot', conf);
+
+  anlRenderToday();
+  anlRenderProjection();
+}
+
 function anlPopEbay(data, err){
   var priceEl=document.getElementById('anlSrcEb');
   var noteEl=document.getElementById('anlSrcEbNote');
-  if(err || !data || !data.count){
+  if(err || !data || (!data.count && !(data.items && data.items.length))){
     if(priceEl){ priceEl.textContent='—'; priceEl.classList.remove('loading'); priceEl.classList.add('na'); }
     if(noteEl){
+      // Se la cascata ha effettivamente trovato item ma il filtro modalità li ha tutti scartati,
+      // l'errore di rete sarà null. In quel caso l'errore viene gestito in sane.countEur===0
       noteEl.textContent = err ? ('errore: '+String(err).substring(0,60)) : 'nessun venduto trovato';
     }
     anlSetDot('anlSrcEbDot', 'none');
@@ -10920,13 +11208,33 @@ function anlPopEbay(data, err){
     return;
   }
 
-  // Applica normalizzazione CM-anchored + MAD
+  // Applica normalizzazione CM-anchored + MAD + filtri raw/graded sui titoli (se items presenti)
   var rate = anlLiveData.usdEur || ANL_USD_EUR_FALLBACK;
   var graded = anlMode==='graded';
-  var cmRef = anlLiveData.cm || null; // è già in EUR, post condition factor
-  var sane = anlSanitizeEbay(data, cmRef, rate, graded);
+  var cmRef = anlLiveData.cm || null;
+  var userLang = document.getElementById('anlLang').value;
+  var sane = anlSanitizeEbay(data, cmRef, rate, graded, userLang);
 
-  // Aggiorna i dati usati dal calcolo "valore oggi"
+  // Caso: dopo il filtro modalità (graded/raw) non rimangono campioni utili
+  if(!sane.countEur || sane.countEur===0){
+    if(priceEl){ priceEl.textContent='—'; priceEl.classList.remove('loading'); priceEl.classList.add('na'); }
+    if(noteEl){
+      var dropMsg = graded
+        ? (data.items&&data.items.length
+            ? data.items.length+' venduti trovati ma nessuno gradato nel titolo'
+            : 'nessun venduto gradato')
+        : (data.items&&data.items.length
+            ? data.items.length+' venduti trovati ma tutti gradati (cerco raw)'
+            : 'nessun venduto raw');
+      noteEl.textContent = dropMsg;
+    }
+    anlSetDot('anlSrcEbDot', 'none');
+    anlLiveData.ebay = null;
+    anlRenderToday();
+    anlRenderProjection();
+    return;
+  }
+
   anlLiveData.ebay = Object.assign({}, data, {
     median: sane.medianEur,
     avg: sane.avgEur,
@@ -10939,6 +11247,11 @@ function anlPopEbay(data, err){
     _originalCount: data.count,
     _filteredOut: sane.filteredOut,
     _cmAnchor: sane.cmAnchor,
+    _langStats: sane.langStats,
+    _rawCount: sane.rawCount,
+    _gradedCount: sane.gradedCount,
+    _modeFilterDropped: data._modeFilterDropped,
+    _modeFilterAborted: data._modeFilterAborted,
   });
 
   if(priceEl){
@@ -10949,17 +11262,50 @@ function anlPopEbay(data, err){
 
   if(noteEl){
     var parts = [sane.countEur+' venduti'];
-    // Range min-max compatto
     parts.push('€'+Math.round(sane.minEur)+'–€'+Math.round(sane.maxEur));
-    // Mercato originale se diverso da EUR
+    // Indica se abbiamo filtrato per modalità (es. "raw esclusi" / "graded esclusi")
+    if(data._modeFilterDropped > 0){
+      parts.push((graded?'-':'-')+data._modeFilterDropped+(graded?' raw':' graded'));
+    }
+    // Outlier statistici scartati
+    if(sane.filteredOut > 0){
+      parts.push(sane.filteredOut+' outlier');
+    }
+    // Mercato originale se misto/non-EUR
     if(data.currency && data.currency!=='EUR'){
       parts.push(data.currency==='USD'?'US':'UK');
     }
-    // Outlier info (solo se significativo)
-    if(sane.filteredOut > 0){
-      parts.push(sane.filteredOut+' scartati');
-    }
     noteEl.textContent = parts.join(' · ');
+
+    // ─── Warning lingua: se l'utente ha selezionato una lingua e i venduti rilevati
+    //     sono predominantemente in un'altra lingua, mostra alert sotto la note.
+    if(sane.langStats){
+      var ls = sane.langStats;
+      var explicitTotal = ls.ITA+ls.ENG+ls.JPN+ls.DEU+ls.FRA+ls.ESP+ls.POR+ls.KOR+ls.CHI;
+      // Lingua dominante (se >=40% degli explicit) — usata per warning
+      var dominant = null, dominantCount = 0;
+      ['ITA','ENG','JPN','DEU','FRA','ESP','POR','KOR','CHI'].forEach(function(l){
+        if(ls[l] > dominantCount){ dominantCount = ls[l]; dominant = l; }
+      });
+      var warnHtml = null;
+      if(userLang && explicitTotal >= 3){
+        if(dominant && dominant !== userLang && dominantCount >= explicitTotal*0.4){
+          warnHtml = '⚠ titoli prevalenti in <b>'+dominant+'</b> ('+dominantCount+'/'+explicitTotal+'), hai selezionato '+userLang+' — i prezzi possono essere falsati';
+        } else if(userLang!=='ENG' && ls[userLang]===0 && ls.ENG>0){
+          warnHtml = '⚠ nessun venduto esplicitamente <b>'+userLang+'</b>; '+ls.ENG+' titoli ENG rilevati';
+        }
+      }
+      // Mostra/nascondi un secondo span sotto noteEl per il warning
+      var warnEl = document.getElementById('anlSrcEbWarn');
+      if(!warnEl){
+        warnEl = document.createElement('div');
+        warnEl.id = 'anlSrcEbWarn';
+        warnEl.style.cssText = 'font-size:10px;color:var(--warning);margin-top:3px;line-height:1.3';
+        if(noteEl.parentNode) noteEl.parentNode.insertBefore(warnEl, noteEl.nextSibling);
+      }
+      warnEl.innerHTML = warnHtml || '';
+      warnEl.style.display = warnHtml ? 'block' : 'none';
+    }
   }
 
   anlSetDot('anlSrcEbDot', sane.confidenceLevel);

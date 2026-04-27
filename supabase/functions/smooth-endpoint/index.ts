@@ -20,7 +20,7 @@ const COND_ORDER: Record<string,number> = {
   'MT':1,'NM':2,'EX':3,'GD':4,'LP':5,'PL':6,'PO':7,
 };
 
-interface Listing { price: number; condition: string; condRank: number; seller?: string; }
+interface Listing { price: number; condition: string; condRank: number; seller?: string; comment?: string; grading?: { house: string; score: number; raw: string } | null; }
 
 const USER_AGENTS = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
     }
     if (source === 'cardmarket')      return await handleCardmarket(firstUrl, body?.debug === true);
     if (source === 'pricecharting')   return await handlePriceChartingCascade(urls, body?.card_name, body?.debug === true);
-    if (source === 'ebay_sold')       return await handleEbaySoldCascade(urls, Number(body?.min_hits ?? 3));
+    if (source === 'ebay_sold')       return await handleEbaySoldCascade(urls, Number(body?.min_hits ?? 3), body?.merge === true);
     if (source === 'catawiki_search') return await handleCatawikiSearch(firstUrl, body?.debug === true);
     if (source === 'ebay_search')     return await handleEbaySearch(firstUrl, body?.debug === true);
     if (source === 'subito_search')   return await handleSubitoSearch(firstUrl, body?.debug === true);
@@ -238,13 +238,18 @@ function extractCMListings(html: string): Listing[] {
     const row = rowMatch[1];
     const cond = extractConditionFromRow(row);
     const price = extractPriceFromRow(row);
+    const comment = extractCommentFromRow(row);
+    const grading = comment ? parseGradingFromText(comment) : null;
     if (price) {
       // Se non riesco a estrarre la condizione assumo NM (comune per CM raw listings)
       const finalCond = cond || 'Near Mint';
-      listings.push({ price, condition: finalCond, condRank: COND_ORDER[finalCond] || 2 });
+      const listing: Listing = { price, condition: finalCond, condRank: COND_ORDER[finalCond] || 2 };
+      if (comment) listing.comment = comment;
+      if (grading) listing.grading = grading;
+      listings.push(listing);
     }
   }
-  if (listings.length > 0) return listings.slice(0, 20).sort((a,b) => a.price - b.price);
+  if (listings.length > 0) return listings.slice(0, 30).sort((a,b) => a.price - b.price);
 
   const pricePattern = /"price"\s*:\s*"?(\d{1,4}[,.]?\d{0,3}[,.]\d{2})"?/g;
   let m: RegExpExecArray | null;
@@ -256,7 +261,7 @@ function extractCMListings(html: string): Listing[] {
       listings.push({ price: n, condition: 'Near Mint', condRank: 2 });
     }
   }
-  if (listings.length > 0) return listings.slice(0, 20).sort((a,b) => a.price - b.price);
+  if (listings.length > 0) return listings.slice(0, 30).sort((a,b) => a.price - b.price);
 
   // Fallback ambidestro: € prima O dopo il numero
   const euroPatterns = [
@@ -272,7 +277,91 @@ function extractCMListings(html: string): Listing[] {
       }
     }
   }
-  return listings.slice(0, 20).sort((a, b) => a.price - b.price);
+  return listings.slice(0, 30).sort((a, b) => a.price - b.price);
+}
+
+// Estrae il commento/nota del seller dalla row CM. La struttura tipica è:
+//  <span class="article-comments">[testo del commento]</span>
+// oppure attributi tooltip / data-bs-title sul container del commento.
+// Limitiamo a 200 char per sicurezza.
+function extractCommentFromRow(row: string): string | null {
+  // Strategia A: classe article-comments (CM v2024+)
+  const cmtPats = [
+    /<span[^>]*class="[^"]*article-comments[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
+    /<div[^>]*class="[^"]*article-comments[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<span[^>]*class="[^"]*product-comments[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
+    /<span[^>]*class="[^"]*comment[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
+    /<small[^>]*class="[^"]*comment[^"]*"[^>]*>([\s\S]*?)<\/small>/i,
+  ];
+  for (const rx of cmtPats) {
+    const m = row.match(rx);
+    if (m) {
+      const txt = rowToText(m[1]);
+      if (txt && txt.length > 0 && txt.length < 300) return txt;
+    }
+  }
+  // Strategia B: attributi tooltip/title con commento (data-bs-title quando il
+  // commento è troncato in UI ma riportato in tooltip)
+  const tooltipPats = [
+    /data-bs-(?:title|content)="([^"]{2,200})"/gi,
+    /(?:title|aria-label)="([^"]{5,200})"/gi,
+  ];
+  for (const rx of tooltipPats) {
+    let m: RegExpExecArray | null;
+    rx.lastIndex = 0;
+    while ((m = rx.exec(row)) !== null) {
+      const txt = m[1].trim();
+      // Skip tooltips che sono in realtà condizioni/lingue note (escludi label generiche)
+      if (/^(Mint|Near Mint|Excellent|Good|Light Played|Played|Poor|Italian|English|Japanese|German|French|Spanish|Portuguese|Korean|Chinese|Russian|Italiano|Inglese|Reverse Holo|Foil|Holo|First Edition|1st Edition)$/i.test(txt)) continue;
+      // Se il testo contiene un grading marker o un commento sostanzioso, prendilo
+      if (parseGradingFromText(txt) || (txt.length > 8 && /[a-zA-Z]/.test(txt))) {
+        return txt;
+      }
+    }
+  }
+  return null;
+}
+
+// Riconosce indicatori di grading nei commenti CM o nei titoli eBay.
+// Casi gestiti: "PSA 9", "PSA-9", "PSA9", "BGS 8.5", "CGC 10", "CGC10",
+// "SGC 9", "HGA 9.5", "GMA 8", "TAG 10", "ARS 9", "GG 9".
+// Restituisce { house, score, raw } oppure null.
+function parseGradingFromText(text: string): { house: string; score: number; raw: string } | null {
+  if (!text) return null;
+  // Normalizza: rimuovi caratteri non utili ma preserva spazi, punti e trattini
+  const norm = text.replace(/\s+/g, ' ').trim();
+  // House aliases (sinonimi/varianti) — riga: alias → casa canonica
+  const houseAliases: Array<[RegExp, string]> = [
+    [/\bPSA\b/i, 'PSA'],
+    [/\bBGS\b/i, 'BGS'],
+    [/\bBeckett\b/i, 'BGS'],
+    [/\bCGC\b/i, 'CGC'],
+    [/\bSGC\b/i, 'SGC'],
+    [/\bHGA\b/i, 'HGA'],
+    [/\bGMA\b/i, 'GMA'],
+    [/\bTAG\b/i, 'TAG'],
+    [/\bARS\b/i, 'ARS'],
+    [/\bGetGraded\b/i, 'GG'],
+    [/\bGG\b/i, 'GG'],
+  ];
+  for (const [rx, house] of houseAliases) {
+    if (!rx.test(norm)) continue;
+    // Cerca un punteggio entro 6 caratteri dalla casa, con vari separatori (-, spazio, niente, punto)
+    // Pattern: HOUSE [sep] SCORE — score può essere intero (1-10) o decimale (es 8.5, 9.5)
+    const houseStr = house === 'BGS' ? '(?:BGS|Beckett)'
+                   : house === 'GG'  ? '(?:GG|GetGraded)'
+                   : house;
+    // Punteggi: 10, 9.5, 9, 8.5, 8, 7.5, 7, 6.5, 6, 5.5, 5, 4.5, 4, 3, 2, 1
+    const scorePat = new RegExp('\\b' + houseStr + '\\s*[-:.\\s]?\\s*(10(?:\\.0)?|[1-9](?:\\.5)?)\\b', 'i');
+    const m = norm.match(scorePat);
+    if (m) {
+      const score = parseFloat(m[1]);
+      if (score >= 1 && score <= 10) {
+        return { house, score, raw: m[0].trim() };
+      }
+    }
+  }
+  return null;
 }
 
 function extractFromNextData(obj: unknown, depth = 0): Listing[] {
@@ -295,9 +384,16 @@ function extractFromNextData(obj: unknown, depth = 0): Listing[] {
             const condStr = extractConditionLabel(condField);
             if (condStr) { cond = condStr; condRank = COND_ORDER[condStr] || 2; }
           }
-          listings.push({ price: Math.round(price * 100) / 100, condition: cond, condRank });
+          // Estrai eventuale commento dalle chiavi note del NEXT_DATA
+          const cmtField = i.comments ?? i.comment ?? i.description ?? i.note ?? i.sellerComment;
+          const comment = cmtField ? String(cmtField).trim().substring(0, 300) : null;
+          const grading = comment ? parseGradingFromText(comment) : null;
+          const listing: Listing = { price: Math.round(price * 100) / 100, condition: cond, condRank };
+          if (comment) listing.comment = comment;
+          if (grading) listing.grading = grading;
+          listings.push(listing);
         }
-        if (listings.length > 0) return listings.sort((a,b) => a.price - b.price).slice(0, 20);
+        if (listings.length > 0) return listings.sort((a,b) => a.price - b.price).slice(0, 30);
       }
     }
     if (typeof v === 'object' && v !== null) {
@@ -1036,8 +1132,10 @@ function extractFirstUSD(s: string): number | null {
 // ═════════════════════════════════════════════════════════════════════
 //  EBAY SOLD — listings venduti/completati con stats
 // ═════════════════════════════════════════════════════════════════════
+interface EbayItem { price: number; title: string; currency: string; }
 interface EbaySoldResult {
   prices: number[];
+  items?: EbayItem[];     // prezzo + titolo per ogni venduto (per filtri lato client)
   median?: number;
   avg?: number;
   min?: number;
@@ -1047,10 +1145,107 @@ interface EbaySoldResult {
   outliersRemoved?: number;
 }
 
-async function handleEbaySoldCascade(urls: string[], minHits: number): Promise<Response> {
+async function handleEbaySoldCascade(urls: string[], minHits: number, merge = false): Promise<Response> {
   const attempts: Array<{ url: string; count: number; median?: number; error?: string }> = [];
   let best: (EbaySoldResult & { url: string }) | null = null;
 
+  // ─── MERGE MODE ──
+  // Esegue TUTTE le query, accumula gli items unici (dedup per title+price+currency)
+  // e ricalcola le statistiche aggregate. Pensato per quando il client vuole
+  // massimizzare il sample combinando query specifiche e larghe.
+  if (merge) {
+    type Key = string;
+    const seen = new Set<Key>();
+    const merged: EbayItem[] = [];
+    let primaryCurrency: string | null = null;
+    const perQueryCounts: Array<{ url: string; raw: number; new: number }> = [];
+
+    for (let i = 0; i < urls.length; i++) {
+      let u = urls[i];
+      if (!/LH_Sold=1/.test(u))     u += (u.includes('?') ? '&' : '?') + 'LH_Sold=1';
+      if (!/LH_Complete=1/.test(u)) u += '&LH_Complete=1';
+
+      const host = new URL(u).host;
+      const { html, ok, status } = await fetchWithRetry(u, 1, `https://${host}/`);
+      if (!ok) {
+        attempts.push({ url: u, count: 0, error: `HTTP ${status}` });
+        perQueryCounts.push({ url: u, raw: 0, new: 0 });
+        continue;
+      }
+
+      const currency = /ebay\.com\//.test(u) ? 'USD'
+        : /ebay\.co\.uk/.test(u) ? 'GBP'
+        : 'EUR';
+      if (!primaryCurrency) primaryCurrency = currency;
+
+      const result = extractEbayPrices(html, currency);
+      attempts.push({ url: u, count: result.count, median: result.median });
+
+      // Se abbiamo items strutturati, dedup per (titleNormalized, price, currency).
+      // Altrimenti fallback: usa solo prezzi (key = price+currency, meno preciso).
+      let added = 0;
+      if (result.items && result.items.length) {
+        for (const it of result.items) {
+          const titleKey = it.title.toLowerCase().replace(/\s+/g, ' ').trim().substring(0, 80);
+          const k: Key = titleKey + '||' + it.price.toFixed(2) + '||' + it.currency;
+          if (!seen.has(k)) { seen.add(k); merged.push(it); added++; }
+        }
+      } else {
+        for (const p of result.prices) {
+          const k: Key = '__noTitle__||' + p.toFixed(2) + '||' + currency;
+          if (!seen.has(k)) {
+            seen.add(k);
+            merged.push({ price: p, title: '', currency });
+            added++;
+          }
+        }
+      }
+      perQueryCounts.push({ url: u, raw: result.count, new: added });
+    }
+
+    // Calcola statistiche aggregate sul merged set, in valuta primaria (per backward compat)
+    if (merged.length === 0) {
+      return json({
+        source: 'ebay_sold',
+        url: urls[urls.length-1] || '',
+        attempts,
+        prices: [],
+        items: [],
+        count: 0,
+        currency: primaryCurrency || 'EUR',
+        merge: true,
+        per_query: perQueryCounts,
+        error: 'nessun venduto su '+urls.length+' tentativi',
+      });
+    }
+
+    // Per la mediana del campione aggregato usiamo i prezzi nella valuta primaria
+    // (per query mixed currency, il client farà la conversione fine via items[].currency).
+    const allPrices = merged.map(it => it.price).sort((a,b) => a - b);
+    const mid = Math.floor(allPrices.length / 2);
+    const median = allPrices.length % 2 === 0
+      ? Math.round(((allPrices[mid - 1] + allPrices[mid]) / 2) * 100) / 100
+      : allPrices[mid];
+    const avg = Math.round((allPrices.reduce((a,b) => a+b, 0) / allPrices.length) * 100) / 100;
+
+    return json({
+      source: 'ebay_sold',
+      url: urls[0],
+      attempts,
+      merge: true,
+      per_query: perQueryCounts,
+      prices: allPrices.slice(0, 60),
+      items: merged.slice(0, 100),
+      median,
+      avg,
+      min: allPrices[0],
+      max: allPrices[allPrices.length-1],
+      count: merged.length,
+      currency: primaryCurrency || 'EUR',
+    });
+  }
+
+  // ─── CASCADE MODE (default originale) ──
   for (let i = 0; i < urls.length; i++) {
     let u = urls[i];
     if (!/LH_Sold=1/.test(u))     u += (u.includes('?') ? '&' : '?') + 'LH_Sold=1';
@@ -1106,35 +1301,79 @@ async function handleEbaySoldCascade(urls: string[], minHits: number): Promise<R
 }
 
 function extractEbayPrices(html: string, currency: string): EbaySoldResult {
-  const priceBlocks: string[] = [];
-  const blockPat = /<span[^>]*class="[^"]*s-item__price[^"]*"[^>]*>([\s\S]*?)<\/span>/gi;
-  let m: RegExpExecArray | null;
-  while ((m = blockPat.exec(html)) !== null) {
-    priceBlocks.push(m[1].replace(/<[^>]+>/g, ' ').trim());
-  }
+  // ─── PHASE 1: s-item container extraction (title + price as a pair) ───
+  // Cerca <li class="s-item ..."> ... </li> oppure <div class="s-item ...">.
+  // Per ogni container, estrai il titolo + il prezzo.
+  const items: EbayItem[] = [];
+  const containerPat = /<(?:li|div)[^>]*class="[^"]*s-item(?!__)[^"]*"[^>]*>([\s\S]*?)(?=<(?:li|div)[^>]*class="[^"]*s-item(?!__)|<\/ul>|<\/section>|<\/main>)/gi;
+  let cm: RegExpExecArray | null;
+  while ((cm = containerPat.exec(html)) !== null) {
+    const block = cm[1];
+    // Salta placeholder/announcement: title contiene "Shop on eBay" o link
+    const titleMatch = block.match(/<(?:span|div|h3)[^>]*class="[^"]*s-item__title[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|h3)>/i)
+                    || block.match(/<a[^>]*class="[^"]*s-item__link[^"]*"[^>]*>([\s\S]*?)<\/a>/i);
+    if (!titleMatch) continue;
+    const title = titleMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!title || /^Shop on eBay$/i.test(title) || title.length < 3) continue;
 
-  const raw: number[] = [];
-  for (const block of priceBlocks) {
-    if (/\bto\b\s+[\$€£]/i.test(block) || /\ba\b\s+[\$€£]/i.test(block)) continue;
-    const pats = [
-      /\$\s*([\d,]+\.\d{2})/,
-      /€\s*([\d.]+,\d{2})/,
-      /£\s*([\d,]+\.\d{2})/,
-      /EUR\s*([\d.]+,\d{2})/i,
-      /EUR\s*([\d,]+\.\d{2})/i,
-      /USD\s*([\d,]+\.\d{2})/i,
-      /GBP\s*([\d,]+\.\d{2})/i,
+    const priceMatch = block.match(/<span[^>]*class="[^"]*s-item__price[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
+    if (!priceMatch) continue;
+    const priceText = priceMatch[1].replace(/<[^>]+>/g, ' ').trim();
+    if (/\bto\b\s+[\$€£]/i.test(priceText) || /\ba\b\s+[\$€£]/i.test(priceText)) continue;
+
+    let p: number | null = null;
+    let cur: string = currency;
+    const priceProbes: Array<[RegExp, string]> = [
+      [/€\s*([\d.]+,\d{2})/, 'EUR'],
+      [/€\s*([\d,]+\.\d{2})/, 'EUR'],
+      [/EUR\s*([\d.,]+)/i, 'EUR'],
+      [/\$\s*([\d,]+\.\d{2})/, 'USD'],
+      [/USD\s*([\d.,]+)/i, 'USD'],
+      [/£\s*([\d,]+\.\d{2})/, 'GBP'],
+      [/GBP\s*([\d.,]+)/i, 'GBP'],
     ];
-    for (const p of pats) {
-      const mm = block.match(p);
+    for (const [rx, c] of priceProbes) {
+      const mm = priceText.match(rx);
       if (mm) {
         const n = parsePrice(mm[1]);
-        // Pavimento alzato a 1 (sotto 1€ = gadget/sfuso) e soffitto a 99999
-        if (n && n >= 1 && n <= 99999) { raw.push(n); break; }
+        if (n && n >= 1 && n <= 99999) { p = n; cur = c; break; }
+      }
+    }
+    if (p == null) continue;
+    items.push({ price: p, title, currency: cur });
+  }
+
+  // ─── PHASE 2: legacy price-only extraction (fallback / supplementary) ───
+  const raw: number[] = items.map(it => it.price);
+  if (raw.length === 0) {
+    const priceBlocks: string[] = [];
+    const blockPat = /<span[^>]*class="[^"]*s-item__price[^"]*"[^>]*>([\s\S]*?)<\/span>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = blockPat.exec(html)) !== null) {
+      priceBlocks.push(m[1].replace(/<[^>]+>/g, ' ').trim());
+    }
+    for (const block of priceBlocks) {
+      if (/\bto\b\s+[\$€£]/i.test(block) || /\ba\b\s+[\$€£]/i.test(block)) continue;
+      const pats = [
+        /\$\s*([\d,]+\.\d{2})/,
+        /€\s*([\d.]+,\d{2})/,
+        /£\s*([\d,]+\.\d{2})/,
+        /EUR\s*([\d.]+,\d{2})/i,
+        /EUR\s*([\d,]+\.\d{2})/i,
+        /USD\s*([\d,]+\.\d{2})/i,
+        /GBP\s*([\d,]+\.\d{2})/i,
+      ];
+      for (const p of pats) {
+        const mm = block.match(p);
+        if (mm) {
+          const n = parsePrice(mm[1]);
+          if (n && n >= 1 && n <= 99999) { raw.push(n); break; }
+        }
       }
     }
   }
 
+  let m: RegExpExecArray | null;
   if (raw.length === 0) {
     const jsonPricePat = /"convertedCurrentPrice"\s*:\s*\{?[^}]*?"value"\s*:\s*"?([\d.]+)"?/g;
     while ((m = jsonPricePat.exec(html)) !== null) {
@@ -1195,6 +1434,7 @@ function extractEbayPrices(html: string, currency: string): EbaySoldResult {
 
   return {
     prices: use.slice(0, 30),
+    items: items.length > 0 ? items.slice(0, 60) : undefined,
     median,
     avg,
     min: use[0],
