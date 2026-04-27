@@ -11358,6 +11358,26 @@ function anlPopCm(data, card){
     }
   }
 
+  // ─── DIAGNOSTICA: log dei listing entrati nel selected ──
+  // Serve per debug rapido di disallineamenti tra la nota "X gradate" e la
+  // tabella raggruppata. Permette di vedere subito se un raw è stato
+  // erroneamente conteggiato come graded (ghost).
+  try{
+    console.group('%c[Analizza] CM selected ('+selected.length+' listings, label="'+label+'")','color:#a855f7;font-weight:bold');
+    console.table(selected.map(function(l, i){
+      return {
+        '#': i+1,
+        price: '€'+l.price.toFixed(2),
+        cond: l.condition || '?',
+        lang: l.language || '—',
+        comment: l.comment ? l.comment.substring(0,60) : '—',
+        grading: l.grading ? (l.grading.house+' '+l.grading.score) : '—',
+      };
+    }));
+    if(droppedNote) console.log('Note: '+droppedNote);
+    console.groupEnd();
+  }catch(e){}
+
   // Calcola mediana sui prezzi selezionati
   var prices = selected.map(function(l){ return l.price; }).sort(function(a,b){ return a-b; });
   var mid = Math.floor(prices.length/2);

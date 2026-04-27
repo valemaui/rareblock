@@ -152,14 +152,23 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
   const listings = extractCMListings(html);
 
   // ─── POST-EXTRACTION GLOBAL GRADING SCAN ──
-  // Last-resort: per OGNI listing senza grading, cerca grading marker
-  // GLOBALMENTE nell'HTML grezzo. Se ne trova uno entro 3KB dal prezzo del
-  // listing, lo associa. Funziona indipendentemente da extractCommentFromRow.
-  // FIX: prima girava solo se TUTTI i listing erano senza grading (`!hasAnyGrading`),
-  // ora gira sempre se almeno 1 listing è senza grading. Questo aiuta a
-  // recuperare listing parzialmente persi (es. ultima row).
-  const missingGradingCount = listings.filter(l => !l.grading).length;
-  if (listings.length > 0 && missingGradingCount > 0) {
+  // Last-resort: SOLO se nessun listing ha grading (extractCommentFromRow ha
+  // fallito su tutti i listing — caso raro post-fix di fst-italic). Quando
+  // gira, cerca grading marker GLOBALMENTE nell'HTML grezzo e li associa
+  // al prezzo più vicino tra i listings estratti.
+  //
+  // NOTA: prima girava se ANCHE solo 1 listing era senza grading, ma questo
+  // creava GHOST LISTINGS — il scan trovava marker grading in punti dell'HTML
+  // non legati ai listing (filtri sidebar, menu, breadcrumb, data-* attribute
+  // duplicati) e li attribuiva a listing raw vicini. Esempio: claval75 €100
+  // (raw "Front Near Mint retro excelent") veniva marcato come PSA 8 ghost
+  // perché un "PSA 8" in qualche filtro CM era entro 1500 char.
+  //
+  // Strategia conservativa: gira solo se TUTTI i listing sono senza grading
+  // (extraction completamente fallita). Se anche solo 1 ha grading via
+  // fst-italic, fidiamoci di lui e non rischiamo ghost.
+  const hasAnyGrading = listings.some(l => l.grading);
+  if (listings.length > 0 && !hasAnyGrading) {
     // Mappa: indice nell'HTML → prezzo (per associare grading al listing)
     // CM usa "99,99 €" (€ DOPO il numero, con spazio). Il pattern precedente
     // cercava solo "€ 99,99" (€ prima) — sui listing CM trovava 0 occorrenze.
