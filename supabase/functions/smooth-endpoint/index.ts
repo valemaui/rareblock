@@ -1143,6 +1143,7 @@ interface EbaySoldResult {
   count: number;
   currency: string;
   outliersRemoved?: number;
+  _diag?: Record<string, unknown>;  // diagnostica quando count===0
 }
 
 async function handleEbaySoldCascade(urls: string[], minHits: number, merge = false): Promise<Response> {
@@ -1159,30 +1160,52 @@ async function handleEbaySoldCascade(urls: string[], minHits: number, merge = fa
     const merged: EbayItem[] = [];
     let primaryCurrency: string | null = null;
     const perQueryCounts: Array<{ url: string; raw: number; new: number }> = [];
+    const diagPerUrl: Array<{ url: string; diag: Record<string, unknown> | null }> = [];
 
-    for (let i = 0; i < urls.length; i++) {
-      let u = urls[i];
+    // Cap a max 6 URL per evitare timeout (Supabase Edge Function ~30s).
+    // Le query sono ordinate dalla più specifica alla più larga, quindi le prime
+    // 6 sono quelle con maggior probabilità di trovare match utili.
+    const urlsCapped = urls.slice(0, 6);
+
+    // Parallel fetch con concorrenza 3 (eBay rate-limita IP che spammano)
+    const CONCURRENCY = 3;
+    type FetchResult = {
+      url: string; html: string; ok: boolean; status: number;
+      currency: string;
+    };
+    const fetchTasks: Array<() => Promise<FetchResult>> = urlsCapped.map(url => async () => {
+      let u = url;
       if (!/LH_Sold=1/.test(u))     u += (u.includes('?') ? '&' : '?') + 'LH_Sold=1';
       if (!/LH_Complete=1/.test(u)) u += '&LH_Complete=1';
-
       const host = new URL(u).host;
-      const { html, ok, status } = await fetchWithRetry(u, 1, `https://${host}/`);
-      if (!ok) {
-        attempts.push({ url: u, count: 0, error: `HTTP ${status}` });
-        perQueryCounts.push({ url: u, raw: 0, new: 0 });
-        continue;
-      }
-
+      const r = await fetchWithRetry(u, 1, `https://${host}/`);
       const currency = /ebay\.com\//.test(u) ? 'USD'
         : /ebay\.co\.uk/.test(u) ? 'GBP'
         : 'EUR';
-      if (!primaryCurrency) primaryCurrency = currency;
+      return { url: u, html: r.html, ok: r.ok, status: r.status, currency };
+    });
 
-      const result = extractEbayPrices(html, currency);
-      attempts.push({ url: u, count: result.count, median: result.median });
+    const fetchResults: FetchResult[] = [];
+    for (let i = 0; i < fetchTasks.length; i += CONCURRENCY){
+      const batch = fetchTasks.slice(i, i + CONCURRENCY);
+      const results = await Promise.all(batch.map(fn => fn()));
+      fetchResults.push(...results);
+    }
 
-      // Se abbiamo items strutturati, dedup per (titleNormalized, price, currency).
-      // Altrimenti fallback: usa solo prezzi (key = price+currency, meno preciso).
+    // Processa i risultati in ordine
+    for (const r of fetchResults){
+      if (!r.ok) {
+        attempts.push({ url: r.url, count: 0, error: `HTTP ${r.status}` });
+        perQueryCounts.push({ url: r.url, raw: 0, new: 0 });
+        diagPerUrl.push({ url: r.url, diag: { http_error: r.status } });
+        continue;
+      }
+      if (!primaryCurrency) primaryCurrency = r.currency;
+
+      const result = extractEbayPrices(r.html, r.currency);
+      attempts.push({ url: r.url, count: result.count, median: result.median });
+      if (result._diag) diagPerUrl.push({ url: r.url, diag: result._diag });
+
       let added = 0;
       if (result.items && result.items.length) {
         for (const it of result.items) {
@@ -1192,18 +1215,17 @@ async function handleEbaySoldCascade(urls: string[], minHits: number, merge = fa
         }
       } else {
         for (const p of result.prices) {
-          const k: Key = '__noTitle__||' + p.toFixed(2) + '||' + currency;
+          const k: Key = '__noTitle__||' + p.toFixed(2) + '||' + r.currency;
           if (!seen.has(k)) {
             seen.add(k);
-            merged.push({ price: p, title: '', currency });
+            merged.push({ price: p, title: '', currency: r.currency });
             added++;
           }
         }
       }
-      perQueryCounts.push({ url: u, raw: result.count, new: added });
+      perQueryCounts.push({ url: r.url, raw: result.count, new: added });
     }
 
-    // Calcola statistiche aggregate sul merged set, in valuta primaria (per backward compat)
     if (merged.length === 0) {
       return json({
         source: 'ebay_sold',
@@ -1215,6 +1237,7 @@ async function handleEbaySoldCascade(urls: string[], minHits: number, merge = fa
         currency: primaryCurrency || 'EUR',
         merge: true,
         per_query: perQueryCounts,
+        _diag: diagPerUrl,           // nuove diagnostiche per debug client-side
         error: 'nessun venduto su '+urls.length+' tentativi',
       });
     }
@@ -1390,8 +1413,91 @@ function extractEbayPrices(html: string, currency: string): EbaySoldResult {
     }
   }
 
+  // ─── PHASE 4: STRUCTURAL-AGNOSTIC ──
+  // Strategia indipendente dal CSS: ogni listing eBay ha un link /itm/<id>.
+  // Per ogni ID unico, prendi una finestra di ~3kB attorno al match e cerca
+  // titolo + prezzo. Funziona anche se il markup cambia drasticamente.
+  if (items.length === 0) {
+    const itmPat = /\/itm\/(\d{8,15})(?:\/|\?|"|&)/g;
+    const seenIds = new Set<string>();
+    let im: RegExpExecArray | null;
+    while ((im = itmPat.exec(html)) !== null) {
+      const id = im[1];
+      if (seenIds.has(id)) continue;
+      seenIds.add(id);
+      // Finestra: 3500 char dopo il match (i listing su eBay hanno il prezzo
+      // dopo il link, raramente prima — meno rumore guardando solo dopo)
+      const winStart = im.index;
+      const winEnd = Math.min(html.length, winStart + 3500);
+      const win = html.substring(winStart, winEnd);
+
+      // Cerca prezzo: pattern "EUR XX,XX" / "$XX.XX" / "€XX,XX" / "£XX.XX"
+      let p: number | null = null;
+      let cur: string = currency;
+      const probes: Array<[RegExp, string]> = [
+        [/€\s*([\d.]+,\d{2})\b/, 'EUR'],
+        [/€\s*([\d,]+\.\d{2})\b/, 'EUR'],
+        [/EUR\s*([\d.,]+)\b/i, 'EUR'],
+        [/\$\s*([\d,]+\.\d{2})\b/, 'USD'],
+        [/USD\s*([\d.,]+)\b/i, 'USD'],
+        [/£\s*([\d,]+\.\d{2})\b/, 'GBP'],
+        [/GBP\s*([\d.,]+)\b/i, 'GBP'],
+      ];
+      for (const [rx, c] of probes) {
+        const mm = win.match(rx);
+        if (mm) {
+          const n = parsePrice(mm[1]);
+          // Filtro: prezzo plausibile per single trading card (>=1, <=10k);
+          // in modalità sold il prezzo finale è quello che vediamo nella card
+          if (n != null && n >= 1 && n <= 9999) { p = n; cur = c; break; }
+        }
+      }
+      if (p == null) continue;
+
+      // Cerca titolo: euristica → primo testo "lungo" (>=10 char) entro 1500 char
+      // Tipicamente in <h3>, <span role="heading">, o testo del <a> link
+      let title = '';
+      const titleProbes = [
+        /<h3[^>]*>([\s\S]*?)<\/h3>/i,
+        /<span[^>]*role="heading"[^>]*>([\s\S]*?)<\/span>/i,
+        /<span[^>]*class="[^"]*title[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
+        /<a[^>]*\/itm\/[^>]*>([\s\S]*?)<\/a>/i,
+      ];
+      for (const rx of titleProbes) {
+        const mt = win.match(rx);
+        if (mt) {
+          const t = mt[1].replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&#160;/g, ' ').replace(/\s+/g, ' ').trim();
+          if (t.length >= 10 && !/^(shop on ebay|new listing|nuovo)$/i.test(t)) {
+            title = t.substring(0, 200);
+            break;
+          }
+        }
+      }
+
+      raw.push(p);
+      items.push({ price: p, title: title || ('item '+id), currency: cur });
+      if (raw.length >= 100) break; // safety cap
+    }
+  }
+
   if (raw.length === 0) {
-    return { prices: [], count: 0, currency };
+    // ─── DIAGNOSTICA: nessun prezzo estratto ──
+    // Ritorna info utili per capire cosa è successo (CAPTCHA, redirect, no results)
+    const titleMatch = html.match(/<title>([^<]{0,200})<\/title>/i);
+    const _diag = {
+      html_length: html.length,
+      page_title: titleMatch ? titleMatch[1].trim() : null,
+      has_cf_challenge: /Just a moment|cf-browser-verification|challenge-platform/i.test(html),
+      has_captcha: /captcha|robot|verification|verifica|are you human/i.test(html),
+      has_no_results: /No exact matches found|0 results found|Nessun risultato|sorry, your search/i.test(html),
+      has_signin_redirect: /Sign in to continue|signin\.ebay/i.test(html),
+      has_srp_results_marker: /srp-results|s-item|su-card-container/i.test(html),
+      has_itm_links: /\/itm\/\d{8,}/.test(html),
+      itm_link_count: (html.match(/\/itm\/\d{8,}/g) || []).length,
+      // Sample del head per identificare se è una pagina valida
+      head_sample: html.substring(0, 800).replace(/\s+/g, ' '),
+    };
+    return { prices: [], count: 0, currency, _diag } as EbaySoldResult & { _diag: typeof _diag };
   }
 
   const sorted = raw.slice().sort((a,b) => a - b);

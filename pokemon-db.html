@@ -10776,7 +10776,7 @@ async function anlStartLiveFetches(card){
       // MERGE MODE: combina tutti gli URL, dedup per (titleNormalized, price, currency).
       // Restituisce items[] con titoli — usati dal client per filtri raw/graded e lingua.
       var data=await anlFetchSmooth({source:'ebay_sold', urls:urls, url:urls[0], min_hits:3, merge:true});
-      if(data.error && (!data.items || !data.items.length)){ anlPopEbay(null,data.error); return; }
+      if(data.error && (!data.items || !data.items.length)){ anlPopEbay(data,data.error); return; }
       anlPopEbay(data);
     }catch(e){ anlPopEbay(null,e.message||'errore rete'); }
   })();
@@ -11198,11 +11198,30 @@ function anlPopEbay(data, err){
   if(err || !data || (!data.count && !(data.items && data.items.length))){
     if(priceEl){ priceEl.textContent='—'; priceEl.classList.remove('loading'); priceEl.classList.add('na'); }
     if(noteEl){
-      // Se la cascata ha effettivamente trovato item ma il filtro modalità li ha tutti scartati,
-      // l'errore di rete sarà null. In quel caso l'errore viene gestito in sane.countEur===0
       noteEl.textContent = err ? ('errore: '+String(err).substring(0,60)) : 'nessun venduto trovato';
     }
     anlSetDot('anlSrcEbDot', 'none');
+    // ─── DIAGNOSTICA CONSOLE ──
+    // Quando l'edge function fallisce a trovare venduti, l'edge ritorna _diag
+    // con info su cosa ha effettivamente ricevuto. Logghiamo tutto per debug.
+    try{
+      console.group('%c[Analizza] eBay sold — nessun venduto', 'color:#f59e0b;font-weight:bold');
+      if(err) console.warn('Errore di rete:', err);
+      if(data){
+        console.log('attempts (per URL):', data.attempts);
+        console.log('per_query:', data.per_query);
+        if(data._diag){
+          console.warn('Diagnostica per URL (cosa ha ricevuto l\'edge function):');
+          (Array.isArray(data._diag)?data._diag:[]).forEach(function(d, i){
+            console.group('URL #'+(i+1)+': '+(d.url||'').substring(0,100));
+            console.table(d.diag||{});
+            console.groupEnd();
+          });
+        }
+        console.log('full response:', data);
+      }
+      console.groupEnd();
+    }catch(e){}
     anlRenderToday();
     anlRenderProjection();
     return;
