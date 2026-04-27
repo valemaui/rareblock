@@ -430,19 +430,73 @@ export async function scrapeCatawiki(job) {
       var title = titleEl ? titleEl.textContent.trim() : (linkEl.textContent || '').trim();
       if (!title) return;
 
-      var priceEl = card.querySelector('[class*="bid"], [class*="price"], [data-testid*="bid"], [data-testid*="price"]');
-      var price = parsePriceText(priceEl ? priceEl.textContent : '');
+      // PRICE — più aggressivo per coprire i layout 2025:
+      // Catawiki usa span con classi tipo "current-bid", "current_bid_amount",
+      // "lot-card__current-bid", oppure data-testid="current-bid" / "starting-bid".
+      // Inoltre il numero spesso è in un elemento separato dal label.
+      var price = null;
+      var priceSelectors = [
+        '[data-testid="current-bid"]',
+        '[data-testid="starting-bid"]',
+        '[data-testid*="current-bid"]',
+        '[data-testid*="bid"]',
+        '[data-testid*="price"]',
+        '[class*="current-bid"]',
+        '[class*="current_bid"]',
+        '[class*="currentBid"]',
+        '[class*="starting-bid"]',
+        '[class*="lot-card__bid"]',
+        '[class*="bid-amount"]',
+        '[class*="bid"]',
+        '[class*="price"]',
+      ];
+      for (var ps = 0; ps < priceSelectors.length; ps++) {
+        var pEl = card.querySelector(priceSelectors[ps]);
+        if (!pEl) continue;
+        var pTxt = pEl.textContent || '';
+        var pParsed = parsePriceText(pTxt);
+        if (pParsed !== null) { price = pParsed; break; }
+      }
+      // Fallback FINALE: cerca un € nel testo della card e prova a parsare
+      // l'intero numero più vicino. Non perfetto ma cattura layout custom.
+      if (price === null) {
+        var allText = card.textContent || '';
+        // Match pattern "€ 1.234,56" / "€1234,56" / "EUR 50,00" / "€ 50"
+        var euroMatch = allText.match(/(?:€|EUR)\s*([\d.,]+)/);
+        if (euroMatch) {
+          price = parsePriceText('€' + euroMatch[1]);
+        }
+      }
 
       var img = extractImageUrlDom(card);
-      var endEl = card.querySelector('[class*="time-left"], [class*="countdown"], [class*="ends"], time');
-      var endsAt = endEl ? parseCountdownText(endEl.textContent) : null;
-      // Time element a volte ha datetime attribute direttamente ISO
-      if (!endsAt && endEl && endEl.getAttribute) {
-        var dtAttr = endEl.getAttribute('datetime');
+
+      // END_TIME — selettori moderni
+      var endsAt = null;
+      var endSelectors = [
+        '[data-testid="time-left"]',
+        '[data-testid*="time-left"]',
+        '[data-testid*="countdown"]',
+        '[data-testid*="ends"]',
+        '[class*="time-left"]',
+        '[class*="timeLeft"]',
+        '[class*="countdown"]',
+        '[class*="ends"]',
+        'time[datetime]',
+        'time',
+      ];
+      for (var es = 0; es < endSelectors.length; es++) {
+        var endEl = card.querySelector(endSelectors[es]);
+        if (!endEl) continue;
+        // Prima prova: datetime attribute (ISO timestamp)
+        var dtAttr = endEl.getAttribute && endEl.getAttribute('datetime');
         if (dtAttr) {
           var d = new Date(dtAttr);
-          if (!isNaN(d.getTime())) endsAt = d.toISOString();
+          if (!isNaN(d.getTime())) { endsAt = d.toISOString(); break; }
         }
+        // Seconda prova: parse testo countdown
+        var endText = endEl.textContent || '';
+        var parsed = parseCountdownText(endText);
+        if (parsed) { endsAt = parsed; break; }
       }
 
       items.push({
@@ -658,18 +712,22 @@ export async function scrapeCatawiki(job) {
   }
 
   // ── DISPATCH: NEXT_DATA prima, poi DOM con lazy-load wait ───────────
+  // ENRICHMENT API: DISABILITATO DI DEFAULT — Akamai bot detection è troppo
+  // aggressivo e porta a blacklist IP fissa. Ci affidiamo solo a NEXT_DATA
+  // (che la pagina di SEARCH richiede come navigazione utente, sempre safe)
+  // e DOM. L'enrichment via API è opt-in: l'utente lo lancia manualmente
+  // dall'app con il bottone "Aggiorna prezzi" che processa pochi lots
+  // selettivamente con delay forte.
   var fromJson = tryNextData();
   if (fromJson && fromJson.length) {
-    // Arricchisci items con dati mancanti via API
-    fromJson = await enrichMissing(fromJson);
-    return fromJson;
+    return fromJson;  // NO enrichMissing automatico
   }
 
   await ensureImagesLoaded(4000);
   var domItems = tryDom();
-  // Anche per items DOM proviamo enrichment se hanno lot_id
-  if (domItems.length) {
-    domItems = await enrichMissing(domItems);
-  }
-  return domItems;
+  return domItems;  // NO enrichMissing automatico
+
+  // (codice precedente con enrichMissing auto rimosso — la funzione resta
+  //  definita più sopra ed è invocabile manualmente da app via messaging
+  //  per i casi in cui l'utente clicca esplicitamente "aggiorna prezzo")
 }

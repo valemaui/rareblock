@@ -16062,7 +16062,7 @@ function radScanRemoveResult(jobId, url){
 window.radScanRemoveResult = radScanRemoveResult;
 
 // ── Render stato dei provider nel banner info ────────────────────────────
-var RAD_EXT_MIN_VERSION = '2.3.0';   // versione minima richiesta per Catawiki price/end fix completo
+var RAD_EXT_MIN_VERSION = '2.4.0';   // versione minima richiesta per Catawiki price/end fix completo
 
 // Detect cooldown Akamai attivo (settato dallo scraper Catawiki dell'estensione)
 function radCheckAkamaiCooldown(){
@@ -16136,6 +16136,11 @@ async function radScanRenderProviderStatus(){
   }
 
   // Banner avviso aggiornamento estensione (sopra la lista provider)
+  // Banner informativo: safe-mode Catawiki sempre visibile
+  var safeModeBanner = '<div style="background:rgba(63,185,80,.05);border:1px solid rgba(63,185,80,.2);border-radius:var(--r);padding:8px 12px;margin-bottom:10px;font-size:11px;display:flex;align-items:flex-start;gap:8px;color:var(--text-muted)">'
+    +'<span class="rb-i rb-i-check" style="color:var(--success);flex-shrink:0;margin-top:1px"></span>'
+    +'<div><b style="color:var(--text)">Safe-mode Catawiki attivo (v2.4.0+)</b> — niente fetch API automatici per evitare blacklist Akamai. Prezzi e scadenze letti solo dalla pagina di ricerca aperta dall\'utente (sempre safe). Per dati mancanti apri manualmente il singolo lot.</div>'
+    +'</div>';
   var warningRow = '';
   if(extInfo && extInfo.available && extInfo.version && radSemverCmp(extInfo.version, RAD_EXT_MIN_VERSION) < 0){
     warningRow = '<div style="background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.3);border-radius:var(--r);padding:8px 12px;margin-bottom:8px;font-size:11px;display:flex;align-items:flex-start;gap:8px">'
@@ -16158,7 +16163,7 @@ async function radScanRenderProviderStatus(){
       +'<button class="btn" onclick="radClearAkamaiCooldown()" style="font-size:10px;margin-top:4px;padding:3px 8px">Reset cooldown</button></div>'
       +'</div>';
   }
-  detailsEl.innerHTML = warningRow + rows.join('');
+  detailsEl.innerHTML = safeModeBanner + warningRow + rows.join('');
   if(firstActive){
     var lbl = firstActive;
     if(firstActive === 'extension' && extInfo && extInfo.version){
