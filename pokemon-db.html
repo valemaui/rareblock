@@ -10859,20 +10859,35 @@ function anlSigFor(card){
 
 // ─── HELPER condivise: parser grading + lingua su titoli/commenti ─────────────
 // Riconosce indicatori di grading in un testo (titolo eBay o commento CM).
-// Casi: "PSA 9", "PSA-9", "PSA9", "BGS 8.5", "CGC 10", "SGC 9", etc.
+// Casi: "PSA 9", "PSA-9", "PSA9", "BGS 8.5", "BGS8.5", "CGC 10", "ACE MINT 9"
 // Ritorna {house, score} oppure null.
 function anlParseGrading(text){
   if(!text) return null;
   var s = String(text).replace(/\s+/g,' ').trim();
-  var houses = {
-    'PSA':/\bPSA\b/i, 'BGS':/\b(?:BGS|Beckett)\b/i, 'CGC':/\bCGC\b/i,
-    'SGC':/\bSGC\b/i, 'HGA':/\bHGA\b/i, 'GMA':/\bGMA\b/i,
-    'TAG':/\bTAG\b/i, 'ARS':/\bARS\b/i, 'GG':/\b(?:GG|GetGraded)\b/i
-  };
-  for(var house in houses){
-    if(!houses[house].test(s)) continue;
-    var houseStr = house==='BGS'?'(?:BGS|Beckett)' : house==='GG'?'(?:GG|GetGraded)' : house;
-    var rx = new RegExp('\\b'+houseStr+'\\s*[-:.\\s]?\\s*(10(?:\\.0)?|[1-9](?:\\.5)?)\\b','i');
+  // Coppie (house canonica, regex name) — applichiamo il pattern completo
+  // direttamente, senza pre-test con \bHOUSE\b che fallisce su "BGS8" perché
+  // tra S e 8 non c'è word boundary (entrambi word char).
+  var houses = [
+    ['PSA','PSA'],
+    ['BGS','(?:BGS|Beckett)'],
+    ['CGC','CGC'],
+    ['SGC','SGC'],
+    ['HGA','HGA'],
+    ['GMA','GMA'],
+    ['TAG','TAG'],
+    ['ARS','ARS'],
+    ['GG','(?:GG|GetGraded)'],
+    ['ACE','ACE']
+  ];
+  for(var i=0;i<houses.length;i++){
+    var house = houses[i][0], houseStr = houses[i][1];
+    var rx = new RegExp(
+      '\\b'+houseStr+
+      '(?:\\s*[A-Za-z]{0,8})?'+
+      '\\s*[-:.\\s]?\\s*'+
+      '(10(?:\\.0)?|[1-9](?:\\.5)?)\\b',
+      'i'
+    );
     var m = s.match(rx);
     if(m){
       var score = parseFloat(m[1]);
@@ -11115,13 +11130,43 @@ function anlPopCm(data, card){
 
   // Normalizza il grading: se NON è già stato parsato dall'edge function
   // (es. risultati da NEXT_DATA fallback) prova a parsare il commento ora.
+  // Se il commento è assente del tutto, prova a parsare grading da QUALSIASI
+  // campo di testo presente sul listing (es. seller note nascosta).
   listings = listings.map(function(l){
     if(!l.grading && l.comment) l.grading = anlParseGrading(l.comment);
+    // Last-resort: se ancora niente grading, prova a scansionare TUTTE le
+    // proprietà testuali del listing alla ricerca di un pattern grading.
+    if(!l.grading){
+      for(var k in l){
+        if(typeof l[k]==='string' && l[k].length>1 && l[k].length<300){
+          var g = anlParseGrading(l[k]);
+          if(g){ l.grading = g; if(!l.comment) l.comment = l[k]; break; }
+        }
+      }
+    }
     return l;
   });
 
   var rawListings    = listings.filter(function(l){ return !l.grading; });
   var gradedListings = listings.filter(function(l){ return  l.grading; });
+
+  // ─── DIAGNOSTICA CONSOLE: vedi cosa l'edge function ha estratto ──
+  // Utile per capire se CM serve i commenti correttamente. Logga sempre
+  // (anche quando funziona) così possiamo verificare la coerenza.
+  try{
+    console.group('%c[Analizza] CM listings — '+listings.length+' totali ('+gradedListings.length+' gradate, '+rawListings.length+' raw)','color:#06b6d4;font-weight:bold');
+    console.log('Modalità: '+(graded?'GRADED ('+house+' '+score+')':'RAW'));
+    console.table(listings.map(function(l, i){
+      return {
+        '#': i+1,
+        price: '€'+l.price.toFixed(2),
+        cond: l.condition || '?',
+        comment: l.comment ? l.comment.substring(0,80) : '—',
+        grading: l.grading ? (l.grading.house+' '+l.grading.score) : '—',
+      };
+    }));
+    console.groupEnd();
+  }catch(e){}
 
   var selected, label, droppedNote = '';
   if(graded){

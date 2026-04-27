@@ -285,13 +285,19 @@ function extractCMListings(html: string): Listing[] {
 // oppure attributi tooltip / data-bs-title sul container del commento.
 // Limitiamo a 200 char per sicurezza.
 function extractCommentFromRow(row: string): string | null {
-  // Strategia A: classe article-comments (CM v2024+)
+  // Strategia A: classi note di CardMarket per il blocco commento
+  // (CM cambia spesso questi nomi, quindi proviamo tutte le varianti viste)
   const cmtPats = [
     /<span[^>]*class="[^"]*article-comments[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
     /<div[^>]*class="[^"]*article-comments[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
     /<span[^>]*class="[^"]*product-comments[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
+    /<span[^>]*class="[^"]*productComments[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
+    /<div[^>]*class="[^"]*productComments[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<span[^>]*class="[^"]*articleComments[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
     /<span[^>]*class="[^"]*comment[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
     /<small[^>]*class="[^"]*comment[^"]*"[^>]*>([\s\S]*?)<\/small>/i,
+    /<span[^>]*class="[^"]*sellerInfo[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
+    /<span[^>]*class="[^"]*note[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
   ];
   for (const rx of cmtPats) {
     const m = row.match(rx);
@@ -300,10 +306,30 @@ function extractCommentFromRow(row: string): string | null {
       if (txt && txt.length > 0 && txt.length < 300) return txt;
     }
   }
-  // Strategia B: attributi tooltip/title con commento (data-bs-title quando il
-  // commento è troncato in UI ma riportato in tooltip)
+  // Strategia B: tag italici (CM mostra spesso i commenti in italic)
+  // <i>...</i>, <em>...</em>, <span style="font-style:italic">...</span>
+  const italicPats = [
+    /<i\b[^>]*>([\s\S]{2,200}?)<\/i>/gi,
+    /<em\b[^>]*>([\s\S]{2,200}?)<\/em>/gi,
+    /<span[^>]*style="[^"]*italic[^"]*"[^>]*>([\s\S]{2,200}?)<\/span>/gi,
+  ];
+  for (const rx of italicPats) {
+    let m: RegExpExecArray | null;
+    rx.lastIndex = 0;
+    while ((m = rx.exec(row)) !== null) {
+      const txt = rowToText(m[1]);
+      // Skip se è solo un'icona / classe / vuoto / condizione
+      if (!txt || txt.length < 2) continue;
+      if (/^(Mint|Near Mint|Excellent|Good|Light Played|Played|Poor|NM|EX|GD|LP|PL|PO|MT|Italian|English|Japanese|German|French|Spanish|Italiano|Inglese|Foil|Holo|Reverse|First Edition|1st)$/i.test(txt)) continue;
+      // Preferisci se contiene grading o testo descrittivo
+      if (parseGradingFromText(txt) || /[a-zA-Z]{3,}/.test(txt)) {
+        return txt.substring(0, 200);
+      }
+    }
+  }
+  // Strategia C: attributi tooltip/title con commento
   const tooltipPats = [
-    /data-bs-(?:title|content)="([^"]{2,200})"/gi,
+    /data-bs-(?:title|content|original-title)="([^"]{2,200})"/gi,
     /(?:title|aria-label)="([^"]{5,200})"/gi,
   ];
   for (const rx of tooltipPats) {
@@ -311,12 +337,24 @@ function extractCommentFromRow(row: string): string | null {
     rx.lastIndex = 0;
     while ((m = rx.exec(row)) !== null) {
       const txt = m[1].trim();
-      // Skip tooltips che sono in realtà condizioni/lingue note (escludi label generiche)
       if (/^(Mint|Near Mint|Excellent|Good|Light Played|Played|Poor|Italian|English|Japanese|German|French|Spanish|Portuguese|Korean|Chinese|Russian|Italiano|Inglese|Reverse Holo|Foil|Holo|First Edition|1st Edition)$/i.test(txt)) continue;
-      // Se il testo contiene un grading marker o un commento sostanzioso, prendilo
       if (parseGradingFromText(txt) || (txt.length > 8 && /[a-zA-Z]/.test(txt))) {
         return txt;
       }
+    }
+  }
+  // Strategia D — KITCHEN SINK: scan dell'intero testo della row.
+  // Se la row contiene un grading marker (PSA X, BGS Y, ACE 9, ...), questo
+  // è quasi sicuramente il commento del seller. Restituiamo il contesto.
+  // Funziona indipendentemente dalla struttura HTML — robusta a cambi di CM.
+  const fullText = rowToText(row);
+  if (fullText && fullText.length < 2000) {
+    const gradingScan = fullText.match(/\b(PSA|BGS|Beckett|CGC|SGC|HGA|GMA|TAG|ARS|GetGraded|GG|ACE|MNT)\s*[-:.\s]?\s*(10(?:\.0)?|[1-9](?:\.5)?)\b/i);
+    if (gradingScan && gradingScan[0]) {
+      const idx = fullText.indexOf(gradingScan[0]);
+      const start = Math.max(0, idx - 15);
+      const end = Math.min(fullText.length, idx + 80);
+      return fullText.substring(start, end).trim().substring(0, 200);
     }
   }
   return null;
@@ -328,31 +366,34 @@ function extractCommentFromRow(row: string): string | null {
 // Restituisce { house, score, raw } oppure null.
 function parseGradingFromText(text: string): { house: string; score: number; raw: string } | null {
   if (!text) return null;
-  // Normalizza: rimuovi caratteri non utili ma preserva spazi, punti e trattini
   const norm = text.replace(/\s+/g, ' ').trim();
-  // House aliases (sinonimi/varianti) — riga: alias → casa canonica
-  const houseAliases: Array<[RegExp, string]> = [
-    [/\bPSA\b/i, 'PSA'],
-    [/\bBGS\b/i, 'BGS'],
-    [/\bBeckett\b/i, 'BGS'],
-    [/\bCGC\b/i, 'CGC'],
-    [/\bSGC\b/i, 'SGC'],
-    [/\bHGA\b/i, 'HGA'],
-    [/\bGMA\b/i, 'GMA'],
-    [/\bTAG\b/i, 'TAG'],
-    [/\bARS\b/i, 'ARS'],
-    [/\bGetGraded\b/i, 'GG'],
-    [/\bGG\b/i, 'GG'],
+  // Coppie (house canonica, regex per il nome house in pattern). Senza pre-test
+  // separato: applichiamo direttamente il pattern completo per evitare di
+  // perdere casi come "BGS8.5" o "PSA9" dove non c'è word boundary dopo il
+  // nome della casa (digit attaccato è word char).
+  const houses: Array<[string, string]> = [
+    ['PSA', 'PSA'],
+    ['BGS', '(?:BGS|Beckett)'],
+    ['CGC', 'CGC'],
+    ['SGC', 'SGC'],
+    ['HGA', 'HGA'],
+    ['GMA', 'GMA'],
+    ['TAG', 'TAG'],
+    ['ARS', 'ARS'],
+    ['GG',  '(?:GG|GetGraded)'],
+    ['ACE', 'ACE'],
   ];
-  for (const [rx, house] of houseAliases) {
-    if (!rx.test(norm)) continue;
-    // Cerca un punteggio entro 6 caratteri dalla casa, con vari separatori (-, spazio, niente, punto)
-    // Pattern: HOUSE [sep] SCORE — score può essere intero (1-10) o decimale (es 8.5, 9.5)
-    const houseStr = house === 'BGS' ? '(?:BGS|Beckett)'
-                   : house === 'GG'  ? '(?:GG|GetGraded)'
-                   : house;
-    // Punteggi: 10, 9.5, 9, 8.5, 8, 7.5, 7, 6.5, 6, 5.5, 5, 4.5, 4, 3, 2, 1
-    const scorePat = new RegExp('\\b' + houseStr + '\\s*[-:.\\s]?\\s*(10(?:\\.0)?|[1-9](?:\\.5)?)\\b', 'i');
+  for (const [house, houseStr] of houses) {
+    // \b prima del nome della casa (deve iniziare in word boundary).
+    // Tra house e score: filler facoltativo di max 8 lettere (es. "ACE MINT 9",
+    // "PSA Gem 10"), poi separatore facoltativo, poi score.
+    const scorePat = new RegExp(
+      '\\b' + houseStr +
+      '(?:\\s*[A-Za-z]{0,8})?' +
+      '\\s*[-:.\\s]?\\s*' +
+      '(10(?:\\.0)?|[1-9](?:\\.5)?)\\b',
+      'i'
+    );
     const m = norm.match(scorePat);
     if (m) {
       const score = parseFloat(m[1]);
