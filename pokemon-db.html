@@ -10248,12 +10248,14 @@ function anlSourcesScaffold(card){
   +  '<div class="anl-src-head"><span class="anl-src-tag">EB</span><span>eBay Sold'+(graded?' '+ANL_HOUSES[house].label+' '+score:'')+'</span><span class="anl-src-dot" id="anlSrcEbDot"></span></div>'
   +  '<div class="anl-src-price loading" id="anlSrcEb">—</div>'
   +  '<div class="anl-src-note" id="anlSrcEbNote">caricamento venduti…</div>'
+  +  '<div id="anlSrcEbTable" class="anl-cm-grade-table" style="display:none"></div>'
   +  '<a class="anl-src-link" id="anlSrcEbLink" href="'+ebUrl+'" target="_blank" rel="noopener">apri →</a>'
   +'</div>'
   +'<div class="anl-src">'
   +  '<div class="anl-src-head"><span class="anl-src-tag">PC</span><span>PriceCharting'+(graded?' '+ANL_HOUSES[house].label+' '+score:''  )+'</span><span class="anl-src-dot" id="anlSrcPcDot"></span></div>'
   +  '<div class="anl-src-price loading" id="anlSrcPc">—</div>'
   +  '<div class="anl-src-note" id="anlSrcPcNote">caricamento…</div>'
+  +  '<div id="anlSrcPcTable" class="anl-cm-grade-table" style="display:none"></div>'
   +  '<a class="anl-src-link" id="anlSrcPcLink" href="'+pcUrl+'" target="_blank" rel="noopener">apri →</a>'
   +'</div>'
   +'<div class="'+cmClass+'">'
@@ -11096,11 +11098,213 @@ function anlSetDot(id, conf){
 //     o gradate generiche se nessun match esatto + warning sul campione
 //   • Fallback: se troppo pochi listings dopo il filtro (<3) torna al trend
 //     dalla TCG API (che è il dato originale che avevamo)
-// Renderizza tabella raggruppata per (house, score, language) sotto il box CM
-// in graded mode. Mostra: house · grade · lingua · prezzo · count.
-// Il match esatto richiesto dall'utente è evidenziato con ◀ + bg verde.
-// La lingua aiuta a dare peso al prezzo: una PSA 8 ITA può valere molto più
-// di una PSA 8 EN, soprattutto su carte vintage.
+// ─── TABELLA eBay raggruppata per (house, score, lingua) ──
+// Logica analoga a CM: dato l'array di sold con grading parsato (e lingua
+// rilevata dal titolo), raggruppa e mostra mediana per ogni combo.
+// Differenza vs CM: i prezzi sono già normalizzati in EUR a livello di
+// anlSanitizeEbay, e arrivano dai TITOLI (non da commenti seller).
+function anlRenderEbGradeTable(items, targetHouse, targetScore, targetLang){
+  var tblEl = document.getElementById('anlSrcEbTable');
+  if(!tblEl) return;
+  if(!items || !items.length){
+    tblEl.style.display = 'none';
+    tblEl.innerHTML = '';
+    return;
+  }
+  // Filtra solo i sold con grading parsato (tabella ha senso solo per gradate)
+  var graded = items.filter(function(it){ return it._grading; });
+  if(!graded.length){
+    tblEl.style.display = 'none';
+    tblEl.innerHTML = '';
+    return;
+  }
+  // Raggruppa per (house, score, language)
+  var groups = {};
+  graded.forEach(function(it){
+    var lang = it._lang || '?';
+    var k = it._grading.house + '|' + it._grading.score + '|' + lang;
+    if(!groups[k]) groups[k] = {
+      house: it._grading.house,
+      score: it._grading.score,
+      language: lang,
+      prices: []
+    };
+    // Conversione in EUR (rate da anlLiveData)
+    var rate = anlLiveData.usdEur || ANL_USD_EUR_FALLBACK;
+    var p = it.price;
+    if(it.currency === 'USD')      p = it.price * rate;
+    else if(it.currency === 'GBP') p = it.price * 1.17 * rate;
+    groups[k].prices.push(p);
+  });
+  var rows = Object.keys(groups).map(function(k){
+    var g = groups[k];
+    g.prices.sort(function(a,b){return a-b;});
+    var mid = Math.floor(g.prices.length/2);
+    g.median = g.prices.length%2===0 ? (g.prices[mid-1]+g.prices[mid])/2 : g.prices[mid];
+    g.count = g.prices.length;
+    g.isTarget = (g.house === targetHouse && Math.abs(g.score - targetScore) < 0.01);
+    g.isPerfect = g.isTarget && (targetLang ? g.language === targetLang : true);
+    return g;
+  });
+  rows.sort(function(a,b){
+    if(a.isPerfect !== b.isPerfect) return a.isPerfect ? -1 : 1;
+    if(a.isTarget !== b.isTarget) return a.isTarget ? -1 : 1;
+    if(a.house !== b.house) return a.house < b.house ? -1 : 1;
+    return b.score - a.score;
+  });
+  var langIcon = {
+    ITA: '🇮🇹', ENG: '🇬🇧', JPN: '🇯🇵', DEU: '🇩🇪', FRA: '🇫🇷',
+    ESP: '🇪🇸', POR: '🇵🇹', KOR: '🇰🇷', CHI: '🇨🇳', RUS: '🇷🇺', NLD: '🇳🇱'
+  };
+  var html = '<table>'
+    + '<thead><tr><th>Casa</th><th>Voto</th><th>Lingua</th><th style="text-align:right">€</th><th style="text-align:center">N</th></tr></thead>'
+    + '<tbody>'
+    + rows.map(function(r){
+        var priceStr = r.count > 1
+          ? '€'+r.median.toFixed(0)+' <span style="opacity:0.5;font-size:9px">med</span>'
+          : '€'+r.prices[0].toFixed(0);
+        var langStr = r.language === '?'
+          ? '<span style="opacity:0.5">?</span>'
+          : (langIcon[r.language] || '') + ' ' + r.language;
+        var rowClass = r.isPerfect ? 'match-target' : (r.isTarget ? 'match-target' : '');
+        return '<tr'+(rowClass?' class="'+rowClass+'"':'')+'>'
+          + '<td class="col-grade">'+r.house+'</td>'
+          + '<td class="col-grade">'+r.score+'</td>'
+          + '<td class="col-grade" style="font-size:10px">'+langStr+'</td>'
+          + '<td class="col-price">'+priceStr+'</td>'
+          + '<td class="col-count">'+r.count+'</td>'
+          + '</tr>';
+      }).join('')
+    + '</tbody></table>';
+  tblEl.innerHTML = html;
+  tblEl.style.display = '';
+}
+
+// ─── TABELLA PriceCharting per grade ──
+// PC è strutturalmente diverso: i grade sono nei CAMPI dell'API (psa10,
+// grade9, ecc), non nei commenti. La tabella mostra TUTTI i grade
+// disponibili, preferendo i prezzi da grades_from_listings (sold reali)
+// quando presenti, fallback ai campi aggregati.
+// PC è US-centric → lingua sempre ENG (PC non differenzia per lingua).
+function anlRenderPcGradeTable(prices, targetHouse, targetScore){
+  var tblEl = document.getElementById('anlSrcPcTable');
+  if(!tblEl) return;
+  if(!prices){
+    tblEl.style.display = 'none';
+    tblEl.innerHTML = '';
+    return;
+  }
+  var rate = anlLiveData.usdEur || ANL_USD_EUR_FALLBACK;
+  var pcCur = prices.currency || 'USD';
+  function toEur(v){
+    if(v == null) return null;
+    if(pcCur === 'EUR')      return v;
+    if(pcCur === 'GBP')      return v * 1.17 * rate;
+    return v * rate; // USD default
+  }
+
+  // Mappa campi aggregati PC → (house canonica, score)
+  // Da capire: PC usa "grade7", "grade8", "grade9", "grade9.5", "psa10" come
+  // scala generica (PSA-equivalent). Le case alternative (BGS, CGC) di
+  // solito non hanno endpoint dedicati nelle API PC pubbliche.
+  var aggregateMap = [
+    { key: 'grade7',  house: 'PSA', score: 7 },
+    { key: 'grade8',  house: 'PSA', score: 8 },
+    { key: 'grade9',  house: 'PSA', score: 9 },
+    { key: 'grade95', house: 'PSA', score: 9.5 },
+    { key: 'psa10',   house: 'PSA', score: 10 },
+    { key: 'bgs10',   house: 'BGS', score: 10 },
+    { key: 'cgc10',   house: 'CGC', score: 10 },
+  ];
+
+  var rowsMap = {}; // key = house|score → riga
+  function ensureRow(house, score){
+    var k = house+'|'+score;
+    if(!rowsMap[k]) rowsMap[k] = { house:house, score:score, eurFromListings:null, eurFromAggregate:null, count:0, min:null, max:null };
+    return rowsMap[k];
+  }
+
+  // 1) Da sold listings reali (preferito)
+  if(prices.grades_from_listings){
+    Object.keys(prices.grades_from_listings).forEach(function(lk){
+      var L = prices.grades_from_listings[lk];
+      if(!L || L.median == null) return;
+      var parts = lk.split('_');
+      if(parts.length !== 2) return;
+      var house = parts[0], score = parseFloat(parts[1]);
+      if(isNaN(score)) return;
+      var sym = L.currency_symbol || '$';
+      var conv = function(v){
+        if(v==null) return null;
+        if(sym==='€') return v;
+        if(sym==='£') return v*1.17*rate;
+        return v*rate;
+      };
+      var row = ensureRow(house, score);
+      row.eurFromListings = conv(L.median);
+      row.count = L.count || 0;
+      row.min = conv(L.min);
+      row.max = conv(L.max);
+    });
+  }
+
+  // 2) Da campi aggregati (fallback)
+  aggregateMap.forEach(function(am){
+    var v = prices[am.key];
+    if(v == null) return;
+    var row = ensureRow(am.house, am.score);
+    row.eurFromAggregate = toEur(v);
+  });
+
+  // Ungraded riga separata in raw mode (mostriamo tabella PC anche in raw
+  // se ci sono dati) — opzionale, per ora skip e tabella solo in graded
+  var rows = Object.keys(rowsMap).map(function(k){ return rowsMap[k]; });
+  rows = rows.filter(function(r){ return r.eurFromListings != null || r.eurFromAggregate != null; });
+  if(!rows.length){
+    tblEl.style.display = 'none';
+    tblEl.innerHTML = '';
+    return;
+  }
+  rows.forEach(function(r){
+    r.isTarget = (r.house === targetHouse && Math.abs(r.score - targetScore) < 0.01);
+    // Per ranking: usa eurFromListings se presente (dato real), altrimenti aggregate
+    r._sortPrice = r.eurFromListings != null ? r.eurFromListings : r.eurFromAggregate;
+  });
+  rows.sort(function(a,b){
+    if(a.isTarget !== b.isTarget) return a.isTarget ? -1 : 1;
+    if(a.house !== b.house) return a.house < b.house ? -1 : 1;
+    return b.score - a.score;
+  });
+
+  var html = '<table>'
+    + '<thead><tr><th>Casa</th><th>Voto</th><th style="text-align:right">€</th><th style="text-align:center">Sample</th></tr></thead>'
+    + '<tbody>'
+    + rows.map(function(r){
+        var priceVal, priceLabel;
+        if(r.eurFromListings != null){
+          priceVal = r.eurFromListings;
+          priceLabel = '€'+priceVal.toFixed(0);
+          if(r.count > 1) priceLabel += ' <span style="opacity:0.5;font-size:9px">med</span>';
+        } else {
+          priceVal = r.eurFromAggregate;
+          priceLabel = '€'+priceVal.toFixed(0)+' <span style="opacity:0.5;font-size:9px">agg</span>';
+        }
+        var sampleStr = r.eurFromListings != null
+          ? String(r.count || '?')
+          : '<span style="opacity:0.5">agg</span>';
+        return '<tr'+(r.isTarget?' class="match-target"':'')+'>'
+          + '<td class="col-grade">'+r.house+'</td>'
+          + '<td class="col-grade">'+r.score+'</td>'
+          + '<td class="col-price">'+priceLabel+'</td>'
+          + '<td class="col-count">'+sampleStr+'</td>'
+          + '</tr>';
+      }).join('')
+    + '</tbody></table>';
+  tblEl.innerHTML = html;
+  tblEl.style.display = '';
+}
+
+// ─── TABELLA CM raggruppata per (house, score, language) ────────────────
 function anlRenderCmGradeTable(gradedListings, targetHouse, targetScore, targetLang){
   var tblEl = document.getElementById('anlSrcCmTable');
   if(!tblEl) return;
@@ -11446,6 +11650,7 @@ function anlPopEbay(data, err){
       noteEl.textContent = err ? ('errore: '+String(err).substring(0,60)) : 'nessun venduto trovato';
     }
     anlSetDot('anlSrcEbDot', 'none');
+    anlRenderEbGradeTable(null);
     // ─── DIAGNOSTICA CONSOLE ──
     // Quando l'edge function fallisce a trovare venduti, l'edge ritorna _diag
     // con info su cosa ha effettivamente ricevuto. Logghiamo tutto per debug.
@@ -11506,6 +11711,7 @@ function anlPopEbay(data, err){
       noteEl.textContent = dropMsg;
     }
     anlSetDot('anlSrcEbDot', 'none');
+    anlRenderEbGradeTable(null);
     anlLiveData.ebay = null;
     anlRenderToday();
     anlRenderProjection();
@@ -11586,6 +11792,30 @@ function anlPopEbay(data, err){
   }
 
   anlSetDot('anlSrcEbDot', sane.confidenceLevel);
+
+  // Tabella raggruppata in graded mode (analoga a CM): mostra distribuzione
+  // dei sold per (house, score, lingua). Filteredata.items è già normalizzata
+  // con _grading e _lang da anlSanitizeEbay.
+  if(anlMode==='graded'){
+    var graded_house = document.getElementById('anlHouse').value;
+    var graded_score = parseFloat(document.getElementById('anlGradeScore').value);
+    var graded_userLang = document.getElementById('anlLang') ? document.getElementById('anlLang').value : null;
+    // Items con _grading e _lang sono prodotti dal sanitize quando data.items
+    // è presente. Usa l'array filtrato (post mode-filter) se disponibile.
+    var itemsForTable = (data.items || []).map(function(it){
+      // Re-parse per sicurezza: alcuni item potrebbero non avere _grading se
+      // sono passati direttamente dall'edge senza passare dal sanitize-filter
+      if(!it._grading){
+        it._grading = anlParseGrading(it.title);
+        it._lang = anlDetectLang(it.title);
+      }
+      return it;
+    });
+    anlRenderEbGradeTable(itemsForTable, graded_house, graded_score, graded_userLang);
+  } else {
+    anlRenderEbGradeTable(null);
+  }
+
   anlRenderToday();
   anlRenderProjection();
 }
@@ -11605,6 +11835,7 @@ function anlPopPc(prices, err){
     if(priceEl){ priceEl.textContent='—'; priceEl.classList.remove('loading'); priceEl.classList.add('na'); }
     if(noteEl){ noteEl.textContent = err ? ('errore: '+String(err).substring(0,60)) : 'nessun dato'; }
     anlSetDot('anlSrcPcDot','none');
+    anlRenderPcGradeTable(null);
     anlRenderToday();
     anlRenderProjection();
     return;
@@ -11683,6 +11914,18 @@ function anlPopPc(prices, err){
     noteEl.textContent = parts.join(' · ');
   }
   anlSetDot('anlSrcPcDot', confLevel);
+
+  // Tabella PC: mostra TUTTI i grade disponibili (sold listings reali +
+  // aggregati). Aiuta a vedere il pricing complessivo e fare confronti
+  // (es. "PSA 9 €X vs PSA 10 €Y" per stimare il delta atteso al ri-grading).
+  if(graded){
+    var pc_house = document.getElementById('anlHouse').value;
+    var pc_score = parseFloat(document.getElementById('anlGradeScore').value);
+    anlRenderPcGradeTable(prices, pc_house, pc_score);
+  } else {
+    anlRenderPcGradeTable(null);
+  }
+
   anlRenderToday();
   anlRenderProjection();
 }
