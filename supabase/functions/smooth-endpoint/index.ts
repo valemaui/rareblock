@@ -20,7 +20,7 @@ const COND_ORDER: Record<string,number> = {
   'MT':1,'NM':2,'EX':3,'GD':4,'LP':5,'PL':6,'PO':7,
 };
 
-interface Listing { price: number; condition: string; condRank: number; seller?: string; comment?: string; grading?: { house: string; score: number; raw: string } | null; }
+interface Listing { price: number; condition: string; condRank: number; seller?: string; comment?: string; grading?: { house: string; score: number; raw: string } | null; language?: string | null; }
 
 const USER_AGENTS = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -399,11 +399,13 @@ function extractCMListings(html: string): Listing[] {
     const price = extractPriceFromRow(row);
     const comment = extractCommentFromRow(row);
     const grading = comment ? parseGradingFromText(comment) : null;
+    const language = extractLanguageFromRow(row);
     if (price) {
       const finalCond = cond || 'Near Mint';
       const listing: Listing = { price, condition: finalCond, condRank: COND_ORDER[finalCond] || 2 };
       if (comment) listing.comment = comment;
       if (grading) listing.grading = grading;
+      if (language) listing.language = language;
       listings.push(listing);
     }
   }
@@ -453,14 +455,16 @@ function extractCMListings(html: string): Listing[] {
     const winEnd = Math.min(html.length, index + 500);
     const window = html.substring(winStart, winEnd);
 
-    // Cerca condizione, commento, grading nella finestra
+    // Cerca condizione, commento, grading, lingua nella finestra
     const cond = extractConditionFromRow(window) || 'Near Mint';
     const comment = extractCommentFromRow(window);
     const grading = comment ? parseGradingFromText(comment) : null;
+    const language = extractLanguageFromRow(window);
 
     const listing: Listing = { price, condition: cond, condRank: COND_ORDER[cond] || 2 };
     if (comment) listing.comment = comment;
     if (grading) listing.grading = grading;
+    if (language) listing.language = language;
     listings.push(listing);
 
     if (listings.length >= 40) break; // safety cap
@@ -501,6 +505,46 @@ function extractCMListings(html: string): Listing[] {
 //  <span class="article-comments">[testo del commento]</span>
 // oppure attributi tooltip / data-bs-title sul container del commento.
 // Limitiamo a 200 char per sicurezza.
+// Estrae la lingua del listing CM. Pattern visti su CM moderno:
+//   <span ... onmouseover="showMsgBox(this,`Italiano`)" title="Italiano" ...></span>
+// Whitelist con normalizzazione a codice ISO per consistenza con il resto
+// dell'app (ITA/ENG/JPN/DEU/FRA/ESP/POR/KOR/CHI/RUS/NLD).
+function extractLanguageFromRow(row: string): string | null {
+  // Mappa: nome lingua (CM serve sia in IT, EN, DE) → codice canonico
+  const langMap: Array<[RegExp, string]> = [
+    [/\b(Italiano|Italian|Italienisch|Italien)\b/i, 'ITA'],
+    [/\b(Inglese|English|Englisch|Anglais)\b/i, 'ENG'],
+    [/\b(Giapponese|Japanese|Japanisch|Japonais)\b/i, 'JPN'],
+    [/\b(Tedesco|German|Deutsch|Allemand)\b/i, 'DEU'],
+    [/\b(Francese|French|Franz(ö|oe)sisch|Fran(ç|c)ais)\b/i, 'FRA'],
+    [/\b(Spagnolo|Spanish|Spanisch|Espa(ñ|n)ol|Espagnol)\b/i, 'ESP'],
+    [/\b(Portoghese|Portuguese|Portugiesisch|Portugais|Portugu(ê|e)s)\b/i, 'POR'],
+    [/\b(Coreano|Korean|Koreanisch|Cor(é|e)en)\b/i, 'KOR'],
+    [/\b(Cinese|Chinese|Chinesisch|Chinois)\b/i, 'CHI'],
+    [/\b(Russo|Russian|Russisch|Russe)\b/i, 'RUS'],
+    [/\b(Olandese|Dutch|Niederl(ä|ae)ndisch|N(é|e)erlandais)\b/i, 'NLD'],
+  ];
+  // Strategia A: showMsgBox callback (univoco per CM)
+  // Pattern: onmouseover="showMsgBox(this,`Italiano`)" oppure con apici alternativi
+  const msgBoxMatch = row.match(/showMsgBox\s*\(\s*this\s*,\s*[`'"]([A-Za-zÀ-ÿ]{3,30})[`'"]\s*\)/);
+  if (msgBoxMatch) {
+    for (const [rx, code] of langMap) {
+      if (rx.test(msgBoxMatch[1])) return code;
+    }
+  }
+  // Strategia B: title="..." su icon span con sprite-sheet sfondo (icona bandiera CM)
+  // Cerco tutti i title="..." e tengo il primo che matcha una lingua nota.
+  const titleRx = /title="([^"]{3,30})"/g;
+  let tm: RegExpExecArray | null;
+  while ((tm = titleRx.exec(row)) !== null) {
+    const txt = tm[1];
+    for (const [rx, code] of langMap) {
+      if (rx.test(txt)) return code;
+    }
+  }
+  return null;
+}
+
 function extractCommentFromRow(row: string): string | null {
   // ─── STRATEGIA A: classe `fst-italic` (CM 2024+) ──
   // CM usa Bootstrap. Il commento del seller è SEMPRE dentro

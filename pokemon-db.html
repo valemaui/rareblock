@@ -11095,10 +11095,12 @@ function anlSetDot(id, conf){
 //     o gradate generiche se nessun match esatto + warning sul campione
 //   • Fallback: se troppo pochi listings dopo il filtro (<3) torna al trend
 //     dalla TCG API (che è il dato originale che avevamo)
-// Renderizza tabella raggruppata per (house, score) sotto il box CM in graded mode.
-// Mostra: house · grade · prezzo (mediana se >1 listing) · count
+// Renderizza tabella raggruppata per (house, score, language) sotto il box CM
+// in graded mode. Mostra: house · grade · lingua · prezzo · count.
 // Il match esatto richiesto dall'utente è evidenziato con ◀ + bg verde.
-function anlRenderCmGradeTable(gradedListings, targetHouse, targetScore){
+// La lingua aiuta a dare peso al prezzo: una PSA 8 ITA può valere molto più
+// di una PSA 8 EN, soprattutto su carte vintage.
+function anlRenderCmGradeTable(gradedListings, targetHouse, targetScore, targetLang){
   var tblEl = document.getElementById('anlSrcCmTable');
   if(!tblEl) return;
   if(!gradedListings || !gradedListings.length){
@@ -11106,39 +11108,59 @@ function anlRenderCmGradeTable(gradedListings, targetHouse, targetScore){
     tblEl.innerHTML = '';
     return;
   }
-  // Raggruppa per (house, score)
+  // Raggruppa per (house, score, language). Listing senza lingua → '?'
   var groups = {};
   gradedListings.forEach(function(l){
-    var k = l.grading.house + '|' + l.grading.score;
-    if(!groups[k]) groups[k] = { house: l.grading.house, score: l.grading.score, prices: [] };
+    var lang = l.language || '?';
+    var k = l.grading.house + '|' + l.grading.score + '|' + lang;
+    if(!groups[k]) groups[k] = {
+      house: l.grading.house,
+      score: l.grading.score,
+      language: lang,
+      prices: []
+    };
     groups[k].prices.push(l.price);
   });
-  // Calcola stats per gruppo
   var rows = Object.keys(groups).map(function(k){
     var g = groups[k];
     g.prices.sort(function(a,b){return a-b;});
     var mid = Math.floor(g.prices.length/2);
     g.median = g.prices.length%2===0 ? (g.prices[mid-1]+g.prices[mid])/2 : g.prices[mid];
     g.count = g.prices.length;
+    // Match esatto su house+score (la lingua è informativa, non match-critical
+    // perché spesso CM ha solo 1-2 listings per combo specifica)
     g.isTarget = (g.house === targetHouse && Math.abs(g.score - targetScore) < 0.01);
+    // Match perfetto: anche la lingua coincide → priorità massima
+    g.isPerfect = g.isTarget && (targetLang ? g.language === targetLang : true);
     return g;
   });
-  // Ordine: target prima, poi per house alfabetico, poi per score decrescente
+  // Ordine: perfect match prima, poi target (qualsiasi lingua), poi house alfabetico, score desc
   rows.sort(function(a,b){
+    if(a.isPerfect !== b.isPerfect) return a.isPerfect ? -1 : 1;
     if(a.isTarget !== b.isTarget) return a.isTarget ? -1 : 1;
     if(a.house !== b.house) return a.house < b.house ? -1 : 1;
     return b.score - a.score;
   });
+  // Bandiere/icone lingua compatte
+  var langIcon = {
+    ITA: '🇮🇹', ENG: '🇬🇧', JPN: '🇯🇵', DEU: '🇩🇪', FRA: '🇫🇷',
+    ESP: '🇪🇸', POR: '🇵🇹', KOR: '🇰🇷', CHI: '🇨🇳', RUS: '🇷🇺', NLD: '🇳🇱'
+  };
   var html = '<table>'
-    + '<thead><tr><th>Casa</th><th>Voto</th><th style="text-align:right">€</th><th style="text-align:center">N</th></tr></thead>'
+    + '<thead><tr><th>Casa</th><th>Voto</th><th>Lingua</th><th style="text-align:right">€</th><th style="text-align:center">N</th></tr></thead>'
     + '<tbody>'
     + rows.map(function(r){
         var priceStr = r.count > 1
           ? '€'+r.median.toFixed(2)+' <span style="opacity:0.5;font-size:9px">med</span>'
           : '€'+r.prices[0].toFixed(2);
-        return '<tr'+(r.isTarget?' class="match-target"':'')+'>'
+        var langStr = r.language === '?'
+          ? '<span style="opacity:0.5">?</span>'
+          : (langIcon[r.language] || '') + ' ' + r.language;
+        var rowClass = r.isPerfect ? 'match-target' : (r.isTarget ? 'match-target' : '');
+        return '<tr'+(rowClass?' class="'+rowClass+'"':'')+'>'
           + '<td class="col-grade">'+r.house+'</td>'
           + '<td class="col-grade">'+r.score+'</td>'
+          + '<td class="col-grade" style="font-size:10px">'+langStr+'</td>'
           + '<td class="col-price">'+priceStr+'</td>'
           + '<td class="col-count">'+r.count+'</td>'
           + '</tr>';
@@ -11155,6 +11177,7 @@ function anlPopCm(data, card){
   var graded = anlMode==='graded';
   var house  = graded ? document.getElementById('anlHouse').value : null;
   var score  = graded ? parseFloat(document.getElementById('anlGradeScore').value) : null;
+  var userLang = document.getElementById('anlLang') ? document.getElementById('anlLang').value : null;
 
   // ─── DIAGNOSTICA EDGE ──
   // Logga sempre il _summary e il debug se presenti, così possiamo vedere
@@ -11266,6 +11289,7 @@ function anlPopCm(data, card){
         '#': i+1,
         price: '€'+l.price.toFixed(2),
         cond: l.condition || '?',
+        lang: l.language || '—',
         comment: l.comment ? l.comment.substring(0,80) : '—',
         grading: l.grading ? (l.grading.house+' '+l.grading.score) : '—',
       };
@@ -11276,7 +11300,7 @@ function anlPopCm(data, card){
   // Se in graded mode E ci sono gradate, mostra SEMPRE la tabella raggruppata
   // (anche prima del calcolo finale, così l'utente vede subito cosa c'è)
   if(graded && gradedListings.length > 0){
-    anlRenderCmGradeTable(gradedListings, house, score);
+    anlRenderCmGradeTable(gradedListings, house, score, userLang);
   } else {
     anlRenderCmGradeTable(null);
   }
@@ -11362,10 +11386,28 @@ function anlPopCm(data, card){
   if(noteEl){
     var noteParts = [prices.length+' '+(graded?'gradate':'raw')];
     if(min !== max) noteParts.push('€'+Math.round(min)+'–€'+Math.round(max));
-    if(droppedNote) noteParts.push(droppedNote);
-    else if(!graded && rawListings.length>0 && gradedListings.length===0){
-      // info: tutti raw, niente da escludere
+
+    // Aggiunge breakdown lingua tra i listing usati per la mediana, ma solo
+    // se ci sono lingue note (almeno una). Aiuta a capire se €350 è una PSA8
+    // ITA (premium) o EN (sconto).
+    var langs = {};
+    selected.forEach(function(l){ if(l.language){ langs[l.language] = (langs[l.language]||0)+1; } });
+    var langKeys = Object.keys(langs);
+    if(langKeys.length === 1){
+      // Tutti la stessa lingua
+      noteParts.push(langKeys[0]);
+    } else if(langKeys.length > 1){
+      // Mix lingue: mostra ordinato per count desc
+      var langStr = langKeys.sort(function(a,b){return langs[b]-langs[a];})
+        .map(function(k){return k+':'+langs[k];}).join('/');
+      noteParts.push(langStr);
     }
+    // Se l'utente ha selezionato una lingua e nessuno dei selected matcha → warning
+    if(graded && userLang && langKeys.length>0 && !langs[userLang]){
+      noteParts.push('⚠ niente '+userLang);
+    }
+
+    if(droppedNote) noteParts.push(droppedNote);
     noteEl.textContent = noteParts.join(' · ');
   }
   anlSetDot('anlSrcCmDot', conf);
