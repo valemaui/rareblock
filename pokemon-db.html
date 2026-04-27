@@ -999,6 +999,18 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .anl-src-link{font-size:9px;color:var(--text-subtle);text-decoration:none;letter-spacing:0.08em;text-transform:uppercase;transition:color 0.12s;margin-top:2px;font-family:var(--mono)}
 .anl-src-link:hover{color:var(--accent)}
 
+/* Tabella raggruppata gradate (CM) — mostrata in graded mode con multipli grade match */
+.anl-cm-grade-table{margin-top:6px;font-family:var(--mono);font-size:10px;border-radius:4px;overflow:hidden;border:1px solid var(--border)}
+.anl-cm-grade-table table{width:100%;border-collapse:collapse;background:var(--surface-2,rgba(255,255,255,0.02))}
+.anl-cm-grade-table th,.anl-cm-grade-table td{padding:3px 6px;text-align:left;border-bottom:1px solid var(--border)}
+.anl-cm-grade-table th{color:var(--text-muted);font-weight:500;font-size:9px;text-transform:uppercase;letter-spacing:0.06em;background:var(--surface-2,rgba(255,255,255,0.04))}
+.anl-cm-grade-table tr:last-child td{border-bottom:none}
+.anl-cm-grade-table td.col-grade{color:var(--text);font-weight:500}
+.anl-cm-grade-table td.col-price{color:var(--accent);text-align:right;font-weight:600}
+.anl-cm-grade-table td.col-count{color:var(--text-subtle);text-align:center}
+.anl-cm-grade-table tr.match-target td.col-grade::after{content:" ◀";color:var(--success);font-weight:700}
+.anl-cm-grade-table tr.match-target{background:rgba(16,185,129,0.06)}
+
 /* Zona 2: Proiezione */
 .anl-fwd{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px 24px;display:flex;flex-direction:column;gap:12px}
 .anl-fwd-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
@@ -10257,6 +10269,7 @@ function anlSourcesScaffold(card){
         if(p.trendPrice) parts.push('trend €'+p.trendPrice.toFixed(2));
         return parts.join(' · ');
      })()+'</div>'
+  +  '<div id="anlSrcCmTable" class="anl-cm-grade-table" style="display:none"></div>'
   +  '<a class="anl-src-link" id="anlSrcCmLink" href="'+cmUrl+'" target="_blank" rel="noopener">apri →</a>'
   +'</div>';
 }
@@ -10836,7 +10849,7 @@ async function anlStartLiveFetches(card){
       // i venditori di carte gradate spesso non impostano la condizione raw).
       // Per non interferire col link "apri →" esterno costruisco un URL parallelo.
       var fetchUrl = cmUrl;
-      var data = await anlFetchSmooth({source:'cardmarket', url:fetchUrl, urls:[fetchUrl]});
+      var data = await anlFetchSmooth({source:'cardmarket', url:fetchUrl, urls:[fetchUrl], debug:true});
       anlPopCm(data, card);
     }catch(e){ anlPopCm({error:e.message||'errore rete'}, card); }
   })();
@@ -11082,12 +11095,94 @@ function anlSetDot(id, conf){
 //     o gradate generiche se nessun match esatto + warning sul campione
 //   • Fallback: se troppo pochi listings dopo il filtro (<3) torna al trend
 //     dalla TCG API (che è il dato originale che avevamo)
+// Renderizza tabella raggruppata per (house, score) sotto il box CM in graded mode.
+// Mostra: house · grade · prezzo (mediana se >1 listing) · count
+// Il match esatto richiesto dall'utente è evidenziato con ◀ + bg verde.
+function anlRenderCmGradeTable(gradedListings, targetHouse, targetScore){
+  var tblEl = document.getElementById('anlSrcCmTable');
+  if(!tblEl) return;
+  if(!gradedListings || !gradedListings.length){
+    tblEl.style.display = 'none';
+    tblEl.innerHTML = '';
+    return;
+  }
+  // Raggruppa per (house, score)
+  var groups = {};
+  gradedListings.forEach(function(l){
+    var k = l.grading.house + '|' + l.grading.score;
+    if(!groups[k]) groups[k] = { house: l.grading.house, score: l.grading.score, prices: [] };
+    groups[k].prices.push(l.price);
+  });
+  // Calcola stats per gruppo
+  var rows = Object.keys(groups).map(function(k){
+    var g = groups[k];
+    g.prices.sort(function(a,b){return a-b;});
+    var mid = Math.floor(g.prices.length/2);
+    g.median = g.prices.length%2===0 ? (g.prices[mid-1]+g.prices[mid])/2 : g.prices[mid];
+    g.count = g.prices.length;
+    g.isTarget = (g.house === targetHouse && Math.abs(g.score - targetScore) < 0.01);
+    return g;
+  });
+  // Ordine: target prima, poi per house alfabetico, poi per score decrescente
+  rows.sort(function(a,b){
+    if(a.isTarget !== b.isTarget) return a.isTarget ? -1 : 1;
+    if(a.house !== b.house) return a.house < b.house ? -1 : 1;
+    return b.score - a.score;
+  });
+  var html = '<table>'
+    + '<thead><tr><th>Casa</th><th>Voto</th><th style="text-align:right">€</th><th style="text-align:center">N</th></tr></thead>'
+    + '<tbody>'
+    + rows.map(function(r){
+        var priceStr = r.count > 1
+          ? '€'+r.median.toFixed(2)+' <span style="opacity:0.5;font-size:9px">med</span>'
+          : '€'+r.prices[0].toFixed(2);
+        return '<tr'+(r.isTarget?' class="match-target"':'')+'>'
+          + '<td class="col-grade">'+r.house+'</td>'
+          + '<td class="col-grade">'+r.score+'</td>'
+          + '<td class="col-price">'+priceStr+'</td>'
+          + '<td class="col-count">'+r.count+'</td>'
+          + '</tr>';
+      }).join('')
+    + '</tbody></table>';
+  tblEl.innerHTML = html;
+  tblEl.style.display = '';
+}
+
 function anlPopCm(data, card){
   var priceEl=document.getElementById('anlSrcCm');
   var noteEl =document.getElementById('anlSrcCmNote');
+  var tblEl  =document.getElementById('anlSrcCmTable');
   var graded = anlMode==='graded';
   var house  = graded ? document.getElementById('anlHouse').value : null;
   var score  = graded ? parseFloat(document.getElementById('anlGradeScore').value) : null;
+
+  // ─── DIAGNOSTICA EDGE ──
+  // Logga sempre il _summary e il debug se presenti, così possiamo vedere
+  // cosa l'edge function ha estratto e dove l'extraction sta fallendo.
+  if(data && (data._summary || data.debug)){
+    try{
+      console.group('%c[Analizza] CM edge diagnostica','color:#10b981;font-weight:bold');
+      if(data._summary){
+        console.log('Summary:', data._summary);
+      }
+      if(data.debug){
+        var dbg = data.debug;
+        console.log('http_status:', dbg.http_status, '| html_len:', dbg.html_length);
+        console.log('article_row_matches:', dbg.article_row_matches, '| euro_symbol_matches:', dbg.euro_symbol_matches, '| price_json_matches:', dbg.price_json_matches);
+        console.log('has_consent_wall:', dbg.has_consent_wall, '| is_geo_block:', dbg.is_geo_block, '| has_next_data:', dbg.has_next_data);
+        if(dbg.next_data_info) console.log('NEXT_DATA info:', dbg.next_data_info);
+        if(dbg.article_row_sample){
+          console.log('%c--- Sample prima article-row (1500ch) ---','color:#f59e0b');
+          console.log(dbg.article_row_sample);
+        }
+        if(dbg.price_context_sample){
+          console.log('%c--- Sample HTML attorno al prezzo più alto (per vedere il commento) ---','color:#f59e0b');
+          console.log(dbg.price_context_sample);
+        }
+      }
+      console.groupEnd();
+    }catch(e){}
+  }
 
   // Fallback al trend TCG-API se errore o nessun listing
   function fallbackTrend(reason){
@@ -11112,6 +11207,8 @@ function anlPopCm(data, card){
       noteEl.textContent = bits.length ? bits.join(' · ') : 'nessun dato';
     }
     anlSetDot('anlSrcCmDot','low');
+    // Pulisci tabella gradate (caso fallback = nessun graded utile)
+    anlRenderCmGradeTable(null);
     // anlLiveData.cm già impostato in anlStartLiveFetches dal trend TCG (con condition factor per raw)
     anlRenderToday();
     anlRenderProjection();
@@ -11151,8 +11248,6 @@ function anlPopCm(data, card){
   var gradedListings = listings.filter(function(l){ return  l.grading; });
 
   // ─── DIAGNOSTICA CONSOLE: vedi cosa l'edge function ha estratto ──
-  // Utile per capire se CM serve i commenti correttamente. Logga sempre
-  // (anche quando funziona) così possiamo verificare la coerenza.
   try{
     console.group('%c[Analizza] CM listings — '+listings.length+' totali ('+gradedListings.length+' gradate, '+rawListings.length+' raw)','color:#06b6d4;font-weight:bold');
     console.log('Modalità: '+(graded?'GRADED ('+house+' '+score+')':'RAW'));
@@ -11168,28 +11263,48 @@ function anlPopCm(data, card){
     console.groupEnd();
   }catch(e){}
 
+  // Se in graded mode E ci sono gradate, mostra SEMPRE la tabella raggruppata
+  // (anche prima del calcolo finale, così l'utente vede subito cosa c'è)
+  if(graded && gradedListings.length > 0){
+    anlRenderCmGradeTable(gradedListings, house, score);
+  } else {
+    anlRenderCmGradeTable(null);
+  }
+
   var selected, label, droppedNote = '';
   if(graded){
-    // Match esatto house+score (con tolleranza ±0.5 per voti decimali)
+    // Match esatto house+score (con tolleranza ±0.5 per voti decimali).
+    // ABBASSATO il minimo da 2 a 1: anche un singolo PSA 8 ITA è MOLTO più
+    // accurato del trend o di una media generica — è proprio il dato cercato.
     var exact = gradedListings.filter(function(l){
       return l.grading.house === house && Math.abs(l.grading.score - score) < 0.01;
     });
-    if(exact.length >= 2){
+    if(exact.length >= 1){
       selected = exact;
       label = 'CM '+house+' '+score;
+      if(exact.length === 1){
+        droppedNote = '1 listing esatto (campione minimo)';
+      }
     } else {
-      // Match larga: stesso house qualsiasi grade
       var sameHouse = gradedListings.filter(function(l){ return l.grading.house === house; });
       if(sameHouse.length >= 2){
         selected = sameHouse;
         label = 'CM '+house+' (grado misto)';
         droppedNote = '⚠ pochi '+house+' '+score+', uso media '+house+' generica';
+      } else if(sameHouse.length === 1){
+        selected = sameHouse;
+        label = 'CM '+house+' (1 grado diverso)';
+        droppedNote = '⚠ niente '+house+' '+score+', uso 1 listing '+house+' '+sameHouse[0].grading.score;
       } else if(gradedListings.length >= 2){
         selected = gradedListings;
         label = 'CM gradate (mix case)';
-        droppedNote = '⚠ pochi listings '+house+', uso media gradate generica';
+        droppedNote = '⚠ niente '+house+', uso media gradate generica';
+      } else if(gradedListings.length === 1){
+        selected = gradedListings;
+        label = 'CM '+gradedListings[0].grading.house+' '+gradedListings[0].grading.score;
+        droppedNote = '⚠ unica gradata trovata: '+gradedListings[0].grading.house+' '+gradedListings[0].grading.score;
       } else {
-        // Solo raw o niente → fallback trend (CM raw non è affidabile per gradate)
+        // 0 gradate: fallback trend (CM raw inaffidabile per gradate)
         fallbackTrend('solo listings raw — CM inaffidabile per gradate');
         return;
       }
@@ -11203,7 +11318,6 @@ function anlPopCm(data, card){
         droppedNote = gradedListings.length+' gradate escluse';
       }
     } else {
-      // Pochi listings raw → fallback trend (più stabile di poche listing raw)
       fallbackTrend(rawListings.length+' raw, '+gradedListings.length+' gradate — uso trend');
       return;
     }

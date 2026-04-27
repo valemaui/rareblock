@@ -152,14 +152,31 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
   const listings = extractCMListings(html);
   const prices = listings.map(l => l.price);
 
-  // Se 0 listings e debug richiesto, aggiungi diagnostica dell'HTML ricevuto
-  // per capire se CM ha servito consent wall / pagina alternativa / NEXT_DATA
-  // con struttura diversa rispetto a quella attesa.
+  // Diagnostica: sempre inclusa quando debug=true, oppure sempre disponibile
+  // un sottoinsieme leggero per identificare problemi di extraction in produzione.
   const baseResp: Record<string, unknown> = {
     listings, prices, url, source: 'cardmarket', count: listings.length,
   };
 
-  if (listings.length === 0 && debug) {
+  // Diagnostica leggera SEMPRE (anche senza debug flag): quanti listings hanno
+  // commento / grading parsato. Utile per capire al volo se l'extraction
+  // funziona ma il parsing dei commenti fallisce, vs il contrario.
+  const withComment = listings.filter(l => l.comment).length;
+  const withGrading = listings.filter(l => l.grading).length;
+  baseResp._summary = {
+    total: listings.length,
+    with_comment: withComment,
+    with_grading: withGrading,
+    extraction_phase: listings.length > 0 ? (
+      // Identifico la fase: se i listings hanno la chiave grading o commento,
+      // sono passati per phase 1 o 2; altrimenti phase 3 o NEXT_DATA
+      (withComment > 0 || withGrading > 0) ? 'row-based-or-anchored' : 'json-only'
+    ) : 'none',
+  };
+
+  if (debug || listings.length === 0 || withComment === 0) {
+    // Includi sample HTML per diagnosi quando: debug richiesto, 0 listings, OR
+    // listings trovati ma senza commenti (= extractCommentFromRow fallisce)
     const nd = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
     const rowMatches = (html.match(/class="[^"]*article-row[^"]*"/gi) || []).length;
     const euroMatches = (html.match(/€\s*\d{1,4}[,.]\d{2}/g) || []).length;
@@ -175,9 +192,9 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
         length: ndText.length,
         has_listings_key: /\"(listings|articles|offers|products)\"/i.test(ndText),
         has_price_key: /\"(price|priceGross|sellPrice|minPrice)\"/i.test(ndText),
+        has_comment_key: /\"(comments|comment|description|sellerComment)\"/i.test(ndText),
         sample_head: ndText.substring(0, 300),
       };
-      // Prova un parse grezzo per vedere chiavi top-level
       try {
         const parsed = JSON.parse(ndText);
         const pageProps = (parsed as { props?: { pageProps?: unknown } }).props?.pageProps;
@@ -187,10 +204,38 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
       } catch { /* */ }
     }
 
-    // Estrai un sample della prima article-row trovata (max 1500 chars)
-    // per permettere di verificare il markup reale senza re-scrape manuale
+    // Estrai sample della prima article-row (max 1500 chars)
     const rowSampleMatch = html.match(/<div[^>]*class="[^"]*article-row[^"]*"[^>]*>([\s\S]{0,1500})/i);
     const rowSample = rowSampleMatch ? rowSampleMatch[0].substring(0, 1500) : null;
+
+    // ── NUOVO: SAMPLE PRICE-ANCHORED ──
+    // Se ho trovato listings ma senza commenti, includi il sample del HTML
+    // attorno al PRIMO prezzo che mi aspetto contenga un commento (es. €350,00
+    // del listing PSA 8). Così possiamo vedere il markup REALE del commento.
+    let priceContextSample: string | null = null;
+    if (listings.length > 0) {
+      // Prendo il prezzo "più alto" tra i listings (probabile gradata) e cerco
+      // la sua occorrenza nell'HTML
+      const sortedByPrice = [...listings].sort((a, b) => b.price - a.price);
+      for (const lst of sortedByPrice.slice(0, 3)) {
+        const priceStr = lst.price.toString().replace('.', ',');
+        // Cerca la prima occorrenza di "€XXX,XX" o "XXX,XX €" che corrisponda
+        const probes = [
+          new RegExp('€\\s*' + priceStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(',', '[,.]')),
+          new RegExp(priceStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(',', '[,.]') + '\\s*€'),
+        ];
+        for (const probe of probes) {
+          const idx = html.search(probe);
+          if (idx > 0) {
+            const start = Math.max(0, idx - 1500);
+            const end = Math.min(html.length, idx + 600);
+            priceContextSample = html.substring(start, end);
+            break;
+          }
+        }
+        if (priceContextSample) break;
+      }
+    }
 
     baseResp.debug = {
       http_status: status,
@@ -205,6 +250,7 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
       is_geo_block: isGeoBlock,
       html_head_500: html.substring(0, 500),
       article_row_sample: rowSample,
+      price_context_sample: priceContextSample,  // NUOVO
     };
   }
 
@@ -229,9 +275,9 @@ function extractCMListings(html: string): Listing[] {
     } catch { /* */ }
   }
   const listings: Listing[] = [];
-  // Pattern più robusto per CM 2024+: non dipende da <table>/<article> come
-  // boundary. Usa lookahead alla prossima article-row OR fine di un container
-  // noto (article-table / col-offer-close / section / main).
+
+  // ─── PHASE 1: row-based extraction ──
+  // Pattern dipendente da class="article-row". Funziona se CM non ha cambiato la classe.
   const rowPattern = /<div[^>]*class="[^"]*article-row[^"]*"[^>]*>([\s\S]*?)(?=<div[^>]*class="[^"]*article-row|<\/section|<\/main|<div[^>]*class="[^"]*(?:article-table-footer|pagination|loadMore))/gi;
   let rowMatch: RegExpExecArray | null;
   while ((rowMatch = rowPattern.exec(html)) !== null) {
@@ -241,7 +287,6 @@ function extractCMListings(html: string): Listing[] {
     const comment = extractCommentFromRow(row);
     const grading = comment ? parseGradingFromText(comment) : null;
     if (price) {
-      // Se non riesco a estrarre la condizione assumo NM (comune per CM raw listings)
       const finalCond = cond || 'Near Mint';
       const listing: Listing = { price, condition: finalCond, condRank: COND_ORDER[finalCond] || 2 };
       if (comment) listing.comment = comment;
@@ -251,6 +296,57 @@ function extractCMListings(html: string): Listing[] {
   }
   if (listings.length > 0) return listings.slice(0, 30).sort((a,b) => a.price - b.price);
 
+  // ─── PHASE 2: PRICE-ANCHORED extraction ──
+  // Fallback strutturalmente agnostico: se PHASE 1 non trova nulla (CM ha
+  // cambiato classi CSS), trova tutte le occorrenze di prezzi €XX,XX nell'HTML
+  // e per ogni prezzo prende una finestra di ±2.5KB attorno per cercare
+  // commento + condizione + grading. Funziona INDIPENDENTEMENTE dal markup.
+  const priceMatches: Array<{ index: number; price: number }> = [];
+  const euroPat = /€\s*(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})/g;
+  let pm: RegExpExecArray | null;
+  while ((pm = euroPat.exec(html)) !== null) {
+    const n = parsePrice(pm[1]);
+    if (n != null && n >= 0.1 && n <= 9999) {
+      priceMatches.push({ index: pm.index, price: n });
+    }
+  }
+  // Skip dei primi prezzi (header pagina: lowest, trend, avg sono in vetrina)
+  // se sono pochi e ravvicinati, si salta. Più sicuro skippare i primi 4
+  // (lowestPrice, trendPrice, avg30, avg7) sempre presenti su ogni page CM.
+  if (priceMatches.length > 8) {
+    priceMatches.splice(0, 4);
+  }
+
+  const seenIdx = new Set<number>();
+  for (const { index, price } of priceMatches) {
+    // Dedup: se due prezzi sono molto vicini (<200 char), è probabilmente lo
+    // stesso listing visualizzato due volte (es. desktop+mobile DOM)
+    let isDup = false;
+    for (const si of seenIdx) {
+      if (Math.abs(si - index) < 200) { isDup = true; break; }
+    }
+    if (isDup) continue;
+    seenIdx.add(index);
+
+    const winStart = Math.max(0, index - 2500);
+    const winEnd = Math.min(html.length, index + 500);
+    const window = html.substring(winStart, winEnd);
+
+    // Cerca condizione, commento, grading nella finestra
+    const cond = extractConditionFromRow(window) || 'Near Mint';
+    const comment = extractCommentFromRow(window);
+    const grading = comment ? parseGradingFromText(comment) : null;
+
+    const listing: Listing = { price, condition: cond, condRank: COND_ORDER[cond] || 2 };
+    if (comment) listing.comment = comment;
+    if (grading) listing.grading = grading;
+    listings.push(listing);
+
+    if (listings.length >= 40) break; // safety cap
+  }
+  if (listings.length > 0) return listings.slice(0, 30).sort((a,b) => a.price - b.price);
+
+  // ─── PHASE 3: legacy JSON-only extraction (no comments available) ──
   const pricePattern = /"price"\s*:\s*"?(\d{1,4}[,.]?\d{0,3}[,.]\d{2})"?/g;
   let m: RegExpExecArray | null;
   const seen = new Set<number>();
