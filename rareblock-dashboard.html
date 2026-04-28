@@ -474,6 +474,7 @@ textarea{resize:vertical;min-height:60px}
       <button class="admin-side-btn" onclick="adminSection('accruals')"><span class="rb-i rb-i-paperclip"></span> Accrual</button>
       <button class="admin-side-btn" onclick="adminSection('liquidations')"><span class="rb-i rb-i-coin"></span> Liquidazioni</button>
       <button class="admin-side-btn" onclick="adminSection('transfers')"><span class="rb-i rb-i-swap"></span> Trasferimenti</button>
+      <button class="admin-side-btn" onclick="adminSection('memorandum')"><span class="rb-i rb-i-list"></span> Memorandum</button>
     </div>
     <div class="admin-main">
 
@@ -573,6 +574,95 @@ textarea{resize:vertical;min-height:60px}
           <tbody id="adminTransfTbody"></tbody>
         </table>
         <div class="empty-state" id="adminTransfEmpty" style="display:none"><div class="icon"><span class="rb-i rb-i-swap"></span></div><h3>Nessun trasferimento pendente</h3></div>
+      </div>
+
+      <!-- MEMORANDUM — chiavi invito + log accessi -->
+      <div class="admin-section" id="admin-memorandum">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div>
+            <div style="font-size:15px;font-weight:600">Memorandum riservato</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Chiavi invito personali e log degli accessi a <a href="memorandum.html" target="_blank" rel="noopener" style="color:var(--accent)">memorandum.html</a></div>
+          </div>
+          <button class="btn primary" onclick="memoOpenKey(null)"><span class="rb-i rb-i-plus"></span> Nuova chiave</button>
+        </div>
+
+        <!-- mini-stats -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:12px 0 16px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-family:var(--mono)">Chiavi attive</div>
+            <div style="font-size:1.4rem;font-weight:300;color:var(--gold,#c9a84c);margin-top:2px" id="memoStatActive">—</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-family:var(--mono)">Aperture totali</div>
+            <div style="font-size:1.4rem;font-weight:300;color:var(--accent);margin-top:2px" id="memoStatOpens">—</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-family:var(--mono)">Falliti 7gg</div>
+            <div style="font-size:1.4rem;font-weight:300;margin-top:2px" id="memoStatFails">—</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-family:var(--mono)">Click CTA</div>
+            <div style="font-size:1.4rem;font-weight:300;margin-top:2px" id="memoStatCtas">—</div>
+          </div>
+        </div>
+
+        <!-- Sub-tabs Chiavi / Accessi -->
+        <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px">
+          <button class="memo-tab active" data-memo-tab="keys" onclick="memoSubTab('keys')" style="background:none;border:none;padding:8px 16px;color:var(--text);cursor:pointer;font-size:13px;border-bottom:2px solid var(--accent);position:relative;top:1px">Chiavi <span id="memoCntKeys" style="background:var(--surface2);padding:1px 7px;border-radius:10px;font-size:11px;color:var(--text-muted);font-family:var(--mono);margin-left:4px">0</span></button>
+          <button class="memo-tab" data-memo-tab="log" onclick="memoSubTab('log')" style="background:none;border:none;padding:8px 16px;color:var(--text-muted);cursor:pointer;font-size:13px;border-bottom:2px solid transparent;position:relative;top:1px">Accessi <span id="memoCntLogs" style="background:var(--surface2);padding:1px 7px;border-radius:10px;font-size:11px;color:var(--text-muted);font-family:var(--mono);margin-left:4px">0</span></button>
+        </div>
+
+        <!-- Toolbar Chiavi -->
+        <div id="memoToolbarKeys" style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <input type="text" id="memoSearchKeys" oninput="memoRenderKeys()" placeholder="Cerca prospect, azienda, chiave…" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);min-width:200px;font-size:13px;outline:none">
+          <select id="memoFilterType" onchange="memoRenderKeys()" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);font-size:13px;outline:none">
+            <option value="">Tutti i tipi</option>
+            <option value="investitore">Investitore</option>
+            <option value="membro">Membro</option>
+            <option value="venditore">Venditore</option>
+            <option value="generico">Generico</option>
+          </select>
+          <select id="memoFilterStatus" onchange="memoRenderKeys()" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);font-size:13px;outline:none">
+            <option value="">Attive + inattive</option>
+            <option value="active">Solo attive</option>
+            <option value="inactive">Solo inattive</option>
+          </select>
+        </div>
+
+        <!-- Toolbar Accessi -->
+        <div id="memoToolbarLog" style="display:none;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <input type="text" id="memoSearchLog" oninput="memoRenderLogs()" placeholder="Cerca prospect, paese…" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);min-width:200px;font-size:13px;outline:none">
+          <select id="memoFilterLogStatus" onchange="memoRenderLogs()" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);font-size:13px;outline:none">
+            <option value="">Tutti</option>
+            <option value="success">Solo riusciti</option>
+            <option value="fail">Solo falliti</option>
+          </select>
+          <select id="memoFilterLogRange" onchange="memoRenderLogs()" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);font-size:13px;outline:none">
+            <option value="">Sempre</option>
+            <option value="1">Ultime 24h</option>
+            <option value="7">Ultimi 7gg</option>
+            <option value="30">Ultimi 30gg</option>
+          </select>
+          <button class="btn" onclick="memoLoadAll()" style="font-size:12px">Aggiorna</button>
+        </div>
+
+        <!-- Tabella Chiavi -->
+        <div id="memoPaneKeys">
+          <table class="admin-table" id="memoKeysTable">
+            <thead><tr><th>Prospect</th><th>Tipo</th><th>Chiave</th><th>Aperture</th><th>Ultimo accesso</th><th>Origine</th><th>Stato</th><th></th></tr></thead>
+            <tbody id="memoKeysTbody"></tbody>
+          </table>
+          <div class="empty-state" id="memoKeysEmpty" style="display:none;padding:32px"><div class="icon"><span class="rb-i rb-i-list"></span></div><h3>Nessuna chiave</h3><div style="color:var(--text-muted);font-size:13px;margin-top:6px">Crea la prima invito col bottone "Nuova chiave".</div></div>
+        </div>
+
+        <!-- Tabella Accessi -->
+        <div id="memoPaneLog" style="display:none">
+          <table class="admin-table" id="memoLogTable">
+            <thead><tr><th>Quando</th><th>Prospect</th><th>Esito</th><th>Origine</th><th>Tempo</th><th>Scroll</th><th>CTA</th><th>Device</th></tr></thead>
+            <tbody id="memoLogTbody"></tbody>
+          </table>
+          <div class="empty-state" id="memoLogEmpty" style="display:none;padding:32px"><div class="icon"><span class="rb-i rb-i-list"></span></div><h3>Nessun accesso registrato</h3></div>
+        </div>
       </div>
 
     </div><!-- /admin-main -->
@@ -972,6 +1062,26 @@ async function onSession(data){
 
   // Initial load
   try { await mktLoad(); } catch(e){ console.warn('mktLoad:', e.message); }
+
+  // Deep-link routing: supporta hash come #admin/memorandum, #admin, #port, ecc.
+  // Utile per il redirect da memorandum-admin.html → arriva qui già sulla sezione giusta.
+  try {
+    var hash = (location.hash || '').replace(/^#/, '');
+    if(hash){
+      var parts = hash.split('/');
+      var tab = parts[0];
+      var sub = parts[1];
+      if(tab === 'admin' && _isAdmin){
+        showTab('admin');
+        if(sub){
+          // attendi un tick per assicurarti che adminLoad abbia inizializzato il DOM
+          setTimeout(function(){ adminSection(sub); }, 50);
+        }
+      } else if(tab && document.getElementById('tab-'+tab)){
+        showTab(tab);
+      }
+    }
+  } catch(e){ console.warn('deep-link routing:', e); }
 }
 
 // Ricarica ruolo dal DB (utile se l'admin ti ha appena promosso)
@@ -1539,6 +1649,7 @@ function adminSection(s){
   if(s==='accruals')    adminLoadAccruals();
   if(s==='liquidations')adminLoadLiquidations();
   if(s==='transfers')   adminLoadTransfers();
+  if(s==='memorandum')  memoLoadAll();
 }
 
 async function adminLoad(){
@@ -1750,6 +1861,321 @@ async function adminCompleteTransfer(tid, sellerId, buyerId, productId, qty, pri
 
 
 // ═══════════════════════════════════════════════════════════
+//  MEMORANDUM — chiavi invito + log accessi
+// ═══════════════════════════════════════════════════════════
+var _memoKeys = [];
+var _memoLogs = [];
+var _memoSubTab = 'keys';
+
+function memoSubTab(t){
+  _memoSubTab = t;
+  document.querySelectorAll('.memo-tab').forEach(function(b){
+    var on = b.getAttribute('data-memo-tab')===t;
+    b.style.color = on ? 'var(--text)' : 'var(--text-muted)';
+    b.style.borderBottomColor = on ? 'var(--accent)' : 'transparent';
+    b.classList.toggle('active', on);
+  });
+  document.getElementById('memoToolbarKeys').style.display = t==='keys' ? 'flex' : 'none';
+  document.getElementById('memoToolbarLog').style.display  = t==='log'  ? 'flex' : 'none';
+  document.getElementById('memoPaneKeys').style.display = t==='keys' ? 'block' : 'none';
+  document.getElementById('memoPaneLog').style.display  = t==='log'  ? 'block' : 'none';
+}
+
+async function memoLoadAll(){
+  if(!_isAdmin) return;
+  await Promise.all([memoLoadKeys(), memoLoadLogs()]);
+  memoRefreshStats();
+  memoRenderKeys();
+  memoRenderLogs();
+}
+
+async function memoLoadKeys(){
+  try {
+    _memoKeys = (await supa('GET','v_memorandum_keys_admin?order=created_at.desc')) || [];
+    var c = document.getElementById('memoCntKeys'); if(c) c.textContent = _memoKeys.length;
+  } catch(e){
+    console.error('memo keys load:', e);
+    _memoKeys = [];
+  }
+}
+
+async function memoLoadLogs(){
+  try {
+    _memoLogs = (await supa('GET','memorandum_access_log?order=created_at.desc&limit=500')) || [];
+    var c = document.getElementById('memoCntLogs'); if(c) c.textContent = _memoLogs.length;
+  } catch(e){
+    console.error('memo logs load:', e);
+    _memoLogs = [];
+  }
+}
+
+function memoRefreshStats(){
+  var active = _memoKeys.filter(function(k){ return k.active; }).length;
+  var successTotal = _memoLogs.filter(function(l){ return l.success; }).length;
+  var sevenAgo = Date.now() - 7*86400000;
+  var failsRecent = _memoLogs.filter(function(l){ return !l.success && new Date(l.created_at).getTime() > sevenAgo; }).length;
+  var ctaClicks = _memoLogs.filter(function(l){ return l.cta_clicked; }).length;
+  var setText = function(id, v){ var el = document.getElementById(id); if(el) el.textContent = v; };
+  setText('memoStatActive', active);
+  setText('memoStatOpens', successTotal);
+  setText('memoStatFails', failsRecent);
+  setText('memoStatCtas', ctaClicks);
+}
+
+function memoFmtRel(d){
+  if(!d) return '—';
+  var diff = Date.now() - new Date(d).getTime();
+  var m = Math.floor(diff/60000), h = Math.floor(diff/3600000), days = Math.floor(diff/86400000);
+  if(diff < 60000) return 'ora';
+  if(m < 60) return m+' min fa';
+  if(h < 24) return h+'h fa';
+  if(days < 7) return days+'g fa';
+  var dt = new Date(d);
+  return dt.toLocaleDateString('it-IT',{day:'2-digit',month:'short'});
+}
+
+function memoFmtDur(sec){
+  if(!sec || sec < 1) return '—';
+  if(sec < 60) return sec+'s';
+  var m = Math.floor(sec/60), s = sec%60;
+  if(m < 60) return m+'m '+s+'s';
+  return Math.floor(m/60)+'h '+(m%60)+'m';
+}
+
+function memoSimplifyUA(ua){
+  if(!ua) return '—';
+  if(/iPhone/.test(ua)) return 'iPhone';
+  if(/iPad/.test(ua)) return 'iPad';
+  if(/Android/.test(ua)) return 'Android';
+  if(/Macintosh/.test(ua)) return 'Mac';
+  if(/Windows/.test(ua)) return 'Windows';
+  return ua.slice(0,20);
+}
+
+function memoFilterKeys(){
+  var q = (document.getElementById('memoSearchKeys').value || '').toLowerCase().trim();
+  var t = document.getElementById('memoFilterType').value;
+  var s = document.getElementById('memoFilterStatus').value;
+  return _memoKeys.filter(function(k){
+    if(q){
+      var hay = (k.prospect_name+' '+(k.prospect_company||'')+' '+(k.prospect_email||'')+' '+k.key_value).toLowerCase();
+      if(hay.indexOf(q) < 0) return false;
+    }
+    if(t && k.prospect_type !== t) return false;
+    if(s === 'active' && !k.active) return false;
+    if(s === 'inactive' && k.active) return false;
+    return true;
+  });
+}
+
+function memoRenderKeys(){
+  var rows = memoFilterKeys();
+  var tb = document.getElementById('memoKeysTbody');
+  var empty = document.getElementById('memoKeysEmpty');
+  if(!tb) return;
+  if(rows.length === 0){
+    tb.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  tb.innerHTML = rows.map(function(k){
+    var origin = (k.last_country || k.last_city)
+      ? esc([k.last_city, k.last_country].filter(Boolean).join(', '))
+      : '<span style="color:var(--text-muted)">—</span>';
+    var typeBadge = '<span class="badge" style="background:var(--surface2);font-size:11px;padding:2px 8px;border-radius:3px;font-family:var(--mono)">'+k.prospect_type+'</span>';
+    var stateBadge = k.active
+      ? '<span class="badge" style="background:rgba(63,185,80,.10);color:#3fb950;font-size:11px;padding:2px 8px;border-radius:3px">attiva</span>'
+      : '<span class="badge" style="background:var(--surface2);color:var(--text-muted);font-size:11px;padding:2px 8px;border-radius:3px">disattiva</span>';
+    var sc = parseInt(k.success_count || 0);
+    return '<tr>' +
+      '<td><div>'+esc(k.prospect_name)+'</div><div style="font-size:11px;color:var(--text-muted)">'+esc(k.prospect_company || k.prospect_email || '—')+'</div></td>' +
+      '<td>'+typeBadge+'</td>' +
+      '<td><span style="font-family:var(--mono);color:var(--gold,#c9a84c);font-size:12px">'+esc(k.key_value)+'</span></td>' +
+      '<td>'+(sc > 0 ? '<strong>'+sc+'</strong>' : '<span style="color:var(--text-muted)">0</span>')+'</td>' +
+      '<td>'+(k.last_used_at ? memoFmtRel(k.last_used_at) : '<span style="color:var(--text-muted)">mai</span>')+'</td>' +
+      '<td style="font-size:12px">'+origin+'</td>' +
+      '<td>'+stateBadge+'</td>' +
+      '<td style="text-align:right;white-space:nowrap">' +
+        '<button class="btn" onclick="memoToggleKey(\''+k.id+'\')" style="font-size:11px;padding:3px 8px" title="Attiva/disattiva">'+(k.active?'Disatt.':'Attiva')+'</button> ' +
+        '<button class="btn" onclick="memoOpenLink(\''+k.id+'\')" style="font-size:11px;padding:3px 8px">Link</button> ' +
+        '<button class="btn" onclick="memoOpenKey(\''+k.id+'\')" style="font-size:11px;padding:3px 8px">Modif.</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function memoFilterLogs(){
+  var q = (document.getElementById('memoSearchLog').value || '').toLowerCase().trim();
+  var s = document.getElementById('memoFilterLogStatus').value;
+  var range = document.getElementById('memoFilterLogRange').value;
+  var since = range ? Date.now() - parseInt(range)*86400000 : null;
+  return _memoLogs.filter(function(l){
+    if(s === 'success' && !l.success) return false;
+    if(s === 'fail' && l.success) return false;
+    if(since && new Date(l.created_at).getTime() < since) return false;
+    if(q){
+      var k = l.key_id ? _memoKeys.find(function(x){ return x.id === l.key_id; }) : null;
+      var hay = ((k?k.prospect_name:'')+' '+(l.key_value||'')+' '+(l.country_hint||'')+' '+(l.city_hint||'')).toLowerCase();
+      if(hay.indexOf(q) < 0) return false;
+    }
+    return true;
+  });
+}
+
+function memoRenderLogs(){
+  var rows = memoFilterLogs();
+  var tb = document.getElementById('memoLogTbody');
+  var empty = document.getElementById('memoLogEmpty');
+  if(!tb) return;
+  if(rows.length === 0){
+    tb.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  tb.innerHTML = rows.map(function(l){
+    var k = l.key_id ? _memoKeys.find(function(x){ return x.id === l.key_id; }) : null;
+    var prospect = k
+      ? '<div>'+esc(k.prospect_name)+'</div><div style="font-size:11px;color:var(--text-muted)">'+esc(k.key_value)+'</div>'
+      : '<span style="color:var(--text-muted)">—</span><div style="font-size:11px;color:var(--text-muted)">'+esc(l.key_value||'')+'</div>';
+    var origin = (l.country_hint || l.city_hint)
+      ? esc([l.city_hint, l.country_hint].filter(Boolean).join(', '))
+      : '<span style="color:var(--text-muted)">—</span>';
+    var esito = l.success
+      ? '<span class="badge" style="background:rgba(63,185,80,.10);color:#3fb950;font-size:11px;padding:2px 8px;border-radius:3px">aperto</span>'
+      : '<span class="badge" style="background:rgba(248,81,73,.10);color:#f85149;font-size:11px;padding:2px 8px;border-radius:3px">tentativo</span>';
+    var cta = l.cta_clicked
+      ? '<span class="badge" style="background:var(--accent-soft);color:var(--accent);font-size:11px;padding:2px 8px;border-radius:3px">'+l.cta_clicked+'</span>'
+      : '<span style="color:var(--text-muted)">—</span>';
+    return '<tr>' +
+      '<td>'+memoFmtRel(l.created_at)+'<div style="font-size:11px;color:var(--text-muted)">'+new Date(l.created_at).toLocaleString('it-IT',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})+'</div></td>' +
+      '<td>'+prospect+'</td>' +
+      '<td>'+esito+'</td>' +
+      '<td style="font-size:12px">'+origin+'</td>' +
+      '<td>'+memoFmtDur(l.time_on_page_seconds)+'</td>' +
+      '<td>'+(l.scroll_depth_max != null ? l.scroll_depth_max+'%' : '<span style="color:var(--text-muted)">—</span>')+'</td>' +
+      '<td>'+cta+'</td>' +
+      '<td style="font-size:12px;color:var(--text-muted)">'+esc(memoSimplifyUA(l.user_agent))+'</td>' +
+    '</tr>';
+  }).join('');
+}
+
+async function memoToggleKey(id){
+  var k = _memoKeys.find(function(x){ return x.id === id; });
+  if(!k) return;
+  try {
+    await supa('PATCH','memorandum_keys?id=eq.'+id, { active: !k.active });
+    k.active = !k.active;
+    memoRefreshStats();
+    memoRenderKeys();
+  } catch(e){ alert('Errore: '+e.message); }
+}
+
+function memoSlug(s){
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+}
+
+function memoRndSuffix(n){
+  var a = 'abcdefghjkmnpqrstuvwxyz23456789', r = '';
+  for(var i = 0; i < (n||3); i++) r += a[Math.floor(Math.random()*a.length)];
+  return r;
+}
+
+function memoSuggestKey(){
+  var name = document.getElementById('memoKeyName').value;
+  var base = memoSlug(name).split('-').slice(0,2).join('-') || 'rb';
+  document.getElementById('memoKeyValue').value = base + '-' + memoRndSuffix(3);
+}
+
+function memoOpenKey(id){
+  if(id){
+    var k = _memoKeys.find(function(x){ return x.id === id; });
+    if(!k) return;
+    document.getElementById('memoKeyModalTitle').textContent = 'Modifica chiave';
+    document.getElementById('memoKeyId').value = k.id;
+    document.getElementById('memoKeyName').value = k.prospect_name;
+    document.getElementById('memoKeyType').value = k.prospect_type;
+    document.getElementById('memoKeyEmail').value = k.prospect_email || '';
+    document.getElementById('memoKeyCompany').value = k.prospect_company || '';
+    document.getElementById('memoKeyValue').value = k.key_value;
+    document.getElementById('memoKeyNotes').value = k.notes || '';
+    document.getElementById('memoKeyExpiry').value = k.expires_at ? String(k.expires_at).slice(0,10) : '';
+  } else {
+    document.getElementById('memoKeyModalTitle').textContent = 'Nuova chiave invito';
+    ['memoKeyId','memoKeyName','memoKeyEmail','memoKeyCompany','memoKeyValue','memoKeyNotes','memoKeyExpiry'].forEach(function(id){
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('memoKeyType').value = 'investitore';
+  }
+  document.getElementById('memoKeyModalBg').classList.add('show');
+}
+
+function memoCloseKeyModal(){
+  document.getElementById('memoKeyModalBg').classList.remove('show');
+}
+
+async function memoSaveKey(){
+  var id = document.getElementById('memoKeyId').value;
+  var name = document.getElementById('memoKeyName').value.trim();
+  var value = document.getElementById('memoKeyValue').value.trim().toLowerCase();
+  if(!name){ alert('Nome prospect obbligatorio'); return; }
+  if(!value || !/^[a-z0-9-]+$/.test(value)){ alert('Chiave non valida (solo minuscole, numeri, trattini)'); return; }
+
+  var payload = {
+    prospect_name: name,
+    prospect_type: document.getElementById('memoKeyType').value,
+    prospect_email: document.getElementById('memoKeyEmail').value.trim() || null,
+    prospect_company: document.getElementById('memoKeyCompany').value.trim() || null,
+    key_value: value,
+    notes: document.getElementById('memoKeyNotes').value.trim() || null,
+    expires_at: document.getElementById('memoKeyExpiry').value || null,
+    created_by: (_session && _session.user && _session.user.email) ? _session.user.email.toLowerCase() : null
+  };
+  try {
+    if(id) await supa('PATCH','memorandum_keys?id=eq.'+id, payload);
+    else   await supa('POST','memorandum_keys', payload);
+    memoCloseKeyModal();
+    await memoLoadKeys();
+    memoRefreshStats();
+    memoRenderKeys();
+  } catch(e){
+    if(String(e.message).indexOf('duplicate') > -1) alert('Chiave già esistente, scegline un\'altra.');
+    else alert('Errore: '+e.message);
+  }
+}
+
+function memoOpenLink(id){
+  var k = _memoKeys.find(function(x){ return x.id === id; });
+  if(!k) return;
+  var baseUrl = location.href.replace(/[^/]*$/, '') + 'memorandum.html';
+  var url = baseUrl + '?k=' + encodeURIComponent(k.key_value);
+  document.getElementById('memoLinkProspect').textContent = k.prospect_name + ' · ' + k.prospect_type;
+  document.getElementById('memoLinkUrl').value = url;
+  document.getElementById('memoLinkKey').value = k.key_value;
+  document.getElementById('memoLinkModalBg').classList.add('show');
+}
+
+function memoCloseLinkModal(){
+  document.getElementById('memoLinkModalBg').classList.remove('show');
+}
+
+function memoCopyLink(){
+  var input = document.getElementById('memoLinkUrl');
+  input.select();
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(input.value).then(function(){
+      memoCloseLinkModal();
+    }).catch(function(){
+      try { document.execCommand('copy'); memoCloseLinkModal(); } catch(e){}
+    });
+  } else {
+    try { document.execCommand('copy'); memoCloseLinkModal(); } catch(e){}
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════
 //  PRODUCT MODAL (admin)
 // ═══════════════════════════════════════════════════════════
 var _editProductId = null;
@@ -1951,5 +2377,86 @@ function redirectToLogin(){
   location.href = 'pokemon-db.html?return=' + returnUrl;
 }
 </script>
+<!-- ══════════════ MODALI MEMORANDUM ══════════════ -->
+<div class="modal-bg" id="memoKeyModalBg" onclick="if(event.target===this)memoCloseKeyModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="memoKeyModalTitle">Nuova chiave invito</h3>
+      <button class="modal-close" onclick="memoCloseKeyModal()" aria-label="Chiudi"><span class="rb-i rb-i-x"></span></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="memoKeyId">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:5px">Nome prospect *</label>
+          <input type="text" id="memoKeyName" placeholder="Es. Mario Rossi" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;color:var(--text);outline:none;font-size:13px">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:5px">Tipo *</label>
+          <select id="memoKeyType" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;color:var(--text);outline:none;font-size:13px">
+            <option value="investitore">Investitore</option>
+            <option value="membro">Membro</option>
+            <option value="venditore">Venditore</option>
+            <option value="generico">Generico</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:5px">Email</label>
+          <input type="email" id="memoKeyEmail" placeholder="contatto@esempio.it" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;color:var(--text);outline:none;font-size:13px">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:5px">Azienda / contesto</label>
+          <input type="text" id="memoKeyCompany" placeholder="Family office, studio…" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;color:var(--text);outline:none;font-size:13px">
+        </div>
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:5px">Chiave *</label>
+        <input type="text" id="memoKeyValue" placeholder="es. rossi-26-a4f" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;color:var(--text);outline:none;font-size:13px;font-family:var(--mono)">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Solo minuscole, numeri, trattini. <a href="javascript:void(0)" onclick="memoSuggestKey()" style="color:var(--accent)">Suggerisci →</a></div>
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:5px">Note interne</label>
+        <textarea id="memoKeyNotes" placeholder="Come è arrivato il contatto, dettagli utili al meeting…" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;color:var(--text);outline:none;font-size:13px;min-height:60px;resize:vertical;font-family:inherit"></textarea>
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:5px">Scadenza (opzionale)</label>
+        <input type="date" id="memoKeyExpiry" style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;color:var(--text);outline:none;font-size:13px">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Vuoto = senza scadenza. Le chiavi scadute o disattivate smettono di funzionare immediatamente.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="memoCloseKeyModal()">Annulla</button>
+      <button class="btn primary" onclick="memoSaveKey()">Salva chiave</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="memoLinkModalBg" onclick="if(event.target===this)memoCloseLinkModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Link invito</h3>
+      <button class="modal-close" onclick="memoCloseLinkModal()" aria-label="Chiudi"><span class="rb-i rb-i-x"></span></button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text-muted)" id="memoLinkProspect">—</div>
+      <div>
+        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:5px">URL personalizzato</label>
+        <input type="text" id="memoLinkUrl" readonly style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;color:var(--text);outline:none;font-size:12px;font-family:var(--mono)">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Apre il memorandum con la chiave già inserita. Ogni apertura viene loggata automaticamente.</div>
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:5px">Solo chiave (per inserimento manuale)</label>
+        <input type="text" id="memoLinkKey" readonly style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;color:var(--gold,#c9a84c);outline:none;font-size:12px;font-family:var(--mono)">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="memoCloseLinkModal()">Chiudi</button>
+      <button class="btn primary" onclick="memoCopyLink()">Copia link</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
