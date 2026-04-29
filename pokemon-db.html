@@ -5923,7 +5923,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='5.3';
+const APP_VERSION='5.4';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -11167,10 +11167,16 @@ function anlSourcesScaffold(card){
   var score= document.getElementById('anlGradeScore').value;
   var setId= card.set?card.set.id:null;
 
-  // eBay query — sort by recent (_sop=13) + 240 items/page (_ipg=240) per un sample più ricco
-  var ebQ=(card.name+' '+(card.number||'')+(setNm?' '+setNm:'')).trim();
-  if(graded) ebQ+=' '+house+' '+score;
-  ebQ+=' pokemon';
+  // eBay query → URL "apri →" usa la stessa query SEMPLICE del cascade
+  // (nome + voto se graded, nome + numero se raw). Stringhe lunghe con set
+  // name + 'pokemon' degradano fuzzy match eBay (user feedback).
+  // sort by recent (_sop=13) + 240 items/page (_ipg=240) per sample ricco
+  var ebQ;
+  if(graded){
+    ebQ = (card.name + ' ' + house + ' ' + score).trim();
+  } else {
+    ebQ = (card.name + (card.number ? ' ' + card.number : '')).trim();
+  }
   var ebUrl='https://www.ebay.it/sch/i.html?_nkw='+encodeURIComponent(ebQ)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_sop=13&_ipg=240';
 
   // PC query — link iniziale a search, verrà sostituito con productUrl risolto dopo la fetch
@@ -11985,20 +11991,30 @@ async function anlStartLiveFetches(card){
       return 'https://www.ebay.it/sch/i.html?_nkw='+encodeURIComponent(q)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_ipg=240';
     });
 
-    // Fallback EU: eBay.de
-    if(nameUser && num){
-      urls.push('https://www.ebay.de/sch/i.html?_nkw='+encodeURIComponent(nameUser+' '+num+gradeSfx+' pokemon')+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_ipg=240');
-    }
-    // Fallback internazionale: eBay.com con varianti grade
+    // Fallback eBay.de: query semplice (nome + voto, NO 'pokemon' NO setNm)
     if(nameUser){
-      gradeVariants.forEach(function(g){
-        urls.push('https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(nameUser+g+' pokemon')+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_ipg=240');
+      var deQ = graded ? (nameUser+gradeSfx) : (nameUser+(num?' '+num:''));
+      urls.push('https://www.ebay.de/sch/i.html?_nkw='+encodeURIComponent(deQ)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_ipg=240');
+    }
+    // Fallback eBay.com: query semplice (nome + voto)
+    if(nameUser && graded){
+      urls.push('https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(nameUser+gradeSfx)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_ipg=240');
+    }
+
+    // ─── DIAGNOSTICA: log queries effettivamente inviate ──
+    // User feedback: assicurarsi che la cascata non finisca con queries lunghe
+    // anche se UI link "apri →" mostra solo la prima.
+    try{
+      console.group('%c[Analizza] eBay sold cascade — '+queries.length+' queries + '+(urls.length-queries.length)+' fallbacks','color:#06b6d4;font-weight:bold');
+      console.log('Mode:', graded?'GRADED ('+houseLabel+' '+scoreVal+')':'RAW');
+      queries.forEach(function(q,i){ console.log((i+1)+'. ebay.it', q); });
+      urls.slice(queries.length).forEach(function(u,i){
+        var h = new URL(u).host;
+        var nkw = decodeURIComponent((u.match(/_nkw=([^&]+)/)||[])[1]||'');
+        console.log((queries.length+i+1)+'. '+h, nkw);
       });
-    }
-    // eBay.com con nome semplificato + numero (per simboli rari come "Groudon 106 PSA 8")
-    if(nameSimple && num){
-      urls.push('https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(nameSimple+' '+num+gradeSfx+' pokemon')+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_ipg=240');
-    }
+      console.groupEnd();
+    }catch(e){}
 
     try{
       // MERGE MODE: combina tutti gli URL, dedup per (titleNormalized, price, currency).
