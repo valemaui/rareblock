@@ -7224,28 +7224,45 @@ function cardApplicableVariants(card, ms){
   var available = (ms&&ms.variants) ? ms.variants : [];
   if(!available.length) return [];
   var rarity = (card.rarity||'').toLowerCase().trim();
-
-  // Common / Uncommon / Rare "puro" → carta non foiled in artwork
-  // → ammette Normal + le varianti "reverse-style" + universali
-  var isPlain = /^(common|uncommon|rare)$/.test(rarity);
-  // Promo: trattata come universale, l'utente decide
-  var isPromo = /promo/.test(rarity) && !/holo/.test(rarity);
+  var supertype = (card.supertype||'').toLowerCase();
+  var subtypes = Array.isArray(card.subtypes) ? card.subtypes.map(function(s){return (s||'').toLowerCase();}) : [];
 
   var reverseTypes = {'Reverse Holo':1,'Pokeball Holo':1,'Masterball Holo':1};
   var universalTypes = {'Stamped':1};
 
+  // SAFETY NET: Energie base sono SEMPRE Normal indipendentemente dalla rarita.
+  // TCG API spesso restituisce rarity "" o null per energie vintage e questo
+  // faceva cadere le carte nel branch generico → assegnate erroneamente come Holo.
+  var isBasicEnergy = supertype==='energy' && subtypes.indexOf('basic')>=0;
+
+  // HOLO solo se la rarita contiene un marker esplicito di carta foiled.
+  // La parola "holo" da sola copre 90% dei casi (Rare Holo, Holo Rare,
+  // Rare Holo EX/GX/V/VMAX/VSTAR, Trainer Gallery Rare Holo, ecc.).
+  // Il resto e' moderno/vintage non-Holo-named: Ultra Rare, Secret Rare,
+  // Illustration Rare, Hyper Rare, Rainbow, Double Rare, Shining, Crystal,
+  // LEGEND, BREAK, Prime, Prism Star, ACE SPEC, Amazing Rare, Radiant Rare.
+  var isHoloRarity = !isBasicEnergy && (
+    /\bholo\b/.test(rarity) ||
+    /\b(ultra|secret|illustration|hyper|rainbow|amazing|radiant|shining|crystal|legend|break|prime|prism|double|shiny)\b/.test(rarity) ||
+    /trainer gallery|ace spec/.test(rarity)
+  );
+
+  // Promo non-holo: tutte le opzioni (utente decide)
+  var isPromo = !isBasicEnergy && !isHoloRarity && /\bpromo\b/.test(rarity);
+
   var filtered;
-  if(isPlain){
+  if(isHoloRarity){
+    // Carte foiled: solo varianti Holo / Cosmo Holo + universali
     filtered = available.filter(function(v){
-      return v==='Normal' || reverseTypes[v] || universalTypes[v];
+      return v==='Holo' || v==='Cosmo Holo' || universalTypes[v];
     });
   } else if(isPromo){
     filtered = available.slice();
   } else {
-    // Tutto il resto (Rare Holo, EX, GX, V, VMAX, VSTAR, Ultra Rare, Secret, ecc.)
-    // Carte con artwork foiled → solo varianti holo, no reverse-style
+    // DEFAULT sicuro: Common / Uncommon / Rare puro / Energy / rarita vuota
+    // o sconosciuta → Normal class. Mai assumere Holo senza evidenza.
     filtered = available.filter(function(v){
-      return v==='Holo' || v==='Cosmo Holo' || universalTypes[v];
+      return v==='Normal' || reverseTypes[v] || universalTypes[v];
     });
   }
   // Fallback: se nessuna variante e' applicabile (utente ha selezionato un set strano)
@@ -7882,6 +7899,8 @@ window.msCreateMasterset = function(){
       created:new Date().toISOString(),
       cards:cards.map(function(c){
         return {id:c.id,num:c.number||'',name:c.name||'',rarity:c.rarity||'',
+          supertype:c.supertype||'',
+          subtypes:Array.isArray(c.subtypes)?c.subtypes.slice():[],
           img:c.images&&c.images.small||'',imgLg:c.images&&c.images.large||'',qty:{}};
       })
     };
