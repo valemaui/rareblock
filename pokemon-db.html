@@ -5923,7 +5923,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='5.0';
+const APP_VERSION='5.1';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -11288,6 +11288,11 @@ function anlComputeToday(){
       if(pc.ungraded!=null) pcP = pcToEur(pc.ungraded);
     }
   }
+  // PC è valore US/UK aggregato — applica costi import (spedizione+IVA+dazio+sdoganamento)
+  // per riflettere il costo REALE di acquisire la carta dall'estero. Senza questo
+  // adjustment, il prezzo PC sembra molto più basso di CM/eBay IT che sono già lordi.
+  var pcPnetto = pcP;  // prezzo base (senza spese) salvato per source label
+  if(pcP != null) pcP = anlImportTotal(pcP);
   var cmP = cm || null;   // per raw applichiamo condizione
 
   // Consolida: mediana tra le fonti disponibili, con pesatura semplice
@@ -12611,7 +12616,7 @@ function anlRenderPcGradeTable(prices, targetHouse, targetScore){
   } else {
     // ─── VISTA AGGREGATA: tutti i grade (vista corrente) ──
     html = headerHtml + '<table>'
-      + '<thead><tr><th></th><th>Casa</th><th>Voto</th><th>Lingua</th><th style="text-align:right">€</th><th style="text-align:center">Sample</th></tr></thead>'
+      + '<thead><tr><th></th><th>Casa</th><th>Voto</th><th>Lingua</th><th style="text-align:right">€</th><th style="text-align:right" title="Prezzo + spedizione 20€ + dazio 2.7% (solo se valore >€150) + IVA 22% + sdoganamento 15€">€+spese</th><th style="text-align:center">Sample</th></tr></thead>'
       + '<tbody>'
       + rows.map(function(r){
           var priceVal, priceLabel;
@@ -12623,6 +12628,10 @@ function anlRenderPcGradeTable(prices, targetHouse, targetScore){
             priceVal = r.eurFromAggregate;
             priceLabel = '€'+priceVal.toFixed(0)+' <span style="opacity:0.5;font-size:9px">agg</span>';
           }
+          var totalEur = anlImportTotal(priceVal);
+          var totalLabel = totalEur != null
+            ? '<span style="color:var(--accent)">€'+totalEur.toFixed(0)+'</span>'
+            : '<span style="opacity:0.4">—</span>';
           var sampleStr = r.eurFromListings != null
             ? String(r.count || '?')
             : '<span style="opacity:0.5">agg</span>';
@@ -12637,6 +12646,7 @@ function anlRenderPcGradeTable(prices, targetHouse, targetScore){
             + '<td class="col-grade">'+r.score+'</td>'
             + '<td class="col-grade" style="font-size:10px">🇬🇧 ENG</td>'
             + '<td class="col-price">'+priceLabel+'</td>'
+            + '<td class="col-price" style="font-size:10px">'+totalLabel+'</td>'
             + '<td class="col-count">'+sampleStr+'</td>'
             + '</tr>';
         }).join('')
@@ -13299,9 +13309,18 @@ function anlPopPc(prices, err){
     }
   }
 
+  // Salva valore base prezzo (senza spese) per uso nella tabella e nel calcolo media.
+  // Vista PC source mostra valore +spese (costo reale per acquistare USA→IT).
+  var eurValueBase = eurValue;
+  var eurValueWithFees = eurValue != null ? anlImportTotal(eurValue) : null;
+  // anlLiveData.pc rimane il prezzo base; la media usa il prezzo +spese (vedi anlComputeToday)
+  if(eurValue != null){
+    anlLiveData.pcWithFees = eurValueWithFees;
+  }
+
   if(priceEl){
-    if(eurValue!=null){
-      priceEl.textContent='€'+eurValue.toFixed(2);
+    if(eurValueWithFees!=null){
+      priceEl.textContent='€'+eurValueWithFees.toFixed(2);
       priceEl.classList.remove('loading');
       priceEl.classList.remove('na');
     } else {
@@ -13315,8 +13334,11 @@ function anlPopPc(prices, err){
     var parts=[];
     if(srcLabel) parts.push(srcLabel);
     if(sourceNote) parts.push(sourceNote);
-    // PC = sold eBay US/UK aggregati, sempre lingua inglese. Mostriamo
-    // l'indicazione per chiarire che il prezzo non riflette il premium ITA.
+    // Mostra prezzo base (senza spese) come riferimento
+    if(eurValueBase != null){
+      parts.push('netto €'+eurValueBase.toFixed(2));
+    }
+    // PC = sold eBay US/UK aggregati, sempre lingua inglese.
     parts.push('ENG');
     // Trend 12M (solo il più rilevante per il tipo selezionato)
     if(!graded && prices.trend_ungraded_12m!=null){
