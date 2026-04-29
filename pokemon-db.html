@@ -5923,7 +5923,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='4.9';
+const APP_VERSION='5.0';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -10867,16 +10867,24 @@ var ANL_USD_EUR_FALLBACK = 0.92;
 // - IVA italiana: 22% su (valore carta + spedizione + dazio)
 // - Dazio ERGA OMNES paesi terzi: 2.70% (verificato dazi.it, base R2261/98)
 // - Sdoganamento corriere: 15€ fisso (DHL/UPS/FedEx tipico)
-var ANL_IMPORT_SHIPPING    = 20;
-var ANL_IMPORT_VAT         = 0.22;
-var ANL_IMPORT_DUTY        = 0.027;
-var ANL_IMPORT_CUSTOMS_FEE = 15;
+// - Franchigia dazio: <€150 valore intrinseco esente (Reg. 1186/2009 art. 23)
+//   IVA dovuta sempre dal 01/07/2021 (franchigia €22 abolita).
+//   ATTENZIONE: dal 01/07/2026 franchigia €150 sarà soppressa (Reg. 2026/382).
+//   Sostituita probabilmente da dazio fisso €3 o tariffe a categorie semplificate.
+//   Aggiornare quando entra in vigore.
+var ANL_IMPORT_SHIPPING        = 20;
+var ANL_IMPORT_VAT             = 0.22;
+var ANL_IMPORT_DUTY            = 0.027;
+var ANL_IMPORT_DUTY_THRESHOLD  = 150;   // valore intrinseco sotto cui dazio = 0
+var ANL_IMPORT_CUSTOMS_FEE     = 15;
 
-// Costo totale import dato prezzo carta in EUR (esclusi sdoganamento+spedizione già incluse altrove)
+// Costo totale import dato prezzo carta in EUR
 function anlImportTotal(priceEur){
   if(priceEur == null || isNaN(priceEur)) return null;
   var base = priceEur + ANL_IMPORT_SHIPPING;
-  var duty = base * ANL_IMPORT_DUTY;
+  // Soglia €150 si applica al VALORE INTRINSECO (solo merce, esclusa spedizione)
+  var dutyApplies = priceEur > ANL_IMPORT_DUTY_THRESHOLD;
+  var duty = dutyApplies ? base * ANL_IMPORT_DUTY : 0;
   var vat  = (base + duty) * ANL_IMPORT_VAT;
   return priceEur + ANL_IMPORT_SHIPPING + duty + vat + ANL_IMPORT_CUSTOMS_FEE;
 }
@@ -12576,7 +12584,7 @@ function anlRenderPcGradeTable(prices, targetHouse, targetScore){
     var medianL = prices_all.slice().sort(function(a,b){return a-b;})[Math.floor(prices_all.length/2)];
 
     html = headerHtml + '<table>'
-      + '<thead><tr><th>#</th><th>Data</th><th style="text-align:right">€</th><th style="text-align:right" title="Prezzo + spedizione 20€ + dazio 2.7% + IVA 22% + sdoganamento 15€">€+spese</th><th style="text-align:right">vs med</th></tr></thead>'
+      + '<thead><tr><th>#</th><th>Data</th><th style="text-align:right">€</th><th style="text-align:right" title="Prezzo + spedizione 20€ + dazio 2.7% (solo se valore >€150) + IVA 22% + sdoganamento 15€">€+spese</th><th style="text-align:right">vs med</th></tr></thead>'
       + '<tbody>'
       + sorted.map(function(l, i){
           var dateStr = l.date || '<span style="opacity:0.4">—</span>';
