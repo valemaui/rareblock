@@ -5923,7 +5923,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='4.7';
+const APP_VERSION='4.8';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -10861,6 +10861,25 @@ var ANL_COND_FACTOR = { MINT:1.15, NM:1.0, EX:0.85, GD:0.70, LP:0.60, PL:0.40, P
 var ANL_FIRST_ED_MULT = 1.8;
 var ANL_USD_EUR_FALLBACK = 0.92;
 
+// Costi import US/UK → IT per carte da collezione
+// - Spedizione: 20€ standard tracked
+// - IVA italiana: 22% su (valore carta + spedizione)
+// - Dazio: 0% per carte da collezione (codice doganale 49.11 / 95.04)
+// - Sdoganamento corriere: 15€ fisso (DHL/UPS/FedEx tipico)
+var ANL_IMPORT_SHIPPING    = 20;
+var ANL_IMPORT_VAT         = 0.22;
+var ANL_IMPORT_DUTY        = 0;
+var ANL_IMPORT_CUSTOMS_FEE = 15;
+
+// Costo totale import dato prezzo carta in EUR (esclusi sdoganamento+spedizione già incluse altrove)
+function anlImportTotal(priceEur){
+  if(priceEur == null || isNaN(priceEur)) return null;
+  var base = priceEur + ANL_IMPORT_SHIPPING;
+  var duty = base * ANL_IMPORT_DUTY;
+  var vat  = (base + duty) * ANL_IMPORT_VAT;
+  return priceEur + ANL_IMPORT_SHIPPING + duty + vat + ANL_IMPORT_CUSTOMS_FEE;
+}
+
 // Case di grading riconosciute (PSA è quella con prezzi PC/eBay più liquidi;
 // le altre usano PSA come benchmark con una leggera correzione di liquidità)
 var ANL_HOUSES = {
@@ -12556,7 +12575,7 @@ function anlRenderPcGradeTable(prices, targetHouse, targetScore){
     var medianL = prices_all.slice().sort(function(a,b){return a-b;})[Math.floor(prices_all.length/2)];
 
     html = headerHtml + '<table>'
-      + '<thead><tr><th>#</th><th>Data</th><th style="text-align:right">€</th><th style="text-align:right">vs med</th></tr></thead>'
+      + '<thead><tr><th>#</th><th>Data</th><th style="text-align:right">€</th><th style="text-align:right" title="Prezzo + spedizione 20€ + IVA 22% + sdoganamento 15€">€+spese</th><th style="text-align:right">vs med</th></tr></thead>'
       + '<tbody>'
       + sorted.map(function(l, i){
           var dateStr = l.date || '<span style="opacity:0.4">—</span>';
@@ -12567,10 +12586,15 @@ function anlRenderPcGradeTable(prices, targetHouse, targetScore){
             var col = cls==='pos' ? 'var(--success)' : (cls==='neg' ? 'var(--danger)' : 'var(--text-muted)');
             deltaStr = '<span style="color:'+col+';font-size:9px">'+(d>=0?'+':'')+d.toFixed(0)+'%</span>';
           }
+          var totalEur = anlImportTotal(l.priceEur);
+          var totalStr = totalEur != null
+            ? '<span style="color:var(--accent)">€'+totalEur.toFixed(0)+'</span>'
+            : '<span style="opacity:0.4">—</span>';
           return '<tr>'
             + '<td class="col-grade" style="opacity:0.5">'+(i+1)+'</td>'
             + '<td class="col-grade" style="font-size:10px">'+dateStr+'</td>'
             + '<td class="col-price">€'+(l.priceEur!=null?l.priceEur.toFixed(0):'?')+'</td>'
+            + '<td class="col-price" style="font-size:10px">'+totalStr+'</td>'
             + '<td style="text-align:right;padding-right:6px">'+deltaStr+'</td>'
             + '</tr>';
         }).join('')
