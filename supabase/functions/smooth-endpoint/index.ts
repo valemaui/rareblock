@@ -1457,13 +1457,6 @@ function extractAllGradesFromListingsOnePass(html: string): Record<string, Grade
     for (const s of symbols) symCounts[s] = (symCounts[s] || 0) + 1;
     const dominantSym = Object.keys(symCounts).sort((a, b) => symCounts[b] - symCounts[a])[0];
 
-    // Estrai date best-effort: cerca pattern nei 100 char DOPO ogni prezzo
-    const detailedListings: Array<{ price: number; date?: string }> = entries.map(e => {
-      const tail = text.substring(e.matchEnd, e.matchEnd + 100);
-      const dm = tail.match(dateRx);
-      return { price: e.price, date: dm ? dm[1] : undefined };
-    });
-
     // IQR filter sui prezzi (come prima) ma manteniamo riferimento alle entries originali
     const sortedEntries = entries.slice().sort((a, b) => a.price - b.price);
     let filteredEntries = sortedEntries;
@@ -1483,13 +1476,19 @@ function extractAllGradesFromListingsOnePass(html: string): Record<string, Grade
       count >= 10 ? 'high' : (count >= 3 ? 'medium' : 'low');
 
     // Lista dettagliata: solo i match che hanno passato IQR, mantenendo ordine originale (recente prima)
+    // Window date PRIMA del match: nel testo PC il pattern flat è
+    // "DATA HOUSE SCORE [src] PRICE DATA HOUSE SCORE [src] PRICE..." → data riga
+    // corrente sta nei char prima dell'ancora, NON dopo (che sarebbe la successiva)
     const passedIdx = new Set(filteredEntries.map(e => e.matchIdx));
     const orderedListings = entries
       .filter(e => passedIdx.has(e.matchIdx))
       .map(e => {
-        const tail = text.substring(e.matchEnd, e.matchEnd + 100);
-        const dm = tail.match(dateRx);
-        return { price: e.price, date: dm ? dm[1] : undefined };
+        // Cerca data nei 100 char PRIMA del match (window backwards)
+        const head = text.substring(Math.max(0, e.matchIdx - 100), e.matchIdx);
+        // Match GLOBAL per prendere l'ULTIMA occorrenza nel window (più vicina alla riga corrente)
+        const matches = head.match(new RegExp(dateRx.source, 'gi'));
+        const date = matches && matches.length ? matches[matches.length - 1] : undefined;
+        return { price: e.price, date };
       });
 
     out[key] = {
