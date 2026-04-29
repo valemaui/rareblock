@@ -5923,7 +5923,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='5.2';
+const APP_VERSION='5.3';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -11945,23 +11945,40 @@ async function anlStartLiveFetches(card){
     var queries = [];
     function addQ(s){ s=s.trim().replace(/\s+/g,' '); if(s && queries.indexOf(s)<0) queries.push(s); }
 
-    // ─── Query specifiche → larghe → "magre" (utili per merge) ───
-    // 1. Specifiche con set + "pokemon"
-    if(nameUser && num && setNm) addQ(nameUser+' '+num+' '+setNm+gradeSfx+' pokemon');
-    // 2. Senza set ma con "pokemon" — la query suggerita dal feedback utente
-    if(nameUser && num)          addQ(nameUser+' '+num+gradeSfx+' pokemon');
-    // 3. Stesso senza "pokemon"
-    if(nameUser && num && setNm) addQ(nameUser+' '+num+' '+setNm+gradeSfx);
-    // 4. NEW · query con NOME SEMPLIFICATO (es. "Groudon" invece di "Groudon-EX")
-    //    User report: "Groudon 106 PSA 8" trova 16 risultati, "Groudon-EX 106 ..." solo 12
-    if(nameSimple && num)        addQ(nameSimple+' '+num+gradeSfx);
-    if(nameSimple && num)        addQ(nameSimple+' '+num+gradeSfx+' pokemon');
-    // 5. Solo nome + grade
-    if(nameUser)                 addQ(nameUser+gradeSfx+' pokemon');
-    // 6. Nome API ufficiale (se diverso da quello digitato)
-    if(nameApi && nameApi!==nameUser && num) addQ(nameApi+' '+num+gradeSfx+' pokemon');
-    // 7. Raw senza grade — solo se mode raw
-    if(nameUser && num && !graded) addQ(nameUser+' '+num+' pokemon');
+    // ─── Query SEMPLICI prima (più match) → SPECIFICHE dopo (filtri fini) ───
+    // User report: "Tropical Wind PSA 9" trova 16 risultati,
+    //              "Tropical Wind 26 Nintendo Black Star Promos PSA 9 pokemon" trova 0.
+    // eBay già filtra _sacat=2611 (Pokemon) → "pokemon" parola spesso ridondante.
+    // Query lunghe con set name penalizzano il fuzzy matching di eBay.
+    // Edge function early-exit a 15 items: le prime query semplici dominano il sample.
+
+    if(graded){
+      // GRADED: priorità query corte con grade
+      // 1. Più semplice: nome + voto (stile user "Tropical Wind PSA 9")
+      if(nameUser)                 addQ(nameUser+gradeSfx);
+      // 2. Nome semplificato + voto (utile per "Groudon-EX" → "Groudon")
+      if(nameSimple && nameSimple!==nameUser) addQ(nameSimple+gradeSfx);
+      // 3. Nome + numero + voto
+      if(nameUser && num)          addQ(nameUser+' '+num+gradeSfx);
+      // 4. Nome + voto + "pokemon" (utile se categoria sbagliata)
+      if(nameUser)                 addQ(nameUser+gradeSfx+' pokemon');
+      // 5. Nome + numero + voto + "pokemon"
+      if(nameUser && num)          addQ(nameUser+' '+num+gradeSfx+' pokemon');
+      // 6. Nome semplificato + numero + voto
+      if(nameSimple && num)        addQ(nameSimple+' '+num+gradeSfx);
+      // 7. Nome API ufficiale (se diverso) + voto
+      if(nameApi && nameApi!==nameUser) addQ(nameApi+gradeSfx);
+      // 8. SPECIFICA: nome + numero + set + voto (last resort)
+      if(nameUser && num && setNm) addQ(nameUser+' '+num+' '+setNm+gradeSfx);
+    } else {
+      // RAW: priorità nome+numero (carta singola identificabile da numero)
+      if(nameUser && num)          addQ(nameUser+' '+num);
+      if(nameSimple && num && nameSimple!==nameUser) addQ(nameSimple+' '+num);
+      if(nameUser && num)          addQ(nameUser+' '+num+' pokemon');
+      if(nameUser)                 addQ(nameUser);
+      if(nameApi && nameApi!==nameUser && num) addQ(nameApi+' '+num);
+      if(nameUser && num && setNm) addQ(nameUser+' '+num+' '+setNm);
+    }
 
     // URL su eBay IT (EUR) — valuta primaria
     var urls = queries.map(function(q){
@@ -12005,14 +12022,22 @@ async function anlStartLiveFetches(card){
     if(nameSimple && nameSimple.length<3) nameSimple = '';
     var gradeSfx = graded ? ' '+houseLabel+' '+scoreVal : '';
 
-    // Stesso pattern cascata di sold ma URL senza LH_Sold/LH_Complete = inserzioni attive
-    // _sop=15 = "Best Match"; per asks il sort by recent non aiuta (servono prezzi rappresentativi)
+    // Stesso pattern del cascata sold: SEMPLICE prima, SPECIFICO dopo
     var queries = [];
     function addQ(s){ s=s.trim().replace(/\s+/g,' '); if(s && queries.indexOf(s)<0) queries.push(s); }
-    if(nameUser && num && setNm) addQ(nameUser+' '+num+' '+setNm+gradeSfx+' pokemon');
-    if(nameUser && num)          addQ(nameUser+' '+num+gradeSfx+' pokemon');
-    if(nameSimple && num)        addQ(nameSimple+' '+num+gradeSfx+' pokemon');
-    if(nameUser)                 addQ(nameUser+gradeSfx+' pokemon');
+    if(graded){
+      if(nameUser)                 addQ(nameUser+gradeSfx);
+      if(nameSimple && nameSimple!==nameUser) addQ(nameSimple+gradeSfx);
+      if(nameUser && num)          addQ(nameUser+' '+num+gradeSfx);
+      if(nameUser)                 addQ(nameUser+gradeSfx+' pokemon');
+      if(nameUser && num)          addQ(nameUser+' '+num+gradeSfx+' pokemon');
+      if(nameUser && num && setNm) addQ(nameUser+' '+num+' '+setNm+gradeSfx);
+    } else {
+      if(nameUser && num)          addQ(nameUser+' '+num);
+      if(nameSimple && num && nameSimple!==nameUser) addQ(nameSimple+' '+num);
+      if(nameUser)                 addQ(nameUser);
+      if(nameUser && num)          addQ(nameUser+' '+num+' pokemon');
+    }
 
     var urls = queries.map(function(q){
       return 'https://www.ebay.it/sch/i.html?_nkw='+encodeURIComponent(q)+'&_sacat=2611&_ipg=240';
