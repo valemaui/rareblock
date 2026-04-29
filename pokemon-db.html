@@ -3463,27 +3463,22 @@ function getItems(p){
 }
 
 async function loadPrev(){
-  console.log('[loadPrev] START');
   // Schema check è puramente diagnostico
-  if(!_prevSchemaStatus) { try{ checkPrevSchema(); }catch(e){ console.warn('[loadPrev] checkPrevSchema sync err:',e); } }
+  if(!_prevSchemaStatus) { try{ checkPrevSchema(); }catch(e){} }
   try{
     const uid=getCurrentUserId();
     const url='preventivi?order=created.desc&limit=200'+(uid?'&user_id=eq.'+uid:'');
-    console.log('[loadPrev] uid =',uid,'  url =',url);
     const data=await supa('GET',url);
-    console.log('[loadPrev] response received. type:',typeof data,'  isArray:',Array.isArray(data),'  length:',data&&data.length);
     if(!Array.isArray(data)){
-      console.warn('[loadPrev] Risposta non-array, contenuto:',data);
+      console.warn('[loadPrev] Risposta non-array da Supabase:',data);
       return;
     }
-    if(data.length===0){
-      console.warn('[loadPrev] Supabase ha ritornato un array VUOTO. Possibili cause: (1) RLS filter taglia tutti i record, (2) user_id filter non matcha, (3) tabella effettivamente vuota');
-      // Continua con preventivi=[] solo se il DB è davvero vuoto;
-      // ma non sovrascriviamo se avevamo già dati in memoria
-      if(preventivi.length>0){
-        console.warn('[loadPrev] Mantengo i',preventivi.length,'preventivi già in memoria invece di azzerare');
-        return;
-      }
+    if(data.length===0 && preventivi.length>0){
+      // Il DB risponde vuoto ma avevamo dati in memoria → non sovrascriviamo.
+      // Possibile cambio sessione o RLS che taglia: meglio lasciare la UI
+      // mostrare lo stato consistente finché un nuovo load porta dati validi.
+      console.warn('[loadPrev] DB ha ritornato 0 record per user_id',uid,'— mantengo i',preventivi.length,'preventivi già in memoria. Esegui scanPrev() in console per investigare.');
+      return;
     }
     preventivi=data.map(p=>({
       id:p.id,
@@ -3497,10 +3492,9 @@ async function loadPrev(){
       deal_info:p.deal_info?(typeof p.deal_info==='string'?(function(){try{return JSON.parse(p.deal_info);}catch(e){return null;}})():p.deal_info):null,
       items:Array.isArray(p.items)?p.items:(function(){try{return JSON.parse(p.items||'[]');}catch(e){return [];}})()
     }));
-    console.log('[loadPrev] OK — caricati',preventivi.length,'preventivi');
     try{ localStorage.setItem('pkm_preventivi',JSON.stringify(preventivi)); }catch(e){}
   }catch(e){
-    console.error('[loadPrev] EXCEPTION:', e.message, e);
+    console.error('[loadPrev] EXCEPTION:', e.message);
     if(!preventivi||!preventivi.length){
       try{
         const backup=JSON.parse(localStorage.getItem('pkm_preventivi')||'[]');
@@ -3733,6 +3727,98 @@ window.recoverPrev = async function(fromUid){
     if(typeof renderPrevList==='function') await renderPrevList();
     console.log('Done. Verifica nella tab Preventivi.');
   }catch(e){ console.error('recoverPrev error:',e); }
+  console.groupEnd();
+};
+
+// ═══ MASTER SET DEBUG/RECOVERY ═══
+// La tabella mastersets ha 1 riga per user_id (campo data = JSON con tutti i set).
+// scanMS() elenca tutte le righe visibili e quanti master set contiene ciascuna.
+// recoverMS(fromUid) sposta il payload data da fromUid all'utente corrente.
+
+window.scanMS = async function(){
+  console.group('🔎 SCAN MASTERSETS ALL USERS');
+  try{
+    const url=SUPA_URL+'/rest/v1/mastersets?select=user_id,data,updated_at&limit=100';
+    const r=await fetch(url,{headers:getHDR()});
+    if(!r.ok){ console.error('Status',r.status,await r.text()); console.groupEnd(); return; }
+    const rows=await r.json();
+    console.log('Righe visibili:',rows.length);
+    const myUid=getCurrentUserId();
+    console.log('Tuo user_id corrente:',myUid);
+    console.log('---');
+    rows.forEach(function(row){
+      const isMine=(row.user_id===myUid)?' ← TU':'';
+      let count=0,sample=[];
+      try{
+        const arr=JSON.parse(row.data||'[]');
+        count=arr.length;
+        sample=arr.slice(0,5).map(function(m){return m.setName+(m.lang?' ['+m.lang+']':'');});
+      }catch(e){}
+      console.log('user_id:',row.user_id,'  master sets:',count,'  updated:',row.updated_at,isMine);
+      sample.forEach(function(s){ console.log('  •',s); });
+      if(count>5) console.log('  ...e altri',count-5);
+    });
+    console.log('---');
+    console.log('💡 Se vuoi importare i master set di un altro user_id sul tuo account:');
+    console.log('   recoverMS("USER_ID_DA_CUI_COPIARE")');
+    console.log('   (i master set verranno UNITI a quelli già presenti sul tuo account, dedupe per id)');
+  }catch(e){ console.error('scanMS error:',e); }
+  console.groupEnd();
+};
+
+window.recoverMS = async function(fromUid){
+  const myUid=getCurrentUserId();
+  if(!myUid){ console.error('Non sei autenticato'); return; }
+  if(!fromUid){ console.error('Devi passare l\'user_id sorgente. Esempio: recoverMS("a9a91c4e-...")'); return; }
+  if(fromUid===myUid){ console.warn('user_id sorgente = tuo, nessuna azione necessaria'); return; }
+  console.group('🔧 RECOVER MASTERSETS da '+fromUid+' verso '+myUid);
+  try{
+    // Leggi i dati sorgente
+    const r=await fetch(SUPA_URL+'/rest/v1/mastersets?user_id=eq.'+fromUid+'&select=data&limit=1',{headers:getHDR()});
+    if(!r.ok){ console.error('Errore lookup sorgente:',r.status,await r.text()); console.groupEnd(); return; }
+    const rows=await r.json();
+    if(!rows.length||!rows[0].data){ console.log('Nessun master set trovato per quell\'user_id'); console.groupEnd(); return; }
+    const fromData=JSON.parse(rows[0].data);
+    console.log('Master set sorgente trovati:',fromData.length);
+    fromData.slice(0,10).forEach(function(m){ console.log('  •',m.setName,'['+m.lang+']'); });
+    if(fromData.length>10) console.log('  ...e altri',fromData.length-10);
+
+    // Leggi i dati attuali del tuo account
+    const r2=await fetch(SUPA_URL+'/rest/v1/mastersets?user_id=eq.'+myUid+'&select=data&limit=1',{headers:getHDR()});
+    let myData=[];
+    if(r2.ok){
+      const rows2=await r2.json();
+      if(rows2.length&&rows2[0].data){ try{ myData=JSON.parse(rows2[0].data); }catch(e){} }
+    }
+    console.log('Master set già presenti sul tuo account:',myData.length);
+
+    // Merge con dedupe per id
+    const myIds=new Set(myData.map(function(m){return m.id;}));
+    const toAdd=fromData.filter(function(m){ return !myIds.has(m.id); });
+    console.log('Da aggiungere (dedupe per id):',toAdd.length,'  Già presenti:',(fromData.length-toAdd.length));
+
+    if(!toAdd.length){ console.log('Nessun nuovo master set da importare'); console.groupEnd(); return; }
+    if(!confirm('Importare '+toAdd.length+' master set sul tuo account ('+myUid+')?\n\nIl payload sorgente NON viene modificato. I master set vengono uniti ai tuoi (dedupe per id).')){
+      console.log('Annullato dall\'utente');
+      console.groupEnd();
+      return;
+    }
+
+    const merged=myData.concat(toAdd);
+    // Salva (upsert sulla riga del tuo user_id)
+    const upsertHdr=Object.assign({},getHDR(),{'Prefer':'resolution=merge-duplicates,return=minimal'});
+    const r3=await fetch(SUPA_URL+'/rest/v1/mastersets',{
+      method:'POST', headers:upsertHdr,
+      body:JSON.stringify({user_id:myUid, data:JSON.stringify(merged), updated_at:new Date().toISOString()})
+    });
+    if(!r3.ok){ console.error('Errore upsert:',r3.status,await r3.text()); console.groupEnd(); return; }
+    console.log('✅ Importati',toAdd.length,'master set. Aggiorno la UI...');
+    // Aggiorna cache locale scopata e UI
+    try{ localStorage.setItem(_msLsKey(),JSON.stringify(merged)); }catch(e){}
+    msData=merged;
+    if(typeof msRenderList==='function') msRenderList();
+    console.log('Done. Verifica nella tab Master Set.');
+  }catch(e){ console.error('recoverMS error:',e); }
   console.groupEnd();
 };
 console.log('💡 Suggerimento: se i preventivi non si vedono, esegui da console: debugPrev()');
@@ -5800,6 +5886,32 @@ setInterval(checkForUpdates,3600000);
 // ALTER TABLE preventivi ADD COLUMN IF NOT EXISTS status text default 'open';
 // ALTER TABLE preventivi ADD COLUMN IF NOT EXISTS confirmed_at timestamptz default null;
 // ALTER TABLE preventivi ADD COLUMN IF NOT EXISTS deal_info jsonb default null;
+//
+// ── MASTERSETS RLS (consigliato per multi-tenancy) ───────────────────
+// Il codice client filtra già su user_id, ma per sicurezza vera serve RLS.
+// Esegui su Supabase SQL Editor:
+//
+//   ALTER TABLE mastersets ENABLE ROW LEVEL SECURITY;
+//
+//   DROP POLICY IF EXISTS "Users can view own mastersets" ON mastersets;
+//   CREATE POLICY "Users can view own mastersets" ON mastersets
+//     FOR SELECT USING (auth.uid() = user_id);
+//
+//   DROP POLICY IF EXISTS "Users can insert own mastersets" ON mastersets;
+//   CREATE POLICY "Users can insert own mastersets" ON mastersets
+//     FOR INSERT WITH CHECK (auth.uid() = user_id);
+//
+//   DROP POLICY IF EXISTS "Users can update own mastersets" ON mastersets;
+//   CREATE POLICY "Users can update own mastersets" ON mastersets
+//     FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+//
+//   DROP POLICY IF EXISTS "Users can delete own mastersets" ON mastersets;
+//   CREATE POLICY "Users can delete own mastersets" ON mastersets
+//     FOR DELETE USING (auth.uid() = user_id);
+//
+// Una volta applicate, scanMS() dalla console mostrerà SOLO le tue righe
+// (RLS-aware) anche se un altro user_id ha dei master set. Senza RLS
+// scanMS() vede tutto = privacy leak.
 
 // ══════════════════════════════════════════════════════
 // TAB SCAN — AI Photo Identification
@@ -7478,20 +7590,46 @@ function guessTrackConditions(set){
   return yr>0 && yr<2010;
 }
 
-// msLoad/msSave: Supabase come storage principale, localStorage come cache
+// msLoad/msSave: Supabase come storage principale, localStorage come cache isolata per utente
+// La cache localStorage è scopata per user_id per evitare contaminazione cross-account.
+// Schema chiavi:
+//   pkm_mastersets_v2          → legacy (pre-multitenancy): cache globale, ora deprecata
+//   pkm_mastersets_v2:<uid>    → cache per utente autenticato
+//   pkm_mastersets_v2:anon     → cache pre-login (verrà migrata al login)
+function _msLsKey(){
+  var uid=getCurrentUserId();
+  return MS_LS+':'+(uid||'anon');
+}
 function msLoad(){
-  try{ return JSON.parse(localStorage.getItem(MS_LS)||'[]'); }catch(e){ return[]; }
+  // Migrazione one-shot dalla vecchia cache globale alla nuova scopata per utente.
+  // Esegue una volta sola (al primo caricamento dopo l'aggiornamento), poi la chiave
+  // legacy resta lì come read-only per compatibilità ma non viene più scritta.
+  try{
+    var legacy=localStorage.getItem(MS_LS);
+    var scopedKey=_msLsKey();
+    var scoped=localStorage.getItem(scopedKey);
+    if(legacy && !scoped){
+      // Promuovi la cache globale alla scope corrente. Se l'utente cambia account
+      // dopo, questo è già il comportamento corretto: l'altro account non vedrà
+      // questa cache (chiave diversa) finché non gli viene migrata o caricata da DB.
+      localStorage.setItem(scopedKey, legacy);
+      // NON cancelliamo la legacy: lasciamo che resti come read-only fallback
+      // per eventuali altri account che condividono il browser
+      console.info('[msLoad] Migrata cache legacy -> '+scopedKey);
+    }
+    return JSON.parse(localStorage.getItem(scopedKey)||'[]');
+  }catch(e){ return[]; }
 }
 function msSave(d){
-  // Salva in localStorage (cache immediata)
-  try{ localStorage.setItem(MS_LS,JSON.stringify(d)); }catch(e){}
+  // Salva in localStorage scopata per utente
+  try{ localStorage.setItem(_msLsKey(),JSON.stringify(d)); }catch(e){}
   // Salva in Supabase (persistenza cloud + multi-device)
   msSupaSave(d);
 }
 
 async function msSupaSave(data){
   var uid=getCurrentUserId();
-  if(!uid) return; // non autenticato
+  if(!uid){ console.warn('[msSupaSave] non autenticato, salto'); return; }
   try{
     var upsertHdr=Object.assign({},getHDR(),{'Prefer':'resolution=merge-duplicates,return=minimal'});
     await fetch(SUPA_URL+'/rest/v1/mastersets',{
@@ -7501,20 +7639,28 @@ async function msSupaSave(data){
   }catch(e){ console.warn('msSupaSave error:',e.message); }
 }
 
+// Ritorna {found:true,data:[...]} se ci sono dati, {found:false} se l'utente non
+// ha nessuna riga, o null in caso di errore di rete (per distinguere i casi).
 async function msSupaLoad(){
   var uid=getCurrentUserId();
   if(!uid) return null;
   try{
     var r=await fetch(SUPA_URL+'/rest/v1/mastersets?user_id=eq.'+uid+'&limit=1',{headers:getHDR()});
-    if(!r.ok) return null;
+    if(!r.ok){
+      console.warn('[msSupaLoad] HTTP',r.status);
+      return null;
+    }
     var rows=await r.json();
     if(rows&&rows.length>0&&rows[0].data){
       var d=JSON.parse(rows[0].data);
-      // Aggiorna cache locale
-      try{ localStorage.setItem(MS_LS,JSON.stringify(d)); }catch(e){}
-      return d;
+      // Aggiorna cache locale scopata
+      try{ localStorage.setItem(_msLsKey(),JSON.stringify(d)); }catch(e){}
+      return {found:true,data:d};
     }
-    return null;
+    // Utente autenticato ma senza riga su mastersets: questa è una situazione
+    // legittima (nuovo account o account che non ha mai salvato master set).
+    // Distinguiamo questo caso da "errore di rete" per non mostrare la cache di altri.
+    return {found:false,data:[]};
   }catch(e){ console.warn('msSupaLoad error:',e.message); return null; }
 }
 
@@ -7527,24 +7673,93 @@ var msSetsAll = null;
 var msMatches = [];
 
 window.msInit = function(){
-  msData = msLoad(); // cache locale immediata
-  msRenderList();
-  // Carica da Supabase in background e aggiorna se ci sono dati più recenti
-  msSupaLoad().then(function(cloudData){
-    if(cloudData && JSON.stringify(cloudData)!==JSON.stringify(msData)){
-      msData = cloudData;
+  var uid=getCurrentUserId();
+  // Se l'utente NON è autenticato, mostra solo la cache locale (anonima).
+  if(!uid){
+    msData = msLoad();
+    msRenderList();
+    if(msActive){
+      var ms = msData.find(function(m){return m.id===msActive;});
+      if(ms) msOpen(ms.id); else { msActive=null; msShowEmpty(); }
+    } else msShowEmpty();
+    return;
+  }
+
+  // Utente autenticato: NON mostriamo subito la cache locale per evitare il flash
+  // dei master set di un eventuale account precedente. Mostriamo placeholder e
+  // aspettiamo la response da Supabase. Se la cache scopata per QUESTO utente
+  // esiste, la usiamo come bridge (è già del giusto utente).
+  msData = msLoad(); // legge pkm_mastersets_v2:<uid> — sicuro per scope
+  if(msData.length){
+    // Cache già scopata per l'utente corretto: render immediato
+    msRenderList();
+  } else {
+    // Niente cache per questo utente: placeholder esplicito
+    var el=document.getElementById('msList');
+    if(el) el.innerHTML='<div style="padding:12px;font-size:12px;color:var(--text-subtle)">Caricamento master set...</div>';
+  }
+
+  // Carica da Supabase. Tre esiti possibili:
+  //   {found:true,data}  → ci sono master set sul cloud, sincronizziamo
+  //   {found:false}      → utente noto ma senza dati: cache vuota legittima
+  //   null               → errore di rete: manteniamo la cache locale come fallback
+  msSupaLoad().then(function(result){
+    if(result===null){
+      // Errore di rete: lasciamo intatti msData (cache locale)
+      console.warn('[msInit] msSupaLoad ha fallito, uso cache locale');
+      msRenderList();
+      return;
+    }
+    if(result.found===false){
+      // L'utente non ha master set sul cloud. Se la cache locale ne mostra,
+      // potrebbero essere stati creati prima del login (anon) o residui di un
+      // altro account: chiediamo all'utente cosa fare invece di pushare automaticamente.
+      if(msData.length>0){
+        msPromptCacheReconciliation(msData);
+      } else {
+        msData=[];
+        msRenderList();
+        msShowEmpty();
+      }
+      return;
+    }
+    // result.found === true
+    var cloudData=result.data;
+    if(JSON.stringify(cloudData)!==JSON.stringify(msData)){
+      msData=cloudData;
       msRenderList();
       if(msActive){
-        var ms=msData.find(function(m){return m.id===msActive;});
-        if(ms) msOpen(ms.id);
+        var ms2=msData.find(function(m){return m.id===msActive;});
+        if(ms2) msOpen(ms2.id);
       }
     }
-  }).catch(function(){});
+  }).catch(function(e){ console.warn('[msInit] catch:',e); });
+
   if(msActive){
     var ms = msData.find(function(m){return m.id===msActive;});
     if(ms) msOpen(ms.id); else { msActive=null; msShowEmpty(); }
   } else msShowEmpty();
 };
+
+// Quando l'utente ha master set in cache locale ma il cloud è vuoto,
+// chiede cosa fare (push al cloud, scarta, mantieni solo locale).
+function msPromptCacheReconciliation(localData){
+  var msg='Trovati '+localData.length+' master set nella cache locale, ma il tuo account su Supabase non ne ha nessuno.\n\n'
+    +'Cosa vuoi fare?\n'
+    +'• OK = SALVA i master set locali sul tuo account (consigliato se è la prima volta che usi questo account su questo browser)\n'
+    +'• Annulla = SCARTA la cache locale (consigliato se erano di un altro account)';
+  if(confirm(msg)){
+    console.log('[msInit] Push cache locale al cloud per user_id corrente');
+    msSupaSave(localData);
+    msRenderList();
+  } else {
+    console.log('[msInit] Cache locale scartata');
+    try{ localStorage.removeItem(_msLsKey()); }catch(e){}
+    msData=[];
+    msRenderList();
+    msShowEmpty();
+  }
+}
 
 function msRenderList(filter){
   filter = (filter||'').toLowerCase();
