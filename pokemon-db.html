@@ -1132,6 +1132,29 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 /* Spread asks vs sold */
 .anl-interest-spread{font-size:11px;color:var(--text-muted);font-family:var(--mono);padding:8px 12px;background:var(--surface2);border-left:2px solid var(--accent);border-radius:3px;line-height:1.5}
 .anl-interest-spread strong{color:var(--text);font-weight:600}
+/* Strategia grading: NM raw vs gradata target */
+.anl-strategy{margin-top:6px;padding:14px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;gap:10px}
+.anl-strategy-head{font-size:10px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;font-weight:500;display:flex;align-items:center;gap:8px}
+.anl-strategy-head::before{content:'⇄';color:var(--accent);font-size:13px;letter-spacing:0}
+.anl-strategy-flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:8px;align-items:stretch}
+.anl-strategy-step{padding:9px 11px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;gap:2px;min-width:0}
+.anl-strategy-step-k{font-size:9px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em}
+.anl-strategy-step-v{font-size:15px;font-family:var(--mono);font-weight:600;color:var(--text);line-height:1.2}
+.anl-strategy-step-v.pos{color:var(--success)}
+.anl-strategy-step-v.neg{color:var(--danger)}
+.anl-strategy-step-v.warn{color:var(--accent)}
+.anl-strategy-step-sub{font-size:10px;color:var(--text-muted);font-family:var(--mono);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.anl-strategy-arrow{display:flex;align-items:center;justify-content:center;color:var(--text-subtle);font-family:var(--mono);font-size:14px;font-weight:600}
+.anl-strategy-verdict{font-size:11px;color:var(--text-muted);font-family:var(--mono);padding:8px 12px;background:var(--surface);border-left:2px solid;border-radius:3px;line-height:1.5}
+.anl-strategy-verdict.pos{border-left-color:var(--success)}
+.anl-strategy-verdict.neg{border-left-color:var(--danger)}
+.anl-strategy-verdict.warn{border-left-color:var(--accent)}
+.anl-strategy-verdict.mute{border-left-color:var(--text-subtle)}
+.anl-strategy-verdict strong{color:var(--text);font-weight:600}
+@media (max-width:760px){
+  .anl-strategy-flow{grid-template-columns:1fr;gap:6px}
+  .anl-strategy-arrow{display:none}
+}
 @media (max-width:760px){
   .anl-card-head-v2{flex-direction:column}
   .anl-card-summary{flex:1;border-left:none;border-top:1px solid var(--border);min-width:0}
@@ -11422,6 +11445,85 @@ function anlRenderProjection(){
   } else {
     spreadEl.style.display='none';
   }
+
+  // ── Strategia grading: confronto NM raw vs gradata target ──
+  // Visibile solo in mode graded quando abbiamo: prezzo gradata target +
+  // listings raw NM su CM. Mostra costo+upside del path "compra NM e gradalo".
+  var strategyEl = document.getElementById('anlInterestStrategy');
+  if(!strategyEl){
+    // crea contenitore on-demand (non era nel scaffold originale)
+    var fwd = document.getElementById('anlFwd');
+    if(fwd){
+      strategyEl = document.createElement('div');
+      strategyEl.id = 'anlInterestStrategy';
+      strategyEl.style.display = 'none';
+      fwd.appendChild(strategyEl);
+    }
+  }
+  if(strategyEl){
+    var rawNm = anlLiveData.cmRawNm;
+    var rawAll = anlLiveData.cmRawAll;
+    if(graded && today.price && rawNm && rawNm.median > 0){
+      var deltaG = today.price - rawNm.median;
+      var deltaPct = (deltaG / rawNm.median) * 100;
+      // Costo grading PSA Italia (regular tier) + spedizione a/r
+      var gradingCost;
+      if(today.price < 500)        gradingCost = 35;
+      else if(today.price < 1500)  gradingCost = 95;
+      else if(today.price < 5000)  gradingCost = 180;
+      else                         gradingCost = 280;
+      var netUpside = deltaG - gradingCost;
+      var netSign = netUpside>=0?'+':'';
+      var deltaSign = deltaG>=0?'+':'';
+
+      var verdictCls, verdictTxt;
+      if(netUpside > 50){
+        verdictCls = 'pos';
+        verdictTxt = '<strong>Strategia conviene</strong>: comprare NM raw a €'+rawNm.median.toFixed(2)+' e gradare PSA '+score+' può rendere '+netSign+'€'+netUpside.toFixed(2)+' netti dopo costi. Reperibilità OK ('+rawNm.count+' NM su CM).';
+      } else if(netUpside > 0){
+        verdictCls = 'warn';
+        verdictTxt = '<strong>Strategia marginale</strong>: upside netto solo '+netSign+'€'+netUpside.toFixed(2)+'. Considera rischio downgrade (PSA potrebbe assegnare grado inferiore al target).';
+      } else if(netUpside > -30){
+        verdictCls = 'mute';
+        verdictTxt = '<strong>Strategia in pari</strong>: gradare non aggiunge valore significativo ('+netSign+'€'+netUpside.toFixed(2)+'). Conviene comprare già gradata per evitare rischio + tempo.';
+      } else {
+        verdictCls = 'neg';
+        verdictTxt = '<strong>Strategia sconsigliata</strong>: gradare costa più di quanto rende ('+netSign+'€'+netUpside.toFixed(2)+'). Compra direttamente gradata.';
+      }
+      // Warning se reperibilità bassa
+      if(rawNm.count < 3){
+        verdictTxt += ' <strong>⚠ Reperibilità bassa</strong>: solo '+rawNm.count+' NM raw su CM.';
+      }
+
+      var house2 = document.getElementById('anlHouse').value;
+      strategyEl.className = 'anl-strategy';
+      strategyEl.innerHTML = ''
+        +'<div class="anl-strategy-head">Strategia: compra NM raw e mandala a gradare</div>'
+        +'<div class="anl-strategy-flow">'
+        +  '<div class="anl-strategy-step">'
+        +    '<span class="anl-strategy-step-k">NM raw oggi</span>'
+        +    '<span class="anl-strategy-step-v">€'+rawNm.median.toFixed(2)+'</span>'
+        +    '<span class="anl-strategy-step-sub">'+rawNm.count+' su CM'+(rawNm.count!==(rawAll?rawAll.count:rawNm.count)?' / '+rawAll.count+' raw totali':'')+'</span>'
+        +  '</div>'
+        +  '<div class="anl-strategy-arrow">+</div>'
+        +  '<div class="anl-strategy-step">'
+        +    '<span class="anl-strategy-step-k">Costo grading</span>'
+        +    '<span class="anl-strategy-step-v warn">€'+gradingCost+'</span>'
+        +    '<span class="anl-strategy-step-sub">PSA + spedizione a/r</span>'
+        +  '</div>'
+        +  '<div class="anl-strategy-arrow">→</div>'
+        +  '<div class="anl-strategy-step">'
+        +    '<span class="anl-strategy-step-k">Target '+house2+' '+score+'</span>'
+        +    '<span class="anl-strategy-step-v '+(netUpside>0?'pos':'neg')+'">€'+today.price.toFixed(2)+'</span>'
+        +    '<span class="anl-strategy-step-sub">netto '+netSign+'€'+netUpside.toFixed(2)+' ('+deltaSign+deltaPct.toFixed(0)+'% lordo)</span>'
+        +  '</div>'
+        +'</div>'
+        +'<div class="anl-strategy-verdict '+verdictCls+'">'+verdictTxt+'</div>';
+      strategyEl.style.display='';
+    } else {
+      strategyEl.style.display='none';
+    }
+  }
 }
 
 // Mantengo le vecchie funzioni per evitare break su chiamate esterne (no-op delegano a anlRenderProjection)
@@ -12576,6 +12678,28 @@ function anlPopCm(data, card){
 
   var rawListings    = listings.filter(function(l){ return !l.grading; });
   var gradedListings = listings.filter(function(l){ return  l.grading; });
+
+  // ─── Salva count/mediana raw NM/MT per BOX 3 (Strategia grading) ──
+  // Permette di mostrare "compra NM e gradala" anche in mode graded, dove
+  // anlLiveData.cm è sostituito col prezzo gradato.
+  var rawNmListings = rawListings.filter(function(l){
+    var cond = (l.condition || '').toUpperCase().replace(/[\s\-_]/g,'');
+    return cond==='MINT' || cond==='MT' || cond==='NM' || cond==='NEARMINT';
+  });
+  if(rawNmListings.length){
+    var rnPrices = rawNmListings.map(function(l){return l.price;}).sort(function(a,b){return a-b;});
+    var rnMid = Math.floor(rnPrices.length/2);
+    var rnMedian = rnPrices.length%2===0 ? (rnPrices[rnMid-1]+rnPrices[rnMid])/2 : rnPrices[rnMid];
+    anlLiveData.cmRawNm = {
+      count:  rawNmListings.length,
+      median: rnMedian,
+      min:    rnPrices[0],
+      max:    rnPrices[rnPrices.length-1],
+    };
+  } else {
+    anlLiveData.cmRawNm = null;
+  }
+  anlLiveData.cmRawAll = { count: rawListings.length };
 
   // ─── DIAGNOSTICA CONSOLE: vedi cosa l'edge function ha estratto ──
   try{
