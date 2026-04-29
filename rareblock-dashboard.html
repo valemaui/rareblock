@@ -475,6 +475,7 @@ textarea{resize:vertical;min-height:60px}
       <button class="admin-side-btn" onclick="adminSection('liquidations')"><span class="rb-i rb-i-coin"></span> Liquidazioni</button>
       <button class="admin-side-btn" onclick="adminSection('transfers')"><span class="rb-i rb-i-swap"></span> Trasferimenti</button>
       <button class="admin-side-btn" onclick="adminSection('memorandum')"><span class="rb-i rb-i-list"></span> Memorandum</button>
+      <button class="admin-side-btn" onclick="adminSection('submissions')"><span class="rb-i rb-i-package"></span> Richieste valutazione</button>
     </div>
     <div class="admin-main">
 
@@ -663,6 +664,56 @@ textarea{resize:vertical;min-height:60px}
           </table>
           <div class="empty-state" id="memoLogEmpty" style="display:none;padding:32px"><div class="icon"><span class="rb-i rb-i-list"></span></div><h3>Nessun accesso registrato</h3></div>
         </div>
+      </div>
+
+      <!-- RICHIESTE VALUTAZIONE — submission_requests -->
+      <div class="admin-section" id="admin-submissions">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div>
+            <div style="font-size:15px;font-weight:600">Richieste valutazione</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Form "Per il venditore" del memorandum — ogni richiesta include anagrafica e lista sigillati</div>
+          </div>
+          <button class="btn" onclick="submLoadAll()" style="font-size:12px">Aggiorna</button>
+        </div>
+
+        <!-- mini-stats -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:12px 0 16px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-family:var(--mono)">Da contattare</div>
+            <div style="font-size:1.4rem;font-weight:300;color:var(--gold,#c9a84c);margin-top:2px" id="submStatNew">—</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-family:var(--mono)">In trattativa</div>
+            <div style="font-size:1.4rem;font-weight:300;color:var(--accent);margin-top:2px" id="submStatActive">—</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-family:var(--mono)">Chiuse</div>
+            <div style="font-size:1.4rem;font-weight:300;margin-top:2px" id="submStatDone">—</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-family:var(--mono)">Ultimi 7gg</div>
+            <div style="font-size:1.4rem;font-weight:300;margin-top:2px" id="submStat7d">—</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <input type="text" id="submSearch" oninput="submRender()" placeholder="Cerca nome, email, città…" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);min-width:200px;font-size:13px;outline:none">
+          <select id="submFilterStatus" onchange="submRender()" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);font-size:13px;outline:none">
+            <option value="">Tutti gli stati</option>
+            <option value="new">Nuove (da contattare)</option>
+            <option value="contacted">Contattate</option>
+            <option value="offered">Offerta inviata</option>
+            <option value="accepted">Accettate</option>
+            <option value="declined">Rifiutate</option>
+            <option value="closed">Chiuse</option>
+          </select>
+        </div>
+
+        <table class="admin-table" id="submTable">
+          <thead><tr><th>Quando</th><th>Prospect</th><th>Contatti</th><th>Sigillati</th><th>Stima dichiarata</th><th>Stato</th><th>Origine</th><th></th></tr></thead>
+          <tbody id="submTbody"></tbody>
+        </table>
+        <div class="empty-state" id="submEmpty" style="display:none;padding:32px"><div class="icon"><span class="rb-i rb-i-package"></span></div><h3>Nessuna richiesta</h3><div style="color:var(--text-muted);font-size:13px;margin-top:6px">Quando un prospect compila il form "Per il venditore" sul memorandum, la richiesta apparirà qui in tempo reale.</div></div>
       </div>
 
     </div><!-- /admin-main -->
@@ -1650,6 +1701,7 @@ function adminSection(s){
   if(s==='liquidations')adminLoadLiquidations();
   if(s==='transfers')   adminLoadTransfers();
   if(s==='memorandum')  memoLoadAll();
+  if(s==='submissions') submLoadAll();
 }
 
 async function adminLoad(){
@@ -2176,6 +2228,220 @@ function memoCopyLink(){
 
 
 // ═══════════════════════════════════════════════════════════
+//  RICHIESTE VALUTAZIONE (submission_requests)
+// ═══════════════════════════════════════════════════════════
+var _submReqs = [];
+var _submItems = {};      // request_id -> array di items
+var _submCurrent = null;  // request attualmente nel detail modal
+
+async function submLoadAll(){
+  if(!_isAdmin) return;
+  try {
+    _submReqs = (await supa('GET','v_submission_requests_admin?order=created_at.desc&limit=200')) || [];
+  } catch(e){
+    console.error('submissions load:', e);
+    _submReqs = [];
+  }
+  submRefreshStats();
+  submRender();
+}
+
+function submRefreshStats(){
+  var newCount = _submReqs.filter(function(r){ return r.status === 'new'; }).length;
+  var activeCount = _submReqs.filter(function(r){ return ['contacted','offered'].indexOf(r.status) > -1; }).length;
+  var doneCount = _submReqs.filter(function(r){ return ['accepted','declined','closed'].indexOf(r.status) > -1; }).length;
+  var sevenAgo = Date.now() - 7*86400000;
+  var recentCount = _submReqs.filter(function(r){ return new Date(r.created_at).getTime() > sevenAgo; }).length;
+  var setText = function(id, v){ var el = document.getElementById(id); if(el) el.textContent = v; };
+  setText('submStatNew', newCount);
+  setText('submStatActive', activeCount);
+  setText('submStatDone', doneCount);
+  setText('submStat7d', recentCount);
+}
+
+function submFilter(){
+  var q = (document.getElementById('submSearch').value || '').toLowerCase().trim();
+  var s = document.getElementById('submFilterStatus').value;
+  return _submReqs.filter(function(r){
+    if(s && r.status !== s) return false;
+    if(q){
+      var hay = (r.full_name+' '+r.email+' '+(r.phone||'')+' '+(r.city||'')+' '+(r.country||'')).toLowerCase();
+      if(hay.indexOf(q) < 0) return false;
+    }
+    return true;
+  });
+}
+
+function submStatusBadge(s){
+  var styles = {
+    new:       'background:rgba(201,168,76,.15);color:#c9a84c',
+    contacted: 'background:var(--accent-soft);color:var(--accent)',
+    offered:   'background:rgba(122,98,226,.15);color:#a78bfa',
+    accepted:  'background:rgba(63,185,80,.10);color:#3fb950',
+    declined:  'background:rgba(248,81,73,.10);color:#f85149',
+    closed:    'background:var(--surface2);color:var(--text-muted)'
+  };
+  var labels = {
+    new:'da contattare', contacted:'contattata', offered:'offerta inviata',
+    accepted:'accettata', declined:'rifiutata', closed:'chiusa'
+  };
+  return '<span style="font-size:11px;padding:2px 8px;border-radius:3px;'+(styles[s]||'')+'">'+(labels[s]||s)+'</span>';
+}
+
+function submRender(){
+  var rows = submFilter();
+  var tb = document.getElementById('submTbody');
+  var empty = document.getElementById('submEmpty');
+  if(!tb) return;
+  if(rows.length === 0){
+    tb.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  tb.innerHTML = rows.map(function(r){
+    var contacts = '<div style="font-size:12px">'+esc(r.email)+'</div>' +
+      (r.phone ? '<div style="font-size:11px;color:var(--text-muted)">'+esc(r.phone)+'</div>' : '');
+    var origin = r.arrived_via_prospect
+      ? '<div style="font-size:11px">via <strong>'+esc(r.arrived_via_prospect)+'</strong></div><div style="font-size:11px;color:var(--text-muted);font-family:var(--mono)">'+esc(r.arrived_via_key||'')+'</div>'
+      : '<span style="color:var(--text-muted);font-size:11px">accesso diretto</span>';
+    var loc = (r.city || r.country) ? '<div style="font-size:11px;color:var(--text-muted)">'+esc([r.city, r.country].filter(Boolean).join(', '))+'</div>' : '';
+    var stima = r.items_total_estimate ? '€ ' + Number(r.items_total_estimate).toLocaleString('it-IT') : '<span style="color:var(--text-muted)">—</span>';
+    return '<tr>' +
+      '<td>'+memoFmtRel(r.created_at)+'<div style="font-size:11px;color:var(--text-muted)">'+new Date(r.created_at).toLocaleString('it-IT',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})+'</div></td>' +
+      '<td><div><strong>'+esc(r.full_name)+'</strong></div>'+loc+'</td>' +
+      '<td>'+contacts+'</td>' +
+      '<td><strong>'+r.item_count+'</strong> '+(r.item_count===1?'sigillato':'sigillati')+'</td>' +
+      '<td>'+stima+'</td>' +
+      '<td>'+submStatusBadge(r.status)+'</td>' +
+      '<td>'+origin+'</td>' +
+      '<td style="text-align:right"><button class="btn primary" onclick="submOpenDetail(\''+r.id+'\')" style="font-size:12px;padding:4px 10px">Apri</button></td>' +
+    '</tr>';
+  }).join('');
+}
+
+async function submOpenDetail(id){
+  var r = _submReqs.find(function(x){ return x.id === id; });
+  if(!r) return;
+  _submCurrent = r;
+  document.getElementById('submDetailTitle').textContent = 'Richiesta — ' + r.full_name;
+  // load items
+  var items = [];
+  try {
+    items = (await supa('GET','submission_items?request_id=eq.'+id+'&order=sort_order.asc')) || [];
+  } catch(e){ console.warn('items load:', e); }
+  _submItems[id] = items;
+
+  var statusOptions = ['new','contacted','offered','accepted','declined','closed'].map(function(s){
+    return '<option value="'+s+'"'+(r.status===s?' selected':'')+'>'+s+'</option>';
+  }).join('');
+
+  var itemsHtml = items.length === 0 ? '<div style="color:var(--text-muted)">Nessun item</div>' :
+    items.map(function(it, i){
+      var labelType = {
+        booster_box:'Booster Box', etb:'ETB', booster_bundle:'Booster Bundle',
+        collection_box:'Collection Box', tin:'Tin', case:'Case',
+        blister:'Blister', single_pack:'Singola busta', other:'Altro'
+      }[it.product_type] || it.product_type;
+      var labelCond = {
+        mint_sealed:'Sigillato perfetto', near_mint:'Quasi perfetto',
+        very_good:'Molto buono', played:'Segni d\'uso',
+        damaged:'Danneggiato', unknown:'Da verificare'
+      }[it.condition] || (it.condition || '—');
+      return '<div style="border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:8px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+          '<strong style="font-size:13px">#'+(i+1).toString().padStart(2,'0')+' · '+esc(labelType)+'</strong>' +
+          (it.estimated_value ? '<span style="font-family:var(--mono);color:var(--gold,#c9a84c);font-size:13px">€ '+Number(it.estimated_value).toLocaleString('it-IT')+'</span>' : '') +
+        '</div>' +
+        '<div style="font-size:12px;color:var(--text-muted);line-height:1.6">' +
+          (it.set_name ? '<strong>Set:</strong> '+esc(it.set_name)+' · ' : '') +
+          (it.year ? '<strong>Anno:</strong> '+it.year+' · ' : '') +
+          (it.language ? '<strong>Lingua:</strong> '+esc(it.language)+' · ' : '') +
+          '<strong>Quantità:</strong> '+(it.quantity||1)+' · ' +
+          '<strong>Stato:</strong> '+esc(labelCond) +
+          (it.has_original_seal===false ? ' · <span style="color:#f85149">sigillo non integro</span>' : '') +
+          (it.has_packaging===false ? ' · <span style="color:#f85149">packaging non integro</span>' : '') +
+        '</div>' +
+        (it.notes ? '<div style="font-size:12px;margin-top:6px;color:var(--text)">'+esc(it.notes)+'</div>' : '') +
+      '</div>';
+    }).join('');
+
+  document.getElementById('submDetailBody').innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">' +
+      '<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted)">Email</div><div><a href="mailto:'+esc(r.email)+'" style="color:var(--accent)">'+esc(r.email)+'</a></div></div>' +
+      '<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted)">Telefono</div><div>'+(r.phone ? '<a href="tel:'+esc(r.phone)+'" style="color:var(--accent)">'+esc(r.phone)+'</a>' : '<span style="color:var(--text-muted)">—</span>')+'</div></div>' +
+      '<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted)">Località</div><div>'+esc([r.city, r.country].filter(Boolean).join(', ') || '—')+'</div></div>' +
+      '<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted)">Origine</div><div style="font-size:12px">'+(r.arrived_via_prospect ? 'via <strong>'+esc(r.arrived_via_prospect)+'</strong> ('+esc(r.arrived_via_key)+')' : 'accesso diretto')+'</div></div>' +
+    '</div>' +
+    (r.notes ? '<div style="background:var(--surface);border-left:2px solid var(--gold,#c9a84c);padding:10px 14px;margin-bottom:14px;font-size:13px;line-height:1.6"><strong style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted)">Note del prospect</strong><br>'+esc(r.notes)+'</div>' : '') +
+    '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin:18px 0 8px">Sigillati ('+items.length+')</div>' +
+    itemsHtml +
+    '<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:14px">' +
+      '<div><label style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted)">Stato</label><select id="submEditStatus" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);font-size:13px;margin-top:4px">'+statusOptions+'</select></div>' +
+      '<div><label style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted)">Offerta proposta (€)</label><input type="number" min="0" step="100" id="submEditOffered" value="'+(r.offered_value || '')+'" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);font-size:13px;margin-top:4px"></div>' +
+    '</div>' +
+    '<div style="margin-top:10px"><label style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted)">Note interne</label><textarea id="submEditNotes" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);font-size:13px;margin-top:4px;min-height:50px;font-family:inherit;resize:vertical">'+esc(r.admin_notes || '')+'</textarea></div>' +
+    '<div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn primary" onclick="submSaveDetail(\''+r.id+'\')" style="font-size:12px">Salva modifiche</button></div>';
+
+  document.getElementById('submDetailBg').classList.add('show');
+}
+
+function submCloseDetail(){
+  document.getElementById('submDetailBg').classList.remove('show');
+  _submCurrent = null;
+}
+
+async function submSaveDetail(id){
+  var status = document.getElementById('submEditStatus').value;
+  var offered = document.getElementById('submEditOffered').value;
+  var notes = document.getElementById('submEditNotes').value;
+  var payload = {
+    status: status,
+    offered_value: offered ? parseFloat(offered) : null,
+    admin_notes: notes || null
+  };
+  // se status passa a "contacted" e non era già impostato, set timestamp
+  var current = _submReqs.find(function(x){ return x.id === id; });
+  if(current && current.status !== 'contacted' && status === 'contacted') payload.contacted_at = new Date().toISOString();
+  if(current && current.status !== 'offered' && status === 'offered') payload.offered_at = new Date().toISOString();
+  if(current && ['accepted','declined','closed'].indexOf(status) > -1 && !current.closed_at) payload.closed_at = new Date().toISOString();
+
+  try {
+    await supa('PATCH','submission_requests?id=eq.'+id, payload);
+    submCloseDetail();
+    await submLoadAll();
+  } catch(e){ alert('Errore salvataggio: '+e.message); }
+}
+
+function submComposeOffer(){
+  if(!_submCurrent) return;
+  var r = _submCurrent;
+  var items = _submItems[r.id] || [];
+  var subject = 'RareBlock — Valutazione collezione (rif. '+r.id.slice(0,8).toUpperCase()+')';
+  var body = 'Gentile '+r.full_name+',\n\n' +
+    'grazie per averci sottoposto la sua collezione. Abbiamo esaminato i '+items.length+' sigillato'+(items.length===1?'':'i')+' indicati nella richiesta e siamo lieti di proporle la nostra valutazione.\n\n' +
+    '─────────────────────────────────────────\n' +
+    'INVENTARIO RICEVUTO\n' +
+    '─────────────────────────────────────────\n';
+  items.forEach(function(it, i){
+    body += '\n#'+(i+1).toString().padStart(2,'0')+'  '+(it.product_type||'')+(it.set_name ? ' — '+it.set_name : '')+(it.year ? ' ('+it.year+')' : '');
+    body += '\n     Quantità: '+(it.quantity||1);
+    if(it.estimated_value) body += ' · valore atteso dichiarato: € '+it.estimated_value;
+    body += '\n';
+  });
+  body += '\n─────────────────────────────────────────\n';
+  body += 'PROPOSTA RAREBLOCK\n';
+  body += '─────────────────────────────────────────\n\n';
+  body += '[INSERIRE QUI L\'OFFERTA DETTAGLIATA]\n\n';
+  body += 'La proposta resta valida per 7 giorni dalla ricezione di questa email. Restiamo a disposizione per ogni chiarimento al numero diretto o tramite questo indirizzo.\n\n';
+  body += 'Cordialmente,\n\nValentino Castigliola\nFounder · RareBlock\nv.castiglia@rareblock.eu';
+
+  var mailto = 'mailto:'+encodeURIComponent(r.email) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+  window.location.href = mailto;
+}
+
+
+// ═══════════════════════════════════════════════════════════
 //  PRODUCT MODAL (admin)
 // ═══════════════════════════════════════════════════════════
 var _editProductId = null;
@@ -2377,6 +2643,21 @@ function redirectToLogin(){
   location.href = 'pokemon-db.html?return=' + returnUrl;
 }
 </script>
+<!-- ══════════════ MODALE DETTAGLIO RICHIESTA ══════════════ -->
+<div class="modal-bg" id="submDetailBg" onclick="if(event.target===this)submCloseDetail()">
+  <div class="modal lg">
+    <div class="modal-head">
+      <h3 id="submDetailTitle">Dettaglio richiesta</h3>
+      <button class="modal-close" onclick="submCloseDetail()" aria-label="Chiudi"><span class="rb-i rb-i-x"></span></button>
+    </div>
+    <div class="modal-body" id="submDetailBody"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="submCloseDetail()">Chiudi</button>
+      <button class="btn primary" id="submDetailSendOffer" onclick="submComposeOffer()">Componi email offerta</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════ MODALI MEMORANDUM ══════════════ -->
 <div class="modal-bg" id="memoKeyModalBg" onclick="if(event.target===this)memoCloseKeyModal()">
   <div class="modal">

@@ -572,12 +572,242 @@ section.alt { background: var(--bg-soft); }
   flex-direction: column;
   justify-content: space-between;
   min-height: 280px;
+  font: inherit;
+  color: inherit;
+  text-decoration: none;
+  width: 100%;
 }
 .cta-card:hover {
   border-color: var(--gold);
   background: var(--bg-card);
 }
 .cta-card:hover .cta-arrow { transform: translateX(6px); color: var(--gold-bright); }
+
+/* ============ SUBMISSION MODAL (valutazione collezione) ============ */
+.subm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 200;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4vh 1rem;
+  overflow-y: auto;
+}
+.subm-overlay.show { display: flex; }
+.subm-modal {
+  background: var(--bg);
+  border: 1px solid var(--gold-line);
+  max-width: 720px;
+  width: 100%;
+  position: relative;
+  box-shadow: 0 30px 80px -10px rgba(0,0,0,0.95);
+  margin: auto 0;
+}
+.subm-head {
+  padding: 2.2rem 2.4rem 1.4rem;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.subm-head h3 {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: 1.5rem;
+  margin-bottom: 0.4rem;
+  letter-spacing: -0.01em;
+}
+.subm-head .sub {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+.subm-close {
+  background: transparent;
+  border: none;
+  color: var(--ink-faint);
+  font-size: 1.4rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.2s var(--ease);
+}
+.subm-close:hover { color: var(--gold); }
+.subm-body { padding: 1.6rem 2.4rem 1.4rem; }
+.subm-section-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 1rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--rule);
+}
+.subm-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; margin-bottom: 0.9rem; }
+.subm-row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+.subm-row.cols-1 { grid-template-columns: 1fr; }
+@media (max-width: 600px) {
+  .subm-row, .subm-row.cols-3 { grid-template-columns: 1fr; }
+  .subm-head, .subm-body, .subm-foot { padding-left: 1.4rem; padding-right: 1.4rem; }
+}
+.subm-field { display: flex; flex-direction: column; }
+.subm-field label {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-soft);
+  margin-bottom: 0.4rem;
+}
+.subm-field input,
+.subm-field select,
+.subm-field textarea {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink);
+  padding: 0.5rem 0;
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s var(--ease);
+  width: 100%;
+}
+.subm-field input:focus,
+.subm-field select:focus,
+.subm-field textarea:focus { border-bottom-color: var(--gold); }
+.subm-field textarea { min-height: 60px; resize: vertical; font-family: inherit; font-size: 0.92rem; }
+.subm-field select option { background: var(--bg); color: var(--ink); }
+.subm-field input::placeholder, .subm-field textarea::placeholder { color: var(--ink-faint); font-style: italic; }
+.subm-field-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+  user-select: none;
+  padding-top: 1.4rem;
+}
+.subm-field-checkbox input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--gold); }
+
+/* ─── Item cards (un sigillato per card) ─── */
+.subm-items { margin-top: 0.6rem; }
+.subm-item {
+  border: 1px solid var(--rule);
+  padding: 1.2rem 1.4rem 0.6rem;
+  margin-bottom: 0.9rem;
+  position: relative;
+  background: rgba(255,255,255,0.012);
+}
+.subm-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.9rem;
+}
+.subm-item-num {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.subm-item-remove {
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--ink-faint);
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+  transition: all 0.2s var(--ease);
+}
+.subm-item-remove:hover { border-color: #c97c61; color: #c97c61; }
+
+/* ─── Bottone aggiungi sigillato ─── */
+.subm-add {
+  width: 100%;
+  background: transparent;
+  border: 1px dashed var(--gold-line);
+  color: var(--gold);
+  padding: 0.9rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  margin-top: 0.4rem;
+  transition: all 0.3s var(--ease);
+}
+.subm-add:hover { border-color: var(--gold); background: var(--gold-soft); }
+
+/* ─── Footer ─── */
+.subm-foot {
+  padding: 1.2rem 2.4rem 2rem;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.subm-foot-msg {
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+  font-style: italic;
+  flex: 1;
+}
+.subm-foot-msg.error { color: #c97c61; font-style: normal; }
+.subm-foot-msg.success { color: #87b389; font-style: normal; }
+.subm-submit {
+  background: var(--gold);
+  border: none;
+  color: var(--bg);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 0.85rem 1.6rem;
+  cursor: pointer;
+  transition: background 0.2s var(--ease);
+  font-weight: 500;
+}
+.subm-submit:hover { background: var(--gold-bright); }
+.subm-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ─── Stato "thank you" post-invio ─── */
+.subm-thanks {
+  padding: 4rem 2.4rem;
+  text-align: center;
+}
+.subm-thanks h3 {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: 1.8rem;
+  margin-bottom: 1rem;
+  color: var(--ink);
+}
+.subm-thanks p {
+  color: var(--ink-soft);
+  max-width: 42ch;
+  margin: 0 auto 2rem;
+  line-height: 1.7;
+}
+.subm-thanks .ref {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.74rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
 .cta-card .for {
   font-family: 'Inter', sans-serif;
   font-size: 0.7rem;
@@ -657,16 +887,16 @@ footer .legal a { color: var(--ink-soft); text-decoration: none; border-bottom: 
   height: 100%;
   object-fit: cover;
   object-position: center;
-  opacity: 0.55;
-  filter: saturate(0.9) contrast(1.05);
+  opacity: 0.35;
+  filter: saturate(0.8) contrast(0.95) brightness(0.85);
 }
 .hero-bg::after {
   content: '';
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 70% 50% at 50% 50%, rgba(10,10,10,0.35), rgba(10,10,10,0.85)),
-    linear-gradient(to bottom, rgba(10,10,10,0.3) 0%, rgba(10,10,10,0.6) 70%, rgba(10,10,10,0.95) 100%);
+    radial-gradient(ellipse 80% 60% at 50% 50%, rgba(10,10,10,0.55), rgba(10,10,10,0.92)),
+    linear-gradient(to bottom, rgba(10,10,10,0.5) 0%, rgba(10,10,10,0.8) 70%, rgba(10,10,10,0.98) 100%);
 }
 .hero > *:not(.hero-bg) { position: relative; z-index: 1; }
 
@@ -1014,7 +1244,7 @@ footer .legal a { color: var(--ink-soft); text-decoration: none; border-bottom: 
         <path d="M12 8.5 L12 7 M15.5 12 L17 12 M12 15.5 L12 17 M8.5 12 L7 12"/>
       </svg>
       <h3 class="serif">Custodia</h3>
-      <p>Sigillati conservati in caveau a clima controllato, assicurati a valore di mercato, fotografati e documentati al momento dell'allocazione e a ogni audit semestrale. Il membro non vede mai il prodotto fisicamente, e questo è il punto.</p>
+      <p>Sigillati conservati in caveau a clima controllato, assicurati a valore di mercato, fotografati e documentati al momento dell'allocazione e a ogni audit semestrale. Custoditi al posto del membro. Visti soltanto attraverso documentazione fotografica e report periodici — perché ogni apertura, anche solo visiva, è un'esposizione che il sigillato non sopporta.</p>
     </div>
     <div class="tri-cell">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
@@ -1224,7 +1454,7 @@ footer .legal a { color: var(--ink-soft); text-decoration: none; border-bottom: 
         <div class="cta-arrow">Cal.com →</div>
       </a>
 
-      <a class="cta-card reveal delay-2" data-cta="membro" href="mailto:valentino@rareblock.eu?subject=Richiesta%20ammissione%20RareBlock">
+      <a class="cta-card reveal delay-2" data-cta="membro" href="mailto:submission@rareblock.eu?subject=Richiesta%20ammissione%20RareBlock">
         <div>
           <div class="for">Per il candidato membro</div>
           <div class="label">Richiedere<br/>ammissione</div>
@@ -1233,14 +1463,14 @@ footer .legal a { color: var(--ink-soft); text-decoration: none; border-bottom: 
         <div class="cta-arrow">Scrivi al founder →</div>
       </a>
 
-      <a class="cta-card reveal delay-3" data-cta="venditore" href="mailto:valentino@rareblock.eu?subject=Valutazione%20collezione%20sigillata">
+      <button class="cta-card reveal delay-3" data-cta="venditore" type="button" onclick="openSubmissionForm()">
         <div>
           <div class="for">Per il venditore</div>
           <div class="label">Valutazione<br/>collezione</div>
           <div class="sub">Gratuita e riservata</div>
         </div>
-        <div class="cta-arrow">Invia inventario →</div>
-      </a>
+        <div class="cta-arrow">Compila la richiesta →</div>
+      </button>
     </div>
   </div>
 </section>
@@ -1250,8 +1480,7 @@ footer .legal a { color: var(--ink-soft); text-decoration: none; border-bottom: 
   <div class="wrap">
     <div class="mark">RARE<span class="b">BLOCK</span></div>
     <div class="contact">
-      <a href="mailto:valentino@rareblock.eu">valentino@rareblock.eu</a><br/>
-      <span style="font-size:0.85rem;color:var(--ink-faint);">numero diretto su appuntamento</span>
+      <a href="mailto:v.castiglia@rareblock.eu">v.castiglia@rareblock.eu</a>
     </div>
     <p class="legal">
       Questo documento è strettamente riservato e indirizzato esclusivamente al destinatario nominato. Non costituisce sollecitazione al pubblico risparmio né offerta di prodotti o servizi finanziari. Le performance storiche citate non sono indicative di rendimenti futuri. Il capitale impiegato è soggetto a rischio di perdita totale.
@@ -1467,6 +1696,303 @@ function flushEngagement() {
     lastY = y;
   }, { passive: true });
 })();
+</script>
+
+<!-- ════════ SUBMISSION MODAL — valutazione collezione ════════ -->
+<div class="subm-overlay" id="submOverlay" role="dialog" aria-modal="true" aria-labelledby="submTitle">
+  <div class="subm-modal" id="submModal">
+    <div id="submFormStage">
+      <div class="subm-head">
+        <div>
+          <h3 id="submTitle">Valutazione collezione</h3>
+          <div class="sub">Compila i dati e l'inventario dei sigillati.<br/>Ti ricontatteremo entro pochi giorni con una valutazione.</div>
+        </div>
+        <button class="subm-close" type="button" onclick="closeSubmissionForm()" aria-label="Chiudi">&times;</button>
+      </div>
+
+      <div class="subm-body">
+        <div class="subm-section-label">I tuoi contatti</div>
+        <div class="subm-row">
+          <div class="subm-field">
+            <label>Nome e cognome *</label>
+            <input type="text" id="submName" autocomplete="name" required/>
+          </div>
+          <div class="subm-field">
+            <label>Email *</label>
+            <input type="email" id="submEmail" autocomplete="email" required/>
+          </div>
+        </div>
+        <div class="subm-row cols-3">
+          <div class="subm-field">
+            <label>Telefono</label>
+            <input type="tel" id="submPhone" autocomplete="tel"/>
+          </div>
+          <div class="subm-field">
+            <label>Città</label>
+            <input type="text" id="submCity" autocomplete="address-level2"/>
+          </div>
+          <div class="subm-field">
+            <label>Paese</label>
+            <input type="text" id="submCountry" autocomplete="country-name" placeholder="Italia"/>
+          </div>
+        </div>
+        <div class="subm-row cols-1">
+          <div class="subm-field">
+            <label>Note generali (opzionale)</label>
+            <textarea id="submNotes" placeholder="Provenienza della collezione, tempistiche, eventuali esigenze particolari…"></textarea>
+          </div>
+        </div>
+
+        <div class="subm-section-label" style="margin-top: 2rem;">Sigillati da valutare</div>
+        <div class="subm-items" id="submItems"></div>
+        <button type="button" class="subm-add" onclick="submAddItem()">+ Aggiungi sigillato</button>
+      </div>
+
+      <div class="subm-foot">
+        <div class="subm-foot-msg" id="submMsg">I dati saranno trattati in modo riservato e usati solo per la valutazione.</div>
+        <button type="button" class="subm-submit" id="submSubmitBtn" onclick="submitSubmission()">Invia richiesta</button>
+      </div>
+    </div>
+
+    <div id="submThanksStage" style="display:none">
+      <div class="subm-thanks">
+        <h3>Richiesta ricevuta</h3>
+        <p>Grazie per averci contattato. Esamineremo la collezione e ti scriveremo personalmente all'indirizzo che hai indicato. Le tempistiche tipiche di prima risposta sono 5—10 giorni lavorativi.</p>
+        <div class="ref" id="submThanksRef"></div>
+        <div style="margin-top: 2rem;">
+          <button type="button" class="subm-submit" onclick="closeSubmissionForm()">Chiudi</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============ SUBMISSION FORM ============ */
+let SUBM_ITEM_COUNTER = 0;
+
+function openSubmissionForm() {
+  // reset
+  document.getElementById('submFormStage').style.display = '';
+  document.getElementById('submThanksStage').style.display = 'none';
+  ['submName','submEmail','submPhone','submCity','submCountry','submNotes'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  // pre-fill country se geo disponibile
+  if (RB_GEO && RB_GEO.country && !document.getElementById('submCountry').value) {
+    document.getElementById('submCountry').value = RB_GEO.country;
+  }
+  if (RB_GEO && RB_GEO.city && !document.getElementById('submCity').value) {
+    document.getElementById('submCity').value = RB_GEO.city;
+  }
+  // reset items - parti con un item vuoto
+  document.getElementById('submItems').innerHTML = '';
+  SUBM_ITEM_COUNTER = 0;
+  submAddItem();
+  setSubmMessage('I dati saranno trattati in modo riservato e usati solo per la valutazione.');
+  document.getElementById('submOverlay').classList.add('show');
+  document.body.style.overflow = 'hidden';
+  // tracking: registra l'apertura del form come click CTA
+  RB_LAST_CTA = 'venditore';
+  flushEngagement();
+}
+
+function closeSubmissionForm() {
+  document.getElementById('submOverlay').classList.remove('show');
+  document.body.style.overflow = '';
+}
+
+document.getElementById('submOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeSubmissionForm();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('submOverlay').classList.contains('show')) {
+    closeSubmissionForm();
+  }
+});
+
+function submAddItem() {
+  SUBM_ITEM_COUNTER++;
+  const idx = SUBM_ITEM_COUNTER;
+  const items = document.getElementById('submItems');
+  const card = document.createElement('div');
+  card.className = 'subm-item';
+  card.dataset.itemId = idx;
+  card.innerHTML = `
+    <div class="subm-item-head">
+      <span class="subm-item-num">Sigillato #${String(idx).padStart(2,'0')}</span>
+      <button type="button" class="subm-item-remove" onclick="submRemoveItem(${idx})">Rimuovi</button>
+    </div>
+    <div class="subm-row">
+      <div class="subm-field">
+        <label>Tipo prodotto *</label>
+        <select data-field="product_type" required>
+          <option value="booster_box">Booster Box</option>
+          <option value="etb">Elite Trainer Box (ETB)</option>
+          <option value="booster_bundle">Booster Bundle</option>
+          <option value="collection_box">Collection Box / Premium</option>
+          <option value="tin">Tin</option>
+          <option value="case">Case (sigillato)</option>
+          <option value="blister">Blister Pack</option>
+          <option value="single_pack">Singola busta</option>
+          <option value="other">Altro</option>
+        </select>
+      </div>
+      <div class="subm-field">
+        <label>Set / espansione</label>
+        <input type="text" data-field="set_name" placeholder="Es. Base Set, Crown Zenith"/>
+      </div>
+    </div>
+    <div class="subm-row cols-3">
+      <div class="subm-field">
+        <label>Lingua</label>
+        <select data-field="language">
+          <option value="">—</option>
+          <option value="EN">Inglese</option>
+          <option value="JP">Giapponese</option>
+          <option value="IT">Italiano</option>
+          <option value="DE">Tedesco</option>
+          <option value="FR">Francese</option>
+          <option value="ES">Spagnolo</option>
+          <option value="OTHER">Altra</option>
+        </select>
+      </div>
+      <div class="subm-field">
+        <label>Anno (se noto)</label>
+        <input type="number" min="1996" max="2030" data-field="year" placeholder="1999"/>
+      </div>
+      <div class="subm-field">
+        <label>Quantità</label>
+        <input type="number" min="1" max="9999" value="1" data-field="quantity"/>
+      </div>
+    </div>
+    <div class="subm-row cols-3">
+      <div class="subm-field">
+        <label>Stato sigillo</label>
+        <select data-field="condition">
+          <option value="mint_sealed">Sigillato perfetto</option>
+          <option value="near_mint">Quasi perfetto</option>
+          <option value="very_good">Molto buono</option>
+          <option value="played">Segni d'uso</option>
+          <option value="damaged">Danneggiato</option>
+          <option value="unknown">Da verificare</option>
+        </select>
+      </div>
+      <label class="subm-field-checkbox">
+        <input type="checkbox" data-field="has_original_seal" checked/>
+        <span>Sigillo originale intatto</span>
+      </label>
+      <label class="subm-field-checkbox">
+        <input type="checkbox" data-field="has_packaging" checked/>
+        <span>Packaging integro</span>
+      </label>
+    </div>
+    <div class="subm-row">
+      <div class="subm-field">
+        <label>Valore atteso (€, opzionale)</label>
+        <input type="number" min="0" step="50" data-field="estimated_value" placeholder="es. 1500"/>
+      </div>
+      <div class="subm-field">
+        <label>Note specifiche</label>
+        <input type="text" data-field="notes" placeholder="Provenienza, dettagli, etc."/>
+      </div>
+    </div>
+  `;
+  items.appendChild(card);
+  // scroll fluido al nuovo item
+  setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+}
+
+function submRemoveItem(idx) {
+  const cards = document.querySelectorAll('#submItems .subm-item');
+  if (cards.length <= 1) {
+    setSubmMessage('Almeno un sigillato deve essere presente.', 'error');
+    return;
+  }
+  const card = document.querySelector(`#submItems .subm-item[data-item-id="${idx}"]`);
+  if (card) card.remove();
+  // rinumera i restanti per estetica
+  document.querySelectorAll('#submItems .subm-item .subm-item-num').forEach((el, i) => {
+    el.textContent = `Sigillato #${String(i+1).padStart(2,'0')}`;
+  });
+}
+
+function setSubmMessage(text, type) {
+  const m = document.getElementById('submMsg');
+  m.textContent = text;
+  m.className = 'subm-foot-msg' + (type ? ' ' + type : '');
+}
+
+function collectItems() {
+  const items = [];
+  document.querySelectorAll('#submItems .subm-item').forEach(card => {
+    const item = {};
+    card.querySelectorAll('[data-field]').forEach(el => {
+      const f = el.dataset.field;
+      if (el.type === 'checkbox') item[f] = el.checked ? 'true' : 'false';
+      else if (el.value !== '' && el.value != null) item[f] = String(el.value);
+    });
+    items.push(item);
+  });
+  return items;
+}
+
+async function submitSubmission() {
+  const btn = document.getElementById('submSubmitBtn');
+  const name    = document.getElementById('submName').value.trim();
+  const email   = document.getElementById('submEmail').value.trim();
+  const phone   = document.getElementById('submPhone').value.trim();
+  const city    = document.getElementById('submCity').value.trim();
+  const country = document.getElementById('submCountry').value.trim();
+  const notes   = document.getElementById('submNotes').value.trim();
+
+  // validation
+  if (!name) { setSubmMessage('Nome obbligatorio.', 'error'); document.getElementById('submName').focus(); return; }
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    setSubmMessage('Email non valida.', 'error');
+    document.getElementById('submEmail').focus();
+    return;
+  }
+  const items = collectItems();
+  if (items.length === 0) { setSubmMessage('Aggiungi almeno un sigillato.', 'error'); return; }
+
+  btn.disabled = true;
+  const oldText = btn.textContent;
+  btn.textContent = 'Invio in corso…';
+  setSubmMessage('Invio in corso…');
+
+  const result = await rbRpc('submit_collection_request', {
+    p_full_name: name,
+    p_email: email,
+    p_phone: phone || null,
+    p_city: city || null,
+    p_country: country || null,
+    p_notes: notes || null,
+    p_items: items,
+    p_memorandum_log_id: RB_LOG_ID || null,
+    p_user_agent: navigator.userAgent,
+    p_ip_hint: RB_GEO ? RB_GEO.ip : null,
+    p_country_hint: RB_GEO ? RB_GEO.country : null
+  });
+
+  btn.disabled = false;
+  btn.textContent = oldText;
+
+  if (result && result.ok) {
+    document.getElementById('submFormStage').style.display = 'none';
+    document.getElementById('submThanksStage').style.display = '';
+    const ref = (result.request_id || '').toString().slice(0, 8).toUpperCase();
+    document.getElementById('submThanksRef').textContent = ref ? `Riferimento: ${ref}` : '';
+  } else {
+    const err = result && result.error;
+    let msg = 'Errore nell\'invio. Riprova o scrivi a v.castiglia@rareblock.eu.';
+    if (err === 'name_required') msg = 'Nome obbligatorio.';
+    else if (err === 'email_invalid') msg = 'Email non valida.';
+    else if (err === 'no_items') msg = 'Aggiungi almeno un sigillato.';
+    else if (err === 'too_many_items') msg = 'Hai inserito troppi sigillati. Massimo 50 per richiesta.';
+    setSubmMessage(msg, 'error');
+  }
+}
 </script>
 
 </body>
