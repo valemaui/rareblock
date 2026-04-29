@@ -5923,7 +5923,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='5.4';
+const APP_VERSION='5.5';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -11988,17 +11988,19 @@ async function anlStartLiveFetches(card){
 
     // URL su eBay IT (EUR) — valuta primaria
     var urls = queries.map(function(q){
-      return 'https://www.ebay.it/sch/i.html?_nkw='+encodeURIComponent(q)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_ipg=240';
+      // _sop=13 = "Recently sold" — stessa ordinamento del link "apri →" così
+      // la fetch backend vede esattamente la stessa pagina del browser utente.
+      return 'https://www.ebay.it/sch/i.html?_nkw='+encodeURIComponent(q)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_sop=13&_ipg=240';
     });
 
     // Fallback eBay.de: query semplice (nome + voto, NO 'pokemon' NO setNm)
     if(nameUser){
       var deQ = graded ? (nameUser+gradeSfx) : (nameUser+(num?' '+num:''));
-      urls.push('https://www.ebay.de/sch/i.html?_nkw='+encodeURIComponent(deQ)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_ipg=240');
+      urls.push('https://www.ebay.de/sch/i.html?_nkw='+encodeURIComponent(deQ)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_sop=13&_ipg=240');
     }
     // Fallback eBay.com: query semplice (nome + voto)
     if(nameUser && graded){
-      urls.push('https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(nameUser+gradeSfx)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_ipg=240');
+      urls.push('https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(nameUser+gradeSfx)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_sop=13&_ipg=240');
     }
 
     // ─── DIAGNOSTICA: log queries effettivamente inviate ──
@@ -13080,7 +13082,22 @@ function anlPopEbay(data, err){
   if(err || !data || (!data.count && !(data.items && data.items.length))){
     if(priceEl){ priceEl.textContent='—'; priceEl.classList.remove('loading'); priceEl.classList.add('na'); }
     if(noteEl){
-      noteEl.textContent = err ? ('errore: '+String(err).substring(0,60)) : 'nessun venduto trovato';
+      // Mostra diag riassuntivo inline (visibile senza DevTools)
+      var diagSummary = '';
+      if(data && data._diag && Array.isArray(data._diag) && data._diag.length){
+        var firstD = data._diag[0] && data._diag[0].diag;
+        if(firstD){
+          var flags = [];
+          if(firstD.has_cf_challenge)        flags.push('CF');
+          if(firstD.has_captcha)             flags.push('captcha');
+          if(firstD.has_signin_redirect)     flags.push('signin');
+          if(firstD.has_pardon_interruption) flags.push('pardon');
+          if(firstD.has_no_results)          flags.push('no_res');
+          if(firstD.itm_link_count > 0 && !flags.length) flags.push(firstD.itm_link_count+' link nessun price');
+          if(flags.length) diagSummary = ' · ['+flags.join('/')+']';
+        }
+      }
+      noteEl.textContent = (err ? ('errore: '+String(err).substring(0,60)) : 'nessun venduto trovato')+diagSummary;
     }
     anlSetDot('anlSrcEbDot', 'none');
     anlRenderEbGradeTable(null);
