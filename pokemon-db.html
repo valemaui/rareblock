@@ -1009,6 +1009,8 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .anl-spacer{flex:1}
 
 /* Body */
+.anl-head{padding:20px 24px 0;display:flex;flex-direction:column;gap:16px}
+.anl-head:empty{display:none}
 .anl-body{flex:1;padding:20px 24px;min-height:0;display:flex;flex-direction:column;gap:16px}
 
 .anl-empty{flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;font-family:var(--mono);text-align:center;padding:80px 20px;letter-spacing:0.03em}
@@ -5921,7 +5923,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='4.4';
+const APP_VERSION='4.5';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -9898,6 +9900,9 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
       <span class="anl-spacer"></span>
     </div>
 
+    <!-- Header carta (separato da body per sopravvivere a rerender) -->
+    <div class="anl-head" id="anlHead"></div>
+
     <!-- Body -->
     <div class="anl-body" id="anlBody">
       <div class="anl-empty">Inserisci una carta e premi Analizza</div>
@@ -10990,6 +10995,8 @@ window.anlSearch = async function(){
 };
 
 function anlShowMsg(msg){
+  var headEl = document.getElementById('anlHead');
+  if(headEl) headEl.innerHTML='';
   document.getElementById('anlBody').innerHTML='<div class="anl-empty">'+anlEsc(msg)+'</div>';
   document.getElementById('anlBtnReset').style.display='none';
 }
@@ -11015,6 +11022,8 @@ function anlShowMulti(cards){
       +'</div>';
   });
   h+='</div></div>';
+  var headEl_mm = document.getElementById('anlHead');
+  if(headEl_mm) headEl_mm.innerHTML='';
   document.getElementById('anlBody').innerHTML=h;
   document.getElementById('anlBtnReset').style.display='';
 }
@@ -11033,6 +11042,8 @@ window.anlReset = function(){
   anlCurrentCard=null;
   anlLiveData={};
   document.getElementById('anlBtnReset').style.display='none';
+  var headEl = document.getElementById('anlHead');
+  if(headEl) headEl.innerHTML='';
   document.getElementById('anlBody').innerHTML='<div class="anl-empty">Inserisci una carta e premi Analizza</div>';
   var inp=document.getElementById('anlCardName');
   if(inp){inp.value='';inp.focus();}
@@ -11041,6 +11052,9 @@ window.anlReset = function(){
 function anlEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 
 // ─── RENDER COMPLETO ─────────────────────────────────────────────────────────
+// Architettura split: BOX 1 va in #anlHead (mai sovrascritto da fetch),
+// BOX 2/3 vanno in #anlBody. Garantisce che il riepilogo non scompaia
+// mai a causa di rerender accidentali del body durante fetch async.
 function anlRenderAll(card){
   var graded = anlMode==='graded';
   var lang = document.getElementById('anlLang').value;
@@ -11063,7 +11077,7 @@ function anlRenderAll(card){
     if(is1st) badges+='<span class="anl-card-badge ac">1ª Ed</span>';
   }
 
-  var h='<div class="anl-card-head-v2">'
+  var headHtml='<div class="anl-card-head-v2">'
     +'<div class="anl-card-info">'
     +(img?'<img class="anl-card-img" src="'+img+'" alt="">':'')
     +'<div class="anl-card-main">'
@@ -11079,15 +11093,15 @@ function anlRenderAll(card){
     +'</div>'
     +'</div>';
 
-  // BOX 2: Sorgenti con toggle on/off (sostituisce vecchio anl-today)
-  h+='<div class="anl-sources-v2">'
+  // BOX 2: Sorgenti con toggle on/off
+  var bodyHtml='<div class="anl-sources-v2">'
     +'<div class="anl-sources-v2-head">Sorgenti per il calcolo · click sul pallino per escludere/includere</div>'
     +'<div class="anl-sources-v2-grid" id="anlSources">'+anlSourcesScaffold(card)+'</div>'
     +'</div>';
 
-  // BOX 3: Interesse di mercato (sostituisce vecchio anl-fwd)
+  // BOX 3: Interesse di mercato
   var fwdSub = graded ? 'spread asks vs sold · liquidità · volatilità' : 'spread asks vs sold · liquidità';
-  h+='<div class="anl-interest" id="anlFwd">'
+  bodyHtml+='<div class="anl-interest" id="anlFwd">'
     +'<div class="anl-interest-head">'
     +  '<span class="anl-interest-label">Interesse di mercato</span>'
     +  '<span class="anl-interest-sub">'+fwdSub+'</span>'
@@ -11096,7 +11110,17 @@ function anlRenderAll(card){
     +'<div class="anl-interest-spread" id="anlInterestSpread" style="display:none"></div>'
     +'</div>';
 
-  document.getElementById('anlBody').innerHTML = h;
+  // Render: BOX 1 in #anlHead, BOX 2+3 in #anlBody
+  // Se #anlHead non esiste (fallback su file vecchi cached), usa anlBody
+  var headEl = document.getElementById('anlHead');
+  var bodyEl = document.getElementById('anlBody');
+  if(headEl){
+    headEl.innerHTML = headHtml;
+    bodyEl.innerHTML = bodyHtml;
+  } else {
+    // Fallback compat: tutto in body se anlHead manca
+    bodyEl.innerHTML = headHtml + bodyHtml;
+  }
   document.getElementById('anlBtnReset').style.display='';
 
   // Avvia fetch live
