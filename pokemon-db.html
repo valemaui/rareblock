@@ -4810,6 +4810,10 @@ const CM_SET_ABBREV={
   'sv1':'SVI','sv2':'PAL','sv3':'OBF','sv3pt5':'MEW','sv4':'PAR','sv4pt5':'PAF',
   'sv5':'TEF','sv6':'TWM','sv6pt5':'SFA','sv7':'SCR','sv7pt5':'SSP',
   'sv8':'PRE','sv9':'DRI',
+  // Promos — solo np ha pattern URL diretto stabile e prevedibile (numero puramente numerico)
+  // Altri promo (basep/dp/pl/hsp/bwp/xyp/smp/swshp/svp) hanno pattern inconsistenti
+  // o varianti V1/V2/V3 → restano su livello 2 (browse + searchString)
+  'np':'NP',
 };
 
 // Set per cui possiamo costruire URL diretto affidabile
@@ -4829,6 +4833,8 @@ const CM_DIRECT_SETS = new Set([
   // BW
   'bw1','bw2','bw3','bw4','bw5','bw6',
   'bw7','bw8','bw9','bw10','bw11',
+  // Promos
+  'np',
 ]);
 
 // Reverse mapping: nome set (da TCG API/item salvato) → set ID
@@ -4896,7 +4902,9 @@ function buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, se
 
   // Livello 1: URL diretto SOLO per set con codici verificati su CM
   if(setSlug && setAbbrev && nameSlug && number && CM_DIRECT_SETS.has(resolvedSetId)){
-    const numClean = (number+'').split('/')[0];
+    // Numero ripulito: rimuovi suffisso "/totale" e zeri leading
+    // Es: "26" → "26", "01" → "1", "26/40" → "26", "001" → "1"
+    const numClean = (number+'').split('/')[0].replace(/^0+/, '') || '0';
     const useV1 = CM_V1_SETS[resolvedSetId] || false;
     const cardSlug = useV1
       ? nameSlug + '-V1-' + setAbbrev + numClean
