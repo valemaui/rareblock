@@ -5921,7 +5921,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='4.3';
+const APP_VERSION='4.4';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -12337,17 +12337,21 @@ function anlRenderEbGradeTable(items, targetHouse, targetScore, targetLang){
     return g;
   });
   rows.sort(function(a,b){
+    // Primario: score discendente (10, 9.5, 9, 8.5, 8...)
+    if(a.score !== b.score) return b.score - a.score;
+    // Secondario: perfect match prima a parità di score
     if(a.isPerfect !== b.isPerfect) return a.isPerfect ? -1 : 1;
     if(a.isTarget !== b.isTarget) return a.isTarget ? -1 : 1;
+    // Terziario: casa alfabetica
     if(a.house !== b.house) return a.house < b.house ? -1 : 1;
-    return b.score - a.score;
+    return 0;
   });
   var langIcon = {
     ITA: '🇮🇹', ENG: '🇬🇧', JPN: '🇯🇵', DEU: '🇩🇪', FRA: '🇫🇷',
     ESP: '🇪🇸', POR: '🇵🇹', KOR: '🇰🇷', CHI: '🇨🇳', RUS: '🇷🇺', NLD: '🇳🇱'
   };
   var html = '<table>'
-    + '<thead><tr><th>Casa</th><th>Voto</th><th>Lingua</th><th style="text-align:right">€</th><th style="text-align:center">N</th></tr></thead>'
+    + '<thead><tr><th></th><th>Casa</th><th>Voto</th><th>Lingua</th><th style="text-align:right">€</th><th style="text-align:center">N</th></tr></thead>'
     + '<tbody>'
     + rows.map(function(r){
         var priceStr = r.count > 1
@@ -12357,7 +12361,12 @@ function anlRenderEbGradeTable(items, targetHouse, targetScore, targetLang){
           ? '<span style="opacity:0.5">?</span>'
           : (langIcon[r.language] || '') + ' ' + r.language;
         var rowClass = r.isPerfect ? 'match-target' : (r.isTarget ? 'match-target' : '');
+        // Freccia ▸ solo su match al 100% (perfect: house+score+lingua)
+        var arrowCell = r.isPerfect
+          ? '<td class="col-arrow" style="color:var(--accent);font-weight:700;text-align:center;width:18px">▸</td>'
+          : '<td class="col-arrow" style="width:18px"></td>';
         return '<tr'+(rowClass?' class="'+rowClass+'"':'')+'>'
+          + arrowCell
           + '<td class="col-grade">'+r.house+'</td>'
           + '<td class="col-grade">'+r.score+'</td>'
           + '<td class="col-grade" style="font-size:10px">'+langStr+'</td>'
@@ -12461,13 +12470,17 @@ function anlRenderPcGradeTable(prices, targetHouse, targetScore){
     r._sortPrice = r.eurFromListings != null ? r.eurFromListings : r.eurFromAggregate;
   });
   rows.sort(function(a,b){
+    // Primario: score discendente
+    if(a.score !== b.score) return b.score - a.score;
+    // Secondario: target prima a parità di score
     if(a.isTarget !== b.isTarget) return a.isTarget ? -1 : 1;
+    // Terziario: casa alfabetica
     if(a.house !== b.house) return a.house < b.house ? -1 : 1;
-    return b.score - a.score;
+    return 0;
   });
 
   var html = '<table>'
-    + '<thead><tr><th>Casa</th><th>Voto</th><th>Lingua</th><th style="text-align:right">€</th><th style="text-align:center">Sample</th></tr></thead>'
+    + '<thead><tr><th></th><th>Casa</th><th>Voto</th><th>Lingua</th><th style="text-align:right">€</th><th style="text-align:center">Sample</th></tr></thead>'
     + '<tbody>'
     + rows.map(function(r){
         var priceVal, priceLabel;
@@ -12482,11 +12495,16 @@ function anlRenderPcGradeTable(prices, targetHouse, targetScore){
         var sampleStr = r.eurFromListings != null
           ? String(r.count || '?')
           : '<span style="opacity:0.5">agg</span>';
+        // PC è sempre ENG → match al 100% = match casa+voto (la lingua coincide
+        // solo se l'utente cerca ENG, altrimenti perfect match impossibile su PC)
+        var userLangPc = (document.getElementById('anlLang') || {}).value;
+        var isPerfectPc = r.isTarget && (userLangPc==='ENG' || !userLangPc);
+        var arrowCell = isPerfectPc
+          ? '<td class="col-arrow" style="color:var(--accent);font-weight:700;text-align:center;width:18px">▸</td>'
+          : '<td class="col-arrow" style="width:18px"></td>';
         // PC aggrega esclusivamente sold da eBay US/UK in lingua inglese.
-        // Mostriamo sempre ENG per coerenza con le tabelle CM/eBay e per
-        // chiarire all'utente che i prezzi non vanno confrontati 1:1 con
-        // listings ITA su CM (premium ITA non riflesso).
         return '<tr'+(r.isTarget?' class="match-target"':'')+'>'
+          + arrowCell
           + '<td class="col-grade">'+r.house+'</td>'
           + '<td class="col-grade">'+r.score+'</td>'
           + '<td class="col-grade" style="font-size:10px">🇬🇧 ENG</td>'
@@ -12534,12 +12552,13 @@ function anlRenderCmGradeTable(gradedListings, targetHouse, targetScore, targetL
     g.isPerfect = g.isTarget && (targetLang ? g.language === targetLang : true);
     return g;
   });
-  // Ordine: perfect match prima, poi target (qualsiasi lingua), poi house alfabetico, score desc
+  // Ordine: score desc primario, poi perfect match a parità, poi house alfabetico
   rows.sort(function(a,b){
+    if(a.score !== b.score) return b.score - a.score;
     if(a.isPerfect !== b.isPerfect) return a.isPerfect ? -1 : 1;
     if(a.isTarget !== b.isTarget) return a.isTarget ? -1 : 1;
     if(a.house !== b.house) return a.house < b.house ? -1 : 1;
-    return b.score - a.score;
+    return 0;
   });
   // Bandiere/icone lingua compatte
   var langIcon = {
@@ -12547,7 +12566,7 @@ function anlRenderCmGradeTable(gradedListings, targetHouse, targetScore, targetL
     ESP: '🇪🇸', POR: '🇵🇹', KOR: '🇰🇷', CHI: '🇨🇳', RUS: '🇷🇺', NLD: '🇳🇱'
   };
   var html = '<table>'
-    + '<thead><tr><th>Casa</th><th>Voto</th><th>Lingua</th><th style="text-align:right">€</th><th style="text-align:center">N</th></tr></thead>'
+    + '<thead><tr><th></th><th>Casa</th><th>Voto</th><th>Lingua</th><th style="text-align:right">€</th><th style="text-align:center">N</th></tr></thead>'
     + '<tbody>'
     + rows.map(function(r){
         var priceStr = r.count > 1
@@ -12557,7 +12576,12 @@ function anlRenderCmGradeTable(gradedListings, targetHouse, targetScore, targetL
           ? '<span style="opacity:0.5">?</span>'
           : (langIcon[r.language] || '') + ' ' + r.language;
         var rowClass = r.isPerfect ? 'match-target' : (r.isTarget ? 'match-target' : '');
+        // Freccia ▸ solo su perfect match (house+score+lingua)
+        var arrowCell = r.isPerfect
+          ? '<td class="col-arrow" style="color:var(--accent);font-weight:700;text-align:center;width:18px">▸</td>'
+          : '<td class="col-arrow" style="width:18px"></td>';
         return '<tr'+(rowClass?' class="'+rowClass+'"':'')+'>'
+          + arrowCell
           + '<td class="col-grade">'+r.house+'</td>'
           + '<td class="col-grade">'+r.score+'</td>'
           + '<td class="col-grade" style="font-size:10px">'+langStr+'</td>'
