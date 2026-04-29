@@ -3655,6 +3655,86 @@ window.debugPrev = async function(){
   console.groupEnd();
   console.log('💡 Copia tutto l\'output sopra e mandalo per analisi');
 };
+
+// Scansiona TUTTI i preventivi visibili (anche di altri user, se RLS lo permette)
+// e li raggruppa per user_id. Utile per scoprire se i tuoi preventivi sono finiti
+// sotto un altro user_id (es. dopo un cambio di sessione).
+window.scanPrev = async function(){
+  console.group('🔎 SCAN PREVENTIVI ALL USERS');
+  try{
+    const url=SUPA_URL+'/rest/v1/preventivi?select=id,name,created,user_id&order=created.desc&limit=500';
+    const r=await fetch(url,{headers:getHDR()});
+    const txt=await r.text();
+    console.log('Status:',r.status);
+    if(!r.ok){
+      console.error('Risposta:',txt.substring(0,300));
+      console.groupEnd();
+      return;
+    }
+    const data=JSON.parse(txt);
+    console.log('Totale preventivi visibili (RLS-aware):',data.length);
+    // Raggruppa per user_id
+    const byUser={};
+    data.forEach(p=>{
+      const u=p.user_id||'NULL';
+      if(!byUser[u]) byUser[u]=[];
+      byUser[u].push(p);
+    });
+    const myUid=getCurrentUserId();
+    console.log('Tuo user_id corrente:',myUid);
+    console.log('---');
+    Object.keys(byUser).forEach(u=>{
+      const isMine=(u===myUid)?' ← TU':'';
+      const isNull=(u==='NULL')?' ← ORFANI (senza user_id)':'';
+      console.log('user_id:',u,'  count:',byUser[u].length,isMine,isNull);
+      byUser[u].slice(0,5).forEach(p=>{
+        console.log('  •',p.id,'-',p.name,'-',new Date(p.created).toLocaleDateString('it'));
+      });
+      if(byUser[u].length>5) console.log('  ...e altri',byUser[u].length-5);
+    });
+    console.log('---');
+    console.log('💡 Se vedi preventivi sotto un user_id diverso dal tuo o NULL, esegui:');
+    console.log('   recoverPrev("USER_ID_TROVATO")  per riassegnarli al tuo account');
+    console.log('   recoverPrev(null)               per riassegnare gli orfani (user_id NULL)');
+  }catch(e){ console.error('scanPrev error:',e); }
+  console.groupEnd();
+};
+
+// Riassegna preventivi da un user_id (o NULL) all'utente corrente.
+// CHIEDE CONFERMA prima di eseguire l'UPDATE.
+window.recoverPrev = async function(fromUid){
+  const myUid=getCurrentUserId();
+  if(!myUid){ console.error('Non sei autenticato'); return; }
+  const filterStr=(fromUid===null||fromUid==='NULL'||fromUid==='null')?'user_id=is.null':'user_id=eq.'+fromUid;
+  console.group('🔧 RECOVER PREVENTIVI');
+  try{
+    // Prima conta quanti sarebbero
+    const r=await fetch(SUPA_URL+'/rest/v1/preventivi?select=id,name&'+filterStr+'&limit=500',{headers:getHDR()});
+    if(!r.ok){ console.error('Errore lookup:',r.status,await r.text()); console.groupEnd(); return; }
+    const found=JSON.parse(await r.text());
+    console.log('Trovati',found.length,'preventivi da riassegnare a',myUid);
+    found.forEach(p=>console.log('  •',p.id,'-',p.name));
+    if(!found.length){ console.log('Nessun preventivo da recuperare'); console.groupEnd(); return; }
+    if(!confirm('Riassegnare '+found.length+' preventivi al tuo account ('+myUid+')?\n\nATTENZIONE: questa operazione cambia user_id sui record di Supabase ed è irreversibile senza un altro UPDATE manuale.')){
+      console.log('Annullato dall\'utente');
+      console.groupEnd();
+      return;
+    }
+    // Esegui PATCH per riassegnare user_id
+    const r2=await fetch(SUPA_URL+'/rest/v1/preventivi?'+filterStr,{
+      method:'PATCH',
+      headers:{...getHDR(),'Prefer':'return=representation'},
+      body:JSON.stringify({user_id:myUid})
+    });
+    const t2=await r2.text();
+    if(!r2.ok){ console.error('Errore PATCH:',r2.status,t2.substring(0,300)); console.groupEnd(); return; }
+    const updated=JSON.parse(t2);
+    console.log('✅ Riassegnati',updated.length,'preventivi. Aggiorno la UI...');
+    if(typeof renderPrevList==='function') await renderPrevList();
+    console.log('Done. Verifica nella tab Preventivi.');
+  }catch(e){ console.error('recoverPrev error:',e); }
+  console.groupEnd();
+};
 console.log('💡 Suggerimento: se i preventivi non si vedono, esegui da console: debugPrev()');
 
 async function createPreventivo(){
