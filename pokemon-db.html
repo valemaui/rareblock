@@ -3463,26 +3463,33 @@ function getItems(p){
 }
 
 async function loadPrev(){
-  // Schema check è puramente diagnostico: serve a mostrare il banner di warning
-  // e a far filtrare savePrev. NON deve influenzare la SELECT di loadPrev,
-  // che usa la query semplice senza 'select=...' (PostgREST ritorna automaticamente
-  // tutte le colonne esistenti, ignorando quelle inesistenti — auto-resiliente).
-  if(!_prevSchemaStatus) { try{ checkPrevSchema(); /* fire-and-forget, non bloccare */ }catch(e){} }
+  console.log('[loadPrev] START');
+  // Schema check è puramente diagnostico
+  if(!_prevSchemaStatus) { try{ checkPrevSchema(); }catch(e){ console.warn('[loadPrev] checkPrevSchema sync err:',e); } }
   try{
     const uid=getCurrentUserId();
-    const data=await supa('GET','preventivi?order=created.desc&limit=200'+(uid?'&user_id=eq.'+uid:''));
+    const url='preventivi?order=created.desc&limit=200'+(uid?'&user_id=eq.'+uid:'');
+    console.log('[loadPrev] uid =',uid,'  url =',url);
+    const data=await supa('GET',url);
+    console.log('[loadPrev] response received. type:',typeof data,'  isArray:',Array.isArray(data),'  length:',data&&data.length);
     if(!Array.isArray(data)){
-      console.warn('[loadPrev] Risposta non-array da Supabase:',data);
-      // Non sovrascrivere preventivi esistenti con vuoto
+      console.warn('[loadPrev] Risposta non-array, contenuto:',data);
       return;
+    }
+    if(data.length===0){
+      console.warn('[loadPrev] Supabase ha ritornato un array VUOTO. Possibili cause: (1) RLS filter taglia tutti i record, (2) user_id filter non matcha, (3) tabella effettivamente vuota');
+      // Continua con preventivi=[] solo se il DB è davvero vuoto;
+      // ma non sovrascriviamo se avevamo già dati in memoria
+      if(preventivi.length>0){
+        console.warn('[loadPrev] Mantengo i',preventivi.length,'preventivi già in memoria invece di azzerare');
+        return;
+      }
     }
     preventivi=data.map(p=>({
       id:p.id,
       name:p.name,
       created:p.created,
       provenienza:p.provenienza||'',
-      // I campi sotto possono essere undefined se le colonne non esistono nel DB:
-      // gestiamo il fallback con || senza errori
       note:p.note||'',
       seller_name:p.seller_name||'',
       status:p.status||'open',
@@ -3490,14 +3497,10 @@ async function loadPrev(){
       deal_info:p.deal_info?(typeof p.deal_info==='string'?(function(){try{return JSON.parse(p.deal_info);}catch(e){return null;}})():p.deal_info):null,
       items:Array.isArray(p.items)?p.items:(function(){try{return JSON.parse(p.items||'[]');}catch(e){return [];}})()
     }));
-    // Salva un backup in localStorage SOLO dopo un load riuscito,
-    // così il fallback ha dati significativi se il network cade in futuro
+    console.log('[loadPrev] OK — caricati',preventivi.length,'preventivi');
     try{ localStorage.setItem('pkm_preventivi',JSON.stringify(preventivi)); }catch(e){}
   }catch(e){
-    console.error('[loadPrev] ERRORE:', e.message);
-    // Fallback: usa localStorage SOLO se preventivi è ancora vuoto.
-    // Se avevamo già caricato dei preventivi prima, non li sovrascriviamo
-    // con il backup (che potrebbe essere più vecchio).
+    console.error('[loadPrev] EXCEPTION:', e.message, e);
     if(!preventivi||!preventivi.length){
       try{
         const backup=JSON.parse(localStorage.getItem('pkm_preventivi')||'[]');
@@ -3614,6 +3617,45 @@ function restorePrevFromBackup(){
     }).join('');
   }catch(e){ alert('Errore ripristino: '+e.message); }
 }
+
+// ═══ DEBUG HELPER ═══
+// Esegui da console: debugPrev()
+// Stampa una diagnostica completa: stato auth, query GET diretta a Supabase,
+// contenuto memoria, contenuto localStorage. Necessario per capire perché
+// i preventivi non appaiono.
+window.debugPrev = async function(){
+  console.group('🔍 DEBUG PREVENTIVI');
+  try{
+    const sess=window._rbSession;
+    console.log('Session:', sess?{user_id:sess.user&&sess.user.id, email:sess.user&&sess.user.email, has_token:!!sess.access_token, token_preview:(sess.access_token||'').substring(0,20)+'...'}:'NESSUNA');
+    const uid=getCurrentUserId();
+    console.log('getCurrentUserId():', uid);
+    console.log('preventivi (memoria):', preventivi.length, 'voci');
+    const ls=localStorage.getItem('pkm_preventivi');
+    console.log('localStorage backup:', ls?JSON.parse(ls).length+' voci':'VUOTO');
+    console.log('_prevSchemaStatus:', _prevSchemaStatus);
+    console.log('--- Test diretto GET preventivi senza filtri ---');
+    const url1=SUPA_URL+'/rest/v1/preventivi?select=id,name,created&limit=5';
+    const r1=await fetch(url1,{headers:getHDR()});
+    const t1=await r1.text();
+    console.log('GET (NO user filter) status:', r1.status);
+    console.log('Response body:', t1.substring(0,500));
+    if(uid){
+      console.log('--- Test diretto GET preventivi con user_id filter ---');
+      const url2=SUPA_URL+'/rest/v1/preventivi?select=id,name,created,user_id&user_id=eq.'+uid+'&limit=5';
+      const r2=await fetch(url2,{headers:getHDR()});
+      const t2=await r2.text();
+      console.log('GET (user_id filter) status:', r2.status);
+      console.log('Response body:', t2.substring(0,500));
+    }
+    console.log('--- Test count totale (RLS-aware) ---');
+    const r3=await fetch(SUPA_URL+'/rest/v1/preventivi?select=id',{headers:{...getHDR(),'Prefer':'count=exact','Range':'0-0'}});
+    console.log('Count headers:', {status:r3.status, contentRange:r3.headers.get('content-range')});
+  }catch(e){ console.error('debugPrev error:',e); }
+  console.groupEnd();
+  console.log('💡 Copia tutto l\'output sopra e mandalo per analisi');
+};
+console.log('💡 Suggerimento: se i preventivi non si vedono, esegui da console: debugPrev()');
 
 async function createPreventivo(){
   const name=document.getElementById('newPrevName').value.trim();
