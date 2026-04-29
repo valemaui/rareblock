@@ -11987,9 +11987,10 @@ async function anlStartLiveFetches(card){
       return 'https://www.pricecharting.com/search-products?q='+encodeURIComponent(q)+'&type=prices';
     });
     var cardNameFull = nameUser + (num ? ' '+num : '');
+    var pcFirstEdition = (anlMode==='raw' && document.getElementById('anl1st').value==='yes');
 
     try{
-      var data=await anlFetchSmooth({source:'pricecharting', urls:urls, url:urls[0], card_name:cardNameFull});
+      var data=await anlFetchSmooth({source:'pricecharting', urls:urls, url:urls[0], card_name:cardNameFull, first_edition:pcFirstEdition});
       if(data.error){ anlPopPc(null,data.error); return; }
       anlLiveData.pc=data.prices;
       anlLiveData.pcProductUrl=data.url||null;
@@ -13161,6 +13162,42 @@ function anlPopPc(prices, err){
       parts.push('G9 12M '+(prices.trend_grade9_12m>=0?'+':'')+prices.trend_grade9_12m.toFixed(1)+'%');
     }
     noteEl.textContent = parts.join(' · ');
+
+    // ─── Warning 1st Edition / Unlimited mismatch ──
+    // Se l'utente ha indicato 1st edition (o non l'ha indicato in graded mode)
+    // e il prodotto PC risolto suggerisce variante diversa, mostra alert.
+    // Aiuta a riconoscere quando PC ha pescato l'URL sbagliato (varianti diverse).
+    var warnEl = document.getElementById('anlSrcPcWarn');
+    if(!warnEl){
+      warnEl = document.createElement('div');
+      warnEl.id = 'anlSrcPcWarn';
+      warnEl.style.cssText = 'font-size:10px;color:var(--warning);margin-top:3px;line-height:1.3';
+      if(noteEl.parentNode) noteEl.parentNode.insertBefore(warnEl, noteEl.nextSibling);
+    }
+    var ptitle = (anlLiveData.pcProductTitle || prices.productTitle || '').toLowerCase();
+    var pUrl   = (anlLiveData.pcProductUrl || '').toLowerCase();
+    var ptxt   = ptitle + ' ' + pUrl;
+    var has1st = /1st[-\s]edition|first[-\s]edition/.test(ptxt);
+    var hasShadowless = /shadowless/.test(ptxt);
+    var hasUnlimited  = /unlimited/.test(ptxt);
+    var userWants1st = (anlMode==='raw' && document.getElementById('anl1st').value==='yes');
+    var warnHtml = null;
+    if(userWants1st && !has1st && (hasUnlimited || hasShadowless)){
+      var variant = hasShadowless ? 'Shadowless' : 'Unlimited';
+      warnHtml = '⚠ Hai indicato <b>1ª Edizione</b> ma PC ha risolto la variante <b>'+variant+'</b>. Prezzo potrebbe non corrispondere.';
+    } else if(!userWants1st && has1st){
+      warnHtml = '⚠ PC ha risolto la variante <b>1ª Edizione</b> mentre tu cerchi la versione standard. Prezzo potrebbe essere alto.';
+    } else if(ptitle){
+      // Mostra titolo prodotto risolto (info, non warning)
+      warnEl.style.cssText = 'font-size:10px;color:var(--text-subtle);margin-top:3px;line-height:1.3;font-family:var(--mono)';
+      warnHtml = '<span style="opacity:0.7">prodotto:</span> '+anlEsc(prices.productTitle || anlLiveData.pcProductTitle || '');
+    }
+    if(warnHtml && (warnHtml.startsWith('⚠'))){
+      // Reset stile a warning
+      warnEl.style.cssText = 'font-size:10px;color:var(--warning);margin-top:3px;line-height:1.3';
+    }
+    warnEl.innerHTML = warnHtml || '';
+    warnEl.style.display = warnHtml ? 'block' : 'none';
   }
   anlSetDot('anlSrcPcDot', confLevel);
 

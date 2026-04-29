@@ -187,7 +187,7 @@ Deno.serve(async (req) => {
       return json({ error: 'url/source non valido', listings: [], prices: [] });
     }
     if (source === 'cardmarket')      return await handleCardmarket(firstUrl, body?.debug === true);
-    if (source === 'pricecharting')   return await handlePriceChartingCascade(urls, body?.card_name, body?.debug === true);
+    if (source === 'pricecharting')   return await handlePriceChartingCascade(urls, body?.card_name, body?.debug === true, { firstEdition: body?.first_edition === true });
     if (source === 'ebay_sold')       return await handleEbaySoldCascade(urls, Number(body?.min_hits ?? 3), body?.merge === true);
     if (source === 'catawiki_search') return await handleCatawikiSearch(firstUrl, body?.debug === true);
     if (source === 'ebay_search')     return await handleEbaySearch(firstUrl, body?.debug === true);
@@ -1015,7 +1015,7 @@ interface PCPrices {
   currency?: string;
 }
 
-async function handlePriceChartingCascade(urls: string[], cardName?: string, debug?: boolean): Promise<Response> {
+async function handlePriceChartingCascade(urls: string[], cardName?: string, debug?: boolean, options?: { firstEdition?: boolean }): Promise<Response> {
   const attempts: Array<{ url: string; ok: boolean; found?: string; error?: string; html_len?: number; snippet?: string; candidates?: number; sample_links?: string[] }> = [];
 
   for (let i = 0; i < urls.length; i++) {
@@ -1031,7 +1031,7 @@ async function handlePriceChartingCascade(urls: string[], cardName?: string, deb
         attempts.push({ url, ok: false, error: `search HTTP ${srch.status}`, html_len: srch.html?.length ?? 0 });
         continue;
       }
-      const firstProduct = extractFirstPCProduct(srch.html, cardName);
+      const firstProduct = extractFirstPCProduct(srch.html, cardName, options?.firstEdition);
       if (!firstProduct) {
         // Debug: raccoglie info diagnostiche
         const entry: typeof attempts[0] = { url, ok: false, error: 'nessun prodotto', html_len: srch.html.length };
@@ -1214,7 +1214,7 @@ function detectDominantCurrency(prices: PCPrices): string {
   return 'USD';
 }
 
-function extractFirstPCProduct(html: string, nameHint?: string): { url: string; title: string } | null {
+function extractFirstPCProduct(html: string, nameHint?: string, firstEdition?: boolean): { url: string; title: string } | null {
   // PC usa URL assoluti: href="https://www.pricecharting.com/game/..."
   // Anche se raramente può usare path relativi /game/...
   // Pattern accetta entrambi.
@@ -1287,6 +1287,30 @@ function extractFirstPCProduct(html: string, nameHint?: string): { url: string; 
 
     // Bonus se path usa pattern canonico /game/pokemon-{set}/{card}-{num}
     if (/^\/game\/pokemon-[a-z0-9-]+\/[a-z0-9-]+/i.test(c.raw_path)) c.score += 5;
+
+    // ── Disambiguazione 1st Edition vs Unlimited ──
+    // PC distingue le due varianti con suffissi nello slug:
+    //   /game/pokemon-base-set/charizard-4-1st-edition
+    //   /game/pokemon-base-set/charizard-4         (= unlimited)
+    //   /game/pokemon-base-set/charizard-4-shadowless
+    // Markers: "1st-edition", "1st edition", "first-edition", "first edition"
+    const has1stMarker = /(?:1st[-\s]edition|first[-\s]edition|1st-ed\b)/i.test(lowerPath) ||
+                         /(?:1st[-\s]edition|first[-\s]edition)/i.test(lowerTitle);
+    const hasShadowless = /shadowless/i.test(lowerPath) || /shadowless/i.test(lowerTitle);
+    const hasUnlimited = /unlimited/i.test(lowerPath) || /unlimited/i.test(lowerTitle);
+
+    if (firstEdition === true) {
+      // User vuole 1st edition: premiamo, penalizziamo unlimited/shadowless
+      if (has1stMarker)  c.score += 25;
+      if (hasUnlimited)  c.score -= 20;
+      if (hasShadowless) c.score -= 15;
+    } else if (firstEdition === false) {
+      // User vuole unlimited: penalizziamo 1st edition/shadowless
+      if (has1stMarker)  c.score -= 20;
+      if (hasShadowless) c.score -= 15;
+      if (hasUnlimited)  c.score += 10;  // bonus minore: spesso è il default senza marker
+    }
+    // firstEdition === undefined → nessun aggiustamento
   }
 
   candidates.sort((a, b) => b.score - a.score);
