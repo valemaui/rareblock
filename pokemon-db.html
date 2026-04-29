@@ -590,6 +590,52 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .ms-stat-lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px}
 .ms-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;color:var(--text-subtle);gap:8px;text-align:center;padding:40px}
 .ms-empty-icon{font-size:32px;opacity:.3}
+/* cell stati: non-applicabile / con condizioni */
+.ms-td-var.na{color:var(--text-subtle);font-family:var(--mono);font-size:14px;opacity:.45}
+.ms-td-var.na:before{content:"—"}
+.ms-step.warn{border-color:rgba(207,142,68,.45);background:rgba(207,142,68,.05)}
+.ms-step.warn .ms-step-v{color:#cf8e44}
+.ms-cond-cell{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:3px 4px;border-radius:var(--r);min-width:74px;border:1px solid transparent;transition:border-color .12s,background .12s}
+.ms-cond-cell:hover{border-color:var(--border);background:var(--surface2)}
+.ms-cond-cell.has{border-color:rgba(201,169,110,.25);background:rgba(201,169,110,.05)}
+.ms-cond-tot{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text-muted);line-height:1}
+.ms-cond-cell.has .ms-cond-tot{color:var(--accent)}
+.ms-cond-mix{font-family:var(--mono);font-size:9px;color:var(--text-subtle);letter-spacing:.3px;line-height:1.1;display:flex;gap:3px;flex-wrap:wrap;justify-content:center;max-width:90px}
+.ms-cond-mix span{display:inline-flex;gap:2px;align-items:baseline}
+.ms-cond-mix span b{color:var(--text-muted);font-weight:600}
+.ms-cond-cell.has .ms-cond-mix b{color:var(--text)}
+/* popover condizioni */
+.ms-cond-pop-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2100;align-items:center;justify-content:center;padding:20px}
+.ms-cond-pop-bg.show{display:flex}
+.ms-cond-pop{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;width:340px;max-width:95vw;display:flex;flex-direction:column;gap:10px;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.ms-cond-pop-head{display:flex;align-items:flex-start;gap:10px;border-bottom:1px solid var(--border);padding-bottom:10px}
+.ms-cond-pop-head img{width:38px;height:53px;object-fit:contain;border-radius:3px;background:var(--surface2);flex-shrink:0}
+.ms-cond-pop-titl{flex:1;min-width:0}
+.ms-cond-pop-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ms-cond-pop-meta{font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:3px}
+.ms-cond-pop-var{display:inline-block;margin-top:5px;padding:2px 8px;border:1px solid rgba(201,169,110,.3);background:rgba(201,169,110,.08);color:var(--accent);border-radius:3px;font-size:10px;font-family:var(--mono);font-weight:600;letter-spacing:.4px}
+.ms-cond-pop-rows{display:flex;flex-direction:column;gap:4px}
+.ms-cond-row{display:grid;grid-template-columns:62px 1fr auto;align-items:center;gap:10px;padding:5px 4px;border-radius:var(--r)}
+.ms-cond-row:hover{background:var(--surface2)}
+.ms-cond-row.active{background:rgba(201,169,110,.06)}
+.ms-cond-lbl{display:flex;flex-direction:column;gap:1px}
+.ms-cond-code{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text)}
+.ms-cond-name{font-size:9px;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.4px}
+.ms-cond-row.active .ms-cond-code{color:var(--accent)}
+.ms-cond-pop-foot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:10px;margin-top:2px}
+.ms-cond-pop-tot{font-family:var(--mono);font-size:12px;color:var(--text-muted)}
+.ms-cond-pop-tot b{color:var(--accent);font-weight:700}
+/* toggle Mostra anche celle non applicabili */
+.ms-show-all-row{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);font-family:var(--mono);cursor:pointer;user-select:none}
+.ms-show-all-row input{accent-color:var(--accent);cursor:pointer}
+/* checkbox condizioni nel modal */
+.ms-track-row{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);cursor:pointer;user-select:none;margin-bottom:10px}
+.ms-track-row:hover{border-color:var(--border-focus)}
+.ms-track-row.on{border-color:rgba(201,169,110,.4);background:rgba(201,169,110,.06)}
+.ms-track-row input{accent-color:var(--accent);width:14px;height:14px;cursor:pointer}
+.ms-track-titl{font-size:12px;font-weight:600;color:var(--text)}
+.ms-track-row.on .ms-track-titl{color:var(--accent)}
+.ms-track-hint{font-size:10px;color:var(--text-muted);margin-top:2px;line-height:1.4}
 
 /* ── AUTH TAB ── */
 #tab-auth{overflow-y:auto;background:var(--bg)}
@@ -7013,6 +7059,7 @@ function scReset(){
         <div class="ms-topbar">
           <div class="ms-topbar-title" id="msTopTitle"></div>
           <div class="ms-topbar-meta" id="msTopMeta"></div>
+          <button class="btn" onclick="msToggleConditions()" id="msToggleCondBtn" title="Attiva/Disattiva tracciamento per condizione (NM/EX/GD/LP/PL/PO)">Condizioni</button>
           <button class="btn" onclick="msExportCSV()">&#8595; CSV</button>
           <button class="btn btn-danger" onclick="msDeleteCurrent()">Elimina</button>
         </div>
@@ -7026,6 +7073,10 @@ function scReset(){
             <option value="owned">Possedute</option>
             <option value="missing">Mancanti</option>
           </select>
+          <label class="ms-show-all-row" title="Mostra anche celle di varianti non applicabili alla rarita della carta (utile per correggere dati legacy)">
+            <input type="checkbox" id="msShowAllVar" onchange="msRenderTable()"/>
+            <span>Mostra tutte varianti</span>
+          </label>
           <span style="font-size:11px;color:var(--text-muted);font-family:var(--mono);margin-left:auto" id="msCardCount"></span>
         </div>
         <div class="ms-body">
@@ -7064,10 +7115,37 @@ function scReset(){
       </div>
       <label>Varianti da tracciare</label>
       <div class="ms-var-chips" id="msVarChips"></div>
+      <label style="font-size:10px">Tracciamento condizioni</label>
+      <div class="ms-track-row" id="msTrackRow" onclick="msToggleTrack(event)">
+        <input type="checkbox" id="msTrackCond" onclick="event.stopPropagation();msSyncTrackUI()"/>
+        <div style="flex:1">
+          <div class="ms-track-titl">Traccia condizione (NM/EX/GD/LP/PL/PO)</div>
+          <div class="ms-track-hint">Consigliato per set vintage (Base, Jungle, Fossil...). Per set moderni dove tutte le carte sono fresh-pack lascia disattivato.</div>
+        </div>
+      </div>
     </div>
     <div class="ms-modal-foot">
       <button class="btn" onclick="msCloseModal()">Annulla</button>
       <button class="btn btn-primary" id="msCreateBtn" disabled onclick="msCreateMasterset()">Crea Masterset</button>
+    </div>
+  </div>
+</div>
+
+<!-- POPOVER CONDIZIONI -->
+<div class="ms-cond-pop-bg" id="msCondPopBg" onclick="if(event.target===this)msCondPopClose()">
+  <div class="ms-cond-pop">
+    <div class="ms-cond-pop-head">
+      <img id="msCondPopImg" alt=""/>
+      <div class="ms-cond-pop-titl">
+        <div class="ms-cond-pop-name" id="msCondPopName"></div>
+        <div class="ms-cond-pop-meta" id="msCondPopMeta"></div>
+        <div class="ms-cond-pop-var" id="msCondPopVar"></div>
+      </div>
+    </div>
+    <div class="ms-cond-pop-rows" id="msCondPopRows"></div>
+    <div class="ms-cond-pop-foot">
+      <div class="ms-cond-pop-tot">Totale: <b id="msCondPopTot">0</b></div>
+      <button class="btn" onclick="msCondPopClose()">Chiudi</button>
     </div>
   </div>
 </div>
@@ -7090,17 +7168,109 @@ var ALL_VARS = [
   {id:'Stamped',        label:'Stampata'}
 ];
 
+// Condizioni Cardmarket (EU). Ordine = best → worst.
+var MS_CONDITIONS = [
+  {id:'NM', label:'Near Mint'},
+  {id:'EX', label:'Excellent'},
+  {id:'GD', label:'Good'},
+  {id:'LP', label:'Light Played'},
+  {id:'PL', label:'Played'},
+  {id:'PO', label:'Poor'}
+];
+
+// ─── helpers per qty (compatibili con vecchio formato number) ───
+function qtyTotal(card, v){
+  if(!card||!card.qty) return 0;
+  var q = card.qty[v];
+  if(q==null) return 0;
+  if(typeof q==='number') return q;          // legacy
+  var s=0; for(var k in q) s+=(q[k]||0);
+  return s;
+}
+function qtyForCond(card, v, cond){
+  if(!card||!card.qty) return 0;
+  var q = card.qty[v];
+  if(q==null) return 0;
+  if(typeof q==='number') return cond==='NM' ? q : 0;
+  return q[cond]||0;
+}
+function qtySet(card, v, cond, n){
+  if(!card.qty) card.qty = {};
+  if(typeof card.qty[v]==='number'){
+    var old = card.qty[v];
+    card.qty[v] = old>0 ? {NM:old} : {};
+  }
+  if(card.qty[v]==null || typeof card.qty[v]!=='object') card.qty[v]={};
+  n = Math.max(0, n|0);
+  if(n===0) delete card.qty[v][cond];
+  else card.qty[v][cond] = n;
+}
+function qtyTotalAll(card){
+  if(!card||!card.qty) return 0;
+  var s=0; for(var v in card.qty) s+=qtyTotal(card,v);
+  return s;
+}
+function qtyAnyOwned(card){
+  if(!card||!card.qty) return false;
+  for(var v in card.qty) if(qtyTotal(card,v)>0) return true;
+  return false;
+}
+
+// ─── varianti applicabili a una specifica carta in base alla rarita ───
+// Risolve il problema WOTC: una carta o e' Holo Rare (solo Holo) oppure
+// Common/Uncommon/Rare (solo Normal). Mostrare entrambe le colonne attive
+// per ogni carta era fuorviante.
+function cardApplicableVariants(card, ms){
+  var available = (ms&&ms.variants) ? ms.variants : [];
+  if(!available.length) return [];
+  var rarity = (card.rarity||'').toLowerCase().trim();
+
+  // Common / Uncommon / Rare "puro" → carta non foiled in artwork
+  // → ammette Normal + le varianti "reverse-style" + universali
+  var isPlain = /^(common|uncommon|rare)$/.test(rarity);
+  // Promo: trattata come universale, l'utente decide
+  var isPromo = /promo/.test(rarity) && !/holo/.test(rarity);
+
+  var reverseTypes = {'Reverse Holo':1,'Pokeball Holo':1,'Masterball Holo':1};
+  var universalTypes = {'Stamped':1};
+
+  var filtered;
+  if(isPlain){
+    filtered = available.filter(function(v){
+      return v==='Normal' || reverseTypes[v] || universalTypes[v];
+    });
+  } else if(isPromo){
+    filtered = available.slice();
+  } else {
+    // Tutto il resto (Rare Holo, EX, GX, V, VMAX, VSTAR, Ultra Rare, Secret, ecc.)
+    // Carte con artwork foiled → solo varianti holo, no reverse-style
+    filtered = available.filter(function(v){
+      return v==='Holo' || v==='Cosmo Holo' || universalTypes[v];
+    });
+  }
+  // Fallback: se nessuna variante e' applicabile (utente ha selezionato un set strano)
+  // restituisce comunque l'intera lista per non bloccare il tracking
+  if(!filtered.length) return available.slice();
+  return filtered;
+}
+
 function guessVars(set) {
   var sid = (set.id||'').toLowerCase();
-  if(sid.indexOf('sv')===0)   return ['Normal','Reverse Holo','Pokeball Holo','Masterball Holo'];
-  if(sid.indexOf('swsh')===0) return ['Normal','Reverse Holo'];
-  if(sid.indexOf('sm')===0)   return ['Normal','Reverse Holo'];
-  if(sid.indexOf('xy')===0)   return ['Normal','Reverse Holo'];
-  if(sid.indexOf('bw')===0)   return ['Normal','Reverse Holo'];
-  if(sid.indexOf('dp')===0)   return ['Normal','Reverse Holo'];
+  if(sid.indexOf('sv')===0)   return ['Normal','Holo','Reverse Holo','Pokeball Holo','Masterball Holo'];
+  if(sid.indexOf('swsh')===0) return ['Normal','Holo','Reverse Holo'];
+  if(sid.indexOf('sm')===0)   return ['Normal','Holo','Reverse Holo'];
+  if(sid.indexOf('xy')===0)   return ['Normal','Holo','Reverse Holo'];
+  if(sid.indexOf('bw')===0)   return ['Normal','Holo','Reverse Holo'];
+  if(sid.indexOf('dp')===0)   return ['Normal','Holo','Reverse Holo'];
   var yr = parseInt((set.releaseDate||'').slice(0,4))||0;
-  if(yr>=2003&&yr<=2007)      return ['Normal','Reverse Holo'];
+  if(yr>=2003&&yr<=2007)      return ['Normal','Holo','Reverse Holo'];
   return ['Normal','Holo'];
+}
+
+// Default trackConditions: ON per set vintage (pre-2010), OFF per moderni
+function guessTrackConditions(set){
+  var yr = parseInt((set.releaseDate||'').slice(0,4))||0;
+  return yr>0 && yr<2010;
 }
 
 // msLoad/msSave: Supabase come storage principale, localStorage come cache
@@ -7182,9 +7352,7 @@ function msRenderList(filter){
   el.innerHTML = '';
   items.forEach(function(m){
     var total = m.cards.length;
-    var owned = m.cards.filter(function(c){
-      return Object.keys(c.qty||{}).some(function(k){return c.qty[k]>0;});
-    }).length;
+    var owned = m.cards.filter(function(c){ return qtyAnyOwned(c); }).length;
     var pct = total ? Math.round(owned/total*100) : 0;
     var okCol = pct===100 ? 'var(--success)' : 'inherit';
     var div = document.createElement('div');
@@ -7209,11 +7377,53 @@ window.msOpen = function(id){
   c.style.display='flex';
   document.getElementById('msTopTitle').textContent = ms.setName+' · '+ms.lang;
   document.getElementById('msTopMeta').textContent  = ms.setSeries||'';
+  // bottone condizioni: stato visivo
+  var tcb = document.getElementById('msToggleCondBtn');
+  if(tcb){
+    if(ms.trackConditions){ tcb.classList.add('btn-primary'); tcb.textContent='Condizioni: ON'; }
+    else { tcb.classList.remove('btn-primary'); tcb.textContent='Condizioni: OFF'; }
+  }
   var rars = [];
   ms.cards.forEach(function(c){ if(c.rarity&&rars.indexOf(c.rarity)<0) rars.push(c.rarity); });
   rars.sort();
   document.getElementById('msFilterRar').innerHTML =
     '<option value="">Tutte le rarita</option>'+rars.map(function(r){return '<option>'+r+'</option>';}).join('');
+  msRenderTable();
+};
+
+window.msToggleConditions = function(){
+  if(!msActive) return;
+  var ms = msData.find(function(m){return m.id===msActive;});
+  if(!ms) return;
+  if(ms.trackConditions){
+    // Disattivare: avvisa che le condizioni saranno collassate in totale per variante (NM)
+    var hasMultiCond = ms.cards.some(function(c){
+      if(!c.qty) return false;
+      for(var v in c.qty){
+        var q=c.qty[v];
+        if(q && typeof q==='object'){
+          var cs=Object.keys(q).filter(function(k){return q[k]>0;});
+          if(cs.length>1 || (cs.length===1 && cs[0]!=='NM')) return true;
+        }
+      }
+      return false;
+    });
+    var msg = 'Disattivare il tracciamento per condizione?\n\nLe quantita verranno mantenute ma le condizioni diverse da NM saranno comunque conservate (potrai riattivare in futuro).';
+    if(hasMultiCond) msg += '\n\nATTENZIONE: hai gia inserito carte con condizioni diverse da NM. La somma totale rimarra la stessa, ma il dettaglio per condizione sara visibile solo riattivando questa modalita.';
+    if(!confirm(msg)) return;
+    ms.trackConditions = false;
+  } else {
+    if(!confirm('Attivare il tracciamento per condizione?\n\nOgni cella mostrera la suddivisione NM/EX/GD/LP/PL/PO. Le quantita esistenti saranno mantenute come NM.')) return;
+    ms.trackConditions = true;
+  }
+  msSave(msData);
+  // aggiorna UI
+  var tcb = document.getElementById('msToggleCondBtn');
+  if(tcb){
+    if(ms.trackConditions){ tcb.classList.add('btn-primary'); tcb.textContent='Condizioni: ON'; }
+    else { tcb.classList.remove('btn-primary'); tcb.textContent='Condizioni: OFF'; }
+  }
+  msUpdateStats(ms);
   msRenderTable();
 };
 
@@ -7228,12 +7438,14 @@ window.msRenderTable = function(){
   var fName  = (document.getElementById('msCardSearch').value||'').toLowerCase();
   var fRar   = document.getElementById('msFilterRar').value;
   var fOwned = document.getElementById('msFilterOwned').value;
+  var showAll = !!(document.getElementById('msShowAllVar')&&document.getElementById('msShowAllVar').checked);
+  var trackCond = !!ms.trackConditions;
 
   var cards = ms.cards.filter(function(c){
     if(fName && c.name.toLowerCase().indexOf(fName)<0 && c.num.indexOf(fName)<0) return false;
     if(fRar  && c.rarity!==fRar) return false;
-    if(fOwned==='owned'   && !Object.keys(c.qty||{}).some(function(k){return c.qty[k]>0;})) return false;
-    if(fOwned==='missing' &&  Object.keys(c.qty||{}).some(function(k){return c.qty[k]>0;})) return false;
+    if(fOwned==='owned'   && !qtyAnyOwned(c)) return false;
+    if(fOwned==='missing' &&  qtyAnyOwned(c)) return false;
     return true;
   });
 
@@ -7253,7 +7465,9 @@ window.msRenderTable = function(){
   var tbody = document.getElementById('msTbody');
   tbody.innerHTML = '';
   cards.forEach(function(card){
-    var hasAny = Object.keys(card.qty||{}).some(function(k){return card.qty[k]>0;});
+    var hasAny = qtyAnyOwned(card);
+    var applic = cardApplicableVariants(card, ms);
+    var applicMap = {}; applic.forEach(function(v){applicMap[v]=1;});
     var tr = document.createElement('tr');
     if(hasAny) tr.classList.add('ms-owned');
 
@@ -7274,21 +7488,60 @@ window.msRenderTable = function(){
     var tdR=document.createElement('td'); tdR.className='ms-td-rar'; tdR.textContent=card.rarity||''; tr.appendChild(tdR);
 
     ms.variants.forEach(function(v){
-      var qty = (card.qty&&card.qty[v])||0;
-            var safeId = 'sv_'+ms.id.slice(-8)+'_'+card.id.replace(/[^a-z0-9]/gi,'_')+'_'+v.replace(/\s+/g,'_');
       var td = document.createElement('td');
       td.className='ms-td-var';
-      var stepDiv = document.createElement('div');
-      stepDiv.className='ms-step';
-      var btnM=document.createElement('button'); btnM.innerHTML='&#8722;';
-      btnM.setAttribute('data-msid',ms.id); btnM.setAttribute('data-cid',card.id); btnM.setAttribute('data-v',v); btnM.setAttribute('data-d','-1');
-      btnM.addEventListener('click',function(){msStep(this.dataset.msid,this.dataset.cid,this.dataset.v,parseInt(this.dataset.d));});
-      var valEl=document.createElement('div'); valEl.className='ms-step-v'+(qty>0?' on':''); valEl.id=safeId; valEl.textContent=qty;
-      var btnP=document.createElement('button'); btnP.innerHTML='&#43;';
-      btnP.setAttribute('data-msid',ms.id); btnP.setAttribute('data-cid',card.id); btnP.setAttribute('data-v',v); btnP.setAttribute('data-d','1');
-      btnP.addEventListener('click',function(){msStep(this.dataset.msid,this.dataset.cid,this.dataset.v,parseInt(this.dataset.d));});
-      stepDiv.appendChild(btnM); stepDiv.appendChild(valEl); stepDiv.appendChild(btnP);
-      td.appendChild(stepDiv);
+      var isApplic = !!applicMap[v];
+      var existingQty = qtyTotal(card, v);
+
+      if(!isApplic && !showAll && existingQty===0){
+        // cella non-applicabile e vuota → solo segnaposto "—"
+        td.classList.add('na');
+        tr.appendChild(td);
+        return;
+      }
+
+      if(trackCond){
+        // CELL CONDIZIONI: totale + mix breakdown, click per popover
+        var cell = document.createElement('div');
+        cell.className = 'ms-cond-cell'+(existingQty>0?' has':'');
+        if(!isApplic && existingQty>0) cell.style.borderColor='rgba(207,142,68,.45)';
+        var totEl = document.createElement('div'); totEl.className='ms-cond-tot'; totEl.textContent=existingQty;
+        cell.appendChild(totEl);
+        // breakdown
+        var mix = document.createElement('div'); mix.className='ms-cond-mix';
+        if(existingQty>0){
+          MS_CONDITIONS.forEach(function(c){
+            var n = qtyForCond(card, v, c.id);
+            if(n>0){
+              var sp = document.createElement('span');
+              sp.innerHTML = '<b>'+n+'</b>'+c.id;
+              mix.appendChild(sp);
+            }
+          });
+        } else {
+          mix.textContent = isApplic ? '— vuoto —' : (showAll?'(non applic.)':'');
+        }
+        cell.appendChild(mix);
+        cell.addEventListener('click',(function(msid,cid,vv){
+          return function(){ msCondPopOpen(msid,cid,vv); };
+        })(ms.id, card.id, v));
+        td.appendChild(cell);
+      } else {
+        // CELL CLASSICA: stepper +/-
+        var safeId = 'sv_'+ms.id.slice(-8)+'_'+card.id.replace(/[^a-z0-9]/gi,'_')+'_'+v.replace(/\s+/g,'_');
+        var stepDiv = document.createElement('div');
+        stepDiv.className='ms-step'+(!isApplic && existingQty>0?' warn':'');
+        if(!isApplic && existingQty>0) stepDiv.title='Variante non applicabile per questa rarita — dato legacy';
+        var btnM=document.createElement('button'); btnM.innerHTML='&#8722;';
+        btnM.setAttribute('data-msid',ms.id); btnM.setAttribute('data-cid',card.id); btnM.setAttribute('data-v',v); btnM.setAttribute('data-d','-1');
+        btnM.addEventListener('click',function(){msStep(this.dataset.msid,this.dataset.cid,this.dataset.v,parseInt(this.dataset.d));});
+        var valEl=document.createElement('div'); valEl.className='ms-step-v'+(existingQty>0?' on':''); valEl.id=safeId; valEl.textContent=existingQty;
+        var btnP=document.createElement('button'); btnP.innerHTML='&#43;';
+        btnP.setAttribute('data-msid',ms.id); btnP.setAttribute('data-cid',card.id); btnP.setAttribute('data-v',v); btnP.setAttribute('data-d','1');
+        btnP.addEventListener('click',function(){msStep(this.dataset.msid,this.dataset.cid,this.dataset.v,parseInt(this.dataset.d));});
+        stepDiv.appendChild(btnM); stepDiv.appendChild(valEl); stepDiv.appendChild(btnP);
+        td.appendChild(stepDiv);
+      }
       tr.appendChild(td);
     });
     tbody.appendChild(tr);
@@ -7297,15 +7550,17 @@ window.msRenderTable = function(){
 
 function msUpdateStats(ms){
   var all   = ms.cards;
-  var owned = all.filter(function(c){return Object.keys(c.qty||{}).some(function(k){return c.qty[k]>0;});}).length;
-  var pcs   = all.reduce(function(s,c){return s+Object.keys(c.qty||{}).reduce(function(a,k){return a+(c.qty[k]||0);},0);},0);
+  var owned = all.filter(function(c){return qtyAnyOwned(c);}).length;
+  var pcs   = all.reduce(function(s,c){return s+qtyTotalAll(c);},0);
   var pct   = all.length ? Math.round(owned/all.length*100) : 0;
   document.getElementById('msProgFill').style.width = pct+'%';
+  var condBadge = ms.trackConditions ? '<div class="ms-stat"><div class="ms-stat-val" style="color:var(--accent)">ON</div><div class="ms-stat-lbl">Condizioni</div></div>' : '';
   document.getElementById('msStats').innerHTML =
     '<div class="ms-stat"><div class="ms-stat-val">'+owned+'/'+all.length+'</div><div class="ms-stat-lbl">Carte possedute</div></div>'+
     '<div class="ms-stat"><div class="ms-stat-val">'+pct+'%</div><div class="ms-stat-lbl">Completamento</div></div>'+
     '<div class="ms-stat"><div class="ms-stat-val">'+pcs+'</div><div class="ms-stat-lbl">Pezzi totali</div></div>'+
-    '<div class="ms-stat"><div class="ms-stat-val">'+ms.variants.length+'</div><div class="ms-stat-lbl">Varianti</div></div>';
+    '<div class="ms-stat"><div class="ms-stat-val">'+ms.variants.length+'</div><div class="ms-stat-lbl">Varianti</div></div>'+
+    condBadge;
 }
 
 window.msStep = function(msId, cardId, v, delta){
@@ -7314,17 +7569,93 @@ window.msStep = function(msId, cardId, v, delta){
   if(!ms) return;
   var card = ms.cards.find(function(c){return c.id===cardId;});
   if(!card) return;
-  if(!card.qty) card.qty={};
-  card.qty[v] = Math.max(0,(card.qty[v]||0)+delta);
+  // Mode classico: sempre NM. Per masterset trackConditions usare msCondPopOpen.
+  var cur = qtyForCond(card, v, 'NM');
+  // Se c'e' del legacy come number senza condition, prendi totale
+  if(typeof (card.qty&&card.qty[v])==='number') cur = card.qty[v]||0;
+  qtySet(card, v, 'NM', Math.max(0, cur+delta));
   msSave(msData);
   var safeId = 'sv_'+msId.slice(-8)+'_'+cardId.replace(/[^a-z0-9]/gi,'_')+'_'+v.replace(/\s+/g,'_');
   var el = document.getElementById(safeId);
+  var tot = qtyTotal(card, v);
   if(el){
-    el.textContent = card.qty[v];
-    el.className = 'ms-step-v'+(card.qty[v]>0?' on':'');
+    el.textContent = tot;
+    el.className = 'ms-step-v'+(tot>0?' on':'');
     var tr = el.closest('tr');
-    if(tr) tr.classList.toggle('ms-owned', Object.keys(card.qty).some(function(k){return card.qty[k]>0;}));
+    if(tr) tr.classList.toggle('ms-owned', qtyAnyOwned(card));
   }
+  msUpdateStats(ms);
+  msRenderList(document.getElementById('msListSearch').value);
+};
+
+// ─── popover condizioni ───
+var msCondCtx = null; // {msId, cardId, v}
+
+window.msCondPopOpen = function(msId, cardId, v){
+  var ms = msData.find(function(m){return m.id===msId;});
+  if(!ms) return;
+  var card = ms.cards.find(function(c){return c.id===cardId;});
+  if(!card) return;
+  msCondCtx = {msId:msId, cardId:cardId, v:v};
+  document.getElementById('msCondPopName').textContent = card.name+' · #'+card.num;
+  document.getElementById('msCondPopMeta').textContent = (card.rarity||'?')+' · '+ms.setName+' · '+ms.lang;
+  document.getElementById('msCondPopVar').textContent = v;
+  var img = document.getElementById('msCondPopImg');
+  if(card.img){ img.src=card.img; img.style.display='block'; } else { img.style.display='none'; }
+  msCondPopRender();
+  document.getElementById('msCondPopBg').classList.add('show');
+};
+
+window.msCondPopClose = function(){
+  document.getElementById('msCondPopBg').classList.remove('show');
+  msCondCtx = null;
+  // re-render tabella per riflettere cambi
+  if(msActive) msRenderTable();
+};
+
+function msCondPopRender(){
+  if(!msCondCtx) return;
+  var ms = msData.find(function(m){return m.id===msCondCtx.msId;});
+  if(!ms) return;
+  var card = ms.cards.find(function(c){return c.id===msCondCtx.cardId;});
+  if(!card) return;
+  var v = msCondCtx.v;
+  var rows = document.getElementById('msCondPopRows');
+  rows.innerHTML='';
+  MS_CONDITIONS.forEach(function(cnd){
+    var n = qtyForCond(card, v, cnd.id);
+    var row = document.createElement('div');
+    row.className = 'ms-cond-row'+(n>0?' active':'');
+    row.innerHTML =
+      '<div class="ms-cond-lbl"><span class="ms-cond-code">'+cnd.id+'</span><span class="ms-cond-name">'+cnd.label+'</span></div>'+
+      '<div></div>'+
+      '<div class="ms-step" style="margin:0">'+
+        '<button data-d="-1">&#8722;</button>'+
+        '<div class="ms-step-v'+(n>0?' on':'')+'">'+n+'</div>'+
+        '<button data-d="1">&#43;</button>'+
+      '</div>';
+    var btns = row.querySelectorAll('button');
+    btns.forEach(function(b){
+      b.addEventListener('click',(function(condId,delta){
+        return function(){ msCondStep(condId, delta); };
+      })(cnd.id, parseInt(b.getAttribute('data-d'))));
+    });
+    rows.appendChild(row);
+  });
+  document.getElementById('msCondPopTot').textContent = qtyTotal(card, v);
+}
+
+window.msCondStep = function(condId, delta){
+  if(!msCondCtx) return;
+  var ms = msData.find(function(m){return m.id===msCondCtx.msId;});
+  if(!ms) return;
+  var card = ms.cards.find(function(c){return c.id===msCondCtx.cardId;});
+  if(!card) return;
+  var v = msCondCtx.v;
+  var cur = qtyForCond(card, v, condId);
+  qtySet(card, v, condId, Math.max(0, cur+delta));
+  msSave(msData);
+  msCondPopRender();
   msUpdateStats(ms);
   msRenderList(document.getElementById('msListSearch').value);
 };
@@ -7339,14 +7670,41 @@ window.msDeleteCurrent = function(){
 
 window.msExportCSV = function(){
   var ms=msData.find(function(m){return m.id===msActive;}); if(!ms) return;
-  var rows=[['#','Nome','Rarita'].concat(ms.variants,['Totale']).join(',')];
-  ms.cards.forEach(function(c){
-    var qtys=ms.variants.map(function(v){return (c.qty&&c.qty[v])||0;});
-    rows.push([c.num,'"'+c.name+'"','"'+(c.rarity||'')+'"'].concat(qtys,[qtys.reduce(function(a,b){return a+b;},0)]).join(','));
-  });
+  var rows;
+  if(ms.trackConditions){
+    // formato esteso: colonna per ogni Variante × Condizione
+    var headers=['#','Nome','Rarita','Applicabili'];
+    ms.variants.forEach(function(v){
+      MS_CONDITIONS.forEach(function(c){ headers.push(v+' '+c.id); });
+    });
+    headers.push('Totale');
+    rows=[headers.join(',')];
+    ms.cards.forEach(function(c){
+      var applic = cardApplicableVariants(c, ms);
+      var line=[c.num,'"'+c.name+'"','"'+(c.rarity||'')+'"','"'+applic.join(' / ')+'"'];
+      var tot=0;
+      ms.variants.forEach(function(v){
+        MS_CONDITIONS.forEach(function(cnd){
+          var n=qtyForCond(c,v,cnd.id);
+          line.push(n);
+          tot+=n;
+        });
+      });
+      line.push(tot);
+      rows.push(line.join(','));
+    });
+  } else {
+    // formato classico
+    rows=[['#','Nome','Rarita','Applicabili'].concat(ms.variants,['Totale']).join(',')];
+    ms.cards.forEach(function(c){
+      var applic = cardApplicableVariants(c, ms);
+      var qtys=ms.variants.map(function(v){return qtyTotal(c,v);});
+      rows.push([c.num,'"'+c.name+'"','"'+(c.rarity||'')+'"','"'+applic.join(' / ')+'"'].concat(qtys,[qtys.reduce(function(a,b){return a+b;},0)]).join(','));
+    });
+  }
   var a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(rows.join('\n'));
-  a.download='masterset_'+ms.setName.replace(/\s+/g,'_')+'_'+ms.lang+'.csv'; a.click();
+  a.download='masterset_'+ms.setName.replace(/\s+/g,'_')+'_'+ms.lang+(ms.trackConditions?'_cond':'')+'.csv'; a.click();
 };
 
 window.msOpenModal = function(){
@@ -7357,6 +7715,9 @@ window.msOpenModal = function(){
   document.getElementById('msCreateBtn').disabled=true;
   document.querySelectorAll('.ms-lang').forEach(function(b){b.classList.toggle('on',b.dataset.lang==='ITA');});
   msRenderChips([]);
+  // reset track conditions
+  var tc=document.getElementById('msTrackCond');
+  if(tc){ tc.checked=false; document.getElementById('msTrackRow').classList.remove('on'); }
   if(!msSetsAll) msFetchSets();
 };
 window.msCloseModal = function(){ document.getElementById('msModalBg').classList.remove('show'); };
@@ -7481,12 +7842,32 @@ window.msPickSet = function(i){
   if(row) row.classList.add('sel');
   document.getElementById('msCreateBtn').disabled=false;
   msRenderChips(guessVars(msSetSel));
+  // Default trackConditions: ON per vintage (pre-2010)
+  var tc=document.getElementById('msTrackCond');
+  if(tc){
+    tc.checked = guessTrackConditions(msSetSel);
+    document.getElementById('msTrackRow').classList.toggle('on', tc.checked);
+  }
+};
+
+window.msToggleTrack = function(ev){
+  var tc=document.getElementById('msTrackCond');
+  // Se il click viene dall'input, ha gia' fatto il toggle nativamente
+  // (gestito tramite stopPropagation nell'onclick dell'input).
+  // Qui gestiamo solo il click sul resto della row.
+  if(ev && ev.target && ev.target.tagName!=='INPUT') tc.checked = !tc.checked;
+  document.getElementById('msTrackRow').classList.toggle('on', tc.checked);
+};
+window.msSyncTrackUI = function(){
+  var tc=document.getElementById('msTrackCond');
+  document.getElementById('msTrackRow').classList.toggle('on', tc.checked);
 };
 
 window.msCreateMasterset = function(){
   if(!msSetSel||!msVarSel.length){ alert('Seleziona un set e almeno una variante'); return; }
   var btn=document.getElementById('msCreateBtn');
   btn.disabled=true; btn.textContent='Caricamento...';
+  var trackCond = !!(document.getElementById('msTrackCond')&&document.getElementById('msTrackCond').checked);
   msFetchSetCards(msSetSel.id,1,[],function(cards){
     cards.sort(function(a,b){
       var na=parseFloat(a.number)||0, nb=parseFloat(b.number)||0;
@@ -7496,7 +7877,9 @@ window.msCreateMasterset = function(){
     var id='ms_'+Date.now();
     var ms={
       id:id, setId:msSetSel.id, setName:msSetSel.name, setSeries:msSetSel.series||'',
-      lang:msLangSel, variants:msVarSel.slice(), created:new Date().toISOString(),
+      lang:msLangSel, variants:msVarSel.slice(),
+      trackConditions: trackCond,
+      created:new Date().toISOString(),
       cards:cards.map(function(c){
         return {id:c.id,num:c.number||'',name:c.name||'',rarity:c.rarity||'',
           img:c.images&&c.images.small||'',imgLg:c.images&&c.images.large||'',qty:{}};
