@@ -1448,7 +1448,41 @@ function extractAllGradesFromListingsOnePass(html: string): Record<string, Grade
   // - "Sep 15, 2024" / "September 15, 2024"
   // - "15 Sep 2024"
   // - "X days/weeks/months ago"
-  const dateRx = /(\b\d{4}-\d{2}-\d{2}\b|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b|\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}\b|\b\d+\s+(?:day|week|month|year)s?\s+ago\b)/i;
+  // - MM/DD/YYYY o DD/MM/YYYY (slash)
+  const dateRx = /(\b\d{4}-\d{2}-\d{2}\b|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b|\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}\b|\b\d+\s+(?:day|week|month|year)s?\s+ago\b|\b\d{1,2}\/\d{1,2}\/\d{2,4}\b)/i;
+
+  // ─── WALK LINEARE PER ASSEGNARE DATE (no sharing tra entry adiacenti) ───
+  // Pre-calcola TUTTE le posizioni delle date nel testo
+  const datePositions: Array<{ idx: number; value: string }> = [];
+  const dateScanRx = new RegExp(dateRx.source, 'gi');
+  let dm: RegExpExecArray | null;
+  while ((dm = dateScanRx.exec(text)) !== null) {
+    datePositions.push({ idx: dm.index, value: dm[1] });
+    if (datePositions.length > 500) break;
+  }
+
+  // Pre-calcola lista globale di tutti i match ordinati per posizione
+  const allMatches: Array<{ key: string; matchIdx: number; matchEnd: number; price: number }> = [];
+  for (const k of Object.keys(buckets)) {
+    for (const e of buckets[k].entries) {
+      allMatches.push({ key: k, matchIdx: e.matchIdx, matchEnd: e.matchEnd, price: e.price });
+    }
+  }
+  allMatches.sort((a, b) => a.matchIdx - b.matchIdx);
+
+  // Per ogni match, la "sua" data è quella che cade tra fine match precedente
+  // e inizio match corrente. Garantisce 1 data per match (no sharing).
+  const matchDates = new Map<string, string>(); // chiave: "matchIdx:price"
+  let prevEnd = 0;
+  for (const am of allMatches) {
+    // Filtra date in window (prevEnd, matchIdx)
+    const candidates = datePositions.filter(d => d.idx > prevEnd && d.idx < am.matchIdx);
+    if (candidates.length) {
+      // Prendi la PIÙ VICINA al match (last candidate per posizione)
+      matchDates.set(am.matchIdx + ':' + am.price, candidates[candidates.length - 1].value);
+    }
+    prevEnd = am.matchEnd;
+  }
 
   for (const key of Object.keys(buckets)) {
     const { entries, symbols } = buckets[key];
@@ -1475,21 +1509,15 @@ function extractAllGradesFromListingsOnePass(html: string): Record<string, Grade
     const confidence: 'high' | 'medium' | 'low' =
       count >= 10 ? 'high' : (count >= 3 ? 'medium' : 'low');
 
-    // Lista dettagliata: solo i match che hanno passato IQR, mantenendo ordine originale (recente prima)
-    // Window date PRIMA del match: nel testo PC il pattern flat è
-    // "DATA HOUSE SCORE [src] PRICE DATA HOUSE SCORE [src] PRICE..." → data riga
-    // corrente sta nei char prima dell'ancora, NON dopo (che sarebbe la successiva)
+    // Lista dettagliata: solo i match che hanno passato IQR, ordine originale (recente prima)
+    // Date dal matchDates pre-computato (no condivisione tra entry adiacenti)
     const passedIdx = new Set(filteredEntries.map(e => e.matchIdx));
     const orderedListings = entries
       .filter(e => passedIdx.has(e.matchIdx))
-      .map(e => {
-        // Cerca data nei 100 char PRIMA del match (window backwards)
-        const head = text.substring(Math.max(0, e.matchIdx - 100), e.matchIdx);
-        // Match GLOBAL per prendere l'ULTIMA occorrenza nel window (più vicina alla riga corrente)
-        const matches = head.match(new RegExp(dateRx.source, 'gi'));
-        const date = matches && matches.length ? matches[matches.length - 1] : undefined;
-        return { price: e.price, date };
-      });
+      .map(e => ({
+        price: e.price,
+        date: matchDates.get(e.matchIdx + ':' + e.price),
+      }));
 
     out[key] = {
       median,
@@ -1743,10 +1771,12 @@ async function handleEbaySoldCascade(urls: string[], minHits: number, merge = fa
     const perQueryCounts: Array<{ url: string; raw: number; new: number }> = [];
     const diagPerUrl: Array<{ url: string; diag: Record<string, unknown> | null }> = [];
 
-    // Cap a max 6 URL per evitare timeout (Supabase Edge Function ~30s).
-    // Le query sono ordinate dalla più specifica alla più larga, quindi le prime
-    // 6 sono quelle con maggior probabilità di trovare match utili.
-    const urlsCapped = urls.slice(0, 6);
+    // Cap a max 10 URL: include sia query specifiche che broader (utili come fallback
+    // quando la specifica fallisce per nome carta non riconosciuto da eBay).
+    // Early-exit: se accumuliamo >=15 items unici, stop fetching URL successivi.
+    // Trade-off: latency leggermente maggiore (CONCURRENCY=3 → ~3-4 wave) ma molto
+    // più robusto su carte specifiche (set name complesso, promo, ecc).
+    const urlsCapped = urls.slice(0, 10);
 
     // Parallel fetch con concorrenza 3 (eBay rate-limita IP che spammano)
     const CONCURRENCY = 3;
@@ -1778,6 +1808,13 @@ async function handleEbaySoldCascade(urls: string[], minHits: number, merge = fa
 
     // Processa i risultati in ordine
     for (const r of fetchResults){
+      // Early-exit: se abbiamo già accumulato >=15 items unici, basta. Le query
+      // successive aggiungono poco valore e rallentano il rendering.
+      if (merged.length >= 15) {
+        perQueryCounts.push({ url: r.url, raw: 0, new: 0 });
+        diagPerUrl.push({ url: r.url, diag: { skipped: 'early_exit_15_items_already_merged' } });
+        continue;
+      }
       if (!r.ok) {
         attempts.push({ url: r.url, count: 0, error: `HTTP ${r.status}` });
         perQueryCounts.push({ url: r.url, raw: 0, new: 0 });
