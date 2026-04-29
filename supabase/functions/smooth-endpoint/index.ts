@@ -988,6 +988,11 @@ interface GradeListingData {
   max?: number;
   currency_symbol: string;
   confidence: 'high' | 'medium' | 'low';  // basato su count: ≥10 high, 3-9 medium, 1-2 low
+  // Lista dettagliata delle singole vendite (post-IQR filter)
+  // Permette al client di mostrare vista dettaglio per ogni grade.
+  // Date opzionali: PC le pubblica adiacenti al prezzo nei sold listings,
+  // ma il pattern non è 100% stabile, quindi best-effort.
+  listings?: Array<{ price: number; date?: string }>;
 }
 
 interface PCPrices {
@@ -1401,7 +1406,8 @@ function extractAllGradesFromListingsOnePass(html: string): Record<string, Grade
   const rx = /\b(PSA|BGS|CGC|SGC|HGA|GMA|TAG|ARS|ACE)\s*(10|9\.5|9|8\.5|8|7\.5|7|6|5|4|3|2|1)\b(?!\s+(?:Black|Pristine|Prist\.))[^$€£]{0,150}?(?:\[(?:eBay|TCGPlayer|Fanatics)\])?\s*([\$€£])\s*([\d,]+(?:[.,]\d{2})?)/gi;
 
   // Aggrega tutti i match per chiave HOUSE_SCORE
-  const buckets: Record<string, { prices: number[]; symbols: string[] }> = {};
+  // Salva prezzi individuali + match index per recuperare contesto (data)
+  const buckets: Record<string, { entries: Array<{ price: number; sym: string; matchIdx: number; matchEnd: number }>; symbols: string[] }> = {};
   let m: RegExpExecArray | null;
   let iters = 0;
   while ((m = rx.exec(text)) !== null && iters < 2000) {
@@ -1422,46 +1428,78 @@ function extractAllGradesFromListingsOnePass(html: string): Record<string, Grade
     if (isNaN(n) || n <= 0) continue;
 
     const key = `${house}_${score}`;
-    if (!buckets[key]) buckets[key] = { prices: [], symbols: [] };
-    // Cap aumentato da 20 a 60 per coprire pagine PC con molte sold per
-    // grade (29+ visti in casi reali). PC mostra fino a ~30 sold per grade
-    // sulla pagina prodotto, e potrebbero esserci più grade insieme.
-    if (buckets[key].prices.length < 60) {
-      buckets[key].prices.push(n);
+    if (!buckets[key]) buckets[key] = { entries: [], symbols: [] };
+    if (buckets[key].entries.length < 60) {
+      buckets[key].entries.push({
+        price: n,
+        sym,
+        matchIdx: m.index,
+        matchEnd: m.index + m[0].length,
+      });
       buckets[key].symbols.push(sym);
     }
   }
 
   // Per ogni bucket calcola mediana con IQR filter + raccoglie metadati
   const out: Record<string, GradeListingData> = {};
+
+  // Pattern date supportati (best-effort, PC non sempre li espone):
+  // - ISO: 2024-08-15
+  // - "Sep 15, 2024" / "September 15, 2024"
+  // - "15 Sep 2024"
+  // - "X days/weeks/months ago"
+  const dateRx = /(\b\d{4}-\d{2}-\d{2}\b|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b|\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}\b|\b\d+\s+(?:day|week|month|year)s?\s+ago\b)/i;
+
   for (const key of Object.keys(buckets)) {
-    const { prices, symbols } = buckets[key];
-    if (prices.length === 0) continue;
+    const { entries, symbols } = buckets[key];
+    if (entries.length === 0) continue;
     const symCounts: Record<string, number> = {};
     for (const s of symbols) symCounts[s] = (symCounts[s] || 0) + 1;
     const dominantSym = Object.keys(symCounts).sort((a, b) => symCounts[b] - symCounts[a])[0];
 
-    let filtered = prices.slice().sort((a, b) => a - b);
-    if (filtered.length >= 4) {
-      const q1 = filtered[Math.floor(filtered.length * 0.25)];
-      const q3 = filtered[Math.floor(filtered.length * 0.75)];
+    // Estrai date best-effort: cerca pattern nei 100 char DOPO ogni prezzo
+    const detailedListings: Array<{ price: number; date?: string }> = entries.map(e => {
+      const tail = text.substring(e.matchEnd, e.matchEnd + 100);
+      const dm = tail.match(dateRx);
+      return { price: e.price, date: dm ? dm[1] : undefined };
+    });
+
+    // IQR filter sui prezzi (come prima) ma manteniamo riferimento alle entries originali
+    const sortedEntries = entries.slice().sort((a, b) => a.price - b.price);
+    let filteredEntries = sortedEntries;
+    if (sortedEntries.length >= 4) {
+      const q1 = sortedEntries[Math.floor(sortedEntries.length * 0.25)].price;
+      const q3 = sortedEntries[Math.floor(sortedEntries.length * 0.75)].price;
       const iqr = q3 - q1;
       const lo = q1 - 1.5 * iqr;
       const hi = q3 + 1.5 * iqr;
-      const f = filtered.filter(p => p >= lo && p <= hi);
-      if (f.length >= 2) filtered = f;
+      const f = sortedEntries.filter(e => e.price >= lo && e.price <= hi);
+      if (f.length >= 2) filteredEntries = f;
     }
-    const median = filtered[Math.floor(filtered.length / 2)];
-    const count = filtered.length;
+    const filteredPrices = filteredEntries.map(e => e.price);
+    const median = filteredPrices[Math.floor(filteredPrices.length / 2)];
+    const count = filteredPrices.length;
     const confidence: 'high' | 'medium' | 'low' =
       count >= 10 ? 'high' : (count >= 3 ? 'medium' : 'low');
+
+    // Lista dettagliata: solo i match che hanno passato IQR, mantenendo ordine originale (recente prima)
+    const passedIdx = new Set(filteredEntries.map(e => e.matchIdx));
+    const orderedListings = entries
+      .filter(e => passedIdx.has(e.matchIdx))
+      .map(e => {
+        const tail = text.substring(e.matchEnd, e.matchEnd + 100);
+        const dm = tail.match(dateRx);
+        return { price: e.price, date: dm ? dm[1] : undefined };
+      });
+
     out[key] = {
       median,
       count,
-      min: filtered[0],
-      max: filtered[filtered.length - 1],
+      min: filteredPrices[0],
+      max: filteredPrices[filteredPrices.length - 1],
       currency_symbol: dominantSym,
       confidence,
+      listings: orderedListings,
     };
   }
   return out;

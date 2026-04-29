@@ -5923,7 +5923,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='4.5';
+const APP_VERSION='4.6';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -10894,6 +10894,7 @@ var anlCurrentCard = null;
 var anlSearching = false;
 var anlLiveData = {};             // { ebay (sold), ebayActive (asks live), pc, cm, usdEur }
 var anlSourceEnabled = {eb:true, pc:true, cm:true};  // toggle per inclusione media in BOX 2
+var anlPcShowDetail = false;                          // toggle vista PC: aggregata vs dettaglio sold target grade
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
 function anlInitTab(){
@@ -11035,6 +11036,7 @@ window.anlPickCard = function(id){
 function anlSelectCard(card){
   anlCurrentCard = card;
   anlLiveData = {};
+  anlPcShowDetail = false;  // reset toggle su nuova carta
   anlRenderAll(card);
 }
 
@@ -12503,43 +12505,125 @@ function anlRenderPcGradeTable(prices, targetHouse, targetScore){
     return 0;
   });
 
-  var html = '<table>'
-    + '<thead><tr><th></th><th>Casa</th><th>Voto</th><th>Lingua</th><th style="text-align:right">€</th><th style="text-align:center">Sample</th></tr></thead>'
-    + '<tbody>'
-    + rows.map(function(r){
-        var priceVal, priceLabel;
-        if(r.eurFromListings != null){
-          priceVal = r.eurFromListings;
-          priceLabel = '€'+priceVal.toFixed(0);
-          if(r.count > 1) priceLabel += ' <span style="opacity:0.5;font-size:9px">med</span>';
-        } else {
-          priceVal = r.eurFromAggregate;
-          priceLabel = '€'+priceVal.toFixed(0)+' <span style="opacity:0.5;font-size:9px">agg</span>';
-        }
-        var sampleStr = r.eurFromListings != null
-          ? String(r.count || '?')
-          : '<span style="opacity:0.5">agg</span>';
-        // PC è sempre ENG → match al 100% = match casa+voto (la lingua coincide
-        // solo se l'utente cerca ENG, altrimenti perfect match impossibile su PC)
-        var userLangPc = (document.getElementById('anlLang') || {}).value;
-        var isPerfectPc = r.isTarget && (userLangPc==='ENG' || !userLangPc);
-        var arrowCell = isPerfectPc
-          ? '<td class="col-arrow" style="color:var(--accent);font-weight:700;text-align:center;width:18px">▸</td>'
-          : '<td class="col-arrow" style="width:18px"></td>';
-        // PC aggrega esclusivamente sold da eBay US/UK in lingua inglese.
-        return '<tr'+(r.isTarget?' class="match-target"':'')+'>'
-          + arrowCell
-          + '<td class="col-grade">'+r.house+'</td>'
-          + '<td class="col-grade">'+r.score+'</td>'
-          + '<td class="col-grade" style="font-size:10px">🇬🇧 ENG</td>'
-          + '<td class="col-price">'+priceLabel+'</td>'
-          + '<td class="col-count">'+sampleStr+'</td>'
-          + '</tr>';
-      }).join('')
-    + '</tbody></table>';
+  // Trova riga target per detail view e accesso a listings dettagliati
+  var targetRow = rows.filter(function(r){ return r.isTarget; })[0] || null;
+  var targetListings = null;
+  if(targetRow && prices.grades_from_listings){
+    var lk = targetRow.house + '_' + targetRow.score;
+    var L = prices.grades_from_listings[lk];
+    if(L && L.listings && L.listings.length){
+      // Converti prezzi in EUR
+      var sym2 = L.currency_symbol || '$';
+      var convL = function(v){
+        if(v==null) return null;
+        if(sym2==='€') return v;
+        if(sym2==='£') return v*1.17*rate;
+        return v*rate;
+      };
+      targetListings = L.listings.map(function(it){
+        return { priceEur: convL(it.price), date: it.date || null };
+      });
+    }
+  }
+
+  // Header con toggle se ci sono listings dettagliati per il target
+  var headerHtml = '';
+  if(targetListings && targetListings.length){
+    var label = anlPcShowDetail
+      ? '◀ vista per grade'
+      : '▸ dettaglio venduti '+targetRow.house+' '+targetRow.score+' ('+targetListings.length+')';
+    headerHtml = '<div style="display:flex;justify-content:flex-end;padding:4px 6px;border-bottom:1px solid var(--border);background:var(--surface-2,rgba(255,255,255,0.02))">'
+      + '<a onclick="anlTogglePcDetail()" style="cursor:pointer;font-size:10px;color:var(--accent);font-family:var(--mono);text-decoration:none">'+label+'</a>'
+      + '</div>';
+  }
+
+  var html;
+  if(anlPcShowDetail && targetListings && targetListings.length){
+    // ─── VISTA DETTAGLIO: ultime vendite del target grade ──
+    // Ordina per data desc se disponibile, altrimenti mantieni ordine PC (recente prima)
+    var sorted = targetListings.slice();
+    if(sorted.some(function(l){ return l.date; })){
+      sorted.sort(function(a,b){
+        if(!a.date && !b.date) return 0;
+        if(!a.date) return 1;
+        if(!b.date) return -1;
+        // Confronto stringa funziona per ISO; per altri formati ordine PC originale
+        return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0);
+      });
+    }
+    // Calcola trend rispetto alla prima vendita
+    var prices_all = sorted.map(function(l){ return l.priceEur; }).filter(function(p){ return p!=null; });
+    var medianL = prices_all.slice().sort(function(a,b){return a-b;})[Math.floor(prices_all.length/2)];
+
+    html = headerHtml + '<table>'
+      + '<thead><tr><th>#</th><th>Data</th><th style="text-align:right">€</th><th style="text-align:right">vs med</th></tr></thead>'
+      + '<tbody>'
+      + sorted.map(function(l, i){
+          var dateStr = l.date || '<span style="opacity:0.4">—</span>';
+          var deltaStr = '';
+          if(l.priceEur != null && medianL){
+            var d = ((l.priceEur - medianL) / medianL) * 100;
+            var cls = Math.abs(d) < 5 ? 'mute' : (d > 0 ? 'pos' : 'neg');
+            var col = cls==='pos' ? 'var(--success)' : (cls==='neg' ? 'var(--danger)' : 'var(--text-muted)');
+            deltaStr = '<span style="color:'+col+';font-size:9px">'+(d>=0?'+':'')+d.toFixed(0)+'%</span>';
+          }
+          return '<tr>'
+            + '<td class="col-grade" style="opacity:0.5">'+(i+1)+'</td>'
+            + '<td class="col-grade" style="font-size:10px">'+dateStr+'</td>'
+            + '<td class="col-price">€'+(l.priceEur!=null?l.priceEur.toFixed(0):'?')+'</td>'
+            + '<td style="text-align:right;padding-right:6px">'+deltaStr+'</td>'
+            + '</tr>';
+        }).join('')
+      + '</tbody></table>';
+  } else {
+    // ─── VISTA AGGREGATA: tutti i grade (vista corrente) ──
+    html = headerHtml + '<table>'
+      + '<thead><tr><th></th><th>Casa</th><th>Voto</th><th>Lingua</th><th style="text-align:right">€</th><th style="text-align:center">Sample</th></tr></thead>'
+      + '<tbody>'
+      + rows.map(function(r){
+          var priceVal, priceLabel;
+          if(r.eurFromListings != null){
+            priceVal = r.eurFromListings;
+            priceLabel = '€'+priceVal.toFixed(0);
+            if(r.count > 1) priceLabel += ' <span style="opacity:0.5;font-size:9px">med</span>';
+          } else {
+            priceVal = r.eurFromAggregate;
+            priceLabel = '€'+priceVal.toFixed(0)+' <span style="opacity:0.5;font-size:9px">agg</span>';
+          }
+          var sampleStr = r.eurFromListings != null
+            ? String(r.count || '?')
+            : '<span style="opacity:0.5">agg</span>';
+          var userLangPc = (document.getElementById('anlLang') || {}).value;
+          var isPerfectPc = r.isTarget && (userLangPc==='ENG' || !userLangPc);
+          var arrowCell = isPerfectPc
+            ? '<td class="col-arrow" style="color:var(--accent);font-weight:700;text-align:center;width:18px">▸</td>'
+            : '<td class="col-arrow" style="width:18px"></td>';
+          return '<tr'+(r.isTarget?' class="match-target"':'')+'>'
+            + arrowCell
+            + '<td class="col-grade">'+r.house+'</td>'
+            + '<td class="col-grade">'+r.score+'</td>'
+            + '<td class="col-grade" style="font-size:10px">🇬🇧 ENG</td>'
+            + '<td class="col-price">'+priceLabel+'</td>'
+            + '<td class="col-count">'+sampleStr+'</td>'
+            + '</tr>';
+        }).join('')
+      + '</tbody></table>';
+  }
   tblEl.innerHTML = html;
   tblEl.style.display = '';
 }
+
+// Toggle vista PC: aggregata (tutti i grade) ↔ dettaglio (sold target grade)
+window.anlTogglePcDetail = function(){
+  anlPcShowDetail = !anlPcShowDetail;
+  var prices = anlLiveData.pc;
+  if(!prices) return;
+  var graded = anlMode==='graded';
+  if(!graded){ anlPcShowDetail = false; return; }
+  var house = document.getElementById('anlHouse').value;
+  var score = parseFloat(document.getElementById('anlGradeScore').value);
+  anlRenderPcGradeTable(prices, house, score);
+};
 
 // ─── TABELLA CM raggruppata per (house, score, language) ────────────────
 function anlRenderCmGradeTable(gradedListings, targetHouse, targetScore, targetLang){
