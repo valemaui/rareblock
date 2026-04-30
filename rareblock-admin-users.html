@@ -501,13 +501,17 @@ async function loadUsers(){
       try{
         data=await supa('GET',attempts[a][0]+'?select='+attempts[a][1]+'&order=created_at.desc&limit=500');
         if(a>0){
-          console.warn('[admin-users] fallback schema attivo (livello '+a+') — esegui le migration mancanti per features complete');
-          if(a>=2){
-            toast('Migration 015 mancante: alcune funzioni (sospensione, eliminazione) non disponibili','err');
+          console.warn('[admin-users] fallback livello '+a+' attivo. Tentativi precedenti falliti.');
+          if(a>=3){
+            // Solo livello 3 = profiles minimale = davvero senza colonne 015
+            toast('Migration 015 mancante: sospensione/eliminazione non disponibili','err');
           }
         }
         break;
-      }catch(err){ lastErr=err; }
+      }catch(err){
+        lastErr=err;
+        console.warn('[admin-users] tentativo '+a+' ('+attempts[a][0]+') fallito:', err.message);
+      }
     }
     if(!data) throw lastErr || new Error('Caricamento fallito');
 
