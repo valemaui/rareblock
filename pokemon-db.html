@@ -5046,8 +5046,11 @@ const CM_SET_ABBREV={
   'gym1':'GH','gym2':'GC',
   'neo1':'NG','neo2':'ND','neo3':'NR','neo4':'NDE',
   'si1':'SI',
-  // E-Card — verificati
-  'ecard1':'EXP','ecard2':'AQ','ecard3':'SK',
+  // E-Card — verificati. Aquapolis e Skyridge usano pattern V1/V2/no-V
+  // imprevedibile (dipende dalla carta specifica). Expedition usa EX (non EXP)
+  // e ha lo stesso problema V1/V2. Per questo li teniamo OUT da CM_DIRECT_SETS:
+  // l'abbrev serve comunque per il livello 2 (browse + searchString).
+  'ecard1':'EX','ecard2':'AQ','ecard3':'SK',
   // EX series — verificati
   'ex1':'RS','ex2':'SS','ex3':'DR','ex4':'MA','ex5':'HL',
   'ex6':'FL','ex7':'TRR','ex8':'DX','ex9':'EM','ex10':'UF',
@@ -5079,13 +5082,16 @@ const CM_SET_ABBREV={
 
 // Set per cui possiamo costruire URL diretto affidabile
 // Esclusi: DP (livelli), Platinum (livelli), XY-SV (versioni V1/V2/V3)
+// Esclusi anche: ecard1/ecard2/ecard3 (Expedition, Aquapolis, Skyridge):
+//   queste serie usano pattern V1/V2/no-V imprevedibile per carta specifica
+//   (es. Venusaur-V2-EX68 vs Venusaur-EX67 vs Venusaur-V1-EX30 nello stesso set).
+//   Non potendo determinare a priori il prefisso versione, fallback su livello 2
+//   (browse Expedition-Base-Set?searchString=Venusaur 68) che è sempre stabile.
 const CM_DIRECT_SETS = new Set([
   // WotC
   'base1','base2','base3','base4','base5','base6',
   'gym1','gym2',
   'neo1','neo2','neo3','neo4','si1',
-  // E-Card
-  'ecard1','ecard2','ecard3',
   // EX
   'ex1','ex2','ex3','ex4','ex5','ex6','ex7','ex8',
   'ex9','ex10','ex11','ex12','ex13','ex14','ex15','ex16',
