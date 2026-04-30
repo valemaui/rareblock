@@ -181,6 +181,8 @@ textarea{resize:vertical;min-height:60px}
 .badge.grade_hold{background:rgba(248,81,73,.1);color:#ff7b72;border:1px solid rgba(248,81,73,.25)}
 .badge.status-draft{background:var(--surface2);color:var(--text-muted);border:1px solid var(--border)}
 .badge.status-open{background:rgba(63,185,80,.12);color:var(--success);border:1px solid rgba(63,185,80,.25)}
+.badge.status-closing_soon{background:rgba(210,153,34,.14);color:var(--warning);border:1px solid rgba(210,153,34,.4);animation:closingSoonPulse 2.4s ease-in-out infinite}
+@keyframes closingSoonPulse{0%,100%{box-shadow:0 0 0 0 rgba(210,153,34,0)}50%{box-shadow:0 0 0 3px rgba(210,153,34,.12)}}
 .badge.status-closed{background:var(--surface2);color:var(--text-muted);border:1px solid var(--border)}
 .badge.status-liquidated{background:rgba(201,168,76,.12);color:var(--gold);border:1px solid rgba(201,168,76,.25)}
 .badge.status-hold{background:rgba(210,153,34,.1);color:var(--warning);border:1px solid rgba(210,153,34,.25)}
@@ -324,6 +326,7 @@ textarea{resize:vertical;min-height:60px}
   background:rgba(13,17,23,.85);color:#fff;
 }
 .prod-card-status.open{background:var(--success,#3fb950);color:#0d1117}
+.prod-card-status.closing_soon{background:var(--warning,#d29922);color:#0d1117;animation:closingSoonPulse 2s ease-in-out infinite}
 .prod-card-status.draft{background:#7d8590;color:#fff}
 .prod-card-status.closed,.prod-card-status.liquidated{background:#21262d;color:#7d8590}
 
@@ -820,9 +823,11 @@ textarea{resize:vertical;min-height:60px}
         <option value="millesimal">Millesimale</option>
         <option value="grade_hold">Grade &amp; Hold</option>
       </select>
-      <select id="mktStatus" onchange="mktRender()" style="max-width:140px">
-        <option value="open">Aperti</option>
+      <select id="mktStatus" onchange="mktRender()" style="max-width:160px">
+        <option value="purchasable">Acquistabili</option>
         <option value="">Tutti</option>
+        <option value="open">Solo Aperti</option>
+        <option value="closing_soon">In chiusura</option>
         <option value="closed">Chiusi</option>
         <option value="liquidated">Liquidati</option>
       </select>
@@ -1309,11 +1314,18 @@ textarea{resize:vertical;min-height:60px}
           </select>
         </div>
         <div class="field">
-          <label>Status iniziale</label>
+          <label>Stato</label>
           <select id="pmStatus">
             <option value="draft">Bozza</option>
             <option value="open">Aperto</option>
+            <option value="closing_soon">In chiusura</option>
+            <option value="closed">Chiuso</option>
+            <option value="pending_grading">In gradazione</option>
+            <option value="grading_complete">Gradato</option>
+            <option value="hold">Hold</option>
+            <option value="liquidated">Liquidato</option>
           </select>
+          <div style="font-size:10.5px;color:var(--text-subtle);font-family:var(--mono);margin-top:3px">"Aperto" passa automaticamente a "In chiusura" se la data target è entro 7 giorni.</div>
         </div>
         <div class="field">
           <label>Quote totali *</label>
@@ -1677,7 +1689,7 @@ function typeBadge(t){
   return '<span class="badge '+t+'">'+(labels[t]||t)+'</span>';
 }
 function statusBadge(s){
-  var labels = { draft:'Bozza', open:'Aperto', closed:'Chiuso', pending_grading:'Gradazione', grading_complete:'Gradato', hold:'Hold', liquidated:'Liquidato' };
+  var labels = { draft:'Bozza', open:'Aperto', closing_soon:'In chiusura', closed:'Chiuso', pending_grading:'Gradazione', grading_complete:'Gradato', hold:'Hold', liquidated:'Liquidato' };
   return '<span class="badge status-'+s+'">'+(labels[s]||s)+'</span>';
 }
 function payBadge(s){
@@ -1848,6 +1860,8 @@ var _mktStats = {};
 
 async function mktLoad(){
   try {
+    // Auto-promote prodotti aperti < 7gg → closing_soon (best-effort)
+    try { await supa('POST','rpc/refresh_closing_soon', {}); } catch(eRpc){}
     // Prova view con cover photo joinata, fallback su tabella base
     try {
       _mktProducts = (await supa('GET','v_inv_products_with_cover?order=created_at.desc&limit=200')) || [];
@@ -1891,7 +1905,11 @@ function mktRender(){
   var rows   = _mktProducts.filter(function(p){
     if(q && p.name.toLowerCase().indexOf(q)===-1) return false;
     if(type && p.type!==type) return false;
-    if(status && p.status!==status) return false;
+    if(status==='purchasable'){
+      if(p.status!=='open' && p.status!=='closing_soon') return false;
+    } else if(status){
+      if(p.status!==status) return false;
+    }
     return true;
   });
   document.getElementById('mktCount').textContent = rows.length+' prodott'+(rows.length===1?'o':'i');
@@ -1926,8 +1944,8 @@ function mktRender(){
         cdHtml = (d>0?d+'g ':'') + h+'h';
       } else { cdHtml = 'Scaduto'; }
     }
-    var statusLbl = ({open:'Aperto',draft:'Bozza',closed:'Chiuso',liquidated:'Liquidato',pending_grading:'In gradazione',grading_complete:'Gradato',hold:'Hold'})[p.status]||p.status;
-    var canBuy = p.status==='open' && avail>0;
+    var statusLbl = ({open:'Aperto',closing_soon:'In chiusura',draft:'Bozza',closed:'Chiuso',liquidated:'Liquidato',pending_grading:'In gradazione',grading_complete:'Gradato',hold:'Hold'})[p.status]||p.status;
+    var canBuy = (p.status==='open' || p.status==='closing_soon') && avail>0;
     var watched = _mktWatchlist.indexOf(p.id) >= 0;
     var hasDiscount = p.type==='fractional' && Array.isArray(p.discount_tiers) && p.discount_tiers.length>0;
     var maxDisc = hasDiscount ? Math.max.apply(null, p.discount_tiers.map(function(t){return parseFloat(t.discount_pct)||0})) : 0;
@@ -2215,13 +2233,14 @@ async function openProductDetail(pid){
 
   // CTA principale
   var btn = document.getElementById('pdvPlaceBidBtn');
-  if(p.status!=='open'){
+  if(p.status!=='open' && p.status!=='closing_soon'){
     btn.disabled = true;
-    btn.textContent = ({open:'Aperto',draft:'Non disponibile',closed:'Chiuso',liquidated:'Liquidato'})[p.status]||'Non disponibile';
+    btn.textContent = ({open:'Aperto',closing_soon:'In chiusura',draft:'Non disponibile',closed:'Chiuso',liquidated:'Liquidato'})[p.status]||'Non disponibile';
   } else if(avail===0){
     btn.disabled = true; btn.textContent = 'Esaurito';
   } else {
-    btn.disabled = false; btn.textContent = 'Acquista quote';
+    btn.disabled = false;
+    btn.textContent = p.status==='closing_soon' ? 'Acquista (in chiusura)' : 'Acquista quote';
   }
 
   // Watchlist
