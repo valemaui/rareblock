@@ -810,6 +810,24 @@ textarea{resize:vertical;min-height:60px}
           </select>
         </div>
         <div class="field">
+          <label>Categoria prodotto</label>
+          <select id="pmCategory">
+            <option value="">— non specificata —</option>
+            <option value="booster_box">Booster Box</option>
+            <option value="etb">Elite Trainer Box (ETB)</option>
+            <option value="booster_bundle">Booster Bundle</option>
+            <option value="collection_box">Collection Box / Premium</option>
+            <option value="tin">Tin</option>
+            <option value="case">Case (sigillato)</option>
+            <option value="box_break">Box Break</option>
+            <option value="blister">Blister Pack</option>
+            <option value="single_pack">Singola busta</option>
+            <option value="graded_card">Carta gradata</option>
+            <option value="sealed_other">Altro sigillato</option>
+            <option value="other">Altro</option>
+          </select>
+        </div>
+        <div class="field">
           <label>Status iniziale</label>
           <select id="pmStatus">
             <option value="draft">Bozza</option>
@@ -2498,6 +2516,7 @@ function openProductModal(pid){
     document.getElementById('pmTargetDate').value='';
     document.getElementById('pmStorageFee').value='0';
     document.getElementById('pmType').value='full';
+    var pmCat=document.getElementById('pmCategory'); if(pmCat) pmCat.value='';
     document.getElementById('pmStatus').value='draft';
     pmToggleFields();
   } else {
@@ -2514,6 +2533,7 @@ function openProductModal(pid){
       document.getElementById('pmStorageFee').value=p.storage_fee_annual||0;
       document.getElementById('pmHoldYears').value=p.hold_years||'';
       document.getElementById('pmType').value=p.type||'full';
+      var pmCat2=document.getElementById('pmCategory'); if(pmCat2) pmCat2.value=p.category||'';
       document.getElementById('pmStatus').value=p.status||'draft';
       document.getElementById('pmAdminNotes').value=p.admin_notes||'';
       if(p.type==='grade_hold'){ document.getElementById('pmGradingHouse').value=p.grading_house||'PSA'; document.getElementById('pmGradingCost').value=p.grading_cost_estimated||''; }
@@ -2539,6 +2559,8 @@ async function pmSave(){
   var price = parseFloat(document.getElementById('pmPricePerQuote').value)||0;
   if(!price){ setSt('pmSt','Inserisci il prezzo per quota','err'); return; }
   var type = document.getElementById('pmType').value;
+  var pmCatEl = document.getElementById('pmCategory');
+  var category = pmCatEl ? (pmCatEl.value || null) : null;
   var body = {
     name, type,
     status:      document.getElementById('pmStatus').value,
@@ -2554,17 +2576,39 @@ async function pmSave(){
     admin_notes:  document.getElementById('pmAdminNotes').value.trim()||null,
     updated_at:   new Date().toISOString()
   };
+  if(category) body.category = category;
   if(type==='grade_hold'){
     body.grading_house            = document.getElementById('pmGradingHouse').value;
     body.grading_cost_estimated   = parseFloat(document.getElementById('pmGradingCost').value)||null;
   }
   try {
     if(_editProductId){
-      await supa('PATCH','inv_products?id=eq.'+_editProductId, body);
+      try {
+        await supa('PATCH','inv_products?id=eq.'+_editProductId, body);
+      } catch(e1){
+        // Fallback: se colonna category manca (migration 018 non eseguita), riprova senza
+        if(/category/i.test(e1.message) && body.category){
+          delete body.category;
+          await supa('PATCH','inv_products?id=eq.'+_editProductId, body);
+          setSt('pmSt','Aggiornato (categoria non salvata: esegui migration 018)','err');
+          setTimeout(function(){ closeProductModal(); adminLoadProducts(); mktLoad(); },1500);
+          return;
+        } else throw e1;
+      }
       setSt('pmSt','<span class="rb-i rb-i-check"></span> Prodotto aggiornato!','ok');
     } else {
       body.created_by = _session.user.id;
-      await supa('POST','inv_products', body);
+      try {
+        await supa('POST','inv_products', body);
+      } catch(e2){
+        if(/category/i.test(e2.message) && body.category){
+          delete body.category;
+          await supa('POST','inv_products', body);
+          setSt('pmSt','Creato (categoria non salvata: esegui migration 018)','err');
+          setTimeout(function(){ closeProductModal(); adminLoadProducts(); mktLoad(); },1500);
+          return;
+        } else throw e2;
+      }
       setSt('pmSt','<span class="rb-i rb-i-check"></span> Prodotto creato!','ok');
     }
     setTimeout(function(){ closeProductModal(); adminLoadProducts(); mktLoad(); },800);
