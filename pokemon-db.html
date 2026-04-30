@@ -1474,14 +1474,15 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
   </div>
 </div>
 
-<!-- ── ACCESS DENIED — Collector disabilitato per questo utente ── -->
+<!-- ── ACCESS DENIED — utente bloccato (suspended/deleted/no_collector) ── -->
 <div id="accessDenied">
   <div class="ad-logo">RARE<span class="b">BLOCK</span></div>
-  <div class="ad-icon">&#9888;</div>
-  <h1>Area Collector <em>non abilitata</em></h1>
-  <p>Il tuo account non ha accesso all'area Collector di RareBlock.</p>
-  <p>Contatta un amministratore per richiedere l'abilitazione.</p>
+  <div class="ad-icon" id="adIcon">&#9888;</div>
+  <h1 id="adTitle">Accesso <em>non disponibile</em></h1>
+  <p id="adMessage">Il tuo account non ha accesso a quest'area.</p>
+  <p>Contatta un amministratore per chiarimenti.</p>
   <div class="ad-email" id="adUserEmail"></div>
+  <div id="adReason" style="display:none;font-size:12.5px;color:rgba(240,234,216,.45);margin-top:8px;font-style:italic"></div>
   <div class="ad-actions">
     <a href="rareblock-dashboard.html" class="ad-btn ad-btn-primary" id="adGoInvestor" style="display:none">Vai a Investor &rarr;</a>
     <button class="ad-btn ad-btn-ghost" onclick="authLogout()">Esci</button>
@@ -2003,10 +2004,11 @@ async function loadUserProfile(){
     email:u.email,
     role:(ADMIN_EMAILS.indexOf(u.email)>-1?'admin':'investor'),
     can_collector:true,
-    can_investor:true
+    can_investor:true,
+    status:'active'
   };
   try{
-    var r=await fetch(SUPA_URL+'/rest/v1/profiles?id=eq.'+u.id+'&select=id,role,can_collector,can_investor,full_name,email',{headers:getHDR()});
+    var r=await fetch(SUPA_URL+'/rest/v1/profiles?id=eq.'+u.id+'&select=id,role,can_collector,can_investor,full_name,email,status,suspension_reason',{headers:getHDR()});
     if(r.ok){
       var arr=await r.json();
       if(arr&&arr[0]){
@@ -2016,6 +2018,8 @@ async function loadUserProfile(){
         if(typeof p.can_collector==='boolean') prof.can_collector=p.can_collector;
         if(typeof p.can_investor==='boolean')  prof.can_investor=p.can_investor;
         if(p.full_name) prof.full_name=p.full_name;
+        if(p.status) prof.status=p.status;
+        if(p.suspension_reason) prof.suspension_reason=p.suspension_reason;
       }else{
         // Profilo mancante → lo creiamo (best-effort)
         try{
@@ -2029,8 +2033,8 @@ async function loadUserProfile(){
     }
   }catch(e){ console.warn('[profile] load fallback:',e.message); }
 
-  // Email nei founder list → forza admin (failsafe)
-  if(ADMIN_EMAILS.indexOf(u.email)>-1) prof.role='admin';
+  // Email nei founder list → forza admin (failsafe) + sempre attivo
+  if(ADMIN_EMAILS.indexOf(u.email)>-1){ prof.role='admin'; prof.status='active'; }
   // Admin ha sempre tutti i permessi
   if(prof.role==='admin'){ prof.can_collector=true; prof.can_investor=true; }
 
@@ -2064,14 +2068,52 @@ function applyProfileToUI(){
   if(adminLink) adminLink.style.display = (p.role==='admin') ? '' : 'none';
 }
 
-function showAccessDenied(){
+function showAccessDenied(reason){
   var p=window._rbProfile;
   var ad=document.getElementById('accessDenied');
   var emailEl=document.getElementById('adUserEmail');
   var goInv=document.getElementById('adGoInvestor');
+  var titleEl=document.getElementById('adTitle');
+  var msgEl=document.getElementById('adMessage');
+  var iconEl=document.getElementById('adIcon');
+
+  // Configura testo per motivo del blocco
+  var cfg={
+    'suspended':{
+      title:'Account <em>sospeso</em>',
+      msg:'Il tuo account è stato temporaneamente sospeso da un amministratore.',
+      icon:'\u29B8'
+    },
+    'deleted':{
+      title:'Account <em>disattivato</em>',
+      msg:'Il tuo account è stato disattivato. I tuoi dati storici sono conservati.',
+      icon:'\u2716'
+    },
+    'no_collector':{
+      title:'Area Collector <em>non abilitata</em>',
+      msg:'Il tuo account non ha accesso all\'area Collector di RareBlock.',
+      icon:'\u26A0'
+    }
+  };
+  var c=cfg[reason]||cfg['no_collector'];
+  if(titleEl) titleEl.innerHTML=c.title;
+  if(msgEl) msgEl.textContent=c.msg;
+  if(iconEl) iconEl.textContent=c.icon;
+
   if(emailEl && p) emailEl.textContent=p.email||'';
-  if(goInv) goInv.style.display = (p && p.can_investor) ? '' : 'none';
+  // Bottone Investor solo se Collector spento ma Investor abilitato
+  if(goInv) goInv.style.display = (reason==='no_collector' && p && p.can_investor) ? '' : 'none';
   if(ad) ad.classList.add('show');
+
+  // Reason-secondary: motivo sospensione visibile se presente
+  var reasonEl=document.getElementById('adReason');
+  if(reasonEl){
+    if(reason==='suspended' && p && p.suspension_reason){
+      reasonEl.textContent='Motivo: '+p.suspension_reason;
+      reasonEl.style.display='';
+    } else { reasonEl.style.display='none'; }
+  }
+
   // nasconde tutto il resto
   var hdr=document.querySelector('.header');
   if(hdr) hdr.style.display='none';
@@ -6034,8 +6076,13 @@ async function appStart(){
   try{
     var prof=await loadUserProfile();
     applyProfileToUI();
+    // Account sospeso o eliminato → blocca tutto
+    if(prof && (prof.status==='suspended' || prof.status==='deleted')){
+      showAccessDenied(prof.status);
+      return;
+    }
     if(prof && prof.can_collector===false){
-      showAccessDenied();
+      showAccessDenied('no_collector');
       return;
     }
   }catch(e){ console.warn('[appStart] profile error:',e.message); }
@@ -6069,7 +6116,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='5.6';
+const APP_VERSION='5.7';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>RareBlock — Admin · Gestione Utenti</title>
 <meta name="robots" content="noindex,nofollow"/>
-<!-- v1.0.1 — fix loop redirect (rb_auth_session) -->
+<!-- v1.1.0 — edit modal + suspend/delete + status badges -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Montserrat:wght@200;300&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300&display=swap" rel="stylesheet"/>
@@ -160,6 +160,61 @@ tr.detail-row td{background:var(--surface2);padding:14px 18px;border-bottom:1px 
 .expand-btn{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:11px;font-family:var(--mono);padding:3px 6px;border-radius:var(--r);transition:all var(--t-fast)}
 .expand-btn:hover{color:var(--text);background:var(--surface3)}
 .expand-btn.open{color:var(--accent)}
+
+/* STATUS BADGES */
+.status-pill{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-family:var(--mono);font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:20px;border:1px solid;white-space:nowrap}
+.status-pill.active{color:var(--success);border-color:rgba(63,185,80,.4);background:var(--success-soft)}
+.status-pill.suspended{color:var(--warning);border-color:rgba(210,153,34,.4);background:var(--warning-soft)}
+.status-pill.deleted{color:var(--text-subtle);border-color:var(--border);background:var(--surface2)}
+.status-pill::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+
+tr.row-suspended td{opacity:.7}
+tr.row-deleted td{opacity:.45;text-decoration:line-through;text-decoration-color:rgba(125,133,144,.3)}
+tr.row-deleted td.email,tr.row-deleted td.name{text-decoration:line-through}
+
+/* ACTION MENU (kebab) */
+.action-cell{position:relative;width:36px;text-align:center}
+.action-btn{background:none;border:1px solid transparent;color:var(--text-muted);cursor:pointer;font-size:16px;line-height:1;padding:4px 8px;border-radius:var(--r);transition:all var(--t-fast);font-family:var(--mono)}
+.action-btn:hover{background:var(--surface2);border-color:var(--border);color:var(--text)}
+.action-menu{position:absolute;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:0 8px 28px rgba(0,0,0,.5);z-index:50;min-width:180px;padding:4px;display:none}
+.action-menu.show{display:block}
+.action-menu button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:7px 10px;font-size:12.5px;font-family:var(--font);background:none;border:none;border-radius:var(--r);color:var(--text);cursor:pointer;transition:all var(--t-fast)}
+.action-menu button:hover{background:var(--surface2)}
+.action-menu button.danger{color:var(--danger)}
+.action-menu button.danger:hover{background:var(--danger-soft)}
+.action-menu button.warn{color:var(--warning)}
+.action-menu button.warn:hover{background:var(--warning-soft)}
+.action-menu hr{border:none;border-top:1px solid var(--border);margin:4px 0}
+.action-menu-icon{width:14px;font-size:12px;text-align:center;flex-shrink:0;color:var(--text-muted)}
+.action-menu button.danger .action-menu-icon{color:var(--danger)}
+.action-menu button.warn .action-menu-icon{color:var(--warning)}
+
+/* MODAL */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:200;padding:20px;animation:mFade .2s ease}
+.modal-backdrop.show{display:flex}
+@keyframes mFade{from{opacity:0}to{opacity:1}}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);width:100%;max-width:520px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;animation:mUp .25s ease}
+@keyframes mUp{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.modal-title{font-family:var(--serif);font-size:17px;font-weight:300;font-style:italic}
+.modal-close{background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;padding:0;width:28px;height:28px;border-radius:var(--r);transition:all var(--t-fast);font-family:var(--mono);line-height:1}
+.modal-close:hover{background:var(--surface2);color:var(--text)}
+.modal-body{padding:18px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+.modal-footer{padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;background:var(--surface)}
+
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);font-weight:500}
+.field input,.field textarea,.field select{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--font);font-size:13px;padding:8px 11px;outline:none;transition:border-color var(--t-fast),box-shadow var(--t-fast);width:100%}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px var(--accent-soft)}
+.field textarea{min-height:64px;resize:vertical;font-family:var(--font)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field-hint{font-size:10.5px;color:var(--text-subtle);font-family:var(--mono);margin-top:2px}
+.field input[disabled]{opacity:.6;cursor:not-allowed}
+
+.modal.danger .modal-title{color:var(--danger)}
+.modal-info{font-size:12.5px;color:var(--text-muted);line-height:1.6;background:var(--surface2);padding:11px 13px;border-radius:var(--r);border-left:2px solid var(--accent)}
+.modal-info.warn{border-left-color:var(--warning);color:var(--warning)}
+.modal-info.danger{border-left-color:var(--danger);color:var(--danger)}
 </style>
 </head>
 <body>
@@ -200,6 +255,7 @@ tr.detail-row td{background:var(--surface2);padding:14px 18px;border-bottom:1px 
     <div class="stat"><div class="stat-label">Admin</div><div class="stat-value danger" id="statAdmin">—</div></div>
     <div class="stat"><div class="stat-label">Collector attivi</div><div class="stat-value" id="statCollector">—</div></div>
     <div class="stat"><div class="stat-label">Investor attivi</div><div class="stat-value gold" id="statInvestor">—</div></div>
+    <div class="stat"><div class="stat-label">Sospesi / Eliminati</div><div class="stat-value" id="statBlocked">—</div></div>
   </div>
 
   <div class="toolbar">
@@ -218,6 +274,13 @@ tr.detail-row td{background:var(--surface2);padding:14px 18px;border-bottom:1px 
       <option value="inv_only">Solo Investor</option>
       <option value="none">Nessuno</option>
     </select>
+    <select id="statusFilter" onchange="renderTable()">
+      <option value="active_only">Solo attivi</option>
+      <option value="">Tutti gli stati</option>
+      <option value="active">Attivi</option>
+      <option value="suspended">Sospesi</option>
+      <option value="deleted">Eliminati</option>
+    </select>
   </div>
 
   <div class="table-wrap">
@@ -227,21 +290,108 @@ tr.detail-row td{background:var(--surface2);padding:14px 18px;border-bottom:1px 
           <th style="width:30px"></th>
           <th>Email</th>
           <th>Nome</th>
+          <th>Stato</th>
           <th>Ruolo</th>
-          <th style="width:140px">Collector</th>
-          <th style="width:140px">Investor</th>
+          <th style="width:130px">Collector</th>
+          <th style="width:130px">Investor</th>
           <th>Ultimo accesso</th>
-          <th>Creato</th>
+          <th style="width:36px"></th>
         </tr>
       </thead>
       <tbody id="usersBody">
-        <tr><td colspan="8" class="loading-shimmer">Caricamento utenti</td></tr>
+        <tr><td colspan="9" class="loading-shimmer">Caricamento utenti</td></tr>
       </tbody>
     </table>
   </div>
 </main>
 
 <div id="toast"></div>
+
+<!-- ── MODAL: EDIT UTENTE ── -->
+<div class="modal-backdrop" id="modalEdit" onclick="if(event.target===this)closeModal('modalEdit')">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Modifica utente</div>
+      <button class="modal-close" onclick="closeModal('modalEdit')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-info" id="editEmailLabel">—</div>
+      <div class="field">
+        <label>Nome completo</label>
+        <input type="text" id="editFullName" placeholder="Es. Mario Rossi"/>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Telefono</label>
+          <input type="text" id="editPhone" placeholder="+39..."/>
+        </div>
+        <div class="field">
+          <label>Ruolo</label>
+          <select id="editRole">
+            <option value="investor">Investor</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>IBAN (per liquidazioni)</label>
+        <input type="text" id="editIban" placeholder="IT60..."/>
+      </div>
+      <div class="field">
+        <label>Note interne admin</label>
+        <textarea id="editNotes" placeholder="Visibile solo agli admin"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal('modalEdit')">Annulla</button>
+      <button class="btn btn-primary" onclick="saveEdit()" id="editSaveBtn">Salva modifiche</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: SOSPENDI ── -->
+<div class="modal-backdrop" id="modalSuspend" onclick="if(event.target===this)closeModal('modalSuspend')">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Sospendi account</div>
+      <button class="modal-close" onclick="closeModal('modalSuspend')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-info warn">L'utente non potrà accedere al Collector e all'Investor finché non riattivi l'account. I dati e lo storico restano intatti.</div>
+      <div class="modal-info" id="suspendEmailLabel">—</div>
+      <div class="field">
+        <label>Motivo sospensione (opzionale)</label>
+        <textarea id="suspendReason" placeholder="Visibile all'utente quando tenta di accedere"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal('modalSuspend')">Annulla</button>
+      <button class="btn btn-primary" style="background:var(--warning);border-color:var(--warning);color:var(--bg)" onclick="confirmSuspend()" id="suspendBtn">Sospendi</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: ELIMINA (soft) ── -->
+<div class="modal-backdrop" id="modalDelete" onclick="if(event.target===this)closeModal('modalDelete')">
+  <div class="modal danger">
+    <div class="modal-header">
+      <div class="modal-title">Elimina account</div>
+      <button class="modal-close" onclick="closeModal('modalDelete')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-info danger">Eliminazione <b>logica</b>: la riga utente viene mantenuta per preservare riferimenti storici (transazioni, accrual, ownership). L'utente perde l'accesso ma i dati restano consultabili in admin.</div>
+      <div class="modal-info" id="deleteEmailLabel">—</div>
+      <div class="field">
+        <label>Conferma — digita <b>ELIMINA</b> per procedere</label>
+        <input type="text" id="deleteConfirm" placeholder="ELIMINA"/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal('modalDelete')">Annulla</button>
+      <button class="btn btn-primary" style="background:var(--danger);border-color:var(--danger);color:var(--bg)" onclick="confirmDelete()" id="deleteBtn">Elimina account</button>
+    </div>
+  </div>
+</div>
 
 <div id="deniedScreen">
   <h1>Accesso non autorizzato</h1>
@@ -334,19 +484,21 @@ async function loadUsers(){
   var btn=document.getElementById('reloadBtn');
   if(btn){ btn.disabled=true; btn.textContent='Caricamento...'; }
   try{
-    // Prima prova la view v_admin_users (include last_sign_in_at)
     var data=null;
+    var cols='id,email,full_name,role,can_collector,can_investor,iban,phone,notes,status,suspended_at,suspension_reason,deleted_at,created_at,last_sign_in_at,confirmed_at';
     try{
-      data=await supa('GET','v_admin_users?select=id,email,full_name,role,can_collector,can_investor,iban,phone,notes,created_at,last_sign_in_at,confirmed_at&order=created_at.desc&limit=500');
+      data=await supa('GET','v_admin_users?select='+cols+'&order=created_at.desc&limit=500');
     }catch(viewErr){
-      // Fallback: tabella profiles diretta
-      data=await supa('GET','profiles?select=id,email,full_name,role,can_collector,can_investor,iban,phone,notes,created_at&order=created_at.desc&limit=500');
+      // Fallback: tabella profiles diretta (no last_sign_in_at)
+      data=await supa('GET','profiles?select=id,email,full_name,role,can_collector,can_investor,iban,phone,notes,status,suspended_at,suspension_reason,deleted_at,created_at&order=created_at.desc&limit=500');
     }
     _users=data||[];
+    // Default status='active' per righe senza il campo (DB pre-migration 015)
+    _users.forEach(function(u){ if(!u.status) u.status='active'; });
     renderStats();
     renderTable();
   }catch(e){
-    document.getElementById('usersBody').innerHTML='<tr><td colspan="8" class="empty">Errore caricamento: '+esc(e.message)+'</td></tr>';
+    document.getElementById('usersBody').innerHTML='<tr><td colspan="9" class="empty">Errore caricamento: '+esc(e.message)+'</td></tr>';
     toast('Errore: '+e.message,'err');
   }finally{
     if(btn){ btn.disabled=false; btn.textContent='Aggiorna'; }
@@ -356,18 +508,21 @@ async function loadUsers(){
 function renderStats(){
   var total=_users.length;
   var admins=_users.filter(function(u){return u.role==='admin'}).length;
-  var col=_users.filter(function(u){return u.can_collector!==false}).length;
-  var inv=_users.filter(function(u){return u.can_investor!==false}).length;
+  var col=_users.filter(function(u){return u.can_collector!==false && u.status==='active'}).length;
+  var inv=_users.filter(function(u){return u.can_investor!==false && u.status==='active'}).length;
+  var blocked=_users.filter(function(u){return u.status==='suspended'||u.status==='deleted'}).length;
   document.getElementById('statTotal').textContent=total;
   document.getElementById('statAdmin').textContent=admins;
   document.getElementById('statCollector').textContent=col;
   document.getElementById('statInvestor').textContent=inv;
+  document.getElementById('statBlocked').textContent=blocked;
 }
 
 function getFiltered(){
   var q=(document.getElementById('searchInput').value||'').toLowerCase().trim();
   var roleF=document.getElementById('roleFilter').value;
   var permF=document.getElementById('permFilter').value;
+  var statusF=document.getElementById('statusFilter').value;
   return _users.filter(function(u){
     if(q){
       var hay=((u.email||'')+' '+(u.full_name||'')).toLowerCase();
@@ -379,38 +534,48 @@ function getFiltered(){
     if(permF==='col_only'&& !(c&&!i)) return false;
     if(permF==='inv_only'&& !(!c&&i)) return false;
     if(permF==='none'    && !(!c&&!i)) return false;
+    var st=u.status||'active';
+    if(statusF==='active_only' && st!=='active') return false;
+    if(statusF && statusF!=='active_only' && st!==statusF) return false;
     return true;
   });
+}
+
+function statusPill(status){
+  var s=status||'active';
+  var labels={active:'Attivo',suspended:'Sospeso',deleted:'Eliminato'};
+  return '<span class="status-pill '+s+'">'+(labels[s]||s)+'</span>';
 }
 
 function renderTable(){
   var rows=getFiltered();
   var body=document.getElementById('usersBody');
   if(!rows.length){
-    body.innerHTML='<tr><td colspan="8" class="empty">Nessun utente corrisponde ai filtri</td></tr>';
+    body.innerHTML='<tr><td colspan="9" class="empty">Nessun utente corrisponde ai filtri</td></tr>';
     return;
   }
   var html=rows.map(function(u){
+    var st=u.status||'active';
     var c=u.can_collector!==false, i=u.can_investor!==false;
     var isAdmin=u.role==='admin';
     var isMe=_session&&_session.user&&u.id===_session.user.id;
-    var lockedAttr=isAdmin?'disabled':''; // ruolo admin = entrambi i permessi sempre on
+    // Lock toggle se admin (sempre tutto on) o se utente non attivo (incoerente con stato)
+    var lockedAttr=(isAdmin || st!=='active') ? 'disabled' : '';
     var meTag=isMe?' <span style="color:var(--gold);font-size:9px;letter-spacing:.08em;text-transform:uppercase">tu</span>':'';
     var expanded=_expanded[u.id]?'open':'';
+    var rowClass = st==='suspended' ? 'row-suspended' : (st==='deleted' ? 'row-deleted' : '');
+
     var rowHtml=''
-      + '<tr data-uid="'+esc(u.id)+'">'
+      + '<tr data-uid="'+esc(u.id)+'" class="'+rowClass+'">'
       +   '<td><button class="expand-btn '+expanded+'" onclick="toggleRow(\''+esc(u.id)+'\')" title="Dettagli">'+(_expanded[u.id]?'&#9662;':'&#9656;')+'</button></td>'
       +   '<td class="email" title="'+esc(u.email)+'">'+esc(u.email||'—')+meTag+'</td>'
       +   '<td class="name '+(u.full_name?'':'empty')+'">'+esc(u.full_name||'(non impostato)')+'</td>'
-      +   '<td>'
-      +     '<span class="role-pill '+(isAdmin?'admin':'investor')+'" '
-      +     'onclick="cycleRole(\''+esc(u.id)+'\')" title="'+(isMe?'Non puoi cambiare il tuo ruolo':'Click per cambiare')+'" '
-      +     (isMe?'style="cursor:not-allowed;opacity:.6"':'')+'>'+esc(u.role||'—')+'</span>'
-      +   '</td>'
+      +   '<td>'+statusPill(st)+'</td>'
+      +   '<td><span class="role-pill '+(isAdmin?'admin':'investor')+'">'+esc(u.role||'—')+'</span></td>'
       +   '<td>'+permCell(u,'can_collector',c,lockedAttr)+'</td>'
       +   '<td>'+permCell(u,'can_investor',i,lockedAttr)+'</td>'
       +   '<td class="date">'+fmtDateTime(u.last_sign_in_at)+'</td>'
-      +   '<td class="date">'+fmtDate(u.created_at)+'</td>'
+      +   '<td class="action-cell">'+actionMenuHtml(u,isMe)+'</td>'
       + '</tr>';
     if(_expanded[u.id]){
       rowHtml+=detailRow(u);
@@ -418,6 +583,32 @@ function renderTable(){
     return rowHtml;
   }).join('');
   body.innerHTML=html;
+}
+
+function actionMenuHtml(u, isMe){
+  var st=u.status||'active';
+  var open=_openMenu===u.id;
+  var menu=''
+    + '<button class="action-btn" onclick="toggleMenu(\''+esc(u.id)+'\',event)" title="Azioni">&#x22EE;</button>'
+    + '<div class="action-menu '+(open?'show':'')+'" id="menu-'+esc(u.id)+'">'
+    +   '<button onclick="openEdit(\''+esc(u.id)+'\')"><span class="action-menu-icon">&#9998;</span> Modifica dati</button>';
+
+  if(!isMe){
+    if(st==='active'){
+      menu += '<button class="warn" onclick="openSuspend(\''+esc(u.id)+'\')"><span class="action-menu-icon">&#9209;</span> Sospendi</button>';
+    } else if(st==='suspended'){
+      menu += '<button onclick="reactivate(\''+esc(u.id)+'\')"><span class="action-menu-icon">&#9658;</span> Riattiva</button>';
+    } else if(st==='deleted'){
+      menu += '<button onclick="reactivate(\''+esc(u.id)+'\')"><span class="action-menu-icon">&#8634;</span> Ripristina</button>';
+    }
+
+    if(st!=='deleted'){
+      menu += '<hr><button class="danger" onclick="openDelete(\''+esc(u.id)+'\')"><span class="action-menu-icon">&#10006;</span> Elimina account</button>';
+    }
+  }
+
+  menu += '</div>';
+  return menu;
 }
 
 function permCell(u, field, value, lockedAttr){
@@ -433,15 +624,24 @@ function permCell(u, field, value, lockedAttr){
 }
 
 function detailRow(u){
+  var extras='';
+  if(u.status==='suspended' && u.suspended_at){
+    extras += '<div class="detail-field" style="margin-top:10px"><label>Sospeso il</label><div class="val">'+fmtDateTime(u.suspended_at)+(u.suspension_reason?' &mdash; '+esc(u.suspension_reason):'')+'</div></div>';
+  }
+  if(u.status==='deleted' && u.deleted_at){
+    extras += '<div class="detail-field" style="margin-top:10px"><label>Eliminato il</label><div class="val">'+fmtDateTime(u.deleted_at)+'</div></div>';
+  }
   return '<tr class="detail-row">'
-       +   '<td colspan="8">'
+       +   '<td colspan="9">'
        +     '<div class="detail-grid">'
        +       '<div class="detail-field"><label>UUID</label><div class="val">'+esc(u.id)+'</div></div>'
        +       '<div class="detail-field"><label>Telefono</label><div class="val '+(u.phone?'':'empty')+'">'+esc(u.phone||'(vuoto)')+'</div></div>'
        +       '<div class="detail-field"><label>IBAN</label><div class="val '+(u.iban?'':'empty')+'">'+esc(u.iban||'(vuoto)')+'</div></div>'
+       +       '<div class="detail-field"><label>Creato</label><div class="val">'+fmtDate(u.created_at)+'</div></div>'
        +       '<div class="detail-field"><label>Email confermata</label><div class="val">'+(u.confirmed_at?fmtDate(u.confirmed_at):'<span class="empty">no</span>')+'</div></div>'
        +     '</div>'
-       +     (u.notes?'<div class="detail-field" style="margin-top:10px"><label>Note</label><div class="val" style="font-family:var(--font);white-space:pre-wrap">'+esc(u.notes)+'</div></div>':'')
+       +     extras
+       +     (u.notes?'<div class="detail-field" style="margin-top:10px"><label>Note interne</label><div class="val" style="font-family:var(--font);white-space:pre-wrap">'+esc(u.notes)+'</div></div>':'')
        +   '</td>'
        + '</tr>';
 }
@@ -451,14 +651,23 @@ function toggleRow(uid){
   renderTable();
 }
 
+// ───── ACTION MENU ─────
+var _openMenu=null;
+function toggleMenu(uid, ev){
+  if(ev){ ev.stopPropagation(); }
+  _openMenu = (_openMenu===uid) ? null : uid;
+  renderTable();
+}
+document.addEventListener('click', function(){
+  if(_openMenu){ _openMenu=null; renderTable(); }
+});
+
 async function togglePerm(uid, field, value){
-  // Optimistic update
   var u=_users.find(function(x){return x.id===uid});
   if(!u) return;
   var prev=u[field];
   u[field]=value;
   renderStats();
-
   try{
     var patch={}; patch[field]=value;
     await supa('PATCH','profiles?id=eq.'+uid,patch);
@@ -471,31 +680,172 @@ async function togglePerm(uid, field, value){
   }
 }
 
-async function cycleRole(uid){
+// ───── EDIT MODAL ─────
+var _editingUid=null;
+function openEdit(uid){
+  _openMenu=null;
   var u=_users.find(function(x){return x.id===uid});
   if(!u) return;
-  // Niente self-demotion
-  if(_session && _session.user && uid===_session.user.id){
-    toast('Non puoi cambiare il tuo ruolo','err');
+  _editingUid=uid;
+  document.getElementById('editEmailLabel').textContent=u.email||'—';
+  document.getElementById('editFullName').value=u.full_name||'';
+  document.getElementById('editPhone').value=u.phone||'';
+  document.getElementById('editIban').value=u.iban||'';
+  document.getElementById('editNotes').value=u.notes||'';
+  var roleSel=document.getElementById('editRole');
+  roleSel.value=u.role||'investor';
+  // Niente self-demote
+  var isMe=_session&&_session.user&&uid===_session.user.id;
+  roleSel.disabled=isMe;
+  openModal('modalEdit');
+}
+
+async function saveEdit(){
+  if(!_editingUid) return;
+  var u=_users.find(function(x){return x.id===_editingUid});
+  if(!u) return;
+  var btn=document.getElementById('editSaveBtn');
+  btn.disabled=true; btn.textContent='Salvataggio...';
+  var patch={
+    full_name: document.getElementById('editFullName').value.trim()||null,
+    phone:     document.getElementById('editPhone').value.trim()||null,
+    iban:      document.getElementById('editIban').value.trim()||null,
+    notes:     document.getElementById('editNotes').value.trim()||null,
+  };
+  var newRole=document.getElementById('editRole').value;
+  var isMe=_session&&_session.user&&_editingUid===_session.user.id;
+  if(!isMe && newRole && newRole!==u.role) patch.role=newRole;
+  try{
+    await supa('PATCH','profiles?id=eq.'+_editingUid,patch);
+    Object.assign(u,patch);
+    closeModal('modalEdit');
+    renderTable(); renderStats();
+    toast('Utente aggiornato','ok');
+  }catch(e){
+    toast('Errore: '+e.message,'err');
+  }finally{
+    btn.disabled=false; btn.textContent='Salva modifiche';
+  }
+}
+
+// ───── SUSPEND ─────
+var _suspendUid=null;
+function openSuspend(uid){
+  _openMenu=null;
+  if(_session&&_session.user&&uid===_session.user.id){ toast('Non puoi sospendere te stesso','err'); return; }
+  var u=_users.find(function(x){return x.id===uid});
+  if(!u) return;
+  _suspendUid=uid;
+  document.getElementById('suspendEmailLabel').textContent=u.email||'—';
+  document.getElementById('suspendReason').value='';
+  openModal('modalSuspend');
+}
+
+async function confirmSuspend(){
+  if(!_suspendUid) return;
+  var u=_users.find(function(x){return x.id===_suspendUid});
+  if(!u) return;
+  var reason=document.getElementById('suspendReason').value.trim()||null;
+  var btn=document.getElementById('suspendBtn');
+  btn.disabled=true; btn.textContent='Sospensione...';
+  try{
+    await supa('PATCH','profiles?id=eq.'+_suspendUid,{status:'suspended', suspension_reason:reason});
+    u.status='suspended'; u.suspension_reason=reason; u.suspended_at=new Date().toISOString();
+    closeModal('modalSuspend');
+    renderTable(); renderStats();
+    toast('Utente sospeso','ok');
+  }catch(e){
+    toast('Errore: '+e.message,'err');
+  }finally{
+    btn.disabled=false; btn.textContent='Sospendi';
+  }
+}
+
+// ───── DELETE (soft) ─────
+var _deleteUid=null;
+function openDelete(uid){
+  _openMenu=null;
+  if(_session&&_session.user&&uid===_session.user.id){ toast('Non puoi eliminare te stesso','err'); return; }
+  var u=_users.find(function(x){return x.id===uid});
+  if(!u) return;
+  _deleteUid=uid;
+  document.getElementById('deleteEmailLabel').textContent=u.email||'—';
+  document.getElementById('deleteConfirm').value='';
+  openModal('modalDelete');
+}
+
+async function confirmDelete(){
+  if(!_deleteUid) return;
+  var input=document.getElementById('deleteConfirm').value.trim();
+  if(input!=='ELIMINA'){
+    toast('Digita ELIMINA per confermare','err');
     return;
   }
-  var newRole = u.role==='admin' ? 'investor' : 'admin';
-  if(!confirm('Cambia ruolo di '+(u.email||uid.substring(0,8))+' a '+newRole.toUpperCase()+'?')) return;
-
-  var prev=u.role;
-  u.role=newRole;
-  renderTable();
-  renderStats();
+  var u=_users.find(function(x){return x.id===_deleteUid});
+  if(!u) return;
+  var btn=document.getElementById('deleteBtn');
+  btn.disabled=true; btn.textContent='Eliminazione...';
   try{
-    await supa('PATCH','profiles?id=eq.'+uid,{role:newRole});
-    toast('Ruolo aggiornato a '+newRole.toUpperCase(),'ok');
+    // Soft delete: status=deleted + revoca permessi
+    await supa('PATCH','profiles?id=eq.'+_deleteUid,{status:'deleted', can_collector:false, can_investor:false});
+    u.status='deleted'; u.can_collector=false; u.can_investor=false; u.deleted_at=new Date().toISOString();
+    closeModal('modalDelete');
+    renderTable(); renderStats();
+    toast('Account eliminato (soft)','ok');
   }catch(e){
-    u.role=prev;
-    renderTable();
-    renderStats();
+    toast('Errore: '+e.message,'err');
+  }finally{
+    btn.disabled=false; btn.textContent='Elimina account';
+  }
+}
+
+// ───── REACTIVATE ─────
+async function reactivate(uid){
+  _openMenu=null;
+  var u=_users.find(function(x){return x.id===uid});
+  if(!u) return;
+  var verb = u.status==='deleted' ? 'Ripristinare' : 'Riattivare';
+  if(!confirm(verb+' '+(u.email||uid.substring(0,8))+'?')) return;
+  var prev={status:u.status, can_collector:u.can_collector, can_investor:u.can_investor};
+  try{
+    var patch={status:'active'};
+    // Se era stato deleted, ripristiniamo anche i permessi a true
+    if(u.status==='deleted'){ patch.can_collector=true; patch.can_investor=true; }
+    await supa('PATCH','profiles?id=eq.'+uid,patch);
+    u.status='active'; u.suspension_reason=null;
+    if(patch.can_collector!==undefined) u.can_collector=true;
+    if(patch.can_investor!==undefined) u.can_investor=true;
+    renderTable(); renderStats();
+    toast('Utente riattivato','ok');
+  }catch(e){
     toast('Errore: '+e.message,'err');
   }
 }
+
+// ───── MODAL HELPERS ─────
+function openModal(id){
+  document.getElementById(id).classList.add('show');
+  // Focus primo input
+  setTimeout(function(){
+    var first=document.querySelector('#'+id+' input:not([disabled]),#'+id+' textarea');
+    if(first) first.focus();
+  },50);
+}
+function closeModal(id){
+  document.getElementById(id).classList.remove('show');
+  if(id==='modalEdit') _editingUid=null;
+  if(id==='modalSuspend') _suspendUid=null;
+  if(id==='modalDelete') _deleteUid=null;
+}
+// ESC chiude modali
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape'){
+    ['modalEdit','modalSuspend','modalDelete'].forEach(function(id){
+      var m=document.getElementById(id);
+      if(m && m.classList.contains('show')) closeModal(id);
+    });
+  }
+});
 
 window.addEventListener('DOMContentLoaded', init);
 </script>

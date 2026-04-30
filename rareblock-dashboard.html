@@ -1087,7 +1087,7 @@ async function onSession(data){
 
   // Load/create profile
   try {
-    var profiles = await supa('GET','profiles?id=eq.'+user.id+'&select=id,full_name,role,can_collector,can_investor,iban,phone,notes');
+    var profiles = await supa('GET','profiles?id=eq.'+user.id+'&select=id,full_name,role,can_collector,can_investor,iban,phone,notes,status,suspension_reason');
     _profile = profiles && profiles[0];
     if(!_profile){
       var initialRole = _isAdmin ? 'admin' : 'investor';
@@ -1096,11 +1096,25 @@ async function onSession(data){
       } catch(e2) {
         try { await supa('POST','profiles',{ id:user.id, role:initialRole }); } catch(e3){}
       }
-      try { var p2 = await supa('GET','profiles?id=eq.'+user.id+'&select=id,full_name,role,can_collector,can_investor'); _profile = p2&&p2[0]; } catch(e4){}
+      try { var p2 = await supa('GET','profiles?id=eq.'+user.id+'&select=id,full_name,role,can_collector,can_investor,status'); _profile = p2&&p2[0]; } catch(e4){}
     }
     if(_profile && _profile.role==='admin') _isAdmin = true;
     else if(_profile && _profile.role && _profile.role!=='admin') _isAdmin = false;
   } catch(e){ console.warn('profile non-fatal:', e.message); }
+
+  // Gate status: account sospeso o eliminato → blocca tutto (admin esclusi per failsafe)
+  if(_profile && (_profile.status==='suspended'||_profile.status==='deleted') && !_isAdmin){
+    var st=_profile.status;
+    var titleMsg = st==='suspended' ? 'Account sospeso' : 'Account disattivato';
+    var bodyMsg  = st==='suspended'
+      ? 'Il tuo account è stato temporaneamente sospeso da un amministratore.'
+      : 'Il tuo account è stato disattivato. I tuoi dati storici sono conservati.';
+    var reasonHtml = (st==='suspended' && _profile.suspension_reason)
+      ? '<div style="color:rgba(125,133,144,.7);margin-top:8px;font-style:italic;font-size:12.5px">Motivo: '+(_profile.suspension_reason).replace(/[<>&]/g,'')+'</div>'
+      : '';
+    document.body.innerHTML = '<div style="position:fixed;inset:0;background:#0d1117;color:#e6edf3;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Figtree,system-ui,sans-serif;padding:40px;text-align:center"><div style="font-family:Montserrat;font-size:18px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:36px">RARE<span style="color:#c9a84c">BLOCK</span></div><div style="font-family:Fraunces,Georgia,serif;font-size:26px;font-style:italic;font-weight:300;margin-bottom:14px">'+titleMsg+'</div><p style="color:#7d8590;max-width:420px;line-height:1.6;font-size:14px">'+bodyMsg+'</p><div style="font-family:IBM Plex Mono,monospace;color:#c9a84c;margin-top:14px;font-size:12px">'+user.email+'</div>'+reasonHtml+'<button onclick="doLogout()" style="margin-top:32px;padding:10px 22px;background:transparent;color:#7d8590;border:1px solid #30363d;border-radius:2px;cursor:pointer;font-family:inherit;text-transform:uppercase;letter-spacing:.12em;font-size:11px">Esci</button></div>';
+    return;
+  }
 
   // Gate Investor: se can_investor è esplicitamente false e non admin → redirect Collector
   if(_profile && _profile.can_investor === false && !_isAdmin){
