@@ -82,6 +82,13 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ── 5. View admin: lista utenti con ultimo accesso ───────────────────
+-- Garantisce presenza colonne opzionali (potrebbero mancare se la migration
+-- 005 non è stata eseguita o è stata modificata):
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS iban       TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone      TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS notes      TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS full_name  TEXT;
+
 DROP VIEW IF EXISTS v_admin_users;
 CREATE VIEW v_admin_users
 WITH (security_invoker = true)
