@@ -246,6 +246,7 @@ tr.row-deleted td.email,tr.row-deleted td.name{text-decoration:line-through}
       <div class="page-sub">Abilita o disabilita le aree Collector e Investor per ciascun utente. I permessi vengono applicati al prossimo login dell'utente.</div>
     </div>
     <div style="display:flex;gap:8px">
+      <button class="btn" onclick="resetFilters()" id="resetFiltersBtn" title="Pulisci ricerca e filtri">Reset filtri</button>
       <button class="btn" onclick="loadUsers()" id="reloadBtn">Aggiorna</button>
     </div>
   </div>
@@ -564,6 +565,14 @@ function getFiltered(){
   });
 }
 
+function resetFilters(){
+  document.getElementById('searchInput').value='';
+  document.getElementById('roleFilter').value='';
+  document.getElementById('permFilter').value='';
+  document.getElementById('statusFilter').value='active_only';
+  renderTable();
+}
+
 function statusPill(status){
   var s=status||'active';
   var labels={active:'Attivo',suspended:'Sospeso',deleted:'Eliminato'};
@@ -729,21 +738,42 @@ async function saveEdit(){
   if(!u) return;
   var btn=document.getElementById('editSaveBtn');
   btn.disabled=true; btn.textContent='Salvataggio...';
-  var patch={
-    full_name: document.getElementById('editFullName').value.trim()||null,
-    phone:     document.getElementById('editPhone').value.trim()||null,
-    iban:      document.getElementById('editIban').value.trim()||null,
-    notes:     document.getElementById('editNotes').value.trim()||null,
-  };
+  // Costruisci patch SOLO con campi effettivamente cambiati
+  var patch={};
+  var newFullName = document.getElementById('editFullName').value.trim();
+  var newPhone    = document.getElementById('editPhone').value.trim();
+  var newIban     = document.getElementById('editIban').value.trim();
+  var newNotes    = document.getElementById('editNotes').value.trim();
+  if((newFullName||null) !== (u.full_name||null)) patch.full_name = newFullName||null;
+  if((newPhone||null)    !== (u.phone||null))     patch.phone     = newPhone||null;
+  if((newIban||null)     !== (u.iban||null))      patch.iban      = newIban||null;
+  if((newNotes||null)    !== (u.notes||null))     patch.notes     = newNotes||null;
+
   var newRole=document.getElementById('editRole').value;
   var isMe=_session&&_session.user&&_editingUid===_session.user.id;
   if(!isMe && newRole && newRole!==u.role) patch.role=newRole;
+
+  if(Object.keys(patch).length===0){
+    closeModal('modalEdit');
+    btn.disabled=false; btn.textContent='Salva modifiche';
+    toast('Nessuna modifica','ok');
+    return;
+  }
+
   try{
     await supa('PATCH','profiles?id=eq.'+_editingUid,patch);
-    Object.assign(u,patch);
     closeModal('modalEdit');
-    renderTable(); renderStats();
-    toast('Utente aggiornato','ok');
+    var savedUid=_editingUid;
+    // Reload completo: garantisce coerenza con eventuali trigger DB e
+    // filtri di ricerca attivi (es. cambio ruolo + filtro per ruolo)
+    await loadUsers();
+    // Se dopo il reload l'utente non è più visibile (filtri attivi), avvisa
+    var visible = getFiltered().some(function(x){ return x.id===savedUid; });
+    if(!visible){
+      toast('Utente aggiornato — non visibile con filtri attivi. Premi "Reset filtri".','ok');
+    } else {
+      toast('Utente aggiornato','ok');
+    }
   }catch(e){
     toast('Errore: '+e.message,'err');
   }finally{
