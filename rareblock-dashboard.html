@@ -576,6 +576,13 @@ textarea{resize:vertical;min-height:60px}
   transition:all var(--t-fast);
 }
 .pdv-quick-bid:hover{background:#21262d;border-color:var(--gold,#c9a84c)}
+.pdv-quick-bid.active{
+  background:rgba(201,168,76,.10);
+  border-color:var(--gold,#c9a84c);
+  color:var(--gold,#c9a84c);
+  box-shadow:0 0 0 1px var(--gold,#c9a84c) inset;
+}
+.pdv-quick-bid.active:hover{background:rgba(201,168,76,.15)}
 
 .pdv-or-divider{
   text-align:center;
@@ -2222,7 +2229,7 @@ async function openProductDetail(pid){
     } else {
       priceLabel = '€'+fmt2(calc.net);
     }
-    return '<button class="pdv-quick-bid" onclick="pdvSetQty('+n+')">'+label+'<br>'+priceLabel+'</button>';
+    return '<button class="pdv-quick-bid" data-qty="'+n+'" onclick="pdvSetQty('+n+')">'+label+'<br>'+priceLabel+'</button>';
   }).join('');
 
   // Input acquisto
@@ -2338,6 +2345,15 @@ function pdvSetQty(n){
   pdvUpdatePreview();
 }
 
+// Evidenzia il quick-bid corrispondente alla quantità corrente
+function pdvSyncQuickBidActive(){
+  var q = parseInt(document.getElementById('pdvBidQty').value)||0;
+  document.querySelectorAll('#pdvQuickBids .pdv-quick-bid').forEach(function(b){
+    var bq = parseInt(b.getAttribute('data-qty'))||0;
+    b.classList.toggle('active', bq===q);
+  });
+}
+
 function pdvUpdatePreview(){
   if(!_pdvProduct) return;
   var q = parseInt(document.getElementById('pdvBidQty').value)||0;
@@ -2353,6 +2369,7 @@ function pdvUpdatePreview(){
   if(sumBox){
     sumBox.innerHTML = renderDiscountSummary(_pdvDiscTiers, q);
   }
+  pdvSyncQuickBidActive();
 }
 
 function pdvPlaceBuy(){
