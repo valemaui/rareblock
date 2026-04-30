@@ -2618,7 +2618,7 @@ function mktRender(){
           +(bidsCount>0?'<span class="prod-card-history" data-action="history">Show bid history</span>':'<span></span>')
         +'</div>'
       +'</div>'
-      +'<button class="prod-card-cta" '+(canBuy?'':'disabled')+' data-action="'+(canBuy?'buy':'')+'">'
+      +'<button class="prod-card-cta" '+(canBuy?'data-action="buy"':'disabled')+'>'
         +(canBuy?'Acquista quote':statusLbl)
       +'</button>'
     +'</div>';
@@ -2628,13 +2628,19 @@ function mktRender(){
 // Click delegato sulla card: separa azioni in base a data-action del target
 function mktCardClick(event, pid){
   var target = event.target;
-  // Risali al primo elemento con data-action o al limite della card
+  // Se è un bottone disabled, ignora tutto (non aprire nemmeno il detail)
+  var btn = target.closest ? target.closest('button') : null;
+  if(btn && btn.disabled){
+    event.stopPropagation();
+    return;
+  }
+  // Risali al primo elemento con data-action
   var actionEl = target.closest ? target.closest('[data-action]') : null;
   if(actionEl){
     event.stopPropagation();
     var action = actionEl.getAttribute('data-action');
     if(action === 'buy'){
-      if(!actionEl.disabled) openBuyModal(pid);
+      openBuyModal(pid);
     } else if(action === 'watch'){
       mktToggleWatch(pid, actionEl);
     } else if(action === 'history'){
@@ -2673,77 +2679,89 @@ var BANK_DETAILS = {
 };
 
 async function openBuyModal(pid){
-  _buyProduct = _mktProducts.find(function(p){ return p.id===pid; });
-  if(!_buyProduct) return;
-  _coOrder = null;
-  _coStep = 1;
-
-  var st = _mktStats[pid] || { available_quotes: _buyProduct.total_quotes };
-  var avail = Math.max(0, _buyProduct.total_quotes - (st.sold_quotes||0));
-
-  document.getElementById('buyModalTitle').textContent = 'Acquista — '+_buyProduct.name;
-
-  // Reset campi
-  document.getElementById('coQty').max = avail;
-  document.getElementById('coQty').value = Math.min(1, avail);
-  document.getElementById('coAvailable').textContent = avail+' / '+_buyProduct.total_quotes+' '+(_buyProduct.quote_unit||'quote');
-  document.getElementById('coNotes').value = '';
-  document.getElementById('coBankRef').value = '';
-  ['coBillName','coBillEmail','coBillPhone','coBillFC','coBillVAT','coBillPEC','coBillSDI','coBillAddress','coBillCity','coBillZip'].forEach(function(id){
-    var el = document.getElementById(id); if(el) el.value='';
-  });
-  document.getElementById('coBillCountry').value = 'IT';
-  document.getElementById('coCheckoutErr').innerHTML = '';
-
-  // Pre-fill da profilo se esiste
-  if(_profile){
-    if(_profile.full_name) document.getElementById('coBillName').value = _profile.full_name;
-    if(_profile.phone)     document.getElementById('coBillPhone').value = _profile.phone;
-  }
-  if(_session && _session.user && _session.user.email){
-    document.getElementById('coBillEmail').value = _session.user.email;
-  }
-  // Ripristina dati fatturazione salvati localmente da ordini precedenti
   try {
-    var saved = JSON.parse(localStorage.getItem('rb_billing')||'null');
-    if(saved){
-      ['coBillName','coBillEmail','coBillPhone','coBillFC','coBillVAT','coBillPEC','coBillSDI','coBillAddress','coBillCity','coBillZip','coBillCountry'].forEach(function(id){
-        var k = id.replace('coBill','').toLowerCase();
-        if(saved[k]){
-          var el = document.getElementById(id);
-          if(el && !el.value) el.value = saved[k];
-        }
-      });
-      if(saved.is_company){
-        coBillToggle('company');
-        var radio = document.querySelector('input[name="billType"][value="company"]');
-        if(radio) radio.checked = true;
-      }
+    _buyProduct = _mktProducts.find(function(p){ return p.id===pid; });
+    if(!_buyProduct){ alert('Prodotto non trovato'); return; }
+    _coOrder = null;
+    _coStep = 1;
+    _buyDiscTiers = [];
+
+    var st = _mktStats[pid] || { available_quotes: _buyProduct.total_quotes };
+    var avail = Math.max(0, _buyProduct.total_quotes - (st.sold_quotes||0));
+
+    document.getElementById('buyModalTitle').textContent = 'Acquista — '+_buyProduct.name;
+
+    // Reset campi
+    document.getElementById('coQty').max = avail;
+    document.getElementById('coQty').value = Math.min(1, avail);
+    document.getElementById('coAvailable').textContent = avail+' / '+_buyProduct.total_quotes+' '+(_buyProduct.quote_unit||'quote');
+    document.getElementById('coNotes').value = '';
+    document.getElementById('coBankRef').value = '';
+    ['coBillName','coBillEmail','coBillPhone','coBillFC','coBillVAT','coBillPEC','coBillSDI','coBillAddress','coBillCity','coBillZip'].forEach(function(id){
+      var el = document.getElementById(id); if(el) el.value='';
+    });
+    document.getElementById('coBillCountry').value = 'IT';
+    document.getElementById('coCheckoutErr').innerHTML = '';
+
+    // Pre-fill da profilo se esiste
+    if(_profile){
+      if(_profile.full_name) document.getElementById('coBillName').value = _profile.full_name;
+      if(_profile.phone)     document.getElementById('coBillPhone').value = _profile.phone;
     }
-  } catch(e){}
+    if(_session && _session.user && _session.user.email){
+      document.getElementById('coBillEmail').value = _session.user.email;
+    }
+    // Ripristina dati fatturazione salvati localmente
+    try {
+      var saved = JSON.parse(localStorage.getItem('rb_billing')||'null');
+      if(saved){
+        ['coBillName','coBillEmail','coBillPhone','coBillFC','coBillVAT','coBillPEC','coBillSDI','coBillAddress','coBillCity','coBillZip','coBillCountry'].forEach(function(id){
+          var k = id.replace('coBill','').toLowerCase();
+          if(saved[k]){
+            var el = document.getElementById(id);
+            if(el && !el.value) el.value = saved[k];
+          }
+        });
+        if(saved.is_company){
+          coBillToggle('company');
+          var radio = document.querySelector('input[name="billType"][value="company"]');
+          if(radio) radio.checked = true;
+        }
+      }
+    } catch(e){}
 
-  // Carica tier sconto
-  _buyDiscTiers = [];
-  if(_buyProduct.type==='fractional'){
-    _buyDiscTiers = await loadDiscountTiers(pid);
+    // Card prodotto
+    var coverUrl = _buyProduct.cover_photo_url || _buyProduct.image_url || '';
+    document.getElementById('coProductCard').innerHTML =
+        '<div class="co-product-img">'
+      +   (coverUrl?'<img src="'+esc(coverUrl)+'"/>':'<span class="rb-i rb-i-package" style="color:var(--text-subtle)"></span>')
+      + '</div>'
+      + '<div style="flex:1">'
+      +   '<div class="co-product-name">'+esc(_buyProduct.name)+'</div>'
+      +   '<div class="co-product-meta">'+typeBadge(_buyProduct.type)+statusBadge(_buyProduct.status)+'</div>'
+      +   '<div class="co-product-price">€'+fmt2(_buyProduct.price_per_quote)+' / '+(_buyProduct.quote_unit||'quota')
+      +     (_buyProduct.estimated_value?' · valore stimato €'+fmt2(_buyProduct.estimated_value):'')+'</div>'
+      + '</div>';
+
+    coUpdateTotals();
+    coGotoStep(1);
+
+    // APRI subito — il modal è ready
+    document.getElementById('buyModalBg').classList.add('show');
+
+    // Carica tier sconto in background, NON blocca apertura
+    if(_buyProduct.type==='fractional'){
+      loadDiscountTiers(pid).then(function(tiers){
+        _buyDiscTiers = tiers || [];
+        coUpdateTotals();
+      }).catch(function(e){
+        console.warn('discount tiers load failed:', e && e.message);
+      });
+    }
+  } catch(err){
+    console.error('openBuyModal error:', err);
+    alert('Errore apertura checkout: '+(err && err.message ? err.message : err));
   }
-
-  // Card prodotto
-  var coverUrl = _buyProduct.cover_photo_url || _buyProduct.image_url || '';
-  document.getElementById('coProductCard').innerHTML =
-      '<div class="co-product-img">'
-    +   (coverUrl?'<img src="'+esc(coverUrl)+'"/>':'<span class="rb-i rb-i-package" style="color:var(--text-subtle)"></span>')
-    + '</div>'
-    + '<div style="flex:1">'
-    +   '<div class="co-product-name">'+esc(_buyProduct.name)+'</div>'
-    +   '<div class="co-product-meta">'+typeBadge(_buyProduct.type)+statusBadge(_buyProduct.status)+'</div>'
-    +   '<div class="co-product-price">€'+fmt2(_buyProduct.price_per_quote)+' / '+(_buyProduct.quote_unit||'quota')
-    +     (_buyProduct.estimated_value?' · valore stimato €'+fmt2(_buyProduct.estimated_value):'')+'</div>'
-    + '</div>';
-
-  coUpdateTotals();
-  coGotoStep(1);
-  document.getElementById('buyModalBg').classList.add('show');
 }
 
 function closeBuyModal(){
