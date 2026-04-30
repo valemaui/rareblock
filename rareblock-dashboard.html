@@ -2596,16 +2596,16 @@ function mktRender(){
     var hasDiscount = p.type==='fractional' && Array.isArray(p.discount_tiers) && p.discount_tiers.length>0;
     var maxDisc = hasDiscount ? Math.max.apply(null, p.discount_tiers.map(function(t){return parseFloat(t.discount_pct)||0})) : 0;
 
-    return '<div class="prod-card" data-pid="'+esc(p.id)+'" onclick="mktCardClick(event,\''+p.id+'\')">'
-      +(hasDiscount?'<div class="prod-card-discount-badge" title="Sconto fino a '+fmt2(maxDisc)+'% per acquisti multipli">−'+fmt2(maxDisc)+'%</div>':'')
-      +'<button class="prod-card-watch '+(watched?'active':'')+'" data-action="watch" title="Aggiungi ai preferiti">'+(watched?'&#9733;':'&#9734;')+'</button>'
-      +'<div class="prod-card-img">'
+    return '<div class="prod-card">'
+      +(hasDiscount?'<div class="prod-card-discount-badge" title="Sconto fino a '+fmt2(maxDisc)+'%">−'+fmt2(maxDisc)+'%</div>':'')
+      +'<button type="button" class="prod-card-watch '+(watched?'active':'')+'" onclick="mktToggleWatch(\''+p.id+'\',this)" title="Preferiti">'+(watched?'&#9733;':'&#9734;')+'</button>'
+      +'<div class="prod-card-img" onclick="openProductDetail(\''+p.id+'\')" style="cursor:pointer">'
         +'<span class="prod-card-status '+esc(p.status)+'">'+statusLbl+'</span>'
-        +(coverUrl?'<img src="'+esc(coverUrl)+'" loading="lazy" onerror="this.style.display=\'none\'"/>'
+        +(coverUrl?'<img src="'+esc(coverUrl)+'" loading="lazy"/>'
           :'<span><span class="rb-i rb-i-package"></span></span>')
         +(phCount>1?'<div class="prod-card-photo-count">'+phCount+' foto</div>':'')
       +'</div>'
-      +'<div class="prod-card-body">'
+      +'<div class="prod-card-body" onclick="openProductDetail(\''+p.id+'\')" style="cursor:pointer">'
         +(lotNum?'<div class="prod-card-lot">Lot #'+lotNum+'</div>':'')
         +'<div class="prod-card-name">'+esc(p.name)+'</div>'
         +'<div class="prod-card-divider"></div>'
@@ -2615,12 +2615,13 @@ function mktRender(){
         +'</div>'
         +'<div class="prod-card-bottom">'
           +(cdHtml?'<span class="prod-card-countdown'+(cdUrgent?' urgent':'')+'">'+cdHtml+'</span>':'<span></span>')
-          +(bidsCount>0?'<span class="prod-card-history" data-action="history">Show bid history</span>':'<span></span>')
+          +'<span></span>'
         +'</div>'
       +'</div>'
-      +'<button class="prod-card-cta" '+(canBuy?'data-action="buy"':'disabled')+'>'
-        +(canBuy?'Acquista quote':statusLbl)
-      +'</button>'
+      +(canBuy
+        ? '<button type="button" class="prod-card-cta" onclick="openBuyModal(\''+p.id+'\')">Acquista quote</button>'
+        : '<button type="button" class="prod-card-cta" disabled>'+statusLbl+'</button>'
+      )
     +'</div>';
   }).join('');
 }
