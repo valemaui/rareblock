@@ -1054,13 +1054,98 @@ textarea{resize:vertical;min-height:60px}
 .market-wrap{flex:1;overflow-y:auto;padding:20px 24px;display:flex;gap:20px}
 .market-left{flex:1}
 .market-right{width:320px;flex-shrink:0}
-.offer-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px}
-.offer-card-top{display:flex;justify-content:space-between;align-items:flex-start}
+.offer-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px;transition:border-color var(--t-fast)}
+.offer-card:hover{border-color:var(--border-strong)}
+.offer-card.reserved{border-color:rgba(210,153,34,.4);background:rgba(210,153,34,.04)}
+.offer-card.payment_pending{border-color:rgba(88,166,255,.35);background:rgba(88,166,255,.04)}
+.offer-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
 .offer-product{font-size:13px;font-weight:600}
-.offer-seller{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
-.offer-price{font-size:18px;font-weight:600;font-family:var(--mono);color:var(--gold)}
-.offer-qty{font-size:12px;color:var(--text-muted)}
-.offer-actions{display:flex;gap:6px}
+.offer-seller{font-size:11px;color:var(--text-muted);font-family:var(--mono);margin-top:2px}
+.offer-price{font-size:18px;font-weight:600;font-family:var(--mono);color:var(--gold);text-align:right}
+.offer-qty{font-size:12px;color:var(--text-muted);text-align:right;margin-top:2px}
+.offer-actions{display:flex;gap:6px;flex-wrap:wrap}
+.offer-status-pill{
+  display:inline-flex;align-items:center;
+  font-size:9.5px;font-family:var(--mono);font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;
+  padding:3px 8px;border-radius:20px;
+  border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);
+  white-space:nowrap;
+}
+.offer-status-pill.reserved{background:rgba(210,153,34,.1);color:var(--warning);border-color:rgba(210,153,34,.3)}
+.offer-status-pill.payment_pending{background:rgba(88,166,255,.08);color:var(--accent);border-color:rgba(88,166,255,.25)}
+.offer-status-pill.completed{background:rgba(63,185,80,.1);color:var(--success);border-color:rgba(63,185,80,.25)}
+.offer-deadline{
+  font-size:11px;font-family:var(--mono);
+  color:var(--warning);
+  display:flex;align-items:center;gap:4px;
+}
+
+/* ═══ CHECKOUT MODAL (vendita peer-to-peer) ═══ */
+.chk-stepper{display:flex;align-items:center;gap:6px;margin-bottom:14px;padding:0 4px}
+.chk-step{flex:1;display:flex;align-items:center;gap:6px;font-size:11px;font-family:var(--mono);color:var(--text-subtle);font-weight:500;letter-spacing:.04em;text-transform:uppercase}
+.chk-step-num{width:22px;height:22px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0}
+.chk-step.active{color:var(--text)}
+.chk-step.active .chk-step-num{background:var(--gold);color:var(--bg);border-color:var(--gold)}
+.chk-step.done{color:var(--success)}
+.chk-step.done .chk-step-num{background:var(--success-soft,rgba(63,185,80,.15));color:var(--success);border-color:var(--success)}
+.chk-step-line{flex-shrink:0;width:14px;height:1px;background:var(--border)}
+.chk-step.done + .chk-step-line{background:var(--success)}
+
+.chk-summary{
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:14px 16px;
+  display:flex;flex-direction:column;gap:8px;
+}
+.chk-summary-row{display:flex;justify-content:space-between;align-items:baseline;font-size:13px}
+.chk-summary-row.total{padding-top:10px;border-top:1px solid var(--border);font-size:15px;font-weight:600}
+.chk-summary-label{color:var(--text-muted)}
+.chk-summary-value{font-family:var(--mono);color:var(--text)}
+.chk-summary-value.gold{color:var(--gold);font-weight:600}
+
+.chk-bonifico-box{
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-left:3px solid var(--gold);
+  border-radius:var(--r);
+  padding:14px 16px;
+  font-size:12.5px;
+}
+.chk-bonifico-title{
+  font-size:10.5px;font-family:var(--mono);font-weight:600;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--gold);
+  margin-bottom:10px;
+}
+.chk-bonifico-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-family:var(--mono);font-size:12px}
+.chk-bonifico-row .lbl{color:var(--text-muted);font-size:11px}
+.chk-bonifico-row .val{color:var(--text);user-select:all;cursor:text}
+.chk-bonifico-copy{
+  background:transparent;border:1px solid var(--border);
+  color:var(--text-muted);font-size:10px;font-family:var(--mono);
+  padding:3px 8px;border-radius:3px;cursor:pointer;
+  transition:all var(--t-fast);margin-left:8px;
+}
+.chk-bonifico-copy:hover{border-color:var(--gold);color:var(--gold)}
+
+.chk-warning{
+  background:rgba(210,153,34,.08);
+  border:1px solid rgba(210,153,34,.3);
+  border-radius:var(--r);
+  padding:10px 12px;
+  font-size:11.5px;font-family:var(--font);
+  color:var(--warning);
+  display:flex;align-items:flex-start;gap:8px;
+  line-height:1.55;
+}
+.chk-countdown{
+  font-family:var(--mono);font-weight:600;
+  color:var(--warning);font-size:13px;
+  text-align:center;padding:8px;
+  background:var(--surface2);border-radius:var(--r);
+  margin-top:6px;
+}
 
 /* ═══ ADMIN ═══ */
 .admin-wrap{flex:1;overflow:hidden;display:flex}
@@ -2017,6 +2102,105 @@ textarea{resize:vertical;min-height:60px}
     <div class="modal-footer">
       <button class="btn" onclick="closeSellModal()">Annulla</button>
       <button class="btn primary" onclick="sellConfirm()"><span class="rb-i rb-i-megaphone"></span> Pubblica offerta</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── CHECKOUT MODAL — Acquisto offerta peer-to-peer ── -->
+<div class="modal-bg" id="checkoutModalBg" onclick="if(event.target===this)closeCheckoutModal()">
+  <div class="modal lg">
+    <div class="modal-head">
+      <h3 id="checkoutTitle">Acquista quote — Mercato secondario</h3>
+      <button class="modal-close" onclick="closeCheckoutModal()"><span class="rb-i rb-i-x"></span></button>
+    </div>
+    <div class="modal-body">
+      <!-- Stepper -->
+      <div class="chk-stepper">
+        <div class="chk-step active" id="chkStep1"><span class="chk-step-num">1</span> Riepilogo</div>
+        <div class="chk-step-line"></div>
+        <div class="chk-step" id="chkStep2"><span class="chk-step-num">2</span> Pagamento</div>
+        <div class="chk-step-line"></div>
+        <div class="chk-step" id="chkStep3"><span class="chk-step-num">3</span> Conferma</div>
+      </div>
+
+      <!-- STEP 1: Riepilogo -->
+      <div id="chkPanel1">
+        <div id="chkProductBlock" style="margin-bottom:12px"></div>
+        <div class="chk-summary" id="chkSummary"></div>
+        <div class="chk-warning" style="margin-top:12px">
+          <span class="rb-i rb-i-warn" style="flex-shrink:0;margin-top:1px"></span>
+          <div>
+            Cliccando <b>Prenota offerta</b> blocchi le quote per il tuo acquisto per <b>48 ore</b>.
+            Riceverai i dati per il bonifico bancario al passo successivo.
+            Se non completi il pagamento entro 48h, la prenotazione si annulla automaticamente.
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2: Bonifico -->
+      <div id="chkPanel2" style="display:none">
+        <div class="chk-summary" id="chkSummary2"></div>
+        <div class="chk-bonifico-box" style="margin-top:12px">
+          <div class="chk-bonifico-title">Coordinate bonifico</div>
+          <div class="chk-bonifico-row">
+            <span class="lbl">Beneficiario</span>
+            <span class="val">RareBlock S.r.l.</span>
+          </div>
+          <div class="chk-bonifico-row">
+            <span class="lbl">IBAN</span>
+            <span class="val" id="chkIban">IT60 X054 2811 1010 0000 0123 456</span>
+            <button class="chk-bonifico-copy" onclick="chkCopy('chkIban')">Copia</button>
+          </div>
+          <div class="chk-bonifico-row">
+            <span class="lbl">Importo</span>
+            <span class="val gold" id="chkAmount">€0,00</span>
+          </div>
+          <div class="chk-bonifico-row">
+            <span class="lbl">Causale</span>
+            <span class="val" id="chkCausal">RBK-SEC-XXXXXXXX</span>
+            <button class="chk-bonifico-copy" onclick="chkCopy('chkCausal')">Copia</button>
+          </div>
+        </div>
+        <div class="chk-countdown" id="chkCountdown">Tempo rimanente: 47h 59m</div>
+        <div class="field" style="margin-top:14px">
+          <label>Riferimento bonifico (CRO/TRN)</label>
+          <input type="text" id="chkPaymentRef" placeholder="Es. CRO 1234567890"/>
+          <div style="font-size:10.5px;color:var(--text-subtle);font-family:var(--mono);margin-top:4px">Inserisci il numero CRO/TRN ricevuto dalla tua banca dopo aver eseguito il bonifico.</div>
+        </div>
+        <div class="field" style="margin-top:8px">
+          <label>Note (opzionale)</label>
+          <textarea id="chkBuyerNotes" placeholder="Eventuali comunicazioni per l'admin" style="height:50px"></textarea>
+        </div>
+      </div>
+
+      <!-- STEP 3: Conferma -->
+      <div id="chkPanel3" style="display:none;text-align:center;padding:18px 0">
+        <div style="width:64px;height:64px;border-radius:50%;background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.3);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:var(--success);font-size:30px">&#10004;</div>
+        <h4 style="font-family:var(--serif,Fraunces),Georgia,serif;font-size:20px;font-weight:300;font-style:italic;margin-bottom:10px">Pagamento registrato</h4>
+        <p style="color:var(--text-muted);font-size:13px;line-height:1.6;max-width:420px;margin:0 auto">L'admin verificherà il bonifico in arrivo entro 24-48h e trasferirà ufficialmente le quote sul tuo account.</p>
+        <p style="color:var(--text-muted);font-size:12px;font-family:var(--mono);margin-top:12px" id="chkSuccessRef"></p>
+      </div>
+
+      <div id="chkSt"></div>
+    </div>
+    <div class="modal-footer" id="chkFooter">
+      <!-- Step 1 footer -->
+      <div id="chkFooter1" style="display:flex;gap:8px;justify-content:flex-end;width:100%">
+        <button class="btn" onclick="closeCheckoutModal()">Annulla</button>
+        <button class="btn primary" onclick="chkReserve()" id="chkReserveBtn"><span class="rb-i rb-i-cart"></span> Prenota offerta</button>
+      </div>
+      <!-- Step 2 footer -->
+      <div id="chkFooter2" style="display:none;gap:8px;justify-content:space-between;width:100%;align-items:center">
+        <button class="btn danger sm" onclick="chkCancelReservation()">Annulla prenotazione</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn" onclick="chkBackToStep1()">Indietro</button>
+          <button class="btn primary" onclick="chkSubmitPayment()" id="chkSubmitBtn"><span class="rb-i rb-i-check"></span> Ho effettuato il bonifico</button>
+        </div>
+      </div>
+      <!-- Step 3 footer -->
+      <div id="chkFooter3" style="display:none;justify-content:center;width:100%">
+        <button class="btn primary" onclick="closeCheckoutModal()">Chiudi</button>
+      </div>
     </div>
   </div>
 </div>
@@ -3577,14 +3761,24 @@ var _myHoldingsForSell = [];
 
 async function marketLoad(){
   try {
-    _allTransfers = (await supa('GET','inv_transfers?status=eq.open&order=created_at.desc'))||[];
+    // Best-effort: auto-expire reservations scadute prima di caricare
+    try { await supa('POST','rpc/expire_stale_reservations', {}); } catch(eRpc){}
+    // Carica offerte open + le mie reserved/payment_pending (sia come seller che buyer)
+    var uid = _session && _session.user && _session.user.id;
+    if(uid){
+      // Query in OR: open OR seller_id=me OR buyer_id=me
+      // PostgREST: usa or= filter
+      _allTransfers = (await supa('GET','inv_transfers?or=(status.eq.open,seller_id.eq.'+uid+',buyer_id.eq.'+uid+')&order=created_at.desc'))||[];
+    } else {
+      _allTransfers = (await supa('GET','inv_transfers?status=eq.open&order=created_at.desc'))||[];
+    }
   } catch(e){ _allTransfers=[]; }
   marketRender();
   // Populate sell product selector
   if(_session){
-    var uid = _session.user&&_session.user.id;
-    if(uid){
-      try{ _myHoldingsForSell = (await supa('GET','inv_holdings?user_id=eq.'+uid))||[]; }catch(e){}
+    var uid2 = _session.user&&_session.user.id;
+    if(uid2){
+      try{ _myHoldingsForSell = (await supa('GET','inv_holdings?user_id=eq.'+uid2))||[]; }catch(e){}
     }
   }
 }
@@ -3593,33 +3787,86 @@ function marketRender(){
   var list   = document.getElementById('offersList');
   var myList = document.getElementById('myOffersList');
   document.getElementById('offersCount').textContent = '('+_allTransfers.length+')';
-  if(!_allTransfers.length){
+
+  // Mostra solo offerte in stato 'open' nella lista pubblica
+  var openTransfers = _allTransfers.filter(function(t){return t.status==='open'});
+
+  if(!openTransfers.length){
     list.innerHTML='<div class="empty-state"><div class="icon"><span class="rb-i rb-i-swap"></span></div><h3>Nessuna offerta attiva</h3><p>Sii il primo a proporre le tue quote</p></div>';
   } else {
-    list.innerHTML = _allTransfers.map(function(t){
+    list.innerHTML = openTransfers.map(function(t){
       var p = _mktProducts.find(function(x){ return x.id===t.product_id; });
       var isMine = _session && _session.user && t.seller_id===_session.user.id;
+      var total = (parseFloat(t.ask_price)||0) * (t.qty||0);
       return '<div class="offer-card">'
         +'<div class="offer-card-top">'
-          +'<div><div class="offer-product">'+(p?esc(p.name):'Prodotto')+'</div>'
-          +'<div class="offer-seller">da '+esc(t.seller_id&&t.seller_id.slice(0,8))+'…'+(t.notes?' · '+esc(t.notes):'')+'</div></div>'
-          +'<div><div class="offer-price">€'+fmt2(t.ask_price)+'/q</div><div class="offer-qty">'+t.qty+' quote</div></div>'
+          +'<div style="flex:1;min-width:0">'
+            +'<div class="offer-product">'+(p?esc(p.name):'Prodotto')+'</div>'
+            +'<div class="offer-seller">Venditore #'+esc(t.seller_id&&t.seller_id.slice(0,8).toUpperCase())+(t.notes?' · '+esc(t.notes):'')+'</div>'
+          +'</div>'
+          +'<div style="flex-shrink:0">'
+            +'<div class="offer-price">€'+fmt2(t.ask_price)+'/q</div>'
+            +'<div class="offer-qty">'+t.qty+' quote · €'+fmt2(total)+'</div>'
+          +'</div>'
         +'</div>'
         +(t.expires_at?'<div style="font-size:11px;color:var(--text-muted);font-family:var(--mono)">Scade: '+fmtDate(t.expires_at)+'</div>':'')
         +'<div class="offer-actions">'
-          +(!isMine?'<button class="btn primary sm" onclick="showTab(\'tx\')">Contatta &amp; Acquista</button>':'<span style="font-size:11px;color:var(--text-muted)">Tua offerta</span>')
+          +(!isMine
+            ?'<button class="btn primary sm" onclick="openCheckout(\''+t.id+'\')"><span class="rb-i rb-i-cart"></span> Acquista</button>'
+            :'<span class="offer-status-pill">Tua offerta</span>'
+          )
           +(isMine?'<button class="btn danger sm" onclick="cancelTransfer(\''+t.id+'\')">Cancella</button>':'')
         +'</div>'
       +'</div>';
     }).join('');
   }
+
+  // Le tue offerte: include anche stati reserved/payment_pending
   var myOffers = _session ? _allTransfers.filter(function(t){ return _session.user&&t.seller_id===_session.user.id; }) : [];
-  myList.innerHTML = myOffers.length
-    ? myOffers.map(function(t){
-        var p=_mktProducts.find(function(x){return x.id===t.product_id;});
-        return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px;margin-bottom:8px;font-size:12px"><div style="font-weight:500">'+(p?esc(p.name):'?')+'</div><div style="font-family:var(--mono);color:var(--gold)">€'+fmt2(t.ask_price)+'×'+t.qty+' = €'+(t.ask_price*t.qty).toFixed(2)+'</div></div>';
-      }).join('')
-    : '<div style="color:var(--text-muted);font-size:12px">Nessuna offerta attiva</div>';
+  // Aggiungi anche le offerte come buyer (prenotazioni in corso)
+  var myAsBuyer = _session ? _allTransfers.filter(function(t){ return _session.user&&t.buyer_id===_session.user.id; }) : [];
+
+  var myHtml = '';
+  if(myOffers.length){
+    myHtml += '<div style="font-size:10.5px;font-family:var(--mono);color:var(--text-subtle);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Vendite in corso</div>';
+    myHtml += myOffers.map(function(t){
+      var p=_mktProducts.find(function(x){return x.id===t.product_id;});
+      var statusLbl = ({open:'Aperta',reserved:'Prenotata',payment_pending:'In attesa pagamento',completed:'Completata'})[t.status]||t.status;
+      return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px;margin-bottom:8px;font-size:12px">'
+        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'
+          +'<div style="flex:1;min-width:0">'
+            +'<div style="font-weight:500">'+(p?esc(p.name):'?')+'</div>'
+            +'<div style="font-family:var(--mono);color:var(--gold)">€'+fmt2(t.ask_price)+'×'+t.qty+' = €'+(t.ask_price*t.qty).toFixed(2)+'</div>'
+          +'</div>'
+          +'<span class="offer-status-pill '+esc(t.status)+'">'+statusLbl+'</span>'
+        +'</div>'
+      +'</div>';
+    }).join('');
+  }
+  if(myAsBuyer.length){
+    myHtml += '<div style="font-size:10.5px;font-family:var(--mono);color:var(--text-subtle);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px">Acquisti in corso</div>';
+    myHtml += myAsBuyer.map(function(t){
+      var p=_mktProducts.find(function(x){return x.id===t.product_id;});
+      var statusLbl = ({reserved:'Prenotato',payment_pending:'Pagamento inviato',completed:'Completato'})[t.status]||t.status;
+      var canOpen = t.status==='reserved' || t.status==='payment_pending';
+      var hint = '';
+      if(t.status==='reserved') hint = 'Click per completare il pagamento &rarr;';
+      else if(t.status==='payment_pending') hint = 'In attesa verifica admin';
+      return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px;margin-bottom:8px;font-size:12px;cursor:'+(canOpen?'pointer':'default')+'" '
+        +(canOpen?'onclick="openCheckout(\''+t.id+'\')"':'')+'>'
+        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'
+          +'<div style="flex:1;min-width:0">'
+            +'<div style="font-weight:500">'+(p?esc(p.name):'?')+'</div>'
+            +'<div style="font-family:var(--mono);color:var(--gold)">€'+fmt2(t.ask_price*t.qty)+' · '+t.qty+' quote</div>'
+          +'</div>'
+          +'<span class="offer-status-pill '+esc(t.status)+'">'+statusLbl+'</span>'
+        +'</div>'
+        +(hint?'<div style="font-size:10.5px;color:var(--accent);margin-top:6px;font-family:var(--mono)">'+hint+'</div>':'')
+      +'</div>';
+    }).join('');
+  }
+  if(!myHtml) myHtml = '<div style="color:var(--text-muted);font-size:12px">Nessuna offerta attiva</div>';
+  myList.innerHTML = myHtml;
 }
 
 function openSellModal(){
@@ -3676,6 +3923,232 @@ function closeSellModal(){ document.getElementById('sellModalBg').classList.remo
 async function cancelTransfer(id){
   if(!confirm('Cancellare questa offerta?')) return;
   try{ await supa('PATCH','inv_transfers?id=eq.'+id,{status:'cancelled'}); marketLoad(); }catch(e){ alert(e.message); }
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  CHECKOUT MODAL — Acquisto offerta peer-to-peer (3 step)
+//  open → reserve → submit_payment → completed (lato admin)
+// ═══════════════════════════════════════════════════════════
+var _chkTransfer = null;          // offerta corrente
+var _chkProduct = null;
+var _chkCountdownTimer = null;
+
+function openCheckout(transferId){
+  if(!_session){ alert('Accedi per acquistare'); return; }
+  _chkTransfer = _allTransfers.find(function(t){return t.id===transferId});
+  if(!_chkTransfer){ alert('Offerta non trovata'); return; }
+  _chkProduct = _mktProducts.find(function(p){return p.id===_chkTransfer.product_id});
+
+  // Determina step iniziale dallo stato corrente
+  var uid = _session.user && _session.user.id;
+  var isBuyer = _chkTransfer.buyer_id === uid;
+  if(_chkTransfer.status === 'open'){
+    chkShowStep(1);
+  } else if(_chkTransfer.status === 'payment_pending' && isBuyer){
+    // Bonifico già dichiarato → mostra success in attesa di verifica admin
+    chkShowStep(3);
+    document.getElementById('chkSuccessRef').textContent = _chkTransfer.buyer_payment_ref ? 'Riferimento: '+_chkTransfer.buyer_payment_ref : '';
+  } else if(_chkTransfer.status === 'reserved' && isBuyer){
+    // Resume al passo bonifico
+    chkShowStep(2);
+  } else {
+    alert('Offerta non più disponibile per checkout');
+    return;
+  }
+
+  chkRenderSummary();
+  document.getElementById('chkSt').innerHTML = '';
+  document.getElementById('checkoutModalBg').classList.add('show');
+}
+
+function closeCheckoutModal(){
+  document.getElementById('checkoutModalBg').classList.remove('show');
+  if(_chkCountdownTimer){ clearInterval(_chkCountdownTimer); _chkCountdownTimer=null; }
+  _chkTransfer = null;
+  _chkProduct = null;
+  marketLoad(); // refresh la lista al chiudi
+}
+
+function chkShowStep(n){
+  ['chkPanel1','chkPanel2','chkPanel3'].forEach(function(id, i){
+    var el = document.getElementById(id);
+    if(el) el.style.display = (i+1===n) ? '' : 'none';
+  });
+  ['chkFooter1','chkFooter2','chkFooter3'].forEach(function(id, i){
+    var el = document.getElementById(id);
+    if(el) el.style.display = (i+1===n) ? 'flex' : 'none';
+  });
+  // Stepper
+  for(var s=1; s<=3; s++){
+    var el = document.getElementById('chkStep'+s);
+    if(!el) continue;
+    el.classList.remove('active','done');
+    if(s < n) el.classList.add('done');
+    else if(s === n) el.classList.add('active');
+  }
+
+  if(n===2){
+    chkRenderBonifico();
+    chkStartCountdown();
+  } else if(_chkCountdownTimer){
+    clearInterval(_chkCountdownTimer);
+    _chkCountdownTimer = null;
+  }
+}
+
+function chkRenderSummary(){
+  if(!_chkTransfer) return;
+  var p = _chkProduct;
+  var t = _chkTransfer;
+  var total = (parseFloat(t.ask_price)||0) * (t.qty||0);
+
+  var productHtml = '<div style="display:flex;gap:12px;align-items:flex-start">'
+    +(p && (p.cover_photo_url||p.image_url)
+      ?'<img src="'+esc(p.cover_photo_url||p.image_url)+'" style="width:64px;height:64px;object-fit:contain;background:#f4f4f0;border-radius:4px;padding:4px;flex-shrink:0"/>':'')
+    +'<div style="flex:1;min-width:0">'
+      +'<div style="font-size:14px;font-weight:600;margin-bottom:4px">'+(p?esc(p.name):'Prodotto')+'</div>'
+      +'<div style="font-size:11px;color:var(--text-muted);font-family:var(--mono)">Venditore #'+esc(t.seller_id&&t.seller_id.slice(0,8).toUpperCase())+' · Mercato secondario</div>'
+      +(t.notes?'<div style="font-size:12px;color:var(--text-muted);margin-top:4px;font-style:italic">"'+esc(t.notes)+'"</div>':'')
+    +'</div>'
+  +'</div>';
+
+  var summaryHtml = ''
+    + '<div class="chk-summary-row"><span class="chk-summary-label">Quote</span><span class="chk-summary-value">'+t.qty+' '+(p&&p.quote_unit?p.quote_unit:'quote')+'</span></div>'
+    + '<div class="chk-summary-row"><span class="chk-summary-label">Prezzo per quota</span><span class="chk-summary-value">€'+fmt2(t.ask_price)+'</span></div>'
+    + '<div class="chk-summary-row total"><span>Totale da pagare</span><span class="chk-summary-value gold">€'+fmt2(total)+'</span></div>';
+
+  document.getElementById('chkProductBlock').innerHTML = productHtml;
+  document.getElementById('chkSummary').innerHTML = summaryHtml;
+  document.getElementById('chkSummary2').innerHTML = productHtml + '<hr style="border:none;border-top:1px solid var(--border);margin:10px 0"/>' + summaryHtml;
+}
+
+function chkRenderBonifico(){
+  if(!_chkTransfer) return;
+  var t = _chkTransfer;
+  var total = (parseFloat(t.ask_price)||0) * (t.qty||0);
+  var causal = 'RBK-SEC-'+t.id.slice(0,8).toUpperCase();
+  document.getElementById('chkAmount').textContent = '€'+fmt2(total);
+  document.getElementById('chkCausal').textContent = causal;
+  document.getElementById('chkPaymentRef').value = t.buyer_payment_ref||'';
+  document.getElementById('chkBuyerNotes').value = t.buyer_notes||'';
+}
+
+function chkStartCountdown(){
+  if(_chkCountdownTimer) clearInterval(_chkCountdownTimer);
+  var update = function(){
+    if(!_chkTransfer || !_chkTransfer.payment_due_at){
+      document.getElementById('chkCountdown').textContent = '';
+      return;
+    }
+    var ms = new Date(_chkTransfer.payment_due_at).getTime() - Date.now();
+    var el = document.getElementById('chkCountdown');
+    if(ms <= 0){
+      el.textContent = 'Prenotazione scaduta';
+      el.style.color = 'var(--danger)';
+      clearInterval(_chkCountdownTimer);
+      return;
+    }
+    var h = Math.floor(ms/3600000);
+    var m = Math.floor((ms%3600000)/60000);
+    var s = Math.floor((ms%60000)/1000);
+    el.textContent = 'Tempo rimanente per il pagamento: '+h+'h '+m+'m '+s+'s';
+  };
+  update();
+  _chkCountdownTimer = setInterval(update, 1000);
+}
+
+function chkCopy(elementId){
+  var el = document.getElementById(elementId);
+  if(!el) return;
+  var text = el.textContent || '';
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){
+      var btn = el.parentElement && el.parentElement.querySelector('.chk-bonifico-copy');
+      if(btn){
+        var orig = btn.textContent;
+        btn.textContent = 'Copiato!';
+        setTimeout(function(){ btn.textContent = orig; }, 1500);
+      }
+    });
+  } else {
+    // Fallback: select range
+    var range = document.createRange();
+    range.selectNode(el);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    try{ document.execCommand('copy'); }catch(e){}
+    window.getSelection().removeAllRanges();
+  }
+}
+
+async function chkReserve(){
+  if(!_chkTransfer) return;
+  var btn = document.getElementById('chkReserveBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="rb-i rb-i-hourglass"></span> Prenoto...';
+  try {
+    var result = await supa('POST','rpc/reserve_transfer', {
+      p_transfer_id: _chkTransfer.id,
+      p_payment_due_hours: 48
+    });
+    // RPC ritorna la riga aggiornata (potrebbe essere array o oggetto)
+    if(Array.isArray(result)) result = result[0];
+    if(result && result.id){ _chkTransfer = result; }
+    chkShowStep(2);
+  } catch(e){
+    setSt('chkSt', 'Errore: '+e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span class="rb-i rb-i-cart"></span> Prenota offerta';
+  }
+}
+
+async function chkSubmitPayment(){
+  if(!_chkTransfer) return;
+  var ref = document.getElementById('chkPaymentRef').value.trim();
+  var notes = document.getElementById('chkBuyerNotes').value.trim();
+  if(!ref){
+    setSt('chkSt','Inserisci il riferimento del bonifico (CRO/TRN)','err');
+    return;
+  }
+  var btn = document.getElementById('chkSubmitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="rb-i rb-i-hourglass"></span> Invio...';
+  try {
+    var result = await supa('POST','rpc/submit_transfer_payment', {
+      p_transfer_id: _chkTransfer.id,
+      p_payment_ref: ref,
+      p_buyer_notes: notes||null
+    });
+    if(Array.isArray(result)) result = result[0];
+    if(result && result.id) _chkTransfer = result;
+    document.getElementById('chkSuccessRef').textContent = 'Riferimento: '+ref;
+    chkShowStep(3);
+  } catch(e){
+    setSt('chkSt', 'Errore: '+e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span class="rb-i rb-i-check"></span> Ho effettuato il bonifico';
+  }
+}
+
+function chkBackToStep1(){
+  // Solo se la prenotazione non è ancora confermata come pagata, lo step 1 è no-op
+  // (la prenotazione resta attiva ma non si fa nulla)
+  chkShowStep(1);
+}
+
+async function chkCancelReservation(){
+  if(!_chkTransfer) return;
+  if(!confirm('Annullare la prenotazione? L\'offerta tornerà disponibile per altri acquirenti.')) return;
+  try {
+    await supa('POST','rpc/cancel_reservation', {
+      p_transfer_id: _chkTransfer.id,
+      p_reason: 'Annullato dal buyer'
+    });
+    closeCheckoutModal();
+  } catch(e){ alert('Errore: '+e.message); }
 }
 
 
@@ -3867,31 +4340,101 @@ async function adminLoadLiquidations(){
 
 async function adminLoadTransfers(){
   try {
-    var all = (await supa('GET','inv_transfers?status=in.(open,payment_pending)&order=created_at.desc'))||[];
+    // Mostra tutti gli stati attivi: open + reserved + payment_pending (no completed/cancelled)
+    var all = (await supa('GET','inv_transfers?status=in.(open,reserved,payment_pending)&order=created_at.desc'))||[];
     var tbody = document.getElementById('adminTransfTbody');
     var empty = document.getElementById('adminTransfEmpty');
     if(!all.length){ empty.style.display=''; tbody.innerHTML=''; return; }
     empty.style.display='none';
+
+    // Ordine logico: payment_pending (azione richiesta admin) → reserved → open
+    var priority = {payment_pending:0, reserved:1, open:2};
+    all.sort(function(a,b){
+      var pa = priority[a.status]||9, pb = priority[b.status]||9;
+      if(pa !== pb) return pa - pb;
+      return new Date(b.created_at||0) - new Date(a.created_at||0);
+    });
+
     tbody.innerHTML = all.map(function(t){
-      var p=_mktProducts.find(function(x){return x.id===t.product_id;});
+      var p = _mktProducts.find(function(x){return x.id===t.product_id});
+      var total = (parseFloat(t.ask_price)||0) * (t.qty||0);
+      var statusLbl = ({open:'Aperta',reserved:'Prenotata',payment_pending:'Pag. inviato'})[t.status]||t.status;
+
+      // Pannello azioni varia per stato
+      var actions = '';
+      if(t.status === 'open'){
+        actions = '<span style="font-size:10.5px;color:var(--text-muted);font-family:var(--mono)">In attesa buyer</span>';
+      } else if(t.status === 'reserved'){
+        // Mostra countdown payment_due_at
+        var due = t.payment_due_at ? new Date(t.payment_due_at) : null;
+        var deadline = due ? due.toLocaleString('it-IT',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
+        actions = '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">'
+          + '<span style="font-size:10px;color:var(--warning);font-family:var(--mono)">Scade: '+deadline+'</span>'
+          + '<button class="btn danger sm" onclick="adminCancelReservation(\''+t.id+'\')">Annulla</button>'
+          + '</div>';
+      } else if(t.status === 'payment_pending'){
+        var ref = t.buyer_payment_ref || '—';
+        actions = '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">'
+          + '<span style="font-size:10.5px;color:var(--accent);font-family:var(--mono);user-select:all">CRO: '+esc(ref)+'</span>'
+          + '<div style="display:flex;gap:4px">'
+          +   '<button class="btn sm" onclick="adminCancelReservation(\''+t.id+'\')" title="Rifiuta">Rifiuta</button>'
+          +   '<button class="btn primary sm" onclick="adminCompleteTransferRpc(\''+t.id+'\','+t.qty+','+(t.ask_price)+')"><span class="rb-i rb-i-check"></span> Conferma</button>'
+          + '</div>'
+          + '</div>';
+      }
+
       return '<tr>'
-        +'<td>'+(p?esc(p.name):'—')+'</td>'
-        +'<td style="font-family:var(--mono);font-size:11px">'+esc((t.seller_id||'').slice(0,12))+'…</td>'
-        +'<td style="font-family:var(--mono);font-size:11px">'+(t.buyer_id?esc(t.buyer_id.slice(0,12))+'…':'<span style="color:var(--text-muted)">—</span>')+'</td>'
+        +'<td>'+(p?esc(p.name):'—')+'<div style="font-size:10px;color:var(--text-muted);font-family:var(--mono)">€'+fmt2(total)+' totali</div></td>'
+        +'<td style="font-family:var(--mono);font-size:11px">#'+esc((t.seller_id||'').slice(0,8).toUpperCase())+'</td>'
+        +'<td style="font-family:var(--mono);font-size:11px">'+(t.buyer_id?'#'+esc(t.buyer_id.slice(0,8).toUpperCase()):'<span style="color:var(--text-subtle)">—</span>')+'</td>'
         +'<td style="font-family:var(--mono)">'+t.qty+'</td>'
-        +'<td style="font-family:var(--mono)">€'+fmt2(t.ask_price)+'</td>'
-        +'<td>'+statusBadge(t.status==='open'?'open':'hold')+'</td>'
-        +'<td><button class="btn primary sm" onclick="adminCompleteTransfer(\''+t.id+'\',\''+t.seller_id+'\',\''+t.buyer_id+'\',\''+t.product_id+'\','+t.qty+','+t.ask_price+')"><span class="rb-i rb-i-check"></span> Completa</button></td>'
+        +'<td style="font-family:var(--mono)">€'+fmt2(t.ask_price)+'/q</td>'
+        +'<td><span class="offer-status-pill '+esc(t.status)+'">'+statusLbl+'</span></td>'
+        +'<td>'+actions+'</td>'
       +'</tr>';
     }).join('');
-  } catch(e){}
+  } catch(e){
+    document.getElementById('adminTransfTbody').innerHTML = '<tr><td colspan="7" style="color:var(--danger);padding:12px">Errore: '+esc(e.message)+'</td></tr>';
+  }
 }
 
+// Completa via RPC (atomico: decrement seller, increment buyer, payment, status)
+async function adminCompleteTransferRpc(transferId, qty, price){
+  var notes = prompt('Note interne admin (opzionale, premi OK per saltare):', '');
+  if(notes === null) return; // cancel
+  if(!confirm('Confermare il trasferimento di '+qty+' quote @ €'+fmt2(price)+' per quota?\n\nQuesta azione: \n• decrementa le quote del venditore\n• le accredita al compratore\n• registra il pagamento come confermato\n• non è reversibile.')) return;
+  try {
+    await supa('POST','rpc/complete_transfer', {
+      p_transfer_id: transferId,
+      p_admin_notes: notes||null
+    });
+    adminLoadTransfers();
+    mktLoad();
+    if(typeof portLoad==='function') portLoad();
+    alert('Trasferimento completato — quote accreditate al compratore.');
+  } catch(e){ alert('Errore: '+e.message); }
+}
+
+// Annulla prenotazione/pagamento (rollback a open)
+async function adminCancelReservation(transferId){
+  var reason = prompt('Motivo dell\'annullamento (opzionale):', '');
+  if(reason === null) return;
+  if(!confirm('Annullare la prenotazione? L\'offerta tornerà disponibile per altri acquirenti.')) return;
+  try {
+    await supa('POST','rpc/cancel_reservation', {
+      p_transfer_id: transferId,
+      p_reason: reason||'Annullato da admin'
+    });
+    adminLoadTransfers();
+    mktLoad();
+  } catch(e){ alert('Errore: '+e.message); }
+}
+
+// LEGACY: vecchio flow manuale, mantenuto come fallback se RPC non disponibili
 async function adminCompleteTransfer(tid, sellerId, buyerId, productId, qty, price){
   if(!buyerId||buyerId==='null'){ alert('Nessun compratore associato al trasferimento'); return; }
   if(!confirm('Completare il trasferimento delle '+qty+' quote?')) return;
   try {
-    // 1. Riduci holding venditore
     var selHoldings = (await supa('GET','inv_holdings?user_id=eq.'+sellerId+'&product_id=eq.'+productId))||[];
     if(selHoldings.length){
       var sh = selHoldings[0];
@@ -3899,9 +4442,7 @@ async function adminCompleteTransfer(tid, sellerId, buyerId, productId, qty, pri
       if(newQty<=0) await supa('DELETE','inv_holdings?id=eq.'+sh.id);
       else await supa('PATCH','inv_holdings?id=eq.'+sh.id,{qty:newQty});
     }
-    // 2. Aggiungi holding compratore
     await supa('POST','inv_holdings',{ product_id:productId, user_id:buyerId, qty, price_per_quote:price, origin:'secondary' });
-    // 3. Chiudi trasferimento
     await supa('PATCH','inv_transfers?id=eq.'+tid,{status:'completed',completed_at:new Date().toISOString()});
     adminLoadTransfers(); mktLoad();
     alert('Trasferimento completato!');
