@@ -2008,7 +2008,12 @@ async function loadUserProfile(){
     status:'active'
   };
   try{
+    // Tentativo con schema completo, fallback se status non esiste ancora (pre-015)
     var r=await fetch(SUPA_URL+'/rest/v1/profiles?id=eq.'+u.id+'&select=id,role,can_collector,can_investor,full_name,email,status,suspension_reason',{headers:getHDR()});
+    if(!r.ok && r.status===400){
+      // Probabile colonna status mancante → fallback senza
+      r=await fetch(SUPA_URL+'/rest/v1/profiles?id=eq.'+u.id+'&select=id,role,can_collector,can_investor,full_name,email',{headers:getHDR()});
+    }
     if(r.ok){
       var arr=await r.json();
       if(arr&&arr[0]){

@@ -485,15 +485,34 @@ async function loadUsers(){
   if(btn){ btn.disabled=true; btn.textContent='Caricamento...'; }
   try{
     var data=null;
-    var cols='id,email,full_name,role,can_collector,can_investor,iban,phone,notes,status,suspended_at,suspension_reason,deleted_at,created_at,last_sign_in_at,confirmed_at';
-    try{
-      data=await supa('GET','v_admin_users?select='+cols+'&order=created_at.desc&limit=500');
-    }catch(viewErr){
-      // Fallback: tabella profiles diretta (no last_sign_in_at)
-      data=await supa('GET','profiles?select=id,email,full_name,role,can_collector,can_investor,iban,phone,notes,status,suspended_at,suspension_reason,deleted_at,created_at&order=created_at.desc&limit=500');
+    // Cascade graceful: prova schema completo (post-015), poi senza status, poi minimale
+    var attempts=[
+      // 1) View con tutto
+      ['v_admin_users','id,email,full_name,role,can_collector,can_investor,iban,phone,notes,status,suspended_at,suspension_reason,deleted_at,created_at,last_sign_in_at,confirmed_at'],
+      // 2) View senza colonne 015
+      ['v_admin_users','id,email,full_name,role,can_collector,can_investor,iban,phone,notes,created_at,last_sign_in_at,confirmed_at'],
+      // 3) Profiles diretto con status
+      ['profiles','id,email,full_name,role,can_collector,can_investor,iban,phone,notes,status,suspended_at,suspension_reason,deleted_at,created_at'],
+      // 4) Profiles minimale (pre-migration 015)
+      ['profiles','id,email,full_name,role,can_collector,can_investor,iban,phone,notes,created_at']
+    ];
+    var lastErr=null;
+    for(var a=0;a<attempts.length;a++){
+      try{
+        data=await supa('GET',attempts[a][0]+'?select='+attempts[a][1]+'&order=created_at.desc&limit=500');
+        if(a>0){
+          console.warn('[admin-users] fallback schema attivo (livello '+a+') — esegui le migration mancanti per features complete');
+          if(a>=2){
+            toast('Migration 015 mancante: alcune funzioni (sospensione, eliminazione) non disponibili','err');
+          }
+        }
+        break;
+      }catch(err){ lastErr=err; }
     }
+    if(!data) throw lastErr || new Error('Caricamento fallito');
+
     _users=data||[];
-    // Default status='active' per righe senza il campo (DB pre-migration 015)
+    // Default status='active' per righe/schemi senza il campo
     _users.forEach(function(u){ if(!u.status) u.status='active'; });
     renderStats();
     renderTable();

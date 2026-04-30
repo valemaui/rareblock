@@ -1087,7 +1087,13 @@ async function onSession(data){
 
   // Load/create profile
   try {
-    var profiles = await supa('GET','profiles?id=eq.'+user.id+'&select=id,full_name,role,can_collector,can_investor,iban,phone,notes,status,suspension_reason');
+    var profiles;
+    try {
+      profiles = await supa('GET','profiles?id=eq.'+user.id+'&select=id,full_name,role,can_collector,can_investor,iban,phone,notes,status,suspension_reason');
+    } catch(eCol) {
+      // Fallback se status/suspension_reason non esistono (pre-migration 015)
+      profiles = await supa('GET','profiles?id=eq.'+user.id+'&select=id,full_name,role,can_collector,can_investor,iban,phone,notes');
+    }
     _profile = profiles && profiles[0];
     if(!_profile){
       var initialRole = _isAdmin ? 'admin' : 'investor';
