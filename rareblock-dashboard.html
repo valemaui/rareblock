@@ -207,6 +207,215 @@ textarea{resize:vertical;min-height:60px}
 .form-grid.three{grid-template-columns:1fr 1fr 1fr}
 .span2{grid-column:span 2}
 
+/* ═══ CHECKOUT — multi-step ═══ */
+.checkout-modal{width:min(820px,96vw)!important;max-height:92vh}
+.checkout-stepper{
+  display:flex;gap:0;padding:14px 20px;
+  border-bottom:1px solid var(--border);
+  background:var(--surface);
+  flex-shrink:0;
+}
+.checkout-step{
+  flex:1;display:flex;align-items:center;gap:10px;
+  font-size:11.5px;font-family:var(--mono);
+  color:var(--text-muted);letter-spacing:.04em;
+  position:relative;
+  cursor:default;
+  text-transform:uppercase;
+}
+.checkout-step + .checkout-step::before{
+  content:'';position:absolute;left:-14px;top:50%;
+  width:14px;height:1px;background:var(--border);
+}
+.checkout-step-num{
+  width:24px;height:24px;border-radius:50%;
+  border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  background:var(--surface2);
+  font-size:11px;font-weight:600;
+  flex-shrink:0;
+  transition:all var(--t-fast);
+}
+.checkout-step.active{color:var(--text)}
+.checkout-step.active .checkout-step-num{
+  background:var(--gold,#c9a84c);
+  color:#0d1117;
+  border-color:var(--gold,#c9a84c);
+}
+.checkout-step.done .checkout-step-num{
+  background:transparent;
+  color:var(--success);
+  border-color:var(--success);
+}
+.checkout-step.done{color:var(--text-muted)}
+
+.checkout-pane{display:none;flex-direction:column;gap:14px}
+.checkout-pane.active{display:flex}
+
+/* Riepilogo prodotto step 1 */
+.co-product-card{
+  display:flex;gap:14px;align-items:flex-start;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:14px;
+}
+.co-product-img{
+  width:84px;height:84px;border-radius:var(--r);
+  background:var(--surface);
+  flex-shrink:0;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+}
+.co-product-img img{width:100%;height:100%;object-fit:cover}
+.co-product-name{font-size:14px;font-weight:600;line-height:1.4;margin-bottom:4px}
+.co-product-meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.co-product-price{font-family:var(--mono);font-size:12.5px;color:var(--text-muted)}
+
+.co-totals{
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:14px 16px;
+  display:flex;flex-direction:column;gap:6px;
+}
+.co-total-row{
+  display:flex;justify-content:space-between;align-items:baseline;
+  font-size:13px;font-family:var(--mono);
+  color:var(--text);
+  padding:3px 0;
+}
+.co-total-row.muted{color:var(--text-muted);font-size:12px}
+.co-total-row.discount{color:var(--gold)}
+.co-total-row.grand{
+  border-top:1px solid var(--border);
+  padding-top:10px;margin-top:6px;
+  font-size:18px;font-weight:600;
+}
+.co-total-row.grand .val{color:var(--gold)}
+
+/* Step 2 — Billing */
+.co-billing-toggle{
+  display:flex;gap:8px;
+  margin-bottom:6px;
+}
+.co-billing-toggle-opt{
+  flex:1;
+  padding:10px 14px;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  cursor:pointer;
+  font-size:12.5px;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:all var(--t-fast);
+  text-align:center;
+}
+.co-billing-toggle-opt.active{
+  background:rgba(201,168,76,.10);
+  border-color:var(--gold);
+  color:var(--gold);
+}
+.co-billing-toggle-opt input{display:none}
+
+/* Step 3 — Payment */
+.co-pay-method{
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:14px;
+  cursor:pointer;
+  transition:all var(--t-fast);
+  display:flex;align-items:center;gap:14px;
+  background:var(--surface2);
+  margin-bottom:8px;
+}
+.co-pay-method:hover{border-color:var(--border-strong)}
+.co-pay-method.active{
+  border-color:var(--gold);
+  background:rgba(201,168,76,.06);
+}
+.co-pay-method.disabled{opacity:.4;cursor:not-allowed}
+.co-pay-radio{
+  width:18px;height:18px;border-radius:50%;
+  border:1.5px solid var(--border-strong);
+  flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  transition:all var(--t-fast);
+}
+.co-pay-method.active .co-pay-radio{border-color:var(--gold)}
+.co-pay-method.active .co-pay-radio::after{
+  content:'';width:10px;height:10px;border-radius:50%;
+  background:var(--gold);
+}
+.co-pay-info{flex:1}
+.co-pay-name{font-size:14px;font-weight:600;margin-bottom:2px}
+.co-pay-desc{font-size:11.5px;color:var(--text-muted)}
+.co-pay-soon{font-size:10px;font-family:var(--mono);color:var(--text-subtle);text-transform:uppercase;letter-spacing:.06em}
+
+.co-bonifico-box{
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-left:3px solid var(--gold);
+  border-radius:var(--r);
+  padding:14px 16px;
+  font-size:13px;line-height:1.8;
+}
+.co-bonifico-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0}
+.co-bonifico-key{color:var(--text-muted);font-size:11.5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em}
+.co-bonifico-val{font-family:var(--mono);font-weight:500}
+.co-bonifico-val.gold{color:var(--gold)}
+.co-copy-btn{
+  background:transparent;border:1px solid var(--border);
+  color:var(--text-muted);cursor:pointer;
+  padding:3px 8px;border-radius:3px;
+  font-size:10px;font-family:var(--mono);
+  text-transform:uppercase;letter-spacing:.04em;
+  transition:all var(--t-fast);
+  margin-left:8px;
+}
+.co-copy-btn:hover{color:var(--gold);border-color:var(--gold)}
+.co-copy-btn.copied{color:var(--success);border-color:var(--success)}
+
+/* Conferma finale */
+.co-confirm-icon{
+  width:64px;height:64px;border-radius:50%;
+  background:rgba(63,185,80,.10);
+  border:2px solid var(--success);
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 16px;
+  color:var(--success);
+  font-size:32px;
+  line-height:1;
+}
+.co-confirm-title{
+  font-family:var(--serif,Fraunces),Georgia,serif;
+  font-size:24px;font-weight:300;
+  text-align:center;
+  margin-bottom:6px;
+  letter-spacing:-.005em;
+}
+.co-confirm-num{
+  font-family:var(--mono);
+  font-size:14px;color:var(--gold);
+  text-align:center;
+  letter-spacing:.06em;
+  margin-bottom:18px;
+}
+.co-confirm-msg{
+  font-size:13px;color:var(--text-muted);
+  text-align:center;
+  line-height:1.6;
+  max-width:480px;margin:0 auto 18px;
+}
+
+.co-error{
+  background:rgba(248,81,73,.06);
+  border:1px solid rgba(248,81,73,.3);
+  border-radius:var(--r);
+  padding:10px 12px;
+  font-size:12.5px;color:var(--danger);
+  font-family:var(--mono);
+}
+
 /* ═══ PHOTO GALLERY (admin upload) ═══ */
 .photo-section{border-top:1px solid var(--border);padding-top:14px;margin-top:6px}
 .photo-section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
@@ -1219,63 +1428,213 @@ textarea{resize:vertical;min-height:60px}
 <!-- ══════════════ MODALI ══════════════ -->
 
 <!-- Modal: Dettaglio prodotto / Acquisto quote -->
+<!-- Modal: Checkout multi-step -->
 <div class="modal-bg" id="buyModalBg" onclick="if(event.target===this)closeBuyModal()">
-  <div class="modal lg">
+  <div class="modal checkout-modal">
     <div class="modal-head">
-      <h3 id="buyModalTitle">Acquista Quote</h3>
-      <button class="modal-close" onclick="closeBuyModal()"><span class="rb-i rb-i-x"></span></button>
+      <h3 id="buyModalTitle">Acquista quote</h3>
+      <button class="modal-close" onclick="closeBuyModal()" title="Chiudi"><span class="rb-i rb-i-x"></span></button>
     </div>
+
+    <!-- Stepper -->
+    <div class="checkout-stepper" id="coStepper">
+      <div class="checkout-step active" data-step="1"><div class="checkout-step-num">1</div>Riepilogo</div>
+      <div class="checkout-step" data-step="2"><div class="checkout-step-num">2</div>Fatturazione</div>
+      <div class="checkout-step" data-step="3"><div class="checkout-step-num">3</div>Pagamento</div>
+      <div class="checkout-step" data-step="4"><div class="checkout-step-num">4</div>Conferma</div>
+    </div>
+
     <div class="modal-body">
-      <div id="buyModalProduct"></div>
-      <hr class="divider" style="margin:4px 0"/>
-      <div class="form-grid">
+
+      <!-- ── STEP 1 — Riepilogo ────────────────────────────── -->
+      <div class="checkout-pane active" id="coPane1">
+        <div class="co-product-card" id="coProductCard"></div>
+
+        <div class="form-grid">
+          <div class="field">
+            <label>Numero di quote</label>
+            <input type="number" id="coQty" value="1" min="1" oninput="coUpdateTotals()"/>
+          </div>
+          <div class="field">
+            <label>Disponibili</label>
+            <div id="coAvailable" style="font-family:var(--mono);font-size:14px;color:var(--text-muted);padding:8px 0">—</div>
+          </div>
+        </div>
+
+        <div id="coDiscSummary"></div>
+
+        <div class="co-totals" id="coTotals"></div>
+
         <div class="field">
-          <label>Numero di quote da acquistare</label>
-          <input type="number" id="buyQty" value="1" min="1" oninput="buyUpdateTotal()"/>
-        </div>
-        <div class="field">
-          <label>Totale da pagare</label>
-          <div style="font-size:20px;font-weight:600;font-family:var(--mono);color:var(--gold);padding:6px 0" id="buyTotal">—</div>
+          <label>Note (opzionale)</label>
+          <input type="text" id="coNotes" placeholder="es. interessato a ricevere aggiornamenti sul prodotto"/>
         </div>
       </div>
-      <div class="field">
-        <label>Metodo di pagamento</label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);flex:1">
-            <input type="radio" name="payMethod" value="bonifico" checked onchange="buyShowMethod()"/> <span class="rb-i rb-i-bank"></span> Bonifico bancario
+
+      <!-- ── STEP 2 — Fatturazione ─────────────────────────── -->
+      <div class="checkout-pane" id="coPane2">
+        <div style="font-size:13px;color:var(--text-muted);line-height:1.6">
+          Inserisci i dati fiscali per l'emissione della ricevuta. Saranno salvati per i prossimi acquisti.
+        </div>
+
+        <div class="co-billing-toggle">
+          <label class="co-billing-toggle-opt active" data-bill="private">
+            <input type="radio" name="billType" value="private" checked onchange="coBillToggle('private')"/>
+            <span>Privato</span>
           </label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);flex:1;opacity:.5" title="Prossimamente">
-            <input type="radio" name="payMethod" value="stripe" disabled onchange="buyShowMethod()"/> <span class="rb-i rb-i-card"></span> Carta / Stripe
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);flex:1;opacity:.5" title="Prossimamente">
-            <input type="radio" name="payMethod" value="paypal" disabled onchange="buyShowMethod()"/> 🅿 PayPal
+          <label class="co-billing-toggle-opt" data-bill="company">
+            <input type="radio" name="billType" value="company" onchange="coBillToggle('company')"/>
+            <span>Azienda / Partita IVA</span>
           </label>
         </div>
-      </div>
-      <div id="buyBonifico" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:14px">
-        <div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--text-muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px">Istruzioni bonifico</div>
-        <div style="font-size:13px;line-height:1.8">
-          <div>Intestatario: <strong>RareBlock</strong></div>
-          <div>IBAN: <strong style="font-family:var(--mono)">IT00 X000 0000 0000 0000 0000 000</strong></div>
-          <div>Causale: <strong id="buyBonificoCausal" style="font-family:var(--mono)">—</strong></div>
+
+        <div class="form-grid">
+          <div class="field span2">
+            <label>Nome completo / Ragione sociale *</label>
+            <input type="text" id="coBillName" placeholder="Mario Rossi"/>
+          </div>
+          <div class="field">
+            <label>Email *</label>
+            <input type="email" id="coBillEmail" placeholder="mario@esempio.it"/>
+          </div>
+          <div class="field">
+            <label>Telefono</label>
+            <input type="tel" id="coBillPhone" placeholder="+39..."/>
+          </div>
+          <div class="field" id="coBillFCRow">
+            <label>Codice fiscale *</label>
+            <input type="text" id="coBillFC" placeholder="RSSMRA80A01H501Z" maxlength="16" style="text-transform:uppercase"/>
+          </div>
+          <div class="field" id="coBillVATRow" style="display:none">
+            <label>Partita IVA *</label>
+            <input type="text" id="coBillVAT" placeholder="IT12345678901"/>
+          </div>
+          <div class="field span2" id="coBillPECRow" style="display:none">
+            <label>PEC *</label>
+            <input type="email" id="coBillPEC" placeholder="azienda@pec.it"/>
+          </div>
+          <div class="field span2" id="coBillSDIRow" style="display:none">
+            <label>Codice SDI *</label>
+            <input type="text" id="coBillSDI" placeholder="0000000" maxlength="7" style="text-transform:uppercase"/>
+          </div>
+
+          <div class="field span2">
+            <label>Indirizzo *</label>
+            <input type="text" id="coBillAddress" placeholder="Via Roma 1"/>
+          </div>
+          <div class="field">
+            <label>Città *</label>
+            <input type="text" id="coBillCity" placeholder="Milano"/>
+          </div>
+          <div class="field">
+            <label>CAP *</label>
+            <input type="text" id="coBillZip" placeholder="20100" maxlength="5"/>
+          </div>
+          <div class="field span2">
+            <label>Paese</label>
+            <select id="coBillCountry">
+              <option value="IT">Italia</option>
+              <option value="SM">San Marino</option>
+              <option value="VA">Città del Vaticano</option>
+              <option value="CH">Svizzera</option>
+              <option value="FR">Francia</option>
+              <option value="DE">Germania</option>
+              <option value="ES">Spagna</option>
+              <option value="GB">Regno Unito</option>
+              <option value="US">Stati Uniti</option>
+              <option value="OTHER">Altro</option>
+            </select>
+          </div>
         </div>
-        <div style="margin-top:12px" class="field">
-          <label>Inserisci riferimento/numero di bonifico (opzionale)</label>
-          <input type="text" id="buyBankRef" placeholder="es. BON-2024-001"/>
+      </div>
+
+      <!-- ── STEP 3 — Pagamento ────────────────────────────── -->
+      <div class="checkout-pane" id="coPane3">
+        <div style="font-size:13px;color:var(--text-muted);line-height:1.6">
+          Seleziona il metodo di pagamento. L'ordine viene registrato come "in attesa" finché non riceviamo conferma del pagamento.
+        </div>
+
+        <label class="co-pay-method active" id="coPayBonifico" onclick="coSelectPayMethod('bonifico')">
+          <div class="co-pay-radio"></div>
+          <div class="co-pay-info">
+            <div class="co-pay-name">Bonifico bancario</div>
+            <div class="co-pay-desc">Pagamento entro 5 giorni lavorativi · senza commissioni</div>
+          </div>
+          <span class="rb-i rb-i-bank"></span>
+        </label>
+        <label class="co-pay-method disabled">
+          <div class="co-pay-radio"></div>
+          <div class="co-pay-info">
+            <div class="co-pay-name">Carta di credito / Stripe</div>
+            <div class="co-pay-desc">Addebito immediato · commissione 1,4% + €0,25</div>
+          </div>
+          <span class="co-pay-soon">Presto</span>
+        </label>
+        <label class="co-pay-method disabled">
+          <div class="co-pay-radio"></div>
+          <div class="co-pay-info">
+            <div class="co-pay-name">PayPal</div>
+            <div class="co-pay-desc">Addebito tramite il tuo conto PayPal</div>
+          </div>
+          <span class="co-pay-soon">Presto</span>
+        </label>
+
+        <div id="coPayBonificoDetails">
+          <div class="co-bonifico-box">
+            <div class="co-bonifico-row">
+              <span class="co-bonifico-key">Intestatario</span>
+              <span class="co-bonifico-val">RareBlock S.r.l.</span>
+            </div>
+            <div class="co-bonifico-row">
+              <span class="co-bonifico-key">IBAN</span>
+              <span><span class="co-bonifico-val" id="coIban">IT60 X054 2811 1010 0000 0123 456</span><button class="co-copy-btn" onclick="coCopy('coIban',this)">Copia</button></span>
+            </div>
+            <div class="co-bonifico-row">
+              <span class="co-bonifico-key">BIC/SWIFT</span>
+              <span class="co-bonifico-val">CRPPIT2P</span>
+            </div>
+            <div class="co-bonifico-row">
+              <span class="co-bonifico-key">Causale</span>
+              <span><span class="co-bonifico-val gold" id="coCausale">—</span><button class="co-copy-btn" onclick="coCopy('coCausale',this)">Copia</button></span>
+            </div>
+            <div class="co-bonifico-row">
+              <span class="co-bonifico-key">Importo</span>
+              <span class="co-bonifico-val gold" id="coAmount">—</span>
+            </div>
+          </div>
+          <div class="field" style="margin-top:12px">
+            <label>CRO bonifico (se già effettuato)</label>
+            <input type="text" id="coBankRef" placeholder="es. 24010012345"/>
+            <div style="font-size:10.5px;color:var(--text-subtle);font-family:var(--mono);margin-top:3px">Inserire dopo aver effettuato il bonifico per accelerare la verifica</div>
+          </div>
+        </div>
+
+        <div id="coCheckoutErr"></div>
+      </div>
+
+      <!-- ── STEP 4 — Conferma ─────────────────────────────── -->
+      <div class="checkout-pane" id="coPane4" style="padding:8px 0">
+        <div class="co-confirm-icon">&#10003;</div>
+        <div class="co-confirm-title">Ordine ricevuto</div>
+        <div class="co-confirm-num" id="coConfirmNum">ORD-—</div>
+        <div class="co-confirm-msg">
+          La tua richiesta è stata registrata. Effettua il bonifico secondo le istruzioni del passo precedente, e riceverai una mail di conferma una volta verificato l'incasso.
+        </div>
+        <div class="co-bonifico-box" id="coConfirmRecap"></div>
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:18px">
+          <button class="btn" onclick="coDownloadOrderPdf()" id="coDownloadBtn"><span class="rb-i rb-i-download"></span> Scarica riepilogo</button>
+          <button class="btn primary" onclick="closeBuyModal();showTab('port')">Vai al portafoglio</button>
         </div>
       </div>
-      <div id="buyStripePh" style="display:none;text-align:center;padding:20px;color:var(--text-muted);font-size:13px">
-        <span class="rb-i rb-i-soon"></span> Integrazione Stripe in arrivo
-      </div>
-      <div class="field">
-        <label>Note (opzionale)</label>
-        <input type="text" id="buyNotes" placeholder="es. interessato a ricevere aggiornamenti sul prodotto"/>
-      </div>
-      <div id="buySt"></div>
+
     </div>
-    <div class="modal-footer">
+
+    <!-- Footer dinamico -->
+    <div class="modal-footer" id="coFooter">
+      <button class="btn" id="coBackBtn" onclick="coStepBack()" style="display:none">&larr; Indietro</button>
+      <span style="flex:1"></span>
       <button class="btn" onclick="closeBuyModal()">Annulla</button>
-      <button class="btn primary" id="buyConfirmBtn" onclick="buyConfirm()"><span class="rb-i rb-i-send"></span> Invia richiesta acquisto</button>
+      <button class="btn primary" id="coNextBtn" onclick="coStepNext()">Continua &rarr;</button>
     </div>
   </div>
 </div>
@@ -1998,144 +2357,489 @@ function mktToggleWatch(pid, btn){
 
 
 // ═══════════════════════════════════════════════════════════
-//  BUY MODAL
+//  CHECKOUT — multi-step (Riepilogo → Fatturazione → Pagamento → Conferma)
 // ═══════════════════════════════════════════════════════════
 var _buyProduct = null;
+var _buyDiscTiers = [];
+var _coStep = 1;
+var _coOrder = null; // ordine creato (popolato a step 4)
+
+// Bank details centralizzati (configurabili)
+var BANK_DETAILS = {
+  intestatario: 'RareBlock S.r.l.',
+  iban:         'IT60 X054 2811 1010 0000 0123 456',
+  bic:          'CRPPIT2P'
+};
 
 async function openBuyModal(pid){
   _buyProduct = _mktProducts.find(function(p){ return p.id===pid; });
   if(!_buyProduct) return;
-  var st = _mktStats[pid] || { available_quotes: _buyProduct.total_quotes };
-  document.getElementById('buyModalTitle').textContent = 'Acquista — '+_buyProduct.name;
-  var avail = Math.max(0, _buyProduct.total_quotes - (st.sold_quotes||0));
-  document.getElementById('buyQty').max = avail;
-  document.getElementById('buyQty').value = Math.min(1, avail);
+  _coOrder = null;
+  _coStep = 1;
 
-  // Carica scala sconti per questo prodotto (solo fractional)
+  var st = _mktStats[pid] || { available_quotes: _buyProduct.total_quotes };
+  var avail = Math.max(0, _buyProduct.total_quotes - (st.sold_quotes||0));
+
+  document.getElementById('buyModalTitle').textContent = 'Acquista — '+_buyProduct.name;
+
+  // Reset campi
+  document.getElementById('coQty').max = avail;
+  document.getElementById('coQty').value = Math.min(1, avail);
+  document.getElementById('coAvailable').textContent = avail+' / '+_buyProduct.total_quotes+' '+(_buyProduct.quote_unit||'quote');
+  document.getElementById('coNotes').value = '';
+  document.getElementById('coBankRef').value = '';
+  ['coBillName','coBillEmail','coBillPhone','coBillFC','coBillVAT','coBillPEC','coBillSDI','coBillAddress','coBillCity','coBillZip'].forEach(function(id){
+    var el = document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('coBillCountry').value = 'IT';
+  document.getElementById('coCheckoutErr').innerHTML = '';
+
+  // Pre-fill da profilo se esiste
+  if(_profile){
+    if(_profile.full_name) document.getElementById('coBillName').value = _profile.full_name;
+    if(_profile.phone)     document.getElementById('coBillPhone').value = _profile.phone;
+  }
+  if(_session && _session.user && _session.user.email){
+    document.getElementById('coBillEmail').value = _session.user.email;
+  }
+  // Ripristina dati fatturazione salvati localmente da ordini precedenti
+  try {
+    var saved = JSON.parse(localStorage.getItem('rb_billing')||'null');
+    if(saved){
+      ['coBillName','coBillEmail','coBillPhone','coBillFC','coBillVAT','coBillPEC','coBillSDI','coBillAddress','coBillCity','coBillZip','coBillCountry'].forEach(function(id){
+        var k = id.replace('coBill','').toLowerCase();
+        if(saved[k]){
+          var el = document.getElementById(id);
+          if(el && !el.value) el.value = saved[k];
+        }
+      });
+      if(saved.is_company){
+        coBillToggle('company');
+        var radio = document.querySelector('input[name="billType"][value="company"]');
+        if(radio) radio.checked = true;
+      }
+    }
+  } catch(e){}
+
+  // Carica tier sconto
   _buyDiscTiers = [];
   if(_buyProduct.type==='fractional'){
     _buyDiscTiers = await loadDiscountTiers(pid);
   }
-  // Render riepilogo tier nel pannello prodotto
-  var tiersHtml = renderDiscountSummary(_buyDiscTiers, parseInt(document.getElementById('buyQty').value)||1);
 
-  document.getElementById('buyModalProduct').innerHTML =
-    '<div style="display:flex;gap:12px;align-items:flex-start">'
-    +(_buyProduct.image_url?'<img src="'+esc(_buyProduct.image_url)+'" style="width:60px;height:80px;object-fit:cover;border-radius:3px"/>':'')
-    +'<div style="flex:1">'
-      +'<div style="font-size:15px;font-weight:600;margin-bottom:4px">'+esc(_buyProduct.name)+'</div>'
-      +'<div style="display:flex;gap:6px;margin-bottom:6px">'+typeBadge(_buyProduct.type)+statusBadge(_buyProduct.status)+'</div>'
-      +'<div style="font-size:12px;color:var(--text-muted)">'+avail+' '+(avail===1?'quota disponibile':'quote disponibili')+' su '+_buyProduct.total_quotes+'</div>'
-      +(_buyProduct.storage_fee_annual&&_buyProduct.storage_fee_annual>0
-        ?'<div style="font-size:12px;color:var(--warning);margin-top:4px"><span class="rb-i rb-i-warn"></span> Storage fee: €'+fmt2(_buyProduct.storage_fee_annual)+'/quota/anno</div>':'')
-      +(_buyProduct.type==='grade_hold'&&_buyProduct.grading_cost_estimated
-        ?'<div style="font-size:12px;color:var(--accent);margin-top:2px">Gradazione stimata: €'+fmt2(_buyProduct.grading_cost_estimated)+' — addebitata proporzionalmente</div>':'')
-      +tiersHtml
-    +'</div></div>';
-  buyUpdateTotal();
-  document.getElementById('buySt').innerHTML='';
-  document.getElementById('buyBankRef').value='';
-  document.getElementById('buyNotes').value='';
+  // Card prodotto
+  var coverUrl = _buyProduct.cover_photo_url || _buyProduct.image_url || '';
+  document.getElementById('coProductCard').innerHTML =
+      '<div class="co-product-img">'
+    +   (coverUrl?'<img src="'+esc(coverUrl)+'"/>':'<span class="rb-i rb-i-package" style="color:var(--text-subtle)"></span>')
+    + '</div>'
+    + '<div style="flex:1">'
+    +   '<div class="co-product-name">'+esc(_buyProduct.name)+'</div>'
+    +   '<div class="co-product-meta">'+typeBadge(_buyProduct.type)+statusBadge(_buyProduct.status)+'</div>'
+    +   '<div class="co-product-price">€'+fmt2(_buyProduct.price_per_quote)+' / '+(_buyProduct.quote_unit||'quota')
+    +     (_buyProduct.estimated_value?' · valore stimato €'+fmt2(_buyProduct.estimated_value):'')+'</div>'
+    + '</div>';
+
+  coUpdateTotals();
+  coGotoStep(1);
   document.getElementById('buyModalBg').classList.add('show');
 }
 
-var _buyDiscTiers = []; // tier sconto del prodotto attuale
-
-function buyUpdateTotal(){
-  if(!_buyProduct) return;
-  var qty = parseInt(document.getElementById('buyQty').value)||1;
-  var calc = calcDiscountedTotal(_buyProduct.price_per_quote, qty, _buyDiscTiers);
-
-  var totalEl = document.getElementById('buyTotal');
-  if(totalEl){
-    if(calc.applied){
-      totalEl.innerHTML =
-          '<div class="disc-applied-line"><span>Subtotale</span><span style="color:var(--text-muted)">€'+fmt2(calc.gross)+'</span></div>'
-        + '<div class="disc-applied-line discount"><span>Sconto '+fmt2(calc.discount_pct)+'% (≥ '+calc.tier.min_qty+' quote)</span><span>−€'+fmt2(calc.discount_amount)+'</span></div>'
-        + '<div class="disc-applied-line total"><span>Totale</span><span style="color:var(--gold);font-weight:600">€'+fmt2(calc.net)+'</span></div>';
-    } else {
-      totalEl.innerHTML = '<div style="font-size:20px;font-weight:600;font-family:var(--mono);color:var(--gold)">€'+fmt2(calc.net)+'</div>';
-    }
-  }
-
-  // Aggiorna riepilogo tier (highlight il tier attivo)
-  if(_buyDiscTiers && _buyDiscTiers.length){
-    var prodBox = document.getElementById('buyModalProduct');
-    var summary = prodBox && prodBox.querySelector('.disc-summary');
-    if(summary){
-      summary.outerHTML = renderDiscountSummary(_buyDiscTiers, qty);
-    }
-  }
-
-  // Causale
-  var uid = _session && (_session.user && _session.user.id || _session.access_token.slice(-6));
-  document.getElementById('buyBonificoCausal').textContent = 'RBK-'+_buyProduct.id.slice(0,8).toUpperCase()+'-Q'+qty;
+function closeBuyModal(){
+  document.getElementById('buyModalBg').classList.remove('show');
+  // Se l'ordine è stato creato → ricarica marketplace per aggiornare statistiche
+  if(_coOrder){ try { mktLoad(); } catch(e){} }
 }
 
-async function buyConfirm(){
-  if(!_buyProduct || !_session) return;
-  var user = _session.user || {};
-  if(!user.id){ setSt('buySt','Sessione non valida. Ricarica la pagina.','err'); return; }
+// ── Step navigation ─────────────────────────────────────────
+function coGotoStep(n){
+  _coStep = n;
+  // Pannelli
+  for(var i=1;i<=4;i++){
+    var pane = document.getElementById('coPane'+i);
+    if(pane) pane.classList.toggle('active', i===n);
+  }
+  // Stepper
+  document.querySelectorAll('.checkout-step').forEach(function(s){
+    var st = parseInt(s.getAttribute('data-step'));
+    s.classList.remove('active','done');
+    if(st===n) s.classList.add('active');
+    else if(st<n) s.classList.add('done');
+  });
+  // Footer dinamico
+  var nextBtn = document.getElementById('coNextBtn');
+  var backBtn = document.getElementById('coBackBtn');
+  var labels  = {1:'Continua →', 2:'Continua →', 3:'Conferma ordine', 4:'Chiudi'};
+  if(n===4){
+    nextBtn.textContent = 'Chiudi';
+    nextBtn.onclick = closeBuyModal;
+    backBtn.style.display = 'none';
+    document.querySelector('.modal-footer .btn[onclick="closeBuyModal()"]').style.display = 'none';
+  } else {
+    nextBtn.textContent = labels[n];
+    nextBtn.onclick = coStepNext;
+    backBtn.style.display = (n>1) ? '' : 'none';
+    var cancelBtn = document.querySelector('.modal-footer .btn[onclick="closeBuyModal()"]');
+    if(cancelBtn) cancelBtn.style.display = '';
+  }
+  document.getElementById('coCheckoutErr').innerHTML = '';
+}
 
-  var qty   = parseInt(document.getElementById('buyQty').value)||1;
-  var ref   = document.getElementById('buyBankRef').value.trim();
-  var notes = document.getElementById('buyNotes').value.trim();
-  var st    = _mktStats[_buyProduct.id] || { sold_quotes:0 };
+function coStepBack(){
+  if(_coStep > 1) coGotoStep(_coStep-1);
+}
+
+async function coStepNext(){
+  if(_coStep===1){
+    if(!coValidateStep1()) return;
+    coGotoStep(2);
+  } else if(_coStep===2){
+    if(!coValidateStep2()) return;
+    // Salva billing localmente per i prossimi ordini
+    try { localStorage.setItem('rb_billing', JSON.stringify(coCollectBilling())); } catch(e){}
+    coUpdateBonificoSummary();
+    coGotoStep(3);
+  } else if(_coStep===3){
+    if(!coValidateStep3()) return;
+    await coSubmitOrder();
+  }
+}
+
+// ── Validazioni ─────────────────────────────────────────────
+function coShowError(msg){
+  document.getElementById('coCheckoutErr').innerHTML = '<div class="co-error">'+esc(msg)+'</div>';
+}
+
+function coValidateStep1(){
+  var qty = parseInt(document.getElementById('coQty').value)||0;
+  if(qty < 1){ alert('Inserisci almeno 1 quota'); return false; }
+  var st = _mktStats[_buyProduct.id] || { sold_quotes:0 };
   var avail = Math.max(0, _buyProduct.total_quotes - (st.sold_quotes||0));
-  if(qty < 1){ setSt('buySt','Inserisci almeno 1 quota','err'); return; }
-  if(avail > 0 && qty > avail){ setSt('buySt','Massimo disponibile: '+avail+' quote','err'); return; }
+  if(qty > avail){ alert('Massimo disponibile: '+avail+' quote'); return false; }
+  return true;
+}
 
-  var btn = document.getElementById('buyConfirmBtn');
-  if(btn){ btn.disabled = true; btn.innerHTML = '<span class="rb-i rb-i-hourglass"></span> Invio...'; }
-  setSt('buySt','Invio richiesta…','info');
+function coValidateStep2(){
+  var isCompany = document.querySelector('input[name="billType"]:checked').value === 'company';
+  var required = ['coBillName','coBillEmail','coBillAddress','coBillCity','coBillZip'];
+  if(isCompany) required = required.concat(['coBillVAT','coBillPEC','coBillSDI']);
+  else required.push('coBillFC');
+
+  for(var i=0;i<required.length;i++){
+    var el = document.getElementById(required[i]);
+    if(!el || !el.value.trim()){
+      el.focus();
+      el.style.borderColor = 'var(--danger)';
+      setTimeout(function(e){ e.style.borderColor=''; }.bind(null,el), 1500);
+      alert('Compila tutti i campi obbligatori');
+      return false;
+    }
+  }
+  // Email format
+  var email = document.getElementById('coBillEmail').value.trim();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    alert('Email non valida'); return false;
+  }
+  // CF format (16 caratteri alfanumerici per privati IT)
+  if(!isCompany){
+    var fc = document.getElementById('coBillFC').value.trim().toUpperCase();
+    if(document.getElementById('coBillCountry').value==='IT' && !/^[A-Z0-9]{16}$/.test(fc)){
+      alert('Codice fiscale non valido (16 caratteri)'); return false;
+    }
+  }
+  return true;
+}
+
+function coValidateStep3(){
+  // Solo bonifico per ora → niente da validare
+  return true;
+}
+
+// ── Toggle privato/azienda ──────────────────────────────────
+function coBillToggle(type){
+  var isCompany = type==='company';
+  document.querySelectorAll('.co-billing-toggle-opt').forEach(function(opt){
+    opt.classList.toggle('active', opt.getAttribute('data-bill')===type);
+  });
+  document.getElementById('coBillFCRow').style.display  = isCompany ? 'none' : '';
+  document.getElementById('coBillVATRow').style.display = isCompany ? '' : 'none';
+  document.getElementById('coBillPECRow').style.display = isCompany ? '' : 'none';
+  document.getElementById('coBillSDIRow').style.display = isCompany ? '' : 'none';
+}
+
+// ── Calcolo totali (step 1) ─────────────────────────────────
+function coUpdateTotals(){
+  if(!_buyProduct) return;
+  var qty = parseInt(document.getElementById('coQty').value)||0;
+  var calc = calcDiscountedTotal(_buyProduct.price_per_quote, qty, _buyDiscTiers);
+
+  var html = '<div class="co-total-row muted"><span>Quote</span><span>'+qty+' × €'+fmt2(_buyProduct.price_per_quote)+'</span></div>'
+           + '<div class="co-total-row"><span>Subtotale</span><span>€'+fmt2(calc.gross)+'</span></div>';
+  if(calc.applied){
+    html += '<div class="co-total-row discount"><span>Sconto volume '+fmt2(calc.discount_pct)+'% (≥ '+calc.tier.min_qty+' quote)</span><span>−€'+fmt2(calc.discount_amount)+'</span></div>';
+  }
+  html += '<div class="co-total-row grand"><span>Totale</span><span class="val">€'+fmt2(calc.net)+'</span></div>';
+  document.getElementById('coTotals').innerHTML = html;
+
+  // Tier summary
+  var sumBox = document.getElementById('coDiscSummary');
+  if(sumBox){ sumBox.innerHTML = renderDiscountSummary(_buyDiscTiers, qty); }
+}
+
+// ── Step 2 — raccolta billing ───────────────────────────────
+function coCollectBilling(){
+  var isCompany = document.querySelector('input[name="billType"]:checked').value === 'company';
+  return {
+    is_company: isCompany,
+    name: document.getElementById('coBillName').value.trim(),
+    email: document.getElementById('coBillEmail').value.trim(),
+    phone: document.getElementById('coBillPhone').value.trim()||null,
+    fc: !isCompany ? document.getElementById('coBillFC').value.trim().toUpperCase() : null,
+    vat: isCompany ? document.getElementById('coBillVAT').value.trim() : null,
+    pec: isCompany ? document.getElementById('coBillPEC').value.trim() : null,
+    sdi: isCompany ? document.getElementById('coBillSDI').value.trim().toUpperCase() : null,
+    address: document.getElementById('coBillAddress').value.trim(),
+    city: document.getElementById('coBillCity').value.trim(),
+    zip: document.getElementById('coBillZip').value.trim(),
+    country: document.getElementById('coBillCountry').value
+  };
+}
+
+// ── Step 3 — pagamento ──────────────────────────────────────
+function coSelectPayMethod(method){
+  document.querySelectorAll('.co-pay-method').forEach(function(m){ m.classList.remove('active'); });
+  if(method==='bonifico'){
+    document.getElementById('coPayBonifico').classList.add('active');
+  }
+  // (stripe/paypal disabled per ora)
+}
+
+function coUpdateBonificoSummary(){
+  var qty = parseInt(document.getElementById('coQty').value)||0;
+  var calc = calcDiscountedTotal(_buyProduct.price_per_quote, qty, _buyDiscTiers);
+  var causale = 'RBK-'+_buyProduct.id.slice(0,8).toUpperCase()+'-Q'+qty;
+  document.getElementById('coIban').textContent = BANK_DETAILS.iban;
+  document.getElementById('coCausale').textContent = causale;
+  document.getElementById('coAmount').textContent = '€'+fmt2(calc.net);
+}
+
+function coCopy(elId, btn){
+  var text = document.getElementById(elId).textContent.replace(/\s+/g,' ').trim();
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(text).then(function(){
+      var orig = btn.textContent;
+      btn.textContent = 'Copiato!';
+      btn.classList.add('copied');
+      setTimeout(function(){ btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
+    });
+  } else {
+    // Fallback browser vecchi
+    var ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch(e){}
+    document.body.removeChild(ta);
+    btn.textContent = 'Copiato!';
+    btn.classList.add('copied');
+    setTimeout(function(){ btn.textContent = 'Copia'; btn.classList.remove('copied'); }, 1500);
+  }
+}
+
+// ── Submit ordine ───────────────────────────────────────────
+async function coSubmitOrder(){
+  if(!_buyProduct || !_session){ coShowError('Sessione non valida'); return; }
+  var user = _session.user || {};
+  if(!user.id){ coShowError('Sessione non valida'); return; }
+
+  var qty = parseInt(document.getElementById('coQty').value)||0;
+  var calc = calcDiscountedTotal(_buyProduct.price_per_quote, qty, _buyDiscTiers);
+  var bill = coCollectBilling();
+  var bankRef = document.getElementById('coBankRef').value.trim();
+  var notes = document.getElementById('coNotes').value.trim();
+
+  var nextBtn = document.getElementById('coNextBtn');
+  nextBtn.disabled = true;
+  nextBtn.innerHTML = '<span class="rb-i rb-i-hourglass"></span> Invio...';
 
   try {
-    // Calcolo finale con sconto volume (fractional only)
-    var calc = calcDiscountedTotal(_buyProduct.price_per_quote, qty, _buyDiscTiers);
-    var effectivePerQuote = qty>0 ? (calc.net / qty) : parseFloat(_buyProduct.price_per_quote);
+    // Causale anteprima (verrà sostituita post-creazione con order_number reale)
+    var prelimCausale = 'RBK-'+_buyProduct.id.slice(0,8).toUpperCase()+'-Q'+qty;
+
+    // Tentativo: usa la nuova tabella inv_orders (richiede migration 022)
+    var orderBody = {
+      user_id:         user.id,
+      product_id:      _buyProduct.id,
+      qty:             qty,
+      unit_price:      parseFloat(_buyProduct.price_per_quote),
+      subtotal:        calc.gross,
+      discount_pct:    calc.discount_pct||0,
+      discount_amount: calc.discount_amount||0,
+      total:           calc.net,
+      bill_full_name:  bill.name,
+      bill_email:      bill.email,
+      bill_phone:      bill.phone,
+      bill_fiscal_code:bill.fc,
+      bill_vat_number: bill.vat,
+      bill_address:    bill.address,
+      bill_city:       bill.city,
+      bill_zip:        bill.zip,
+      bill_country:    bill.country,
+      bill_pec:        bill.pec,
+      bill_sdi_code:   bill.sdi,
+      is_company:      bill.is_company,
+      payment_method:  'bonifico',
+      bank_reference:  bankRef||null,
+      causale:         prelimCausale,
+      status:          'awaiting_payment',
+      notes:           notes||null
+    };
+
+    var orderRow = null;
+    try {
+      var created = await supa('POST','inv_orders', orderBody);
+      orderRow = created && created[0];
+    } catch(eOrd){
+      // Fallback: tabella inv_orders non esiste (migration 022 non applicata)
+      console.warn('[checkout] inv_orders non disponibile, fallback a holdings+payments');
+      orderRow = null;
+    }
+
+    var orderNumber = (orderRow && orderRow.order_number)
+      || ('ORD-'+new Date().getFullYear()+'-'+Date.now().toString().slice(-5));
+    var causaleFinal = orderRow ? orderRow.order_number : prelimCausale;
+
+    // Per backward compat e perché holdings+payments sono ancora usati nel
+    // resto della dashboard (portafoglio, vendite secondarie), creiamo
+    // anche quei record (idempotente: link via order.holding_id/payment_id)
     var noteWithDiscount = notes || '';
     if(calc.applied){
       noteWithDiscount = (noteWithDiscount?noteWithDiscount+' · ':'')
         + 'Sconto volume: '+fmt2(calc.discount_pct)+'% (≥ '+calc.tier.min_qty+' quote)';
     }
+    var effectivePerQuote = qty>0 ? (calc.net/qty) : parseFloat(_buyProduct.price_per_quote);
 
-    // 1. Crea holding (price_per_quote = effective dopo sconto)
-    var holding = await supa('POST','inv_holdings',{
-      product_id:       _buyProduct.id,
-      user_id:          user.id,
-      qty:              qty,
-      price_per_quote:  effectivePerQuote,
-      origin:           'primary',
-      notes:            noteWithDiscount||null
-    });
-    var hid = holding && holding[0] && holding[0].id;
-    // 2. Crea pagamento (amount = totale netto dopo sconto)
-    await supa('POST','inv_payments',{
-      user_id:        user.id,
-      product_id:     _buyProduct.id,
-      holding_id:     hid||null,
-      type:           'purchase',
-      amount:         calc.net,
-      qty:            qty,
-      method:         'bonifico',
-      status:         'pending',
-      bank_reference: ref||null,
-      admin_notes:    noteWithDiscount||null
-    });
-    var msg = '<span class="rb-i rb-i-check"></span> Richiesta inviata! Effettua il bonifico con la causale indicata. L\'admin confermerà entro 24-48h.';
-    if(calc.applied){
-      msg += '<br><span style="color:var(--gold);font-weight:600">Sconto '+fmt2(calc.discount_pct)+'% applicato — risparmio €'+fmt2(calc.discount_amount)+'</span>';
+    var holdingId = null, paymentId = null;
+    try {
+      var holding = await supa('POST','inv_holdings',{
+        product_id: _buyProduct.id, user_id: user.id, qty: qty,
+        price_per_quote: effectivePerQuote, origin: 'primary',
+        notes: noteWithDiscount||null
+      });
+      holdingId = holding && holding[0] && holding[0].id;
+    } catch(eH){ console.warn('holding create:',eH.message); }
+
+    try {
+      var payment = await supa('POST','inv_payments',{
+        user_id: user.id, product_id: _buyProduct.id,
+        holding_id: holdingId,
+        type: 'purchase', amount: calc.net, qty: qty,
+        method: 'bonifico', status: 'pending',
+        bank_reference: bankRef||null,
+        admin_notes: noteWithDiscount||null
+      });
+      paymentId = payment && payment[0] && payment[0].id;
+    } catch(eP){ console.warn('payment create:',eP.message); }
+
+    // Link holding/payment all'ordine (se la tabella esiste)
+    if(orderRow && (holdingId || paymentId)){
+      try {
+        await supa('PATCH','inv_orders?id=eq.'+orderRow.id, {
+          holding_id: holdingId, payment_id: paymentId,
+          causale: causaleFinal
+        });
+      } catch(eL){}
     }
-    setSt('buySt', msg, 'ok');
-    setTimeout(function(){ mktLoad(); }, 800);
+
+    _coOrder = {
+      number: orderNumber,
+      total:  calc.net,
+      qty:    qty,
+      causale: causaleFinal,
+      bill: bill
+    };
+    coRenderConfirmation();
+    coGotoStep(4);
+
   } catch(e) {
-    setSt('buySt','Errore: '+e.message,'err');
+    coShowError('Errore invio ordine: '+e.message);
   } finally {
-    if(btn){ btn.disabled = false; btn.innerHTML = '<span class="rb-i rb-i-send"></span> Invia richiesta acquisto'; }
+    nextBtn.disabled = false;
+    nextBtn.textContent = 'Conferma ordine';
   }
 }
 
-function closeBuyModal(){ document.getElementById('buyModalBg').classList.remove('show'); }
+function coRenderConfirmation(){
+  if(!_coOrder) return;
+  document.getElementById('coConfirmNum').textContent = _coOrder.number;
+  document.getElementById('coConfirmRecap').innerHTML = ''
+    + '<div class="co-bonifico-row"><span class="co-bonifico-key">Intestatario</span><span class="co-bonifico-val">'+esc(BANK_DETAILS.intestatario)+'</span></div>'
+    + '<div class="co-bonifico-row"><span class="co-bonifico-key">IBAN</span><span><span class="co-bonifico-val">'+esc(BANK_DETAILS.iban)+'</span></span></div>'
+    + '<div class="co-bonifico-row"><span class="co-bonifico-key">Causale</span><span class="co-bonifico-val gold">'+esc(_coOrder.causale)+'</span></div>'
+    + '<div class="co-bonifico-row"><span class="co-bonifico-key">Importo</span><span class="co-bonifico-val gold">€'+fmt2(_coOrder.total)+'</span></div>'
+    + '<div class="co-bonifico-row"><span class="co-bonifico-key">Quote</span><span class="co-bonifico-val">'+_coOrder.qty+' '+(_buyProduct.quote_unit||'quote')+'</span></div>';
+}
+
+// ── Download riepilogo PDF (semplice: print della finestra) ─
+function coDownloadOrderPdf(){
+  if(!_coOrder) return;
+  var win = window.open('', '_blank', 'width=720,height=900');
+  if(!win){ alert('Abilita i popup per scaricare il riepilogo'); return; }
+  var bill = _coOrder.bill;
+  win.document.write(''
+    + '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(_coOrder.number)+'</title>'
+    + '<style>'
+    + '*{box-sizing:border-box;margin:0;padding:0}'
+    + 'body{font-family:Georgia,serif;color:#222;padding:40px 50px;line-height:1.6;font-size:13px}'
+    + 'h1{font-size:22px;font-weight:300;margin-bottom:4px}'
+    + '.num{font-family:monospace;color:#b08838;font-size:14px;letter-spacing:.06em;margin-bottom:24px}'
+    + 'h2{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#888;font-weight:600;margin-top:24px;margin-bottom:8px;border-bottom:1px solid #ddd;padding-bottom:4px}'
+    + 'table{width:100%;border-collapse:collapse;margin-top:8px}'
+    + 'td{padding:5px 0;font-size:12px}'
+    + 'td.k{color:#666;width:35%}'
+    + 'td.v{font-family:monospace}'
+    + '.total{margin-top:16px;padding:12px;background:#f7f7f5;border-left:3px solid #b08838;font-size:16px;font-weight:600}'
+    + '.foot{margin-top:30px;padding-top:14px;border-top:1px solid #ddd;font-size:11px;color:#888}'
+    + '@media print{body{padding:20px}}'
+    + '</style></head><body>'
+    + '<h1>RareBlock — Riepilogo ordine</h1>'
+    + '<div class="num">'+esc(_coOrder.number)+'</div>'
+
+    + '<h2>Prodotto</h2>'
+    + '<table>'
+    + '<tr><td class="k">Nome</td><td class="v">'+esc(_buyProduct.name)+'</td></tr>'
+    + '<tr><td class="k">Quantità</td><td class="v">'+_coOrder.qty+' '+(_buyProduct.quote_unit||'quote')+'</td></tr>'
+    + '<tr><td class="k">Prezzo unitario</td><td class="v">€'+fmt2(_buyProduct.price_per_quote)+'</td></tr>'
+    + '</table>'
+
+    + '<h2>Fatturazione</h2>'
+    + '<table>'
+    + '<tr><td class="k">Intestatario</td><td class="v">'+esc(bill.name)+'</td></tr>'
+    + '<tr><td class="k">Email</td><td class="v">'+esc(bill.email)+'</td></tr>'
+    + (bill.phone?'<tr><td class="k">Telefono</td><td class="v">'+esc(bill.phone)+'</td></tr>':'')
+    + (bill.fc?'<tr><td class="k">Codice fiscale</td><td class="v">'+esc(bill.fc)+'</td></tr>':'')
+    + (bill.vat?'<tr><td class="k">P. IVA</td><td class="v">'+esc(bill.vat)+'</td></tr>':'')
+    + (bill.pec?'<tr><td class="k">PEC</td><td class="v">'+esc(bill.pec)+'</td></tr>':'')
+    + (bill.sdi?'<tr><td class="k">SDI</td><td class="v">'+esc(bill.sdi)+'</td></tr>':'')
+    + '<tr><td class="k">Indirizzo</td><td class="v">'+esc(bill.address)+', '+esc(bill.zip)+' '+esc(bill.city)+' ('+esc(bill.country)+')</td></tr>'
+    + '</table>'
+
+    + '<h2>Bonifico</h2>'
+    + '<table>'
+    + '<tr><td class="k">Intestatario</td><td class="v">'+esc(BANK_DETAILS.intestatario)+'</td></tr>'
+    + '<tr><td class="k">IBAN</td><td class="v">'+esc(BANK_DETAILS.iban)+'</td></tr>'
+    + '<tr><td class="k">BIC</td><td class="v">'+esc(BANK_DETAILS.bic)+'</td></tr>'
+    + '<tr><td class="k">Causale</td><td class="v"><b>'+esc(_coOrder.causale)+'</b></td></tr>'
+    + '</table>'
+
+    + '<div class="total">Totale: €'+fmt2(_coOrder.total)+'</div>'
+
+    + '<div class="foot">Ordine generato il '+new Date().toLocaleString('it-IT')+' · L\'invio del bonifico è obbligatorio entro 5 giorni lavorativi. La conferma di pagamento sblocca l\'emissione delle quote.</div>'
+
+    + '<script>setTimeout(function(){window.print()},300);</'+'script>'
+    + '</body></html>'
+  );
+  win.document.close();
+}
+
 function showProductDetail(pid){ openProductDetail(pid); }
 
 // ═══════════════════════════════════════════════════════════
@@ -2376,14 +3080,15 @@ function pdvPlaceBuy(){
   if(!_pdvProduct) return;
   var q = parseInt(document.getElementById('pdvBidQty').value)||0;
   if(q<=0){ alert('Inserisci una quantità valida'); return; }
-  // Riusa il flusso buy modal esistente
+  // Apri checkout multi-step con qty pre-popolata
   closeProductDetail();
   setTimeout(function(){
     openBuyModal(_pdvProduct.id);
+    // Apertura è async; aspettiamo che il modal carichi i tier prima di settare qty
     setTimeout(function(){
-      var bq = document.getElementById('buyQty');
-      if(bq){ bq.value = q; if(typeof buyUpdateTotal==='function') buyUpdateTotal(); }
-    }, 100);
+      var bq = document.getElementById('coQty');
+      if(bq){ bq.value = q; coUpdateTotals(); }
+    }, 200);
   }, 200);
 }
 
@@ -2441,12 +3146,6 @@ document.addEventListener('keydown', function(e){
   else if(e.key==='ArrowLeft') pdvImgNav(-1);
   else if(e.key==='ArrowRight') pdvImgNav(1);
 });
-
-function buyShowMethod(){
-  var m = document.querySelector('input[name="payMethod"]:checked');
-  document.getElementById('buyBonifico').style.display = (!m||m.value==='bonifico')?'':'none';
-  document.getElementById('buyStripePh').style.display = (m&&m.value==='stripe')?'':'none';
-}
 
 
 // ═══════════════════════════════════════════════════════════
