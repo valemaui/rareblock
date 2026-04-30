@@ -1635,8 +1635,13 @@ textarea{resize:vertical;min-height:60px}
 
       <!-- ── STEP 2 — Fatturazione ─────────────────────────── -->
       <div class="checkout-pane" id="coPane2">
-        <div style="font-size:13px;color:var(--text-muted);line-height:1.6">
-          Inserisci i dati fiscali per l'emissione della ricevuta. Saranno salvati per i prossimi acquisti.
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div style="font-size:13px;color:var(--text-muted);line-height:1.6;flex:1;min-width:240px">
+            Inserisci i dati fiscali per l'emissione della ricevuta. Saranno salvati per i prossimi acquisti.
+          </div>
+          <button type="button" class="btn sm" onclick="coImportFromProfile()" id="coImportBtn" title="Compila i campi con i dati salvati nel tuo profilo o nell'ultimo ordine">
+            <span class="rb-i rb-i-download"></span> Importa da anagrafica
+          </button>
         </div>
 
         <div class="co-billing-toggle">
@@ -2803,6 +2808,43 @@ function coGotoStep(n){
     if(cancelBtn) cancelBtn.style.display = '';
   }
   document.getElementById('coCheckoutErr').innerHTML = '';
+
+  // Quando si entra nello step 2, evidenzia il bottone Importa se ha senso
+  if(n===2){
+    coRefreshImportBtnState();
+  }
+}
+
+// Verifica se ci sono dati anagrafica salvati e propone l'import
+async function coRefreshImportBtnState(){
+  var btn = document.getElementById('coImportBtn');
+  if(!btn) return;
+  // Se l'utente ha già compilato qualcosa, non cambiare lo stato
+  var nameVal = (document.getElementById('coBillName').value||'').trim();
+  var addrVal = (document.getElementById('coBillAddress').value||'').trim();
+  if(nameVal && addrVal){
+    btn.classList.remove('primary');
+    return;
+  }
+  // Altrimenti rendiamo il bottone primary se c'è qualcosa da importare
+  var hasData = false;
+  try {
+    if(_session && _session.user && _session.user.id){
+      try {
+        var rows = await supa('GET','profiles?id=eq.'+_session.user.id+'&select=bill_address,bill_fiscal_code,bill_vat_number');
+        var p = rows && rows[0];
+        if(p && (p.bill_address||p.bill_fiscal_code||p.bill_vat_number)) hasData = true;
+      } catch(e){ /* colonne non esistono */ }
+    }
+    if(!hasData){
+      try {
+        var saved = JSON.parse(localStorage.getItem('rb_billing')||'null');
+        if(saved && (saved.address||saved.fc||saved.vat)) hasData = true;
+      } catch(e){}
+    }
+  } catch(e){}
+  if(hasData) btn.classList.add('primary');
+  else btn.classList.remove('primary');
 }
 
 function coStepBack(){
@@ -2923,6 +2965,149 @@ function coCollectBilling(){
     zip: document.getElementById('coBillZip').value.trim(),
     country: document.getElementById('coBillCountry').value
   };
+}
+
+// ── Importa anagrafica: profile DB → ultimo ordine → localStorage ──
+async function coImportFromProfile(){
+  var btn = document.getElementById('coImportBtn');
+  if(btn){ btn.disabled = true; btn.innerHTML = '<span class="rb-i rb-i-hourglass"></span> Importo...'; }
+
+  var data = null;
+  var source = '';
+
+  try {
+    // 1. Prova profilo DB (post-024)
+    if(_session && _session.user && _session.user.id){
+      try {
+        var rows = await supa('GET','profiles?id=eq.'+_session.user.id+'&select=full_name,phone,bill_is_company,bill_email,bill_fiscal_code,bill_vat_number,bill_pec,bill_sdi_code,bill_address,bill_city,bill_zip,bill_country');
+        var p = rows && rows[0];
+        if(p && (p.bill_address || p.bill_fiscal_code || p.bill_vat_number)){
+          data = {
+            is_company: !!p.bill_is_company,
+            name: p.full_name||'',
+            email: p.bill_email || (_session.user.email||''),
+            phone: p.phone||'',
+            fc: p.bill_fiscal_code||'',
+            vat: p.bill_vat_number||'',
+            pec: p.bill_pec||'',
+            sdi: p.bill_sdi_code||'',
+            address: p.bill_address||'',
+            city: p.bill_city||'',
+            zip: p.bill_zip||'',
+            country: p.bill_country||'IT'
+          };
+          source = 'profile';
+        }
+      } catch(eDb){ /* colonne non esistono ancora → fallback */ }
+    }
+
+    // 2. Fallback: ultimo ordine confermato
+    if(!data && _session && _session.user && _session.user.id){
+      try {
+        var orders = await supa('GET','inv_orders?user_id=eq.'+_session.user.id+'&order=created_at.desc&limit=1&select=is_company,bill_full_name,bill_email,bill_phone,bill_fiscal_code,bill_vat_number,bill_pec,bill_sdi_code,bill_address,bill_city,bill_zip,bill_country');
+        var o = orders && orders[0];
+        if(o && o.bill_full_name){
+          data = {
+            is_company: !!o.is_company,
+            name: o.bill_full_name||'',
+            email: o.bill_email||'',
+            phone: o.bill_phone||'',
+            fc: o.bill_fiscal_code||'',
+            vat: o.bill_vat_number||'',
+            pec: o.bill_pec||'',
+            sdi: o.bill_sdi_code||'',
+            address: o.bill_address||'',
+            city: o.bill_city||'',
+            zip: o.bill_zip||'',
+            country: o.bill_country||'IT'
+          };
+          source = 'last_order';
+        }
+      } catch(eOrd){ /* tabella non esiste → fallback */ }
+    }
+
+    // 3. Fallback finale: localStorage
+    if(!data){
+      try {
+        var saved = JSON.parse(localStorage.getItem('rb_billing')||'null');
+        if(saved && (saved.address || saved.fc || saved.vat)){
+          data = saved;
+          source = 'local';
+        }
+      } catch(e){}
+    }
+
+    if(!data){
+      alert('Nessuna anagrafica salvata trovata. Compila i campi: verranno salvati al prossimo acquisto.');
+      return;
+    }
+
+    // Applica i dati ai campi
+    if(data.is_company){
+      coBillToggle('company');
+      var radio = document.querySelector('input[name="billType"][value="company"]');
+      if(radio) radio.checked = true;
+    } else {
+      coBillToggle('private');
+      var radioP = document.querySelector('input[name="billType"][value="private"]');
+      if(radioP) radioP.checked = true;
+    }
+
+    var setIfEl = function(id, val){
+      var el = document.getElementById(id);
+      if(el) el.value = val||'';
+    };
+    setIfEl('coBillName', data.name);
+    setIfEl('coBillEmail', data.email);
+    setIfEl('coBillPhone', data.phone);
+    setIfEl('coBillFC', data.fc);
+    setIfEl('coBillVAT', data.vat);
+    setIfEl('coBillPEC', data.pec);
+    setIfEl('coBillSDI', data.sdi);
+    setIfEl('coBillAddress', data.address);
+    setIfEl('coBillCity', data.city);
+    setIfEl('coBillZip', data.zip);
+    setIfEl('coBillCountry', data.country);
+
+    var srcLbl = ({profile:'profilo',last_order:'ultimo ordine',local:'cache locale'})[source]||source;
+    if(btn){
+      btn.innerHTML = '<span class="rb-i rb-i-check"></span> Importati da '+srcLbl;
+      setTimeout(function(){
+        btn.innerHTML = '<span class="rb-i rb-i-download"></span> Importa da anagrafica';
+      }, 2400);
+    }
+  } catch(e){
+    console.warn('coImportFromProfile:', e.message);
+    alert('Errore importazione: '+e.message);
+  } finally {
+    if(btn) btn.disabled = false;
+  }
+}
+
+// ── Salva anagrafica corrente nel profilo (chiamato dopo creazione ordine) ──
+async function coSaveBillingToProfile(billing){
+  if(!_session || !_session.user || !_session.user.id) return;
+  if(!billing) return;
+  try {
+    await supa('PATCH','profiles?id=eq.'+_session.user.id, {
+      bill_is_company:  !!billing.is_company,
+      bill_email:       billing.email||null,
+      bill_fiscal_code: billing.fc||null,
+      bill_vat_number:  billing.vat||null,
+      bill_pec:         billing.pec||null,
+      bill_sdi_code:    billing.sdi||null,
+      bill_address:     billing.address||null,
+      bill_city:        billing.city||null,
+      bill_zip:         billing.zip||null,
+      bill_country:     billing.country||'IT',
+      // Sync anche full_name e phone se presenti
+      full_name:        billing.name||null,
+      phone:            billing.phone||null
+    });
+  } catch(e){
+    // Probabile pre-024: colonne non esistono ancora — silenzioso
+    console.warn('coSaveBillingToProfile (non-fatal):', e.message);
+  }
 }
 
 // ── Step 3 — pagamento ──────────────────────────────────────
@@ -3076,6 +3261,10 @@ async function coSubmitOrder(){
       causale: causaleFinal,
       bill: bill
     };
+
+    // Persisti anagrafica nel profilo per i prossimi acquisti (best-effort)
+    coSaveBillingToProfile(bill);
+
     coRenderConfirmation();
     coGotoStep(4);
 
