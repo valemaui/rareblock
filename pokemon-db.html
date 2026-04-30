@@ -1233,11 +1233,36 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 #authOverlay .ao-btn-ghost:hover{border-color:rgba(240,234,216,.2);color:var(--ao-cream)}
 #authOverlay .ao-footer{font-size:11px;color:rgba(240,234,216,.18);text-align:center;letter-spacing:.04em;line-height:1.9;font-family:var(--ao-sans)}
 
+/* ── ACCESS DENIED OVERLAY (Collector disabilitato) ──────────── */
+#accessDenied{
+  position:fixed;inset:0;background:#0c0c0b;color:#f0ead8;
+  font-family:'Figtree',system-ui,sans-serif;font-weight:300;
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  z-index:9998;padding:40px 24px;text-align:center;
+}
+#accessDenied.show{display:flex}
+#accessDenied .ad-logo{font-family:'Montserrat',system-ui,sans-serif;font-size:18px;font-weight:300;letter-spacing:.18em;text-transform:uppercase;margin-bottom:48px;color:#f0ead8}
+#accessDenied .ad-logo .b{color:#c9a84c}
+#accessDenied .ad-icon{width:52px;height:52px;border-radius:50%;border:1px solid rgba(201,168,76,.3);display:flex;align-items:center;justify-content:center;margin-bottom:24px;color:#c9a84c;font-size:22px}
+#accessDenied h1{font-family:'Fraunces',Georgia,serif;font-size:28px;font-weight:300;font-style:italic;color:#f0ead8;margin-bottom:14px;max-width:520px;line-height:1.25}
+#accessDenied p{font-size:14px;color:rgba(240,234,216,.55);line-height:1.7;max-width:440px;margin-bottom:8px}
+#accessDenied .ad-email{font-family:'IBM Plex Mono',monospace;font-size:12px;color:#c9a84c;margin-top:12px;letter-spacing:.04em}
+#accessDenied .ad-actions{display:flex;gap:14px;margin-top:36px;flex-wrap:wrap;justify-content:center}
+#accessDenied .ad-btn{padding:11px 22px;font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;border-radius:2px;cursor:pointer;transition:all .2s;text-decoration:none;display:inline-flex;align-items:center;gap:8px;font-family:inherit;border:none}
+#accessDenied .ad-btn-primary{background:#c9a84c;color:#0c0c0b}
+#accessDenied .ad-btn-primary:hover{background:#e8c96a;transform:translateY(-1px)}
+#accessDenied .ad-btn-ghost{background:transparent;color:rgba(240,234,216,.55);border:.5px solid rgba(240,234,216,.18)}
+#accessDenied .ad-btn-ghost:hover{color:#f0ead8;border-color:rgba(240,234,216,.4)}
+
 /* User badge in header */
 .user-badge{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .user-email{font-size:11px;font-family:var(--mono);color:var(--text-muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .user-logout{font-size:11px;font-family:var(--mono);color:var(--text-muted);background:none;border:1px solid var(--border);border-radius:var(--r);padding:3px 8px;cursor:pointer;transition:all .15s}
 .user-logout:hover{color:var(--danger);border-color:var(--danger)}
+.user-role-pill{font-size:9.5px;font-family:var(--mono);font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:3px 7px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);white-space:nowrap}
+.user-role-pill.admin{color:var(--danger);border-color:rgba(248,81,73,.4);background:rgba(248,81,73,.08)}
+.user-admin-link{font-size:10.5px;font-family:var(--mono);font-weight:500;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:var(--r);border:1px solid rgba(248,81,73,.35);color:var(--danger);background:rgba(248,81,73,.06);text-decoration:none;transition:all .15s}
+.user-admin-link:hover{background:rgba(248,81,73,.14);border-color:var(--danger)}
 
 /* ═══ DASHBOARD ═══ */
 .dash-wrap{padding:24px 28px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:22px}
@@ -1449,13 +1474,27 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
   </div>
 </div>
 
+<!-- ── ACCESS DENIED — Collector disabilitato per questo utente ── -->
+<div id="accessDenied">
+  <div class="ad-logo">RARE<span class="b">BLOCK</span></div>
+  <div class="ad-icon">&#9888;</div>
+  <h1>Area Collector <em>non abilitata</em></h1>
+  <p>Il tuo account non ha accesso all'area Collector di RareBlock.</p>
+  <p>Contatta un amministratore per richiedere l'abilitazione.</p>
+  <div class="ad-email" id="adUserEmail"></div>
+  <div class="ad-actions">
+    <a href="rareblock-dashboard.html" class="ad-btn ad-btn-primary" id="adGoInvestor" style="display:none">Vai a Investor &rarr;</a>
+    <button class="ad-btn ad-btn-ghost" onclick="authLogout()">Esci</button>
+  </div>
+</div>
+
 <header class="header">
   <a href="index.html" class="logo">
     <span style="color:var(--text)">Rare</span><span class="logo-gold">Block</span>
   </a>
-  <div class="mode-switch">
-    <button class="mode-btn" onclick="window.location.href='rareblock-dashboard.html'">Investor</button>
-    <button class="mode-btn active">Collector</button>
+  <div class="mode-switch" id="modeSwitch">
+    <button class="mode-btn" id="modeInvestorBtn" onclick="window.location.href='rareblock-dashboard.html'">Investor</button>
+    <button class="mode-btn active" id="modeCollectorBtn">Collector</button>
   </div>
   <nav class="nav">
     <button class="nav-btn active" onclick="showTab('col')">Collezione</button>
@@ -1473,6 +1512,8 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
     <span class="led-label" id="apiLabel">verifica...</span>
   </div>
   <div class="user-badge" id="userBadge" style="display:none">
+    <span class="user-role-pill" id="userRolePill" style="display:none"></span>
+    <a href="rareblock-admin-users.html" class="user-admin-link" id="userAdminLink" style="display:none" title="Pannello gestione utenti">Admin</a>
     <span class="user-email" id="userEmail"></span>
     <button class="user-logout" onclick="authLogout()">Esci</button>
   </div>
@@ -1942,6 +1983,106 @@ Object.defineProperty(window,'HDR',{get:getHDR,configurable:true});
 function getCurrentUserId(){
   return (window._rbSession&&window._rbSession.user&&window._rbSession.user.id)||null;
 }
+
+// ═════════════════════════════════════════════════════════════════
+//  PROFILO UTENTE & PERMESSI (can_collector / can_investor / role)
+//  Caricato dopo il login. Decide se l'utente vede l'area Collector,
+//  se può passare a Investor e se ha accesso al pannello admin.
+// ═════════════════════════════════════════════════════════════════
+const ADMIN_EMAILS=['admin@rareblock.eu','valemaui@gmail.com'];
+window._rbProfile=null;
+
+async function loadUserProfile(){
+  var u=window._rbSession&&window._rbSession.user;
+  if(!u){ window._rbProfile=null; return null; }
+
+  // Default permissivo: se la query fallisce o il profilo non esiste,
+  // assumiamo che l'utente abbia entrambi i permessi (backward compat).
+  var prof={
+    id:u.id,
+    email:u.email,
+    role:(ADMIN_EMAILS.indexOf(u.email)>-1?'admin':'investor'),
+    can_collector:true,
+    can_investor:true
+  };
+  try{
+    var r=await fetch(SUPA_URL+'/rest/v1/profiles?id=eq.'+u.id+'&select=id,role,can_collector,can_investor,full_name,email',{headers:getHDR()});
+    if(r.ok){
+      var arr=await r.json();
+      if(arr&&arr[0]){
+        var p=arr[0];
+        prof.role=p.role||prof.role;
+        // Solo se la colonna esiste sovrascriviamo (false esplicito → blocca)
+        if(typeof p.can_collector==='boolean') prof.can_collector=p.can_collector;
+        if(typeof p.can_investor==='boolean')  prof.can_investor=p.can_investor;
+        if(p.full_name) prof.full_name=p.full_name;
+      }else{
+        // Profilo mancante → lo creiamo (best-effort)
+        try{
+          await fetch(SUPA_URL+'/rest/v1/profiles',{
+            method:'POST',
+            headers:Object.assign(getHDR(),{'Prefer':'resolution=ignore-duplicates,return=minimal'}),
+            body:JSON.stringify({id:u.id,email:u.email,role:prof.role})
+          });
+        }catch(e){}
+      }
+    }
+  }catch(e){ console.warn('[profile] load fallback:',e.message); }
+
+  // Email nei founder list → forza admin (failsafe)
+  if(ADMIN_EMAILS.indexOf(u.email)>-1) prof.role='admin';
+  // Admin ha sempre tutti i permessi
+  if(prof.role==='admin'){ prof.can_collector=true; prof.can_investor=true; }
+
+  window._rbProfile=prof;
+  return prof;
+}
+
+function isAdminUser(){
+  var p=window._rbProfile;
+  return !!(p && p.role==='admin');
+}
+
+function applyProfileToUI(){
+  var p=window._rbProfile;
+  if(!p) return;
+
+  // Mode-switch: nasconde Investor se non abilitato
+  var invBtn=document.getElementById('modeInvestorBtn');
+  if(invBtn) invBtn.style.display = p.can_investor ? '' : 'none';
+
+  // Role pill
+  var pill=document.getElementById('userRolePill');
+  if(pill){
+    if(p.role==='admin'){
+      pill.textContent='Admin';
+      pill.classList.add('admin');
+      pill.style.display='';
+    } else {
+      pill.style.display='none';
+      pill.classList.remove('admin');
+    }
+  }
+
+  // Admin link → pagina gestione utenti
+  var adminLink=document.getElementById('userAdminLink');
+  if(adminLink) adminLink.style.display = (p.role==='admin') ? '' : 'none';
+}
+
+function showAccessDenied(){
+  var p=window._rbProfile;
+  var ad=document.getElementById('accessDenied');
+  var emailEl=document.getElementById('adUserEmail');
+  var goInv=document.getElementById('adGoInvestor');
+  if(emailEl && p) emailEl.textContent=p.email||'';
+  if(goInv) goInv.style.display = (p && p.can_investor) ? '' : 'none';
+  if(ad) ad.classList.add('show');
+  // nasconde tutto il resto
+  var hdr=document.querySelector('.header');
+  if(hdr) hdr.style.display='none';
+  document.querySelectorAll('.tab').forEach(function(t){ t.style.display='none'; });
+}
+
 
 // Fattori ufficiali Cardmarket (base NM=100%)
 const COND_FACTOR={MINT:1.15,NM:1.0,EX:0.85,GD:0.70,LP:0.60,PL:0.40,PO:0.20,'INK/ALT':0};
@@ -3900,7 +4041,6 @@ window.recoverMS = async function(fromUid){
   }catch(e){ console.error('recoverMS error:',e); }
   console.groupEnd();
 };
-console.log('💡 Suggerimento: se i preventivi non si vedono, esegui da console: debugPrev()');
 
 async function createPreventivo(){
   const name=document.getElementById('newPrevName').value.trim();
@@ -5891,9 +6031,20 @@ async function checkApiStatus(){
 }
 
 // Avvio controllato dall'auth — rbAuthInit() chiama appStart() dopo login
-function appStart(){
+async function appStart(){
   const vb=document.getElementById('versionBadge');
   if(vb)vb.textContent='v'+APP_VERSION;
+
+  // Carica profilo + permessi PRIMA di mostrare la UI
+  try{
+    var prof=await loadUserProfile();
+    applyProfileToUI();
+    if(prof && prof.can_collector===false){
+      showAccessDenied();
+      return;
+    }
+  }catch(e){ console.warn('[appStart] profile error:',e.message); }
+
   setTimeout(checkApiStatus, 800);
   loadCollection();
 }
@@ -5923,7 +6074,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='5.5';
+const APP_VERSION='5.6';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -13681,6 +13832,7 @@ window.authLogout = async function(){
   preventivi = [];
   activePrev = null;
   _rbAuthInitDone = false;
+  window._rbProfile = null;
   location.reload();
 };
 
@@ -13689,6 +13841,8 @@ var _rbAuthInitDone = false;
 window.rbAuthInit = function(){
   if(_rbAuthInitDone){ return; }
   _rbAuthInitDone = true;
+  // Popola version footer overlay
+  try{ var _av=document.getElementById('authVersion'); if(_av) _av.textContent=APP_VERSION; }catch(e){}
   authDiag('controllo sessione...',false);
 
   var session = rbLoadSession();

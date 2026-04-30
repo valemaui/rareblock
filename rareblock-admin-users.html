@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RareBlock — Admin · Gestione Utenti</title>
+<meta name="robots" content="noindex,nofollow"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Montserrat:wght@200;300&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#0d1117;
+  --surface:#161b22;
+  --surface2:#21262d;
+  --surface3:#2d333b;
+  --border:#30363d;
+  --border-strong:#3d444d;
+  --border-focus:#58a6ff;
+  --text:#e6edf3;
+  --text-muted:#7d8590;
+  --text-subtle:#484f58;
+  --accent:#58a6ff;
+  --accent-hover:#388bfd;
+  --accent-soft:rgba(88,166,255,.10);
+  --accent-border:rgba(88,166,255,.28);
+  --danger:#f85149;
+  --danger-soft:rgba(248,81,73,.10);
+  --success:#3fb950;
+  --success-soft:rgba(63,185,80,.10);
+  --warning:#d29922;
+  --warning-soft:rgba(210,153,34,.10);
+  --gold:#c9a84c;
+  --font:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",monospace;
+  --display:"Montserrat",system-ui,sans-serif;
+  --serif:"Fraunces",Georgia,serif;
+  --r:6px;
+  --r-lg:8px;
+  --t-fast:.12s;
+}
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;line-height:1.5;display:flex;flex-direction:column;min-height:100vh}
+
+/* HEADER */
+.header{height:52px;flex-shrink:0;display:flex;align-items:center;padding:0 20px;border-bottom:1px solid var(--border);gap:20px;background:var(--surface)}
+.logo{font-family:var(--display);font-size:14px;font-weight:300;letter-spacing:.18em;text-transform:uppercase;color:var(--text);text-decoration:none;display:flex;align-items:center;gap:8px}
+.logo .b{color:var(--gold)}
+.logo-divider{font-size:11px;font-family:var(--mono);color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase;border-left:1px solid var(--border);padding-left:14px;margin-left:6px}
+.logo-divider .danger-pill{background:rgba(248,81,73,.1);color:var(--danger);border:1px solid rgba(248,81,73,.35);padding:2px 8px;border-radius:20px;font-weight:600;letter-spacing:.08em}
+.crumbs{flex:1;display:flex;align-items:center;gap:14px;font-size:11.5px;font-family:var(--mono);color:var(--text-muted);letter-spacing:.04em}
+.crumbs a{color:var(--text-muted);text-decoration:none;transition:color var(--t-fast)}
+.crumbs a:hover{color:var(--accent)}
+.crumbs .sep{color:var(--text-subtle)}
+
+.user-badge{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.user-email{font-size:11px;font-family:var(--mono);color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-logout{font-size:11px;font-family:var(--mono);color:var(--text-muted);background:none;border:1px solid var(--border);border-radius:var(--r);padding:3px 8px;cursor:pointer;transition:all var(--t-fast)}
+.user-logout:hover{color:var(--danger);border-color:var(--danger)}
+
+/* MAIN */
+main{flex:1;padding:28px 32px;max-width:1280px;width:100%;margin:0 auto}
+.page-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:24px;gap:20px;flex-wrap:wrap}
+.page-title{font-family:var(--serif);font-size:26px;font-weight:300;font-style:italic;letter-spacing:-.01em;line-height:1.15}
+.page-sub{font-size:12.5px;color:var(--text-muted);margin-top:4px;line-height:1.6;max-width:560px}
+
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;display:flex;flex-direction:column;gap:4px}
+.stat-label{font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);font-weight:500}
+.stat-value{font-size:22px;font-weight:300;color:var(--text);font-family:var(--display);letter-spacing:-.01em}
+.stat-value.gold{color:var(--gold)}
+.stat-value.danger{color:var(--danger)}
+
+/* TOOLBAR */
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.search-box{flex:1;min-width:220px;position:relative}
+.search-box input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--font);font-size:13px;padding:8px 12px 8px 32px;outline:none;transition:border-color var(--t-fast),box-shadow var(--t-fast)}
+.search-box input:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px var(--accent-soft)}
+.search-box::before{content:'';position:absolute;left:11px;top:50%;width:13px;height:13px;border:1.5px solid var(--text-muted);border-radius:50%;transform:translateY(-60%)}
+.search-box::after{content:'';position:absolute;left:21px;top:24px;width:6px;height:1.5px;background:var(--text-muted);transform:rotate(45deg)}
+
+select{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--font);font-size:13px;padding:7px 11px;outline:none;cursor:pointer}
+select:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px var(--accent-soft)}
+
+.btn{padding:7px 14px;border-radius:var(--r);font-size:12.5px;font-family:var(--font);cursor:pointer;font-weight:500;transition:all var(--t-fast);border:1px solid var(--border);background:var(--surface2);color:var(--text);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:var(--surface3);border-color:var(--border-strong)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-primary{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600}
+.btn-primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn-ghost{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:4px 8px;border-radius:var(--r)}
+.btn-ghost:hover{color:var(--text);background:var(--surface2)}
+
+/* TABLE */
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;font-family:var(--mono);padding:10px 14px;border-bottom:1px solid var(--border);text-align:left;background:var(--surface);position:sticky;top:0;z-index:1;white-space:nowrap}
+tbody td{padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:rgba(255,255,255,.02)}
+
+td.email{font-family:var(--mono);font-size:12.5px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td.name{color:var(--text);font-weight:500;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td.name.empty{color:var(--text-subtle);font-style:italic;font-weight:400}
+td.date{font-family:var(--mono);font-size:11.5px;color:var(--text-muted);white-space:nowrap}
+
+/* ROLE BADGES */
+.role-pill{display:inline-flex;align-items:center;font-size:10px;font-family:var(--mono);font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);cursor:pointer;transition:all var(--t-fast)}
+.role-pill.admin{color:var(--danger);border-color:rgba(248,81,73,.4);background:rgba(248,81,73,.08)}
+.role-pill.investor{color:var(--accent);border-color:var(--accent-border);background:var(--accent-soft)}
+
+/* TOGGLE SWITCH */
+.toggle{position:relative;display:inline-block;width:38px;height:20px;cursor:pointer;flex-shrink:0;vertical-align:middle}
+.toggle input{opacity:0;width:0;height:0;position:absolute}
+.toggle-slider{position:absolute;inset:0;background:var(--surface3);border:1px solid var(--border);border-radius:20px;transition:all var(--t-fast)}
+.toggle-slider::before{content:'';position:absolute;height:14px;width:14px;left:2px;top:50%;transform:translateY(-50%);background:var(--text-muted);border-radius:50%;transition:all var(--t-fast)}
+.toggle input:checked + .toggle-slider{background:var(--accent-soft);border-color:var(--accent-border)}
+.toggle input:checked + .toggle-slider::before{transform:translate(18px,-50%);background:var(--accent)}
+.toggle input:disabled + .toggle-slider{opacity:.4;cursor:not-allowed}
+
+.toggle-cell{display:flex;align-items:center;gap:8px}
+.toggle-cell-label{font-size:11px;font-family:var(--mono);color:var(--text-muted);min-width:14px}
+.toggle-cell-label.on{color:var(--success)}
+.toggle-cell-label.off{color:var(--text-subtle)}
+
+/* TOAST */
+#toast{position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:11px 16px;font-size:12.5px;color:var(--text);box-shadow:0 6px 24px rgba(0,0,0,.4);z-index:1000;display:none;align-items:center;gap:8px;animation:tIn .25s ease}
+#toast.ok{border-left:3px solid var(--success)}
+#toast.err{border-left:3px solid var(--danger)}
+#toast.show{display:flex}
+@keyframes tIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* EMPTY / LOADING */
+.empty{padding:48px 20px;text-align:center;color:var(--text-muted);font-size:13px}
+.loading-shimmer{padding:24px;text-align:center;color:var(--text-subtle);font-family:var(--mono);font-size:11.5px;letter-spacing:.04em}
+.loading-shimmer::after{content:'...';animation:dots 1.4s steps(4,end) infinite}
+@keyframes dots{0%,20%{content:''}40%{content:'.'}60%{content:'..'}80%,100%{content:'...'}}
+
+/* ACCESS DENIED (non admin) */
+#deniedScreen{position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center;z-index:9999}
+#deniedScreen.show{display:flex}
+#deniedScreen h1{font-family:var(--serif);font-size:26px;font-weight:300;font-style:italic;margin-bottom:14px;color:var(--text)}
+#deniedScreen p{font-size:13px;color:var(--text-muted);max-width:420px;margin-bottom:18px;line-height:1.6}
+#deniedScreen a{color:var(--accent);text-decoration:none;font-size:12px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;border:1px solid var(--accent-border);padding:9px 18px;border-radius:var(--r);transition:all var(--t-fast)}
+#deniedScreen a:hover{background:var(--accent-soft)}
+
+/* USER ROW EXPANSION (notes / iban dropdown) */
+tr.detail-row td{background:var(--surface2);padding:14px 18px;border-bottom:1px solid var(--border)}
+.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.detail-field{display:flex;flex-direction:column;gap:4px}
+.detail-field label{font-size:9.5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--text-subtle);font-weight:500}
+.detail-field .val{font-size:12.5px;color:var(--text);font-family:var(--mono);word-break:break-all}
+.detail-field .val.empty{color:var(--text-subtle);font-style:italic}
+.detail-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+
+.expand-btn{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:11px;font-family:var(--mono);padding:3px 6px;border-radius:var(--r);transition:all var(--t-fast)}
+.expand-btn:hover{color:var(--text);background:var(--surface3)}
+.expand-btn.open{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a href="pokemon-db.html" class="logo">
+    <span>Rare</span><span class="b">Block</span>
+  </a>
+  <span class="logo-divider"><span class="danger-pill">Admin</span></span>
+  <div class="crumbs">
+    <a href="pokemon-db.html">Collector</a>
+    <span class="sep">/</span>
+    <a href="rareblock-dashboard.html">Investor</a>
+    <span class="sep">/</span>
+    <a href="rareblock-dashboard.html#admin">Admin</a>
+    <span class="sep">/</span>
+    <span style="color:var(--text)">Gestione Utenti</span>
+  </div>
+  <div class="user-badge">
+    <span class="user-email" id="adminEmail">—</span>
+    <button class="user-logout" onclick="doLogout()">Esci</button>
+  </div>
+</header>
+
+<main>
+  <div class="page-head">
+    <div>
+      <div class="page-title">Gestione utenti</div>
+      <div class="page-sub">Abilita o disabilita le aree Collector e Investor per ciascun utente. I permessi vengono applicati al prossimo login dell'utente.</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" onclick="loadUsers()" id="reloadBtn">Aggiorna</button>
+    </div>
+  </div>
+
+  <div class="stats" id="stats">
+    <div class="stat"><div class="stat-label">Utenti totali</div><div class="stat-value" id="statTotal">—</div></div>
+    <div class="stat"><div class="stat-label">Admin</div><div class="stat-value danger" id="statAdmin">—</div></div>
+    <div class="stat"><div class="stat-label">Collector attivi</div><div class="stat-value" id="statCollector">—</div></div>
+    <div class="stat"><div class="stat-label">Investor attivi</div><div class="stat-value gold" id="statInvestor">—</div></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="Cerca per email o nome..." oninput="renderTable()"/>
+    </div>
+    <select id="roleFilter" onchange="renderTable()">
+      <option value="">Tutti i ruoli</option>
+      <option value="admin">Solo admin</option>
+      <option value="investor">Solo investor</option>
+    </select>
+    <select id="permFilter" onchange="renderTable()">
+      <option value="">Tutti i permessi</option>
+      <option value="both">Collector + Investor</option>
+      <option value="col_only">Solo Collector</option>
+      <option value="inv_only">Solo Investor</option>
+      <option value="none">Nessuno</option>
+    </select>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:30px"></th>
+          <th>Email</th>
+          <th>Nome</th>
+          <th>Ruolo</th>
+          <th style="width:140px">Collector</th>
+          <th style="width:140px">Investor</th>
+          <th>Ultimo accesso</th>
+          <th>Creato</th>
+        </tr>
+      </thead>
+      <tbody id="usersBody">
+        <tr><td colspan="8" class="loading-shimmer">Caricamento utenti</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<div id="deniedScreen">
+  <h1>Accesso non autorizzato</h1>
+  <p>Questa pagina è riservata agli amministratori di RareBlock.</p>
+  <a href="pokemon-db.html">&larr; Torna al Collector</a>
+</div>
+
+<script>
+const SUPA_URL='https://rbjaaeyjeeqfpbzyavag.supabase.co';
+const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
+const RB_SESSION_KEY='rb_session';
+const ADMIN_EMAILS=['admin@rareblock.eu','valemaui@gmail.com'];
+
+var _session=null;
+var _users=[];
+var _expanded={};
+
+function getHDR(prefer){
+  var token=(_session&&_session.access_token)||SUPA_KEY;
+  return{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+token,'Prefer':prefer||'return=representation'};
+}
+
+async function supa(method,path,body){
+  var prefer=(method==='PATCH'||method==='DELETE')?'return=minimal':'return=representation';
+  var r=await fetch(SUPA_URL+'/rest/v1/'+path,{method,headers:getHDR(prefer),body:body?JSON.stringify(body):undefined});
+  if(!r.ok){ var e=await r.text(); throw new Error(e); }
+  var t=await r.text();
+  return t?JSON.parse(t):null;
+}
+
+function loadSession(){
+  try{ var raw=localStorage.getItem(RB_SESSION_KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; }
+}
+function clearSession(){
+  try{ localStorage.removeItem(RB_SESSION_KEY); localStorage.removeItem('rbJWT'); }catch(e){}
+}
+
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtDate(d){ if(!d)return '—'; try{ return new Date(d).toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'numeric'}); }catch(e){ return '—'; } }
+function fmtDateTime(d){ if(!d)return '—'; try{ return new Date(d).toLocaleString('it-IT',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){ return '—'; } }
+
+function toast(msg, kind){
+  var t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className=(kind||'ok')+' show';
+  clearTimeout(window._toastT);
+  window._toastT=setTimeout(function(){ t.classList.remove('show'); }, 2400);
+}
+
+function showDenied(){
+  document.getElementById('deniedScreen').classList.add('show');
+}
+
+function doLogout(){
+  clearSession();
+  location.href='pokemon-db.html';
+}
+
+// ── BOOTSTRAP ──
+async function init(){
+  _session=loadSession();
+  if(!_session || !_session.access_token || !_session.user){
+    location.href='pokemon-db.html?return='+encodeURIComponent('rareblock-admin-users.html');
+    return;
+  }
+  // Sessione scaduta?
+  var now=Math.floor(Date.now()/1000);
+  if(_session.expires_at && now > _session.expires_at - 60){
+    location.href='pokemon-db.html?return='+encodeURIComponent('rareblock-admin-users.html');
+    return;
+  }
+
+  document.getElementById('adminEmail').textContent=_session.user.email||'—';
+
+  // Verifica ruolo
+  try{
+    var profiles=await supa('GET','profiles?id=eq.'+_session.user.id+'&select=id,role,can_collector,can_investor');
+    var p=profiles&&profiles[0];
+    var isAdmin = (p && p.role==='admin') || ADMIN_EMAILS.indexOf(_session.user.email)>-1;
+    if(!isAdmin){ showDenied(); return; }
+  }catch(e){
+    // Failsafe sui founder hardcoded
+    if(ADMIN_EMAILS.indexOf(_session.user.email)<=-1){ showDenied(); return; }
+  }
+
+  await loadUsers();
+}
+
+async function loadUsers(){
+  var btn=document.getElementById('reloadBtn');
+  if(btn){ btn.disabled=true; btn.textContent='Caricamento...'; }
+  try{
+    // Prima prova la view v_admin_users (include last_sign_in_at)
+    var data=null;
+    try{
+      data=await supa('GET','v_admin_users?select=id,email,full_name,role,can_collector,can_investor,iban,phone,notes,created_at,last_sign_in_at,confirmed_at&order=created_at.desc&limit=500');
+    }catch(viewErr){
+      // Fallback: tabella profiles diretta
+      data=await supa('GET','profiles?select=id,email,full_name,role,can_collector,can_investor,iban,phone,notes,created_at&order=created_at.desc&limit=500');
+    }
+    _users=data||[];
+    renderStats();
+    renderTable();
+  }catch(e){
+    document.getElementById('usersBody').innerHTML='<tr><td colspan="8" class="empty">Errore caricamento: '+esc(e.message)+'</td></tr>';
+    toast('Errore: '+e.message,'err');
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent='Aggiorna'; }
+  }
+}
+
+function renderStats(){
+  var total=_users.length;
+  var admins=_users.filter(function(u){return u.role==='admin'}).length;
+  var col=_users.filter(function(u){return u.can_collector!==false}).length;
+  var inv=_users.filter(function(u){return u.can_investor!==false}).length;
+  document.getElementById('statTotal').textContent=total;
+  document.getElementById('statAdmin').textContent=admins;
+  document.getElementById('statCollector').textContent=col;
+  document.getElementById('statInvestor').textContent=inv;
+}
+
+function getFiltered(){
+  var q=(document.getElementById('searchInput').value||'').toLowerCase().trim();
+  var roleF=document.getElementById('roleFilter').value;
+  var permF=document.getElementById('permFilter').value;
+  return _users.filter(function(u){
+    if(q){
+      var hay=((u.email||'')+' '+(u.full_name||'')).toLowerCase();
+      if(hay.indexOf(q)<0) return false;
+    }
+    if(roleF && u.role!==roleF) return false;
+    var c=u.can_collector!==false, i=u.can_investor!==false;
+    if(permF==='both'    && !(c&&i)) return false;
+    if(permF==='col_only'&& !(c&&!i)) return false;
+    if(permF==='inv_only'&& !(!c&&i)) return false;
+    if(permF==='none'    && !(!c&&!i)) return false;
+    return true;
+  });
+}
+
+function renderTable(){
+  var rows=getFiltered();
+  var body=document.getElementById('usersBody');
+  if(!rows.length){
+    body.innerHTML='<tr><td colspan="8" class="empty">Nessun utente corrisponde ai filtri</td></tr>';
+    return;
+  }
+  var html=rows.map(function(u){
+    var c=u.can_collector!==false, i=u.can_investor!==false;
+    var isAdmin=u.role==='admin';
+    var isMe=_session&&_session.user&&u.id===_session.user.id;
+    var lockedAttr=isAdmin?'disabled':''; // ruolo admin = entrambi i permessi sempre on
+    var meTag=isMe?' <span style="color:var(--gold);font-size:9px;letter-spacing:.08em;text-transform:uppercase">tu</span>':'';
+    var expanded=_expanded[u.id]?'open':'';
+    var rowHtml=''
+      + '<tr data-uid="'+esc(u.id)+'">'
+      +   '<td><button class="expand-btn '+expanded+'" onclick="toggleRow(\''+esc(u.id)+'\')" title="Dettagli">'+(_expanded[u.id]?'&#9662;':'&#9656;')+'</button></td>'
+      +   '<td class="email" title="'+esc(u.email)+'">'+esc(u.email||'—')+meTag+'</td>'
+      +   '<td class="name '+(u.full_name?'':'empty')+'">'+esc(u.full_name||'(non impostato)')+'</td>'
+      +   '<td>'
+      +     '<span class="role-pill '+(isAdmin?'admin':'investor')+'" '
+      +     'onclick="cycleRole(\''+esc(u.id)+'\')" title="'+(isMe?'Non puoi cambiare il tuo ruolo':'Click per cambiare')+'" '
+      +     (isMe?'style="cursor:not-allowed;opacity:.6"':'')+'>'+esc(u.role||'—')+'</span>'
+      +   '</td>'
+      +   '<td>'+permCell(u,'can_collector',c,lockedAttr)+'</td>'
+      +   '<td>'+permCell(u,'can_investor',i,lockedAttr)+'</td>'
+      +   '<td class="date">'+fmtDateTime(u.last_sign_in_at)+'</td>'
+      +   '<td class="date">'+fmtDate(u.created_at)+'</td>'
+      + '</tr>';
+    if(_expanded[u.id]){
+      rowHtml+=detailRow(u);
+    }
+    return rowHtml;
+  }).join('');
+  body.innerHTML=html;
+}
+
+function permCell(u, field, value, lockedAttr){
+  var label = value?'ON':'OFF';
+  var lblClass = value?'on':'off';
+  return '<div class="toggle-cell">'
+       + '<label class="toggle">'
+       +   '<input type="checkbox" '+(value?'checked':'')+' '+lockedAttr+' onchange="togglePerm(\''+esc(u.id)+'\',\''+field+'\',this.checked)"/>'
+       +   '<span class="toggle-slider"></span>'
+       + '</label>'
+       + '<span class="toggle-cell-label '+lblClass+'">'+label+'</span>'
+       + '</div>';
+}
+
+function detailRow(u){
+  return '<tr class="detail-row">'
+       +   '<td colspan="8">'
+       +     '<div class="detail-grid">'
+       +       '<div class="detail-field"><label>UUID</label><div class="val">'+esc(u.id)+'</div></div>'
+       +       '<div class="detail-field"><label>Telefono</label><div class="val '+(u.phone?'':'empty')+'">'+esc(u.phone||'(vuoto)')+'</div></div>'
+       +       '<div class="detail-field"><label>IBAN</label><div class="val '+(u.iban?'':'empty')+'">'+esc(u.iban||'(vuoto)')+'</div></div>'
+       +       '<div class="detail-field"><label>Email confermata</label><div class="val">'+(u.confirmed_at?fmtDate(u.confirmed_at):'<span class="empty">no</span>')+'</div></div>'
+       +     '</div>'
+       +     (u.notes?'<div class="detail-field" style="margin-top:10px"><label>Note</label><div class="val" style="font-family:var(--font);white-space:pre-wrap">'+esc(u.notes)+'</div></div>':'')
+       +   '</td>'
+       + '</tr>';
+}
+
+function toggleRow(uid){
+  _expanded[uid]=!_expanded[uid];
+  renderTable();
+}
+
+async function togglePerm(uid, field, value){
+  // Optimistic update
+  var u=_users.find(function(x){return x.id===uid});
+  if(!u) return;
+  var prev=u[field];
+  u[field]=value;
+  renderStats();
+
+  try{
+    var patch={}; patch[field]=value;
+    await supa('PATCH','profiles?id=eq.'+uid,patch);
+    toast('Permesso aggiornato per '+(u.email||uid.substring(0,8)),'ok');
+  }catch(e){
+    u[field]=prev;
+    renderTable();
+    renderStats();
+    toast('Errore: '+e.message,'err');
+  }
+}
+
+async function cycleRole(uid){
+  var u=_users.find(function(x){return x.id===uid});
+  if(!u) return;
+  // Niente self-demotion
+  if(_session && _session.user && uid===_session.user.id){
+    toast('Non puoi cambiare il tuo ruolo','err');
+    return;
+  }
+  var newRole = u.role==='admin' ? 'investor' : 'admin';
+  if(!confirm('Cambia ruolo di '+(u.email||uid.substring(0,8))+' a '+newRole.toUpperCase()+'?')) return;
+
+  var prev=u.role;
+  u.role=newRole;
+  renderTable();
+  renderStats();
+  try{
+    await supa('PATCH','profiles?id=eq.'+uid,{role:newRole});
+    toast('Ruolo aggiornato a '+newRole.toUpperCase(),'ok');
+  }catch(e){
+    u.role=prev;
+    renderTable();
+    renderStats();
+    toast('Errore: '+e.message,'err');
+  }
+}
+
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

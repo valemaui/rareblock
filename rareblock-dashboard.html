@@ -307,7 +307,7 @@ textarea{resize:vertical;min-height:60px}
   <a href="pokemon-db.html" class="logo"><span style="color:var(--text)">Rare</span><span class="logo-gold">Block</span></a>
   <div class="mode-switch">
     <button class="mode-btn active">Investor</button>
-    <button class="mode-btn" onclick="window.location.href='pokemon-db.html'">Collector</button>
+    <button class="mode-btn" id="modeCollectorBtn" onclick="window.location.href='pokemon-db.html'">Collector</button>
   </div>
   <nav class="nav">
     <button class="nav-btn active" onclick="showTab('mkt')"><span class="rb-i rb-i-store"></span> Marketplace</button>
@@ -476,6 +476,7 @@ textarea{resize:vertical;min-height:60px}
       <button class="admin-side-btn" onclick="adminSection('transfers')"><span class="rb-i rb-i-swap"></span> Trasferimenti</button>
       <button class="admin-side-btn" onclick="adminSection('memorandum')"><span class="rb-i rb-i-list"></span> Memorandum</button>
       <button class="admin-side-btn" onclick="adminSection('submissions')"><span class="rb-i rb-i-package"></span> Richieste valutazione</button>
+      <a href="rareblock-admin-users.html" class="admin-side-btn" style="text-decoration:none;display:flex;border-top:1px solid var(--border);margin-top:8px;padding-top:12px;color:var(--danger)"><span class="rb-i rb-i-user"></span> Gestione Utenti &rarr;</a>
     </div>
     <div class="admin-main">
 
@@ -1086,7 +1087,7 @@ async function onSession(data){
 
   // Load/create profile
   try {
-    var profiles = await supa('GET','profiles?id=eq.'+user.id);
+    var profiles = await supa('GET','profiles?id=eq.'+user.id+'&select=id,full_name,role,can_collector,can_investor,iban,phone,notes');
     _profile = profiles && profiles[0];
     if(!_profile){
       var initialRole = _isAdmin ? 'admin' : 'investor';
@@ -1095,11 +1096,23 @@ async function onSession(data){
       } catch(e2) {
         try { await supa('POST','profiles',{ id:user.id, role:initialRole }); } catch(e3){}
       }
-      try { var p2 = await supa('GET','profiles?id=eq.'+user.id); _profile = p2&&p2[0]; } catch(e4){}
+      try { var p2 = await supa('GET','profiles?id=eq.'+user.id+'&select=id,full_name,role,can_collector,can_investor'); _profile = p2&&p2[0]; } catch(e4){}
     }
     if(_profile && _profile.role==='admin') _isAdmin = true;
     else if(_profile && _profile.role && _profile.role!=='admin') _isAdmin = false;
   } catch(e){ console.warn('profile non-fatal:', e.message); }
+
+  // Gate Investor: se can_investor è esplicitamente false e non admin → redirect Collector
+  if(_profile && _profile.can_investor === false && !_isAdmin){
+    if(_profile.can_collector !== false){
+      // Ha solo Collector → redirect lì
+      location.href = 'pokemon-db.html';
+      return;
+    }
+    // Nessun permesso → mostra messaggio inline e blocca
+    document.body.innerHTML = '<div style="position:fixed;inset:0;background:#0d1117;color:#e6edf3;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Figtree,system-ui,sans-serif;padding:40px;text-align:center"><div style="font-family:Montserrat;font-size:18px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:36px">RARE<span style="color:#c9a84c">BLOCK</span></div><div style="font-family:Fraunces,Georgia,serif;font-size:26px;font-style:italic;font-weight:300;margin-bottom:14px">Area Investor non abilitata</div><p style="color:#7d8590;max-width:420px;line-height:1.6;font-size:14px">Il tuo account non ha accesso all\'area Investor. Contatta un amministratore.</p><div style="font-family:IBM Plex Mono,monospace;color:#c9a84c;margin-top:14px;font-size:12px">'+user.email+'</div><button onclick="doLogout()" style="margin-top:32px;padding:10px 22px;background:transparent;color:#7d8590;border:1px solid #30363d;border-radius:2px;cursor:pointer;font-family:inherit;text-transform:uppercase;letter-spacing:.12em;font-size:11px">Esci</button></div>';
+    return;
+  }
 
   // Show UI
   var badge = document.getElementById('userBadge');
@@ -1110,6 +1123,12 @@ async function onSession(data){
   if(roleEl){ roleEl.textContent = _isAdmin ? 'ADMIN' : 'investor'; roleEl.classList.toggle('admin', _isAdmin); }
   var adminBtn = document.getElementById('adminNavBtn');
   if(adminBtn) adminBtn.style.display = _isAdmin ? '' : 'none';
+  // Mode-switch: nascondi Collector se non abilitato (admin sempre visibile)
+  var colBtn=document.getElementById('modeCollectorBtn');
+  if(colBtn){
+    var canCollector = _isAdmin || !_profile || _profile.can_collector !== false;
+    colBtn.style.display = canCollector ? '' : 'none';
+  }
 
   // Initial load
   try { await mktLoad(); } catch(e){ console.warn('mktLoad:', e.message); }
