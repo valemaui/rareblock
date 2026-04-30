@@ -663,6 +663,61 @@ textarea{resize:vertical;min-height:60px}
   margin-top:10px;
 }
 
+/* ═══ VOLUME DISCOUNTS (scala sconti acquisti multipli) ═══ */
+.disc-section{border-top:1px solid var(--border);padding-top:14px;margin-top:6px}
+.disc-section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.disc-section-title{font-size:12px;font-family:var(--mono);font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)}
+.disc-tiers{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.disc-tier{display:grid;grid-template-columns:auto 1fr 1fr auto;gap:10px;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px}
+.disc-tier-label{font-size:11px;font-family:var(--mono);color:var(--text-muted);min-width:54px}
+.disc-tier input{background:transparent;border:1px solid var(--border);border-radius:3px;color:var(--text);padding:6px 8px;font-family:var(--mono);font-size:12.5px;width:100%;outline:none}
+.disc-tier input:focus{border-color:var(--gold,#c9a84c);box-shadow:0 0 0 2px rgba(201,168,76,.12)}
+.disc-tier-rm{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all var(--t-fast);font-family:var(--mono)}
+.disc-tier-rm:hover{background:rgba(248,81,73,.12);color:var(--danger,#f85149)}
+.disc-add{background:transparent;border:1.5px dashed var(--border-strong);color:var(--text-muted);padding:8px 14px;border-radius:var(--r);cursor:pointer;font-size:12px;font-family:var(--font);transition:all var(--t-fast);width:100%}
+.disc-add:hover{border-color:var(--gold,#c9a84c);color:var(--gold,#c9a84c)}
+.disc-hint{font-size:10.5px;color:var(--text-subtle);font-family:var(--mono);margin-top:6px;line-height:1.5}
+.disc-section.disabled{opacity:.4;pointer-events:none}
+.disc-section.disabled .disc-tiers,.disc-section.disabled .disc-add{filter:grayscale(.5)}
+
+/* Badge "Sconto vol." su card marketplace */
+.prod-card-discount-badge{
+  position:absolute;top:10px;right:50px;
+  background:var(--gold,#c9a84c);color:#0d1117;
+  font-size:9.5px;font-family:var(--mono);font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;
+  padding:3px 7px;border-radius:2px;z-index:2;
+}
+
+/* Tier list nel buy modal + detail */
+.disc-summary{
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-left:3px solid var(--gold,#c9a84c);
+  border-radius:var(--r);
+  padding:10px 12px;
+  font-size:12px;
+  font-family:var(--mono);
+  color:var(--text-muted);
+  margin:8px 0;
+}
+.disc-summary-title{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--gold,#c9a84c);margin-bottom:6px}
+.disc-summary-row{display:flex;justify-content:space-between;padding:2px 0;font-size:11.5px}
+.disc-summary-row.active{color:var(--text);font-weight:600}
+
+.disc-applied-line{
+  display:flex;justify-content:space-between;align-items:baseline;
+  font-size:12px;font-family:var(--mono);
+  padding:4px 0;
+}
+.disc-applied-line.discount{color:var(--gold,#c9a84c);font-weight:600}
+.disc-applied-line.total{
+  border-top:1px solid var(--border);
+  padding-top:8px;margin-top:4px;
+  font-size:14px;color:var(--text);
+}
+.disc-strike{text-decoration:line-through;color:var(--text-subtle);font-size:11px;margin-left:6px}
+
 /* ═══ PORTFOLIO ═══ */
 .port-wrap{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:16px}
 .port-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
@@ -1336,6 +1391,17 @@ textarea{resize:vertical;min-height:60px}
       </div>
       <div id="pmPhotoNote" style="display:none;font-size:11px;font-family:var(--mono);color:var(--text-muted);margin-top:6px">Salva il prodotto per attivare il caricamento foto</div>
 
+      <!-- ── SCALA SCONTI VOLUME (solo per type=fractional) ── -->
+      <div class="disc-section" id="pmDiscSection">
+        <div class="disc-section-head">
+          <div class="disc-section-title">Sconti acquisti multipli</div>
+          <div style="font-size:10.5px;color:var(--text-subtle);font-family:var(--mono)" id="pmDiscFractionalNote">Solo prodotti Fractional</div>
+        </div>
+        <div class="disc-tiers" id="pmDiscTiers"></div>
+        <button type="button" class="disc-add" onclick="pmDiscAddTier()">+ Aggiungi soglia di sconto</button>
+        <div class="disc-hint">Esempio: <b>3 quote → 5%</b>, <b>5 quote → 10%</b>, <b>10 quote → 15%</b>. Lo sconto si applica al prezzo totale (non si cumulano i tier).</div>
+      </div>
+
       <div id="pmSt"></div>
     </div>
     <div class="modal-footer">
@@ -1390,6 +1456,8 @@ textarea{resize:vertical;min-height:60px}
         <div class="pdv-bid-label">Disponibili:</div>
         <div class="pdv-bid-value" id="pdvAvailable">—</div>
       </div>
+
+      <div id="pdvDiscSummary"></div>
 
       <div class="pdv-quick-bids" id="pdvQuickBids"></div>
       <div class="pdv-or-divider">OPPURE</div>
@@ -1861,8 +1929,11 @@ function mktRender(){
     var statusLbl = ({open:'Aperto',draft:'Bozza',closed:'Chiuso',liquidated:'Liquidato',pending_grading:'In gradazione',grading_complete:'Gradato',hold:'Hold'})[p.status]||p.status;
     var canBuy = p.status==='open' && avail>0;
     var watched = _mktWatchlist.indexOf(p.id) >= 0;
+    var hasDiscount = p.type==='fractional' && Array.isArray(p.discount_tiers) && p.discount_tiers.length>0;
+    var maxDisc = hasDiscount ? Math.max.apply(null, p.discount_tiers.map(function(t){return parseFloat(t.discount_pct)||0})) : 0;
 
     return '<div class="prod-card" onclick="openProductDetail(\''+p.id+'\')">'
+      +(hasDiscount?'<div class="prod-card-discount-badge" title="Sconto fino a '+fmt2(maxDisc)+'% per acquisti multipli">−'+fmt2(maxDisc)+'%</div>':'')
       +'<button class="prod-card-watch '+(watched?'active':'')+'" onclick="event.stopPropagation();mktToggleWatch(\''+p.id+'\',this)" title="Aggiungi ai preferiti">'+(watched?'&#9733;':'&#9734;')+'</button>'
       +'<div class="prod-card-img">'
         +'<span class="prod-card-status '+esc(p.status)+'">'+statusLbl+'</span>'
@@ -1906,7 +1977,7 @@ function mktToggleWatch(pid, btn){
 // ═══════════════════════════════════════════════════════════
 var _buyProduct = null;
 
-function openBuyModal(pid){
+async function openBuyModal(pid){
   _buyProduct = _mktProducts.find(function(p){ return p.id===pid; });
   if(!_buyProduct) return;
   var st = _mktStats[pid] || { available_quotes: _buyProduct.total_quotes };
@@ -1914,10 +1985,19 @@ function openBuyModal(pid){
   var avail = Math.max(0, _buyProduct.total_quotes - (st.sold_quotes||0));
   document.getElementById('buyQty').max = avail;
   document.getElementById('buyQty').value = Math.min(1, avail);
+
+  // Carica scala sconti per questo prodotto (solo fractional)
+  _buyDiscTiers = [];
+  if(_buyProduct.type==='fractional'){
+    _buyDiscTiers = await loadDiscountTiers(pid);
+  }
+  // Render riepilogo tier nel pannello prodotto
+  var tiersHtml = renderDiscountSummary(_buyDiscTiers, parseInt(document.getElementById('buyQty').value)||1);
+
   document.getElementById('buyModalProduct').innerHTML =
     '<div style="display:flex;gap:12px;align-items:flex-start">'
     +(_buyProduct.image_url?'<img src="'+esc(_buyProduct.image_url)+'" style="width:60px;height:80px;object-fit:cover;border-radius:3px"/>':'')
-    +'<div>'
+    +'<div style="flex:1">'
       +'<div style="font-size:15px;font-weight:600;margin-bottom:4px">'+esc(_buyProduct.name)+'</div>'
       +'<div style="display:flex;gap:6px;margin-bottom:6px">'+typeBadge(_buyProduct.type)+statusBadge(_buyProduct.status)+'</div>'
       +'<div style="font-size:12px;color:var(--text-muted)">'+avail+' '+(avail===1?'quota disponibile':'quote disponibili')+' su '+_buyProduct.total_quotes+'</div>'
@@ -1925,6 +2005,7 @@ function openBuyModal(pid){
         ?'<div style="font-size:12px;color:var(--warning);margin-top:4px"><span class="rb-i rb-i-warn"></span> Storage fee: €'+fmt2(_buyProduct.storage_fee_annual)+'/quota/anno</div>':'')
       +(_buyProduct.type==='grade_hold'&&_buyProduct.grading_cost_estimated
         ?'<div style="font-size:12px;color:var(--accent);margin-top:2px">Gradazione stimata: €'+fmt2(_buyProduct.grading_cost_estimated)+' — addebitata proporzionalmente</div>':'')
+      +tiersHtml
     +'</div></div>';
   buyUpdateTotal();
   document.getElementById('buySt').innerHTML='';
@@ -1933,11 +2014,34 @@ function openBuyModal(pid){
   document.getElementById('buyModalBg').classList.add('show');
 }
 
+var _buyDiscTiers = []; // tier sconto del prodotto attuale
+
 function buyUpdateTotal(){
   if(!_buyProduct) return;
   var qty = parseInt(document.getElementById('buyQty').value)||1;
-  var total = qty * (_buyProduct.price_per_quote||0);
-  document.getElementById('buyTotal').textContent = '€'+total.toFixed(2);
+  var calc = calcDiscountedTotal(_buyProduct.price_per_quote, qty, _buyDiscTiers);
+
+  var totalEl = document.getElementById('buyTotal');
+  if(totalEl){
+    if(calc.applied){
+      totalEl.innerHTML =
+          '<div class="disc-applied-line"><span>Subtotale</span><span style="color:var(--text-muted)">€'+fmt2(calc.gross)+'</span></div>'
+        + '<div class="disc-applied-line discount"><span>Sconto '+fmt2(calc.discount_pct)+'% (≥ '+calc.tier.min_qty+' quote)</span><span>−€'+fmt2(calc.discount_amount)+'</span></div>'
+        + '<div class="disc-applied-line total"><span>Totale</span><span style="color:var(--gold);font-weight:600">€'+fmt2(calc.net)+'</span></div>';
+    } else {
+      totalEl.innerHTML = '<div style="font-size:20px;font-weight:600;font-family:var(--mono);color:var(--gold)">€'+fmt2(calc.net)+'</div>';
+    }
+  }
+
+  // Aggiorna riepilogo tier (highlight il tier attivo)
+  if(_buyDiscTiers && _buyDiscTiers.length){
+    var prodBox = document.getElementById('buyModalProduct');
+    var summary = prodBox && prodBox.querySelector('.disc-summary');
+    if(summary){
+      summary.outerHTML = renderDiscountSummary(_buyDiscTiers, qty);
+    }
+  }
+
   // Causale
   var uid = _session && (_session.user && _session.user.id || _session.access_token.slice(-6));
   document.getElementById('buyBonificoCausal').textContent = 'RBK-'+_buyProduct.id.slice(0,8).toUpperCase()+'-Q'+qty;
@@ -1961,30 +2065,43 @@ async function buyConfirm(){
   setSt('buySt','Invio richiesta…','info');
 
   try {
-    // 1. Crea holding
+    // Calcolo finale con sconto volume (fractional only)
+    var calc = calcDiscountedTotal(_buyProduct.price_per_quote, qty, _buyDiscTiers);
+    var effectivePerQuote = qty>0 ? (calc.net / qty) : parseFloat(_buyProduct.price_per_quote);
+    var noteWithDiscount = notes || '';
+    if(calc.applied){
+      noteWithDiscount = (noteWithDiscount?noteWithDiscount+' · ':'')
+        + 'Sconto volume: '+fmt2(calc.discount_pct)+'% (≥ '+calc.tier.min_qty+' quote)';
+    }
+
+    // 1. Crea holding (price_per_quote = effective dopo sconto)
     var holding = await supa('POST','inv_holdings',{
       product_id:       _buyProduct.id,
       user_id:          user.id,
       qty:              qty,
-      price_per_quote:  parseFloat(_buyProduct.price_per_quote),
+      price_per_quote:  effectivePerQuote,
       origin:           'primary',
-      notes:            notes||null
+      notes:            noteWithDiscount||null
     });
     var hid = holding && holding[0] && holding[0].id;
-    // 2. Crea pagamento
+    // 2. Crea pagamento (amount = totale netto dopo sconto)
     await supa('POST','inv_payments',{
       user_id:        user.id,
       product_id:     _buyProduct.id,
       holding_id:     hid||null,
       type:           'purchase',
-      amount:         qty * parseFloat(_buyProduct.price_per_quote),
+      amount:         calc.net,
       qty:            qty,
       method:         'bonifico',
       status:         'pending',
       bank_reference: ref||null,
-      admin_notes:    notes||null
+      admin_notes:    noteWithDiscount||null
     });
-    setSt('buySt','<span class="rb-i rb-i-check"></span> Richiesta inviata! Effettua il bonifico con la causale indicata. L\'admin confermerà entro 24-48h.','ok');
+    var msg = '<span class="rb-i rb-i-check"></span> Richiesta inviata! Effettua il bonifico con la causale indicata. L\'admin confermerà entro 24-48h.';
+    if(calc.applied){
+      msg += '<br><span style="color:var(--gold);font-weight:600">Sconto '+fmt2(calc.discount_pct)+'% applicato — risparmio €'+fmt2(calc.discount_amount)+'</span>';
+    }
+    setSt('buySt', msg, 'ok');
     setTimeout(function(){ mktLoad(); }, 800);
   } catch(e) {
     setSt('buySt','Errore: '+e.message,'err');
@@ -2002,6 +2119,7 @@ function showProductDetail(pid){ openProductDetail(pid); }
 var _pdvProduct = null;
 var _pdvPhotos  = [];
 var _pdvImgIdx  = 0;
+var _pdvDiscTiers = [];
 
 async function openProductDetail(pid){
   _pdvProduct = _mktProducts.find(function(p){return p.id===pid});
@@ -2041,6 +2159,12 @@ async function openProductDetail(pid){
   document.getElementById('pdvBidsCount').textContent = bidsCount+(bidsCount===1?' acquisto':' acquisti');
   document.getElementById('pdvAvailable').textContent = avail+'/'+p.total_quotes+' '+(p.quote_unit||'quote');
 
+  // Carica tier sconto se fractional
+  _pdvDiscTiers = [];
+  if(p.type==='fractional'){
+    _pdvDiscTiers = await loadDiscountTiers(pid);
+  }
+
   // Countdown
   var cdEl = document.getElementById('pdvCountdown');
   var endEl= document.getElementById('pdvEndDate');
@@ -2061,11 +2185,26 @@ async function openProductDetail(pid){
     endEl.textContent = '';
   }
 
-  // Quick-bid (multipli del prezzo per quota: 1×, 2×, 5×)
+  // Quick-bid: se esistono tier sconto, mostra le soglie come quick-bid
   var qb = document.getElementById('pdvQuickBids');
-  var bidMultiples = [1,2,5].filter(function(n){return n<=avail});
-  qb.innerHTML = bidMultiples.map(function(n){
-    return '<button class="pdv-quick-bid" onclick="pdvSetQty('+n+')">'+n+' '+(n===1?(p.quote_unit||'quota'):(p.quote_unit||'quote'))+'<br>€'+fmt2(p.price_per_quote*n)+'</button>';
+  var quickQtys;
+  if(_pdvDiscTiers && _pdvDiscTiers.length){
+    // Usa le soglie dei tier (max 3) come quick-bid
+    quickQtys = _pdvDiscTiers.slice().sort(function(a,b){return a.min_qty-b.min_qty}).slice(0,3).map(function(t){return t.min_qty}).filter(function(n){return n<=avail});
+    if(quickQtys.length<3 && avail>=1 && quickQtys.indexOf(1)<0){ quickQtys.unshift(1); }
+  } else {
+    quickQtys = [1,2,5].filter(function(n){return n<=avail});
+  }
+  qb.innerHTML = quickQtys.map(function(n){
+    var calc = calcDiscountedTotal(p.price_per_quote, n, _pdvDiscTiers);
+    var label = n+' '+(n===1?(p.quote_unit||'quota'):(p.quote_unit||'quote'));
+    var priceLabel;
+    if(calc.applied){
+      priceLabel = '<span style="text-decoration:line-through;color:var(--text-subtle);font-size:10px">€'+fmt2(calc.gross)+'</span> <span style="color:var(--gold)">€'+fmt2(calc.net)+'</span>';
+    } else {
+      priceLabel = '€'+fmt2(calc.net);
+    }
+    return '<button class="pdv-quick-bid" onclick="pdvSetQty('+n+')">'+label+'<br>'+priceLabel+'</button>';
   }).join('');
 
   // Input acquisto
@@ -2183,8 +2322,18 @@ function pdvSetQty(n){
 function pdvUpdatePreview(){
   if(!_pdvProduct) return;
   var q = parseInt(document.getElementById('pdvBidQty').value)||0;
-  var tot = q * (_pdvProduct.price_per_quote||0);
-  document.getElementById('pdvBidPreview').textContent = 'Totale: €'+fmt2(tot);
+  var calc = calcDiscountedTotal(_pdvProduct.price_per_quote, q, _pdvDiscTiers);
+  var preview = document.getElementById('pdvBidPreview');
+  if(calc.applied){
+    preview.innerHTML = '<span style="text-decoration:line-through;color:var(--text-subtle)">€'+fmt2(calc.gross)+'</span> <span style="color:var(--gold);font-weight:600">€'+fmt2(calc.net)+'</span> <span style="color:var(--gold)">(−'+fmt2(calc.discount_pct)+'%)</span>';
+  } else {
+    preview.textContent = 'Totale: €'+fmt2(calc.net);
+  }
+  // Refresh summary tier (highlight tier attivo)
+  var sumBox = document.getElementById('pdvDiscSummary');
+  if(sumBox){
+    sumBox.innerHTML = renderDiscountSummary(_pdvDiscTiers, q);
+  }
 }
 
 function pdvPlaceBuy(){
@@ -3375,19 +3524,31 @@ function openProductModal(pid){
     if(ph) ph.style.display='';
     if(phNote) phNote.style.display='none';
     pmLoadPhotos(pid);
+    pmDiscLoad(pid);
   } else {
     if(ph) ph.style.display='none';
     if(phNote) phNote.style.display='';
     _pmPhotos = [];
+    _pmDiscTiers = [];
+    pmDiscRender();
   }
   document.getElementById('productModalBg').classList.add('show');
 }
 function closeProductModal(){ document.getElementById('productModalBg').classList.remove('show'); }
 
 function pmToggleFields(){
-  var isGrade = document.getElementById('pmType').value==='grade_hold';
+  var typeVal = document.getElementById('pmType').value;
+  var isGrade = typeVal==='grade_hold';
+  var isFractional = typeVal==='fractional';
   document.getElementById('pmGradingRow').style.display    = isGrade?'':'none';
   document.getElementById('pmGradingCostRow').style.display= isGrade?'':'none';
+  // Sezione sconti: visibile sempre ma disabilitata se non fractional
+  var discSec = document.getElementById('pmDiscSection');
+  var note    = document.getElementById('pmDiscFractionalNote');
+  if(discSec){
+    discSec.classList.toggle('disabled', !isFractional);
+    if(note) note.style.display = isFractional ? 'none' : '';
+  }
 }
 
 function adminEditProduct(pid){ openProductModal(pid); }
@@ -3437,21 +3598,215 @@ async function pmSave(){
       setSt('pmSt','<span class="rb-i rb-i-check"></span> Prodotto aggiornato!','ok');
     } else {
       body.created_by = _session.user.id;
+      var created = null;
       try {
-        await supa('POST','inv_products', body);
+        created = await supa('POST','inv_products', body);
       } catch(e2){
         if(/category/i.test(e2.message) && body.category){
           delete body.category;
-          await supa('POST','inv_products', body);
+          created = await supa('POST','inv_products', body);
           setSt('pmSt','Creato (categoria non salvata: esegui migration 018)','err');
           setTimeout(function(){ closeProductModal(); adminLoadProducts(); mktLoad(); },1500);
           return;
         } else throw e2;
       }
+      // Promuovi a editing per persistere i tier (se presenti)
+      if(created && created[0] && created[0].id){
+        _editProductId = created[0].id;
+      }
       setSt('pmSt','<span class="rb-i rb-i-check"></span> Prodotto creato!','ok');
     }
+
+    // Persist discount tiers se prodotto è fractional
+    if(_editProductId && document.getElementById('pmType').value==='fractional'){
+      try { await pmDiscSave(_editProductId); }
+      catch(eDisc){ console.warn('discount tiers save:', eDisc.message); }
+    } else if(_editProductId && document.getElementById('pmType').value!=='fractional'){
+      // Se il tipo è cambiato da fractional a altro: pulizia tier esistenti
+      try { await supa('DELETE','inv_product_discounts?product_id=eq.'+_editProductId); }
+      catch(eDel){ /* tabella potrebbe non esistere se 020 non applicata */ }
+    }
+
     setTimeout(function(){ closeProductModal(); adminLoadProducts(); mktLoad(); },800);
   } catch(e){ setSt('pmSt','Errore: '+e.message,'err'); }
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  VOLUME DISCOUNT TIERS — admin editor
+// ═══════════════════════════════════════════════════════════
+var _pmDiscTiers = [];     // [{min_qty, discount_pct, id?}]
+var _pmDiscOriginal = [];  // snapshot al load per detectare delete
+
+async function pmDiscLoad(productId){
+  _pmDiscTiers = [];
+  _pmDiscOriginal = [];
+  try {
+    var rows = await supa('GET','inv_product_discounts?product_id=eq.'+productId+'&order=min_qty.asc');
+    if(rows && rows.length){
+      _pmDiscTiers = rows.map(function(r){
+        return { id:r.id, min_qty:r.min_qty, discount_pct:r.discount_pct };
+      });
+      _pmDiscOriginal = rows.map(function(r){ return r.id; });
+    }
+  } catch(e){
+    // Tabella non esiste (migration 020 non applicata)
+    _pmDiscTiers = [];
+    var sec = document.getElementById('pmDiscSection');
+    if(sec){
+      var hint = sec.querySelector('.disc-hint');
+      if(hint) hint.innerHTML = '<span style="color:var(--warning)">Tabella sconti non disponibile — esegui <code>020_volume_discounts.sql</code></span>';
+    }
+  }
+  pmDiscRender();
+}
+
+function pmDiscRender(){
+  var box = document.getElementById('pmDiscTiers');
+  if(!box) return;
+  if(!_pmDiscTiers.length){
+    box.innerHTML = '<div style="font-size:11px;font-family:var(--mono);color:var(--text-subtle);text-align:center;padding:8px">Nessuna scala sconti configurata</div>';
+    return;
+  }
+  // Ordina per quantità
+  _pmDiscTiers.sort(function(a,b){ return (a.min_qty||0) - (b.min_qty||0); });
+  box.innerHTML = _pmDiscTiers.map(function(t, i){
+    return '<div class="disc-tier">'
+      + '<span class="disc-tier-label">Da</span>'
+      + '<input type="number" min="2" step="1" value="'+(t.min_qty||'')+'" placeholder="qty" oninput="pmDiscUpdate('+i+',\'min_qty\',this.value)"/>'
+      + '<input type="number" min="0.01" max="90" step="0.5" value="'+(t.discount_pct||'')+'" placeholder="% sconto" oninput="pmDiscUpdate('+i+',\'discount_pct\',this.value)"/>'
+      + '<button type="button" class="disc-tier-rm" onclick="pmDiscRemove('+i+')" title="Rimuovi">&times;</button>'
+      + '</div>';
+  }).join('');
+}
+
+function pmDiscAddTier(){
+  // Suggerisci min_qty incrementale
+  var lastMin = _pmDiscTiers.length
+    ? Math.max.apply(null, _pmDiscTiers.map(function(t){return t.min_qty||0}))
+    : 2;
+  var nextMin = lastMin >= 2 ? lastMin + 2 : 3;
+  _pmDiscTiers.push({ min_qty: nextMin, discount_pct: 5 });
+  pmDiscRender();
+}
+
+function pmDiscRemove(idx){
+  _pmDiscTiers.splice(idx, 1);
+  pmDiscRender();
+}
+
+function pmDiscUpdate(idx, field, value){
+  if(!_pmDiscTiers[idx]) return;
+  if(field==='min_qty'){
+    _pmDiscTiers[idx].min_qty = parseInt(value)||null;
+  } else {
+    _pmDiscTiers[idx].discount_pct = parseFloat(value)||null;
+  }
+}
+
+async function pmDiscSave(productId){
+  if(!productId) return;
+
+  // Validazione client: filtra tier validi e dedup min_qty
+  var seen = {};
+  var valid = _pmDiscTiers.filter(function(t){
+    if(!t.min_qty || t.min_qty < 2) return false;
+    if(!t.discount_pct || t.discount_pct <= 0 || t.discount_pct > 90) return false;
+    if(seen[t.min_qty]) return false; // dedup
+    seen[t.min_qty] = true;
+    return true;
+  });
+
+  // Strategy: clean replace (delete all + insert new)
+  // Più semplice e robusto della diff-sync, costo trascurabile per N piccoli
+  try {
+    await supa('DELETE','inv_product_discounts?product_id=eq.'+productId);
+  } catch(e){
+    // Tabella inesistente: skip senza errore
+    if(!/does not exist|relation/i.test(e.message)) throw e;
+    return;
+  }
+
+  if(valid.length === 0) return;
+
+  var rows = valid.map(function(t){
+    return {
+      product_id: productId,
+      min_qty: t.min_qty,
+      discount_pct: t.discount_pct
+    };
+  });
+  await supa('POST','inv_product_discounts', rows);
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  VOLUME DISCOUNT — calcolo runtime (buy modal + detail)
+// ═══════════════════════════════════════════════════════════
+function calcVolumeDiscount(tiers, qty){
+  // Ritorna {pct, applied:bool, tier:{min_qty,discount_pct}|null}
+  if(!tiers || !tiers.length || !qty || qty < 1) return {pct:0, applied:false, tier:null};
+  var best = null;
+  tiers.forEach(function(t){
+    if(qty >= t.min_qty && (!best || t.discount_pct > best.discount_pct)){
+      best = t;
+    }
+  });
+  return best
+    ? {pct: parseFloat(best.discount_pct)||0, applied:true, tier:best}
+    : {pct:0, applied:false, tier:null};
+}
+
+function calcDiscountedTotal(unitPrice, qty, tiers){
+  var disc = calcVolumeDiscount(tiers, qty);
+  var gross = (unitPrice||0) * (qty||0);
+  var saving = gross * (disc.pct/100);
+  return {
+    gross: gross,
+    discount_pct: disc.pct,
+    discount_amount: saving,
+    net: gross - saving,
+    applied: disc.applied,
+    tier: disc.tier
+  };
+}
+
+// Cache tier già caricati (evita re-fetch durante interazione modal/detail)
+var _discTiersCache = {}; // product_id -> [tiers]
+
+async function loadDiscountTiers(productId){
+  // Prima cerca in _mktProducts (view v_inv_products_with_cover ritorna discount_tiers)
+  var p = _mktProducts.find(function(x){return x.id===productId});
+  if(p && Array.isArray(p.discount_tiers) && p.discount_tiers.length){
+    _discTiersCache[productId] = p.discount_tiers.slice();
+    return _discTiersCache[productId];
+  }
+  if(_discTiersCache[productId]) return _discTiersCache[productId];
+  try {
+    var rows = await supa('GET','inv_product_discounts?product_id=eq.'+productId+'&order=min_qty.asc');
+    _discTiersCache[productId] = rows || [];
+    return _discTiersCache[productId];
+  } catch(e){
+    _discTiersCache[productId] = [];
+    return [];
+  }
+}
+
+function renderDiscountSummary(tiers, currentQty){
+  // Riepilogo tier per buy modal/detail
+  if(!tiers || !tiers.length) return '';
+  var sorted = tiers.slice().sort(function(a,b){return a.min_qty-b.min_qty});
+  var html = '<div class="disc-summary">'
+    + '<div class="disc-summary-title">Sconti acquisti multipli</div>';
+  sorted.forEach(function(t){
+    var active = currentQty >= t.min_qty;
+    html += '<div class="disc-summary-row '+(active?'active':'')+'">'
+      + '<span>Da '+t.min_qty+' quote</span>'
+      + '<span>−'+fmt2(t.discount_pct)+'%</span>'
+      + '</div>';
+  });
+  html += '</div>';
+  return html;
 }
 
 
