@@ -404,53 +404,72 @@ textarea{resize:vertical;min-height:60px}
 .prod-card-footer .btn{flex:1;justify-content:center}
 .prod-date{font-size:11px;font-family:var(--mono);color:var(--text-muted);display:inline-flex;align-items:center;gap:5px}
 
-/* ═══ PRODUCT DETAIL VIEW (auction-style) ═══ */
+/* ═══ PRODUCT DETAIL VIEW (auction-style — LIGHT THEME) ═══ */
+/* Palette dedicata light per la pagina dettaglio (override del dark generale).
+   Mantiene il gold come accento per coerenza brand RareBlock. */
 #productDetailView{
+  --pdv-bg:           #ffffff;
+  --pdv-surface:      #ffffff;
+  --pdv-surface-soft: #f7f7f5;
+  --pdv-border:       #e5e5e0;
+  --pdv-border-strong:#cfcfca;
+  --pdv-text:         #1a1a1a;
+  --pdv-text-muted:   #6b6b66;
+  --pdv-text-subtle:  #999992;
+  --pdv-ink:          #0d1117;     /* nero per CTA / quick-bid */
+  --pdv-gold:         #b08838;     /* gold più scuro/saturo per leggibilità su bianco */
+  --pdv-gold-soft:    rgba(176,136,56,.10);
+  --pdv-warning:      #b8801c;
+  --pdv-accent:       #2563eb;     /* link/highlight */
+
   position:fixed;inset:0;
-  background:var(--bg);
+  background:var(--pdv-bg);
+  color:var(--pdv-text);
   z-index:90;
   overflow-y:auto;
   display:none;
+  font-family:var(--font);
 }
 #productDetailView.show{display:block}
 
 .pdv-header{
   position:sticky;top:0;z-index:5;
-  background:var(--surface);border-bottom:1px solid var(--border);
+  background:var(--pdv-surface);
+  border-bottom:1px solid var(--pdv-border);
   padding:14px 24px;
   display:flex;align-items:center;justify-content:space-between;gap:24px;
 }
-.pdv-nav{display:flex;align-items:center;gap:14px;font-family:var(--mono);font-size:12px;color:var(--text-muted)}
+.pdv-nav{display:flex;align-items:center;gap:14px;font-family:var(--mono);font-size:12px;color:var(--pdv-text-muted)}
 .pdv-nav-btn{
-  background:transparent;border:1px solid var(--border);
-  color:var(--text-muted);
+  background:transparent;border:1px solid var(--pdv-border);
+  color:var(--pdv-text-muted);
   width:34px;height:34px;border-radius:50%;
   cursor:pointer;font-size:14px;
   display:flex;align-items:center;justify-content:center;
   transition:all var(--t-fast);
 }
-.pdv-nav-btn:hover:not(:disabled){border-color:var(--text);color:var(--text)}
+.pdv-nav-btn:hover:not(:disabled){border-color:var(--pdv-text);color:var(--pdv-text);background:var(--pdv-surface-soft)}
 .pdv-nav-btn:disabled{opacity:.3;cursor:not-allowed}
-.pdv-nav-lot{font-family:var(--mono);font-size:12px;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase}
+.pdv-nav-lot{font-family:var(--mono);font-size:12px;color:var(--pdv-text-muted);letter-spacing:.06em;text-transform:uppercase}
 .pdv-close{
-  background:none;border:none;color:var(--text-muted);
+  background:none;border:none;color:var(--pdv-text-muted);
   cursor:pointer;font-size:22px;line-height:1;
   width:34px;height:34px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
   transition:all var(--t-fast);font-family:var(--mono);
 }
-.pdv-close:hover{background:var(--surface2);color:var(--text)}
+.pdv-close:hover{background:var(--pdv-surface-soft);color:var(--pdv-text)}
 
 .pdv-title-band{
-  background:var(--surface);
-  padding:18px 32px 22px;
-  border-bottom:1px solid var(--border);
+  background:var(--pdv-surface-soft);
+  padding:24px 32px 28px;
+  border-bottom:1px solid var(--pdv-border);
   text-align:center;
 }
 .pdv-title{
   font-family:var(--serif,Fraunces),Georgia,serif;
-  font-size:22px;font-weight:300;font-style:italic;
-  color:var(--text);
+  font-size:24px;font-weight:400;font-style:normal;
+  color:var(--pdv-text);
   max-width:820px;margin:0 auto;
   line-height:1.35;letter-spacing:-.005em;
 }
@@ -459,7 +478,7 @@ textarea{resize:vertical;min-height:60px}
   display:grid;
   grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);
   gap:32px;
-  padding:24px 32px 40px;
+  padding:28px 32px 48px;
   max-width:1400px;margin:0 auto;
   align-items:start;
 }
@@ -467,8 +486,9 @@ textarea{resize:vertical;min-height:60px}
 
 .pdv-gallery{display:flex;flex-direction:column;gap:12px}
 .pdv-main-img{
-  background:#f4f4f0;
-  border-radius:4px;
+  background:var(--pdv-surface);
+  border:1px solid var(--pdv-border);
+  border-radius:6px;
   aspect-ratio:4/3;
   display:flex;align-items:center;justify-content:center;
   position:relative;
@@ -484,67 +504,68 @@ textarea{resize:vertical;min-height:60px}
 .pdv-main-img-empty{color:#bbb;font-size:48px}
 .pdv-main-img-prev,.pdv-main-img-next{
   position:absolute;top:50%;transform:translateY(-50%);
-  background:rgba(255,255,255,.92);border:1px solid rgba(0,0,0,.08);
+  background:#fff;border:1px solid var(--pdv-border);
   width:40px;height:40px;border-radius:50%;
-  cursor:pointer;color:#333;font-size:16px;
+  cursor:pointer;color:var(--pdv-text);font-size:16px;
   display:flex;align-items:center;justify-content:center;
   transition:all var(--t-fast);
   font-family:var(--mono);
+  box-shadow:0 1px 4px rgba(0,0,0,.06);
 }
 .pdv-main-img-prev{left:14px} .pdv-main-img-next{right:14px}
-.pdv-main-img-prev:hover,.pdv-main-img-next:hover{background:#fff;transform:translateY(-50%) scale(1.05)}
+.pdv-main-img-prev:hover,.pdv-main-img-next:hover{border-color:var(--pdv-text);transform:translateY(-50%) scale(1.05);box-shadow:0 2px 8px rgba(0,0,0,.1)}
 
 .pdv-thumbs{display:flex;gap:8px;flex-wrap:wrap}
 .pdv-thumb{
   width:80px;height:80px;
-  border-radius:3px;
-  background:#f4f4f0;
-  border:2px solid transparent;
+  border-radius:4px;
+  background:var(--pdv-surface);
+  border:2px solid var(--pdv-border);
   cursor:pointer;
   overflow:hidden;
   transition:all var(--t-fast);
   flex-shrink:0;
 }
 .pdv-thumb img{width:100%;height:100%;object-fit:contain;padding:4px}
-.pdv-thumb.active{border-color:var(--text)}
-.pdv-thumb:hover{border-color:var(--border-strong)}
+.pdv-thumb.active{border-color:var(--pdv-text)}
+.pdv-thumb:hover{border-color:var(--pdv-border-strong)}
 
 .pdv-bid-panel{
-  background:var(--surface);
-  border:1px solid var(--border);
+  background:var(--pdv-surface);
+  border:1px solid var(--pdv-border);
   border-radius:6px;
-  padding:22px 24px;
+  padding:24px;
   position:sticky;top:90px;
 }
 .pdv-bid-row{
   display:flex;justify-content:space-between;align-items:flex-start;
-  padding:12px 0;
-  border-bottom:1px solid var(--border);
+  padding:14px 0;
+  border-bottom:1px solid var(--pdv-border);
 }
 .pdv-bid-row:last-of-type{border-bottom:none}
 .pdv-bid-row:first-of-type{padding-top:0}
 .pdv-bid-label{
-  font-size:13px;color:var(--text-muted);
+  font-size:13px;color:var(--pdv-text-muted);
   font-weight:500;
 }
 .pdv-bid-value{
   text-align:right;
-  font-size:13px;color:var(--text);
+  font-size:13px;color:var(--pdv-text);
 }
 .pdv-bid-current{
   font-family:var(--mono);
   font-size:32px;font-weight:600;
-  color:var(--gold,#c9a84c);
+  color:var(--pdv-ink);            /* nero, prezzo prominente */
   letter-spacing:-.01em;
   line-height:1.1;
 }
 .pdv-bid-premium{
-  font-size:11px;color:var(--text-muted);
+  font-size:11px;color:var(--pdv-text-muted);
   font-family:var(--mono);
   margin-top:4px;
 }
 .pdv-bid-history-link{
-  font-size:11.5px;color:var(--accent,#58a6ff);
+  font-size:11.5px;color:var(--pdv-accent);
   text-decoration:underline;cursor:pointer;
   font-family:var(--mono);
   display:inline-block;margin-top:4px;
@@ -554,9 +575,11 @@ textarea{resize:vertical;min-height:60px}
 .pdv-countdown{
   font-family:var(--mono);
   font-size:13px;font-weight:600;
+  color:var(--pdv-text);
 }
+.pdv-countdown.urgent{color:var(--pdv-warning)}
 .pdv-countdown-date{
-  font-size:11px;color:var(--text-muted);
+  font-size:11px;color:var(--pdv-text-muted);
   margin-top:2px;font-family:var(--mono);
 }
 
@@ -566,8 +589,8 @@ textarea{resize:vertical;min-height:60px}
 }
 .pdv-quick-bid{
   flex:1;
-  background:#0d1117;color:#fff;
-  border:1px solid #21262d;
+  background:var(--pdv-ink);color:#fff;
+  border:1px solid var(--pdv-ink);
   padding:11px 8px;
   font-size:12px;font-weight:500;
   font-family:var(--mono);
@@ -575,42 +598,42 @@ textarea{resize:vertical;min-height:60px}
   cursor:pointer;
   transition:all var(--t-fast);
 }
-.pdv-quick-bid:hover{background:#21262d;border-color:var(--gold,#c9a84c)}
+.pdv-quick-bid:hover{background:#000;border-color:#000}
 
 .pdv-or-divider{
   text-align:center;
-  font-size:11px;color:var(--text-muted);
+  font-size:11px;color:var(--pdv-text-muted);
   font-family:var(--mono);letter-spacing:.08em;
   margin:6px 0;
 }
 
 .pdv-bid-input-label{
-  font-size:13px;color:var(--text);
+  font-size:13px;color:var(--pdv-text);
   font-weight:500;margin-bottom:8px;
   display:block;
 }
 .pdv-bid-input{
   width:100%;
   padding:11px 14px;
-  background:var(--surface2);
-  border:1px solid var(--border);
+  background:#fff;
+  border:1px solid var(--pdv-border-strong);
   border-radius:4px;
-  color:var(--text);
+  color:var(--pdv-text);
   font-family:var(--mono);font-size:14px;
   outline:none;
   transition:border-color var(--t-fast);
 }
-.pdv-bid-input:focus{border-color:var(--gold,#c9a84c);box-shadow:0 0 0 2px rgba(201,168,76,.15)}
+.pdv-bid-input:focus{border-color:var(--pdv-text);box-shadow:0 0 0 2px rgba(26,26,26,.08)}
 .pdv-bid-input-hint{
-  font-size:10.5px;color:var(--text-muted);
+  font-size:10.5px;color:var(--pdv-text-muted);
   font-family:var(--mono);margin-top:6px;
 }
 
 .pdv-place-bid{
   width:100%;
-  padding:13px;
-  background:#0d1117;color:#fff;
-  border:1px solid #0d1117;
+  padding:14px;
+  background:var(--pdv-ink);color:#fff;
+  border:1px solid var(--pdv-ink);
   border-radius:4px;
   font-size:13px;font-weight:600;
   letter-spacing:.04em;
@@ -619,16 +642,16 @@ textarea{resize:vertical;min-height:60px}
   transition:all var(--t-fast);
   font-family:var(--font);
 }
-.pdv-place-bid:hover{background:var(--gold,#c9a84c);border-color:var(--gold,#c9a84c);color:#0d1117}
-.pdv-place-bid:disabled{opacity:.4;cursor:not-allowed}
+.pdv-place-bid:hover:not(:disabled){background:#000;border-color:#000}
+.pdv-place-bid:disabled{opacity:.4;cursor:not-allowed;background:var(--pdv-text-subtle);border-color:var(--pdv-text-subtle)}
 
 .pdv-watchlist-toggle{
   width:100%;
   padding:11px;
-  background:transparent;
-  border:1px solid var(--border-strong);
+  background:#fff;
+  border:1px solid var(--pdv-border-strong);
   border-radius:4px;
-  color:var(--text);
+  color:var(--pdv-text);
   font-size:12px;font-weight:500;
   letter-spacing:.04em;
   cursor:pointer;
@@ -637,34 +660,47 @@ textarea{resize:vertical;min-height:60px}
   font-family:var(--font);
   display:flex;align-items:center;justify-content:center;gap:8px;
 }
-.pdv-watchlist-toggle:hover{border-color:var(--gold,#c9a84c);color:var(--gold,#c9a84c)}
+.pdv-watchlist-toggle:hover{border-color:var(--pdv-ink);background:var(--pdv-surface-soft)}
 .pdv-watchlist-toggle.active{
-  background:rgba(201,168,76,.06);
-  border-color:var(--gold,#c9a84c);
-  color:var(--gold,#c9a84c);
+  background:var(--pdv-gold-soft);
+  border-color:var(--pdv-gold);
+  color:var(--pdv-gold);
 }
 
 .pdv-info-section{
-  margin-top:18px;
-  padding-top:18px;
-  border-top:1px solid var(--border);
+  margin-top:20px;
+  padding-top:20px;
+  border-top:1px solid var(--pdv-border);
 }
 .pdv-info-title{
   font-size:11px;font-family:var(--mono);
   text-transform:uppercase;letter-spacing:.08em;
-  color:var(--text-muted);
-  margin-bottom:10px;
+  color:var(--pdv-text-muted);
+  margin-bottom:12px;
+  font-weight:600;
 }
-.pdv-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
-.pdv-info-cell{display:flex;flex-direction:column;gap:2px}
-.pdv-info-cell-label{font-size:10.5px;color:var(--text-subtle);font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em}
-.pdv-info-cell-value{font-size:12.5px;color:var(--text);font-family:var(--mono)}
+.pdv-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.pdv-info-cell{display:flex;flex-direction:column;gap:3px}
+.pdv-info-cell-label{font-size:10.5px;color:var(--pdv-text-subtle);font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em}
+.pdv-info-cell-value{font-size:12.5px;color:var(--pdv-text);font-family:var(--mono)}
 
 .pdv-description{
-  font-size:13px;line-height:1.7;
-  color:var(--text-muted);
+  font-size:13.5px;line-height:1.75;
+  color:var(--pdv-text);
   margin-top:10px;
 }
+
+/* Override summary tier sconti dentro pdv (light theme) */
+#productDetailView .disc-summary{
+  background:var(--pdv-surface-soft);
+  border:1px solid var(--pdv-border);
+  border-left:3px solid var(--pdv-gold);
+  color:var(--pdv-text-muted);
+}
+#productDetailView .disc-summary-title{color:var(--pdv-gold)}
+#productDetailView .disc-summary-row.active{color:var(--pdv-text)}
+#productDetailView .pdv-bid-input-hint span[style*="line-through"]{color:var(--pdv-text-subtle)!important}
+#productDetailView .pdv-bid-input-hint span[style*="gold"]{color:var(--pdv-gold)!important}
 
 /* ═══ VOLUME DISCOUNTS (scala sconti acquisti multipli) ═══ */
 .disc-section{border-top:1px solid var(--border);padding-top:14px;margin-top:6px}
@@ -2218,7 +2254,7 @@ async function openProductDetail(pid){
     var label = n+' '+(n===1?(p.quote_unit||'quota'):(p.quote_unit||'quote'));
     var priceLabel;
     if(calc.applied){
-      priceLabel = '<span style="text-decoration:line-through;color:var(--text-subtle);font-size:10px">€'+fmt2(calc.gross)+'</span> <span style="color:var(--gold)">€'+fmt2(calc.net)+'</span>';
+      priceLabel = '<span style="text-decoration:line-through;color:rgba(255,255,255,.45);font-size:10px">€'+fmt2(calc.gross)+'</span> <span style="color:#e8c96a">€'+fmt2(calc.net)+'</span>';
     } else {
       priceLabel = '€'+fmt2(calc.net);
     }
@@ -2344,7 +2380,7 @@ function pdvUpdatePreview(){
   var calc = calcDiscountedTotal(_pdvProduct.price_per_quote, q, _pdvDiscTiers);
   var preview = document.getElementById('pdvBidPreview');
   if(calc.applied){
-    preview.innerHTML = '<span style="text-decoration:line-through;color:var(--text-subtle)">€'+fmt2(calc.gross)+'</span> <span style="color:var(--gold);font-weight:600">€'+fmt2(calc.net)+'</span> <span style="color:var(--gold)">(−'+fmt2(calc.discount_pct)+'%)</span>';
+    preview.innerHTML = '<span style="text-decoration:line-through;color:var(--pdv-text-subtle,#999992)">€'+fmt2(calc.gross)+'</span> <span style="color:var(--pdv-gold,#b08838);font-weight:600">€'+fmt2(calc.net)+'</span> <span style="color:var(--pdv-gold,#b08838)">(−'+fmt2(calc.discount_pct)+'%)</span>';
   } else {
     preview.textContent = 'Totale: €'+fmt2(calc.net);
   }
