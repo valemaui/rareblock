@@ -2596,9 +2596,9 @@ function mktRender(){
     var hasDiscount = p.type==='fractional' && Array.isArray(p.discount_tiers) && p.discount_tiers.length>0;
     var maxDisc = hasDiscount ? Math.max.apply(null, p.discount_tiers.map(function(t){return parseFloat(t.discount_pct)||0})) : 0;
 
-    return '<div class="prod-card" onclick="openProductDetail(\''+p.id+'\')">'
+    return '<div class="prod-card" data-pid="'+esc(p.id)+'" onclick="mktCardClick(event,\''+p.id+'\')">'
       +(hasDiscount?'<div class="prod-card-discount-badge" title="Sconto fino a '+fmt2(maxDisc)+'% per acquisti multipli">−'+fmt2(maxDisc)+'%</div>':'')
-      +'<button class="prod-card-watch '+(watched?'active':'')+'" onclick="event.stopPropagation();mktToggleWatch(\''+p.id+'\',this)" title="Aggiungi ai preferiti">'+(watched?'&#9733;':'&#9734;')+'</button>'
+      +'<button class="prod-card-watch '+(watched?'active':'')+'" data-action="watch" title="Aggiungi ai preferiti">'+(watched?'&#9733;':'&#9734;')+'</button>'
       +'<div class="prod-card-img">'
         +'<span class="prod-card-status '+esc(p.status)+'">'+statusLbl+'</span>'
         +(coverUrl?'<img src="'+esc(coverUrl)+'" loading="lazy" onerror="this.style.display=\'none\'"/>'
@@ -2615,14 +2615,35 @@ function mktRender(){
         +'</div>'
         +'<div class="prod-card-bottom">'
           +(cdHtml?'<span class="prod-card-countdown'+(cdUrgent?' urgent':'')+'">'+cdHtml+'</span>':'<span></span>')
-          +(bidsCount>0?'<span class="prod-card-history" onclick="event.stopPropagation();openProductDetail(\''+p.id+'\')">Show bid history</span>':'<span></span>')
+          +(bidsCount>0?'<span class="prod-card-history" data-action="history">Show bid history</span>':'<span></span>')
         +'</div>'
       +'</div>'
-      +'<button class="prod-card-cta" '+(canBuy?'':'disabled')+' onclick="event.stopPropagation();'+(canBuy?'openBuyModal(\\\''+p.id+'\\\')':'')+'">'
+      +'<button class="prod-card-cta" '+(canBuy?'':'disabled')+' data-action="'+(canBuy?'buy':'')+'">'
         +(canBuy?'Acquista quote':statusLbl)
       +'</button>'
     +'</div>';
   }).join('');
+}
+
+// Click delegato sulla card: separa azioni in base a data-action del target
+function mktCardClick(event, pid){
+  var target = event.target;
+  // Risali al primo elemento con data-action o al limite della card
+  var actionEl = target.closest ? target.closest('[data-action]') : null;
+  if(actionEl){
+    event.stopPropagation();
+    var action = actionEl.getAttribute('data-action');
+    if(action === 'buy'){
+      if(!actionEl.disabled) openBuyModal(pid);
+    } else if(action === 'watch'){
+      mktToggleWatch(pid, actionEl);
+    } else if(action === 'history'){
+      openProductDetail(pid);
+    }
+    return;
+  }
+  // Click generico sulla card (immagine, titolo, prezzo) → apri detail
+  openProductDetail(pid);
 }
 
 // Lot index + watchlist locale
