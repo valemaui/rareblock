@@ -3412,10 +3412,11 @@ function pdvPlaceBuy(){
   if(!_pdvProduct) return;
   var q = parseInt(document.getElementById('pdvBidQty').value)||0;
   if(q<=0){ alert('Inserisci una quantità valida'); return; }
-  // Apri checkout multi-step con qty pre-popolata
+  // Cattura pid PRIMA di chiudere il detail (closeProductDetail azzera _pdvProduct)
+  var pid = _pdvProduct.id;
   closeProductDetail();
   setTimeout(function(){
-    openBuyModal(_pdvProduct.id);
+    openBuyModal(pid);
     // Apertura è async; aspettiamo che il modal carichi i tier prima di settare qty
     setTimeout(function(){
       var bq = document.getElementById('coQty');
