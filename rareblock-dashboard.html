@@ -205,6 +205,51 @@ textarea{resize:vertical;min-height:60px}
 .form-grid.three{grid-template-columns:1fr 1fr 1fr}
 .span2{grid-column:span 2}
 
+/* ═══ PHOTO GALLERY (admin upload) ═══ */
+.photo-section{border-top:1px solid var(--border);padding-top:14px;margin-top:6px}
+.photo-section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.photo-section-title{font-size:12px;font-family:var(--mono);font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)}
+.photo-section-count{font-size:11px;color:var(--text-subtle);font-family:var(--mono)}
+.photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:10px}
+.photo-tile{position:relative;aspect-ratio:1;border-radius:var(--r);overflow:hidden;background:var(--surface2);border:1px solid var(--border);cursor:move;transition:all var(--t-fast)}
+.photo-tile:hover{border-color:var(--border-strong)}
+.photo-tile img{width:100%;height:100%;object-fit:cover;display:block}
+.photo-tile.is-cover{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+.photo-tile.uploading{opacity:.5}
+.photo-tile.uploading::after{content:'caricamento...';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-family:var(--mono);color:var(--text);background:rgba(13,17,23,.7);text-transform:uppercase;letter-spacing:.06em}
+.photo-tile-actions{position:absolute;top:4px;right:4px;display:flex;gap:4px;opacity:0;transition:opacity var(--t-fast)}
+.photo-tile:hover .photo-tile-actions{opacity:1}
+.photo-tile-btn{width:24px;height:24px;border:none;border-radius:50%;background:rgba(13,17,23,.85);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;font-family:var(--mono);transition:all var(--t-fast);padding:0}
+.photo-tile-btn:hover{background:#000}
+.photo-tile-btn.danger:hover{background:var(--danger,#f85149)}
+.photo-tile-cover-badge{position:absolute;bottom:4px;left:4px;font-size:8.5px;font-family:var(--mono);font-weight:600;letter-spacing:.08em;text-transform:uppercase;background:var(--gold,#c9a84c);color:#0d1117;padding:2px 6px;border-radius:2px}
+.photo-tile.dragging{opacity:.4}
+.photo-tile.drag-over{border-color:var(--accent,#58a6ff)}
+
+.photo-dropzone{border:1.5px dashed var(--border-strong);border-radius:var(--r);padding:18px;text-align:center;cursor:pointer;transition:all var(--t-fast);background:var(--surface2);min-height:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.photo-dropzone:hover,.photo-dropzone.drag-active{border-color:var(--accent,#58a6ff);background:rgba(88,166,255,.06)}
+.photo-dropzone-icon{font-size:24px;color:var(--text-muted);line-height:1}
+.photo-dropzone-text{font-size:12px;color:var(--text-muted);font-family:var(--mono)}
+.photo-dropzone-hint{font-size:10px;color:var(--text-subtle);font-family:var(--mono)}
+.photo-dropzone input[type=file]{display:none}
+
+/* MARKETPLACE CARD GALLERY (lightbox) */
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:300;display:none;align-items:center;justify-content:center}
+.lightbox.show{display:flex}
+.lightbox-img{max-width:92vw;max-height:88vh;object-fit:contain}
+.lightbox-close{position:absolute;top:18px;right:22px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:#fff;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:20px;font-family:var(--mono);line-height:1}
+.lightbox-close:hover{background:rgba(255,255,255,.18)}
+.lightbox-prev,.lightbox-next{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:#fff;width:42px;height:42px;border-radius:50%;cursor:pointer;font-size:20px;font-family:var(--mono);line-height:1;display:flex;align-items:center;justify-content:center}
+.lightbox-prev{left:18px} .lightbox-next{right:18px}
+.lightbox-prev:hover,.lightbox-next:hover{background:rgba(255,255,255,.2)}
+.lightbox-counter{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.6);letter-spacing:.06em}
+
+/* Mini gallery in marketplace card hover */
+.mkt-card-gallery{display:flex;gap:3px;margin-top:6px}
+.mkt-card-gallery-thumb{width:36px;height:36px;border-radius:3px;background:var(--surface2);border:1px solid var(--border);background-size:cover;background-position:center;cursor:pointer;transition:transform var(--t-fast)}
+.mkt-card-gallery-thumb:hover{transform:scale(1.08)}
+.mkt-card-gallery-more{display:flex;align-items:center;justify-content:center;font-size:10px;font-family:var(--mono);color:var(--text-muted)}
+
 /* AUTH OVERLAY */
 #authOverlay{position:fixed;inset:0;background:var(--bg);z-index:200;display:flex;align-items:center;justify-content:center}
 .auth-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:340px;padding:32px}
@@ -884,14 +929,32 @@ textarea{resize:vertical;min-height:60px}
           <textarea id="pmDesc" placeholder="Descrivi il prodotto, condizione, provenienza, potenziale…"></textarea>
         </div>
         <div class="field span2">
-          <label>URL immagine</label>
+          <label>URL immagine (legacy/cover esterna)</label>
           <input type="url" id="pmImg" placeholder="https://…"/>
+          <div style="font-size:10.5px;color:var(--text-subtle);font-family:var(--mono);margin-top:3px">Opzionale. La galleria sotto ha priorità se contiene foto.</div>
         </div>
         <div class="field span2">
           <label>Note interne admin</label>
           <textarea id="pmAdminNotes" style="height:48px"></textarea>
         </div>
       </div>
+
+      <!-- ── GALLERIA FOTO (visibile solo in modalità modifica) ── -->
+      <div class="photo-section" id="pmPhotoSection" style="display:none">
+        <div class="photo-section-head">
+          <div class="photo-section-title">Galleria foto</div>
+          <div class="photo-section-count" id="pmPhotoCount">0 foto</div>
+        </div>
+        <div class="photo-grid" id="pmPhotoGrid"></div>
+        <label class="photo-dropzone" id="pmPhotoDrop" for="pmPhotoInput">
+          <div class="photo-dropzone-icon">+</div>
+          <div class="photo-dropzone-text">Trascina foto qui o clicca per caricare</div>
+          <div class="photo-dropzone-hint">JPG / PNG / WEBP / GIF · max 10 MB · selezione multipla supportata</div>
+          <input type="file" id="pmPhotoInput" accept="image/*" multiple/>
+        </label>
+      </div>
+      <div id="pmPhotoNote" style="display:none;font-size:11px;font-family:var(--mono);color:var(--text-muted);margin-top:6px">Salva il prodotto per attivare il caricamento foto</div>
+
       <div id="pmSt"></div>
     </div>
     <div class="modal-footer">
@@ -899,6 +962,15 @@ textarea{resize:vertical;min-height:60px}
       <button class="btn primary" onclick="pmSave()"><span class="rb-i rb-i-save"></span> Salva prodotto</button>
     </div>
   </div>
+</div>
+
+<!-- ── LIGHTBOX — galleria foto fullscreen ── -->
+<div class="lightbox" id="lightbox" onclick="if(event.target===this)closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()" aria-label="Chiudi">&times;</button>
+  <button class="lightbox-prev" onclick="lightboxNav(-1)" aria-label="Precedente">&#10094;</button>
+  <img class="lightbox-img" id="lightboxImg" alt=""/>
+  <button class="lightbox-next" onclick="lightboxNav(1)" aria-label="Successiva">&#10095;</button>
+  <div class="lightbox-counter" id="lightboxCounter">1 / 1</div>
 </div>
 
 <!-- Modal: Vendi quote (secondario) -->
@@ -1249,7 +1321,12 @@ var _mktStats = {};
 
 async function mktLoad(){
   try {
-    _mktProducts = (await supa('GET','inv_products?order=created_at.desc&limit=200')) || [];
+    // Prova view con cover photo joinata, fallback su tabella base
+    try {
+      _mktProducts = (await supa('GET','v_inv_products_with_cover?order=created_at.desc&limit=200')) || [];
+    } catch(e){
+      _mktProducts = (await supa('GET','inv_products?order=created_at.desc&limit=200')) || [];
+    }
     // Load stats — prima prova la VIEW, fallback su query holdings
     try {
       var stats = await supa('GET','inv_product_stats');
@@ -1301,11 +1378,14 @@ function mktRender(){
     var avail= Math.max(0, p.total_quotes - st.sold_quotes);
     var dd   = daysTo(p.target_date);
     var ddStr= dd!==null ? (dd>0?dd+' gg al termine':'Scaduto') : '';
+    var coverUrl = p.cover_photo_url || p.image_url || '';
+    var phCount  = p.photo_count || 0;
     return '<div class="prod-card">'
-      +'<div class="prod-card-img">'
-        +(p.image_url?'<img src="'+esc(p.image_url)+'" loading="lazy" onerror="this.style.display=\'none\'"/>'
+      +'<div class="prod-card-img" '+(phCount>0?'style="cursor:pointer" onclick="mktOpenGallery(\''+esc(p.id)+'\')"':'')+'>'
+        +(coverUrl?'<img src="'+esc(coverUrl)+'" loading="lazy" onerror="this.style.display=\'none\'"/>'
           :'<span><span class="rb-i rb-i-package"></span></span>')
         +'<span style="position:absolute;top:8px;left:8px">'+statusBadge(p.status)+'</span>'
+        +(phCount>1?'<span style="position:absolute;bottom:8px;right:8px;background:rgba(13,17,23,.85);color:#fff;font-size:10px;font-family:var(--mono);padding:3px 7px;border-radius:20px;letter-spacing:.04em">'+phCount+' foto</span>':'')
       +'</div>'
       +'<div class="prod-card-body">'
         +'<div class="prod-card-top">'
@@ -2541,6 +2621,18 @@ function openProductModal(pid){
     }
   }
   document.getElementById('pmSt').innerHTML='';
+  // Sezione foto: visibile solo in modalità modifica (serve product_id per l'upload)
+  var ph = document.getElementById('pmPhotoSection');
+  var phNote = document.getElementById('pmPhotoNote');
+  if(pid){
+    if(ph) ph.style.display='';
+    if(phNote) phNote.style.display='none';
+    pmLoadPhotos(pid);
+  } else {
+    if(ph) ph.style.display='none';
+    if(phNote) phNote.style.display='';
+    _pmPhotos = [];
+  }
   document.getElementById('productModalBg').classList.add('show');
 }
 function closeProductModal(){ document.getElementById('productModalBg').classList.remove('show'); }
@@ -2614,6 +2706,316 @@ async function pmSave(){
     setTimeout(function(){ closeProductModal(); adminLoadProducts(); mktLoad(); },800);
   } catch(e){ setSt('pmSt','Errore: '+e.message,'err'); }
 }
+
+
+// ═══════════════════════════════════════════════════════════
+//  PRODUCT PHOTOS — upload, gallery, drag&drop, reorder
+// ═══════════════════════════════════════════════════════════
+var _pmPhotos = []; // foto del prodotto attualmente in editing
+var _pmDragSrc = null;
+
+async function pmLoadPhotos(productId){
+  var grid = document.getElementById('pmPhotoGrid');
+  var count = document.getElementById('pmPhotoCount');
+  if(grid) grid.innerHTML = '<div style="grid-column:1/-1;padding:12px;text-align:center;color:var(--text-muted);font-size:11px;font-family:var(--mono)">caricamento foto...</div>';
+  try {
+    var photos = await supa('GET','inv_product_photos?product_id=eq.'+productId+'&order=sort_order.asc,created_at.asc');
+    _pmPhotos = photos || [];
+  } catch(e){
+    // Fallback: tabella non ancora creata (migration 019 non eseguita)
+    _pmPhotos = [];
+    if(grid) grid.innerHTML = '<div style="grid-column:1/-1;padding:14px;text-align:center;color:var(--text-muted);font-size:11px;font-family:var(--mono)">Tabella foto non disponibile — esegui migration 019_product_photos.sql</div>';
+    if(count) count.textContent = '—';
+    return;
+  }
+  pmRenderPhotos();
+}
+
+function pmRenderPhotos(){
+  var grid = document.getElementById('pmPhotoGrid');
+  var count = document.getElementById('pmPhotoCount');
+  if(!grid) return;
+  if(count) count.textContent = _pmPhotos.length + (_pmPhotos.length===1?' foto':' foto');
+  if(_pmPhotos.length === 0){
+    grid.innerHTML = '<div style="grid-column:1/-1;padding:18px;text-align:center;color:var(--text-subtle);font-size:11px;font-family:var(--mono)">Nessuna foto · usa il pulsante sotto per caricare</div>';
+    return;
+  }
+  grid.innerHTML = _pmPhotos.map(function(p, idx){
+    return '<div class="photo-tile '+(p.is_cover?'is-cover':'')+'" '
+      + 'draggable="true" '
+      + 'data-photo-id="'+esc(p.id)+'" '
+      + 'data-idx="'+idx+'" '
+      + 'ondragstart="pmPhotoDragStart(event,'+idx+')" '
+      + 'ondragover="pmPhotoDragOver(event)" '
+      + 'ondragleave="pmPhotoDragLeave(event)" '
+      + 'ondrop="pmPhotoDrop(event,'+idx+')" '
+      + 'ondragend="pmPhotoDragEnd(event)" '
+      + 'onclick="pmOpenLightbox('+idx+')">'
+      + '<img src="'+esc(p.url)+'" loading="lazy" alt=""/>'
+      + (p.is_cover?'<div class="photo-tile-cover-badge">Cover</div>':'')
+      + '<div class="photo-tile-actions" onclick="event.stopPropagation()">'
+      +   (p.is_cover?'':'<button class="photo-tile-btn" onclick="pmSetCover(\''+esc(p.id)+'\')" title="Imposta come cover">&#9733;</button>')
+      +   '<button class="photo-tile-btn danger" onclick="pmDeletePhoto(\''+esc(p.id)+'\')" title="Elimina foto">&times;</button>'
+      + '</div>'
+    + '</div>';
+  }).join('');
+}
+
+// ── Upload ──
+async function pmUploadPhotos(files){
+  if(!_editProductId){ setSt('pmSt','Salva prima il prodotto','err'); return; }
+  if(!files || !files.length) return;
+  var grid = document.getElementById('pmPhotoGrid');
+
+  // Tile placeholder per ogni file in upload
+  for(var i=0;i<files.length;i++){
+    var file = files[i];
+    if(!file.type.startsWith('image/')){ setSt('pmSt','File non immagine ignorato: '+file.name,'err'); continue; }
+    if(file.size > 10*1024*1024){ setSt('pmSt','File troppo grande (>10MB): '+file.name,'err'); continue; }
+
+    // Genera nome univoco
+    var ext = (file.name.split('.').pop()||'jpg').toLowerCase();
+    var safeExt = /^(jpg|jpeg|png|webp|gif)$/.test(ext) ? ext : 'jpg';
+    var fname = Date.now()+'_'+Math.random().toString(36).slice(2,9)+'.'+safeExt;
+    var storagePath = 'products/'+_editProductId+'/'+fname;
+
+    // Placeholder tile
+    if(grid && _pmPhotos.length===0) grid.innerHTML='';
+    var placeholderId = 'ph_'+Date.now()+'_'+i;
+    var localUrl = URL.createObjectURL(file);
+    var tile = document.createElement('div');
+    tile.className = 'photo-tile uploading';
+    tile.id = placeholderId;
+    tile.innerHTML = '<img src="'+localUrl+'"/>';
+    if(grid) grid.appendChild(tile);
+
+    try {
+      // Upload to storage
+      var token = (_session && _session.access_token) || SUPA_KEY;
+      var uploadRes = await fetch(SUPA_URL+'/storage/v1/object/product-photos/'+storagePath, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer '+token,
+          'apikey': SUPA_KEY,
+          'Content-Type': file.type,
+          'x-upsert': 'false'
+        },
+        body: file
+      });
+      if(!uploadRes.ok){
+        var err = await uploadRes.text();
+        throw new Error('Upload fallito: '+err);
+      }
+
+      // URL pubblico
+      var publicUrl = SUPA_URL+'/storage/v1/object/public/product-photos/'+storagePath;
+
+      // Read dimensions (best-effort)
+      var dim = await new Promise(function(resolve){
+        var img = new Image();
+        img.onload = function(){ resolve({w:img.naturalWidth, h:img.naturalHeight}); };
+        img.onerror = function(){ resolve({w:null, h:null}); };
+        img.src = localUrl;
+      });
+
+      // Insert metadata row
+      var maxOrder = _pmPhotos.reduce(function(m,p){return Math.max(m, p.sort_order||0)}, -1);
+      var inserted = await supa('POST','inv_product_photos', {
+        product_id: _editProductId,
+        storage_path: storagePath,
+        url: publicUrl,
+        sort_order: maxOrder+1,
+        width: dim.w,
+        height: dim.h,
+        bytes: file.size,
+        mime_type: file.type,
+        created_by: (_session && _session.user && _session.user.id) || null
+      });
+
+      var newPhoto = inserted && inserted[0];
+      if(newPhoto) _pmPhotos.push(newPhoto);
+      URL.revokeObjectURL(localUrl);
+      tile.remove();
+    } catch(e){
+      tile.classList.remove('uploading');
+      tile.style.opacity='.3';
+      tile.title = e.message;
+      setSt('pmSt','Errore upload "'+file.name+'": '+e.message,'err');
+      setTimeout(function(){ tile.remove(); }, 3000);
+    }
+  }
+  pmRenderPhotos();
+}
+
+// ── Set cover ──
+async function pmSetCover(photoId){
+  if(!photoId) return;
+  try {
+    // RPC dedicata (fa swap atomico) - fallback su PATCH manuale se RPC non c'è
+    try {
+      await supa('POST','rpc/set_cover_photo', {p_photo_id: photoId});
+    } catch(rpcErr){
+      // Fallback: demote tutte, promote una
+      for(var i=0;i<_pmPhotos.length;i++){
+        if(_pmPhotos[i].id !== photoId && _pmPhotos[i].is_cover){
+          await supa('PATCH','inv_product_photos?id=eq.'+_pmPhotos[i].id, {is_cover:false});
+        }
+      }
+      await supa('PATCH','inv_product_photos?id=eq.'+photoId, {is_cover:true});
+    }
+    _pmPhotos.forEach(function(p){ p.is_cover = (p.id===photoId); });
+    pmRenderPhotos();
+    setSt('pmSt','Cover aggiornata','ok');
+  } catch(e){
+    setSt('pmSt','Errore: '+e.message,'err');
+  }
+}
+
+// ── Delete ──
+async function pmDeletePhoto(photoId){
+  if(!confirm('Eliminare definitivamente questa foto?')) return;
+  var p = _pmPhotos.find(function(x){return x.id===photoId});
+  if(!p) return;
+  try {
+    // Cancella metadata (CASCADE su inv_products non basta — qui è la riga foto)
+    await supa('DELETE','inv_product_photos?id=eq.'+photoId);
+    // Cancella file storage (best-effort)
+    if(p.storage_path){
+      try {
+        var token = (_session && _session.access_token) || SUPA_KEY;
+        await fetch(SUPA_URL+'/storage/v1/object/product-photos/'+p.storage_path, {
+          method:'DELETE',
+          headers:{ 'Authorization':'Bearer '+token, 'apikey':SUPA_KEY }
+        });
+      } catch(e){ console.warn('storage delete:',e.message); }
+    }
+    _pmPhotos = _pmPhotos.filter(function(x){return x.id!==photoId});
+    // Se la foto era cover, promuovi la prima rimasta
+    if(p.is_cover && _pmPhotos.length>0){
+      await pmSetCover(_pmPhotos[0].id);
+    } else {
+      pmRenderPhotos();
+    }
+    setSt('pmSt','Foto eliminata','ok');
+  } catch(e){
+    setSt('pmSt','Errore: '+e.message,'err');
+  }
+}
+
+// ── Drag & drop reorder ──
+function pmPhotoDragStart(ev, idx){
+  _pmDragSrc = idx;
+  ev.dataTransfer.effectAllowed='move';
+  ev.currentTarget.classList.add('dragging');
+}
+function pmPhotoDragOver(ev){
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect='move';
+  ev.currentTarget.classList.add('drag-over');
+}
+function pmPhotoDragLeave(ev){
+  ev.currentTarget.classList.remove('drag-over');
+}
+function pmPhotoDragEnd(ev){
+  document.querySelectorAll('.photo-tile').forEach(function(t){
+    t.classList.remove('dragging','drag-over');
+  });
+  _pmDragSrc = null;
+}
+async function pmPhotoDrop(ev, dropIdx){
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('drag-over');
+  if(_pmDragSrc===null || _pmDragSrc===dropIdx) return;
+  // Reorder array locale
+  var moved = _pmPhotos.splice(_pmDragSrc, 1)[0];
+  _pmPhotos.splice(dropIdx, 0, moved);
+  // Aggiorna sort_order DB
+  pmRenderPhotos();
+  try {
+    for(var i=0;i<_pmPhotos.length;i++){
+      if(_pmPhotos[i].sort_order !== i){
+        _pmPhotos[i].sort_order = i;
+        await supa('PATCH','inv_product_photos?id=eq.'+_pmPhotos[i].id, {sort_order:i});
+      }
+    }
+  } catch(e){ setSt('pmSt','Errore reorder: '+e.message,'err'); }
+}
+
+// ── Dropzone listener (file picker + drag external) ──
+(function initDropzone(){
+  var setup = function(){
+    var input = document.getElementById('pmPhotoInput');
+    var drop  = document.getElementById('pmPhotoDrop');
+    if(!input || !drop || drop.dataset.bound==='1') return;
+    drop.dataset.bound='1';
+    input.addEventListener('change', function(e){
+      if(e.target.files && e.target.files.length){ pmUploadPhotos(e.target.files); e.target.value=''; }
+    });
+    drop.addEventListener('dragover', function(e){ e.preventDefault(); drop.classList.add('drag-active'); });
+    drop.addEventListener('dragleave', function(e){ if(e.target===drop) drop.classList.remove('drag-active'); });
+    drop.addEventListener('drop', function(e){
+      e.preventDefault();
+      drop.classList.remove('drag-active');
+      if(e.dataTransfer.files && e.dataTransfer.files.length) pmUploadPhotos(e.dataTransfer.files);
+    });
+  };
+  if(document.readyState!=='loading') setup();
+  else document.addEventListener('DOMContentLoaded', setup);
+})();
+
+// ── Lightbox ──
+var _lbPhotos = [], _lbIdx = 0;
+
+function pmOpenLightbox(idx){
+  openLightbox(_pmPhotos, idx);
+}
+
+// Apertura galleria pubblica (marketplace card → lightbox)
+async function mktOpenGallery(productId){
+  try {
+    var photos = await supa('GET','inv_product_photos?product_id=eq.'+productId+'&order=sort_order.asc,created_at.asc');
+    if(!photos || !photos.length){
+      // Fallback: image_url legacy
+      var p = _mktProducts.find(function(x){return x.id===productId});
+      if(p && p.image_url){
+        openLightbox([{url: p.image_url}], 0);
+      }
+      return;
+    }
+    openLightbox(photos, 0);
+  } catch(e){ console.warn('gallery load:', e.message); }
+}
+function openLightbox(photos, idx){
+  if(!photos || !photos.length) return;
+  _lbPhotos = photos;
+  _lbIdx = Math.max(0, Math.min(idx||0, photos.length-1));
+  lightboxRender();
+  document.getElementById('lightbox').classList.add('show');
+}
+function closeLightbox(){
+  document.getElementById('lightbox').classList.remove('show');
+  _lbPhotos = [];
+}
+function lightboxNav(delta){
+  if(!_lbPhotos.length) return;
+  _lbIdx = (_lbIdx + delta + _lbPhotos.length) % _lbPhotos.length;
+  lightboxRender();
+}
+function lightboxRender(){
+  var img = document.getElementById('lightboxImg');
+  var counter = document.getElementById('lightboxCounter');
+  if(img) img.src = _lbPhotos[_lbIdx].url;
+  if(counter) counter.textContent = (_lbIdx+1)+' / '+_lbPhotos.length;
+}
+
+document.addEventListener('keydown', function(e){
+  var lb = document.getElementById('lightbox');
+  if(lb && lb.classList.contains('show')){
+    if(e.key==='Escape') closeLightbox();
+    else if(e.key==='ArrowLeft') lightboxNav(-1);
+    else if(e.key==='ArrowRight') lightboxNav(1);
+  }
+});
 
 
 // ═══════════════════════════════════════════════════════════
