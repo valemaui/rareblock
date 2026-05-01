@@ -3505,22 +3505,18 @@ textarea{resize:vertical;min-height:60px}
       <button class="iwc-co-close" onclick="closeBuyModal()" title="Chiudi">&times;</button>
     </div>
 
-    <!-- Stepper IWC -->
+    <!-- Stepper IWC: lo step 1 "Riepilogo" è stato rimosso (ridondante con la detail page) -->
     <div class="iwc-co-stepper" id="coStepper">
-      <div class="iwc-co-step active" data-step="1">
+      <div class="iwc-co-step active" data-step="2">
         <span class="iwc-co-step-num">01</span>
-        <span class="iwc-co-step-label">Riepilogo</span>
-      </div>
-      <div class="iwc-co-step" data-step="2">
-        <span class="iwc-co-step-num">02</span>
         <span class="iwc-co-step-label">Fatturazione</span>
       </div>
       <div class="iwc-co-step" data-step="3">
-        <span class="iwc-co-step-num">03</span>
+        <span class="iwc-co-step-num">02</span>
         <span class="iwc-co-step-label">Pagamento</span>
       </div>
       <div class="iwc-co-step" data-step="4">
-        <span class="iwc-co-step-num">04</span>
+        <span class="iwc-co-step-num">03</span>
         <span class="iwc-co-step-label">Conferma</span>
       </div>
     </div>
@@ -3533,8 +3529,9 @@ textarea{resize:vertical;min-height:60px}
     <!-- Body con i 4 pane -->
     <div class="iwc-co-body">
 
-      <!-- ── STEP 1 — Riepilogo ────────────────────────────── -->
-      <div class="checkout-pane active" id="coPane1">
+      <!-- STEP 1 — Riepilogo (RIMOSSO dal flow visibile, mantenuto nel DOM
+           per i campi coQty/coNotes che sono ancora referenziati dalla logica ordine) -->
+      <div class="checkout-pane" id="coPane1" style="display:none">
         <div class="co-product-card" id="coProductCard"></div>
 
         <div class="form-grid" id="coQtyGrid">
@@ -4905,7 +4902,10 @@ async function openBuyModal(pid){
       + '</div>';
 
     coUpdateTotals();
-    coGotoStep(1);
+    // Saltiamo lo step 1 (Riepilogo): è ridondante con la detail page.
+    // Apriamo direttamente in Fatturazione. Lo step 1 resta nel DOM per i campi
+    // coQty/coNotes che sono usati dall'ordine, ma il pannello non è mai visibile.
+    coGotoStep(2);
 
     // APRI subito — il modal è ready
     document.getElementById('buyModalBg').classList.add('show');
@@ -4962,7 +4962,9 @@ function coGotoStep(n){
   } else {
     nextBtn.textContent = labels[n];
     nextBtn.onclick = coStepNext;
-    backBtn.style.display = (n>1) ? '' : 'none';
+    // Bottone "Indietro" visibile solo a partire da step 3 (Pagamento).
+    // Lo step 1 (Riepilogo) e' stato rimosso: lo step 2 e' il primo, niente Indietro.
+    backBtn.style.display = (n>2) ? '' : 'none';
     if(cancelBtn) cancelBtn.style.display = '';
   }
   document.getElementById('coCheckoutErr').innerHTML = '';
@@ -5006,14 +5008,13 @@ async function coRefreshImportBtnState(){
 }
 
 function coStepBack(){
-  if(_coStep > 1) coGotoStep(_coStep-1);
+  // Lo step 1 (Riepilogo) e' stato rimosso dal flow: il bound minimo e' 2 (Fatturazione)
+  if(_coStep > 2) coGotoStep(_coStep-1);
 }
 
 async function coStepNext(){
-  if(_coStep===1){
-    if(!coValidateStep1()) return;
-    coGotoStep(2);
-  } else if(_coStep===2){
+  // Step 1 (Riepilogo) saltato: il flow inizia direttamente da step 2.
+  if(_coStep===2){
     if(!coValidateStep2()) return;
     // Salva billing localmente per i prossimi ordini
     try { localStorage.setItem('rb_billing', JSON.stringify(coCollectBilling())); } catch(e){}
