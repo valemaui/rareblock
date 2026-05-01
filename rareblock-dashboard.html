@@ -1645,6 +1645,658 @@ textarea{resize:vertical;min-height:60px}
   #productDetailView.iwc-detail .pdv-buy-price{ font-size: 28px; }
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   IWC CHECKOUT — Pagina di acquisto fullscreen (sostituisce il modal)
+═══════════════════════════════════════════════════════════════════════ */
+.iwc-checkout{
+  --iwc-bg: #ffffff;
+  --iwc-bg-alt: #f7f6f3;
+  --iwc-text: #111111;
+  --iwc-text-muted: #6f6f6f;
+  --iwc-text-subtle: #a8a8a8;
+  --iwc-border: #e8e6e1;
+  --iwc-border-strong: #cfcdc7;
+  --iwc-ink: #000000;
+  --iwc-serif: 'Fraunces', 'Playfair Display', Georgia, serif;
+  --iwc-sans:  'Inter', -apple-system, 'Helvetica Neue', Arial, sans-serif;
+
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--iwc-bg);
+  color: var(--iwc-text);
+  font-family: var(--iwc-sans);
+  overflow-y: auto;
+  -webkit-font-smoothing: antialiased;
+}
+.iwc-checkout.show{ display: block; }
+
+.iwc-checkout-inner{
+  max-width: 1100px;
+  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* HEADER */
+.iwc-checkout .iwc-co-header{
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 32px;
+  border-bottom: 1px solid var(--iwc-border);
+  background: var(--iwc-bg);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.iwc-checkout .iwc-co-breadcrumb{
+  font-family: var(--iwc-sans);
+  font-size: 12px;
+  color: var(--iwc-text-muted);
+  cursor: pointer;
+  letter-spacing: .02em;
+  transition: color .15s ease;
+  text-decoration: none;
+}
+.iwc-checkout .iwc-co-breadcrumb:hover{ color: var(--iwc-ink); }
+.iwc-checkout .iwc-co-close{
+  background: transparent;
+  border: none;
+  color: var(--iwc-text-muted);
+  width: 32px; height: 32px;
+  font-size: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color .15s ease;
+}
+.iwc-checkout .iwc-co-close:hover{ color: var(--iwc-ink); }
+
+/* STEPPER IWC */
+.iwc-checkout .iwc-co-stepper{
+  display: flex;
+  justify-content: center;
+  gap: 0;
+  padding: 36px 32px 8px;
+  border-bottom: none;
+  background: var(--iwc-bg);
+}
+.iwc-checkout .iwc-co-step{
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 28px;
+  position: relative;
+  cursor: default;
+  user-select: none;
+}
+.iwc-checkout .iwc-co-step + .iwc-co-step::before{
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  width: 24px;
+  height: 1px;
+  background: var(--iwc-border-strong);
+}
+.iwc-checkout .iwc-co-step-num{
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .14em;
+  color: var(--iwc-text-subtle);
+}
+.iwc-checkout .iwc-co-step-label{
+  font-family: var(--iwc-sans);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--iwc-text-subtle);
+}
+.iwc-checkout .iwc-co-step.active .iwc-co-step-num,
+.iwc-checkout .iwc-co-step.active .iwc-co-step-label{
+  color: var(--iwc-ink);
+}
+.iwc-checkout .iwc-co-step.done .iwc-co-step-num,
+.iwc-checkout .iwc-co-step.done .iwc-co-step-label{
+  color: var(--iwc-text-muted);
+}
+.iwc-checkout .iwc-co-step.active::after{
+  content: '';
+  position: absolute;
+  left: 28px;
+  right: 28px;
+  bottom: 4px;
+  height: 1px;
+  background: var(--iwc-ink);
+}
+
+/* TITLE BAND */
+.iwc-checkout .iwc-co-title-band{
+  text-align: center;
+  padding: 24px 32px 36px;
+  border-bottom: 1px solid var(--iwc-border);
+}
+.iwc-checkout .iwc-co-title{
+  font-family: var(--iwc-serif);
+  font-size: 32px;
+  font-weight: 300;
+  letter-spacing: -.005em;
+  color: var(--iwc-text);
+  line-height: 1.2;
+  margin: 0;
+}
+
+/* BODY */
+.iwc-checkout .iwc-co-body{
+  flex: 1;
+  padding: 48px 32px 32px;
+}
+
+/* PANE — sovrascrive il vecchio .checkout-pane (display: flex) per il nuovo scope */
+.iwc-checkout .checkout-pane{
+  display: none;
+  flex-direction: column;
+  gap: 32px;
+  max-width: 760px;
+  margin: 0 auto;
+  width: 100%;
+}
+.iwc-checkout .checkout-pane.active{ display: flex; }
+
+/* PRODUCT CARD — riepilogo step 1 */
+.iwc-checkout .co-product-card{
+  display: flex;
+  gap: 24px;
+  align-items: stretch;
+  padding: 0 0 28px;
+  border-bottom: 1px solid var(--iwc-border);
+}
+.iwc-checkout .co-product-img{
+  width: 120px;
+  height: 120px;
+  background: var(--iwc-bg-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.iwc-checkout .co-product-img img{
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 12%;
+}
+.iwc-checkout .co-product-name{
+  font-family: var(--iwc-serif);
+  font-size: 20px;
+  font-weight: 400;
+  color: var(--iwc-text);
+  line-height: 1.3;
+  margin: 4px 0 8px;
+}
+.iwc-checkout .co-product-meta{
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.iwc-checkout .co-product-meta .badge{
+  font-family: var(--iwc-sans);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border: 1px solid var(--iwc-border-strong);
+  color: var(--iwc-text-muted);
+  background: transparent;
+  border-radius: 0;
+}
+.iwc-checkout .co-product-price{
+  font-family: var(--iwc-sans);
+  font-size: 14px;
+  color: var(--iwc-text);
+  font-weight: 500;
+}
+
+/* FORM GRID step 1 */
+.iwc-checkout .form-grid{
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+.iwc-checkout .form-grid .field.span2{ grid-column: 1 / -1; }
+.iwc-checkout .field{ display: flex; flex-direction: column; gap: 8px; }
+.iwc-checkout .field label{
+  font-family: var(--iwc-sans);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--iwc-text-muted);
+}
+.iwc-checkout .field input[type="text"],
+.iwc-checkout .field input[type="email"],
+.iwc-checkout .field input[type="number"],
+.iwc-checkout .field input[type="tel"],
+.iwc-checkout .field input[type="date"],
+.iwc-checkout .field input[type="url"],
+.iwc-checkout .field select,
+.iwc-checkout .field textarea{
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--iwc-border-strong);
+  border-radius: 0;
+  padding: 8px 0;
+  font-family: var(--iwc-sans);
+  font-size: 14px;
+  color: var(--iwc-text);
+  outline: none;
+  transition: border-color .15s ease;
+  width: 100%;
+}
+.iwc-checkout .field input:focus,
+.iwc-checkout .field select:focus,
+.iwc-checkout .field textarea:focus{ border-bottom-color: var(--iwc-ink); }
+.iwc-checkout .field input::placeholder,
+.iwc-checkout .field textarea::placeholder{ color: var(--iwc-text-subtle); }
+.iwc-checkout .field textarea{ min-height: 60px; resize: vertical; }
+.iwc-checkout .field select{
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='%23111' stroke-width='1' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 4px center;
+  padding-right: 24px;
+  cursor: pointer;
+}
+
+/* TOTALS step 1 */
+.iwc-checkout .co-totals{
+  display: flex;
+  flex-direction: column;
+  padding: 20px 0;
+  border: none;
+  border-top: 1px solid var(--iwc-border);
+  border-radius: 0;
+  background: transparent;
+  gap: 0;
+}
+.iwc-checkout .co-total-row{
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 8px 0;
+  font-family: var(--iwc-sans);
+  font-size: 14px;
+  color: var(--iwc-text);
+}
+.iwc-checkout .co-total-row.muted{ color: var(--iwc-text-muted); font-size: 13px; }
+.iwc-checkout .co-total-row.discount{ color: var(--iwc-text); }
+.iwc-checkout .co-total-row.discount span:last-child{ font-weight: 500; }
+.iwc-checkout .co-total-row.grand{
+  border-top: 1px solid var(--iwc-border);
+  padding-top: 14px;
+  margin-top: 6px;
+  font-weight: 500;
+  font-size: 14px;
+}
+.iwc-checkout .co-total-row.grand .val{
+  font-family: var(--iwc-sans);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--iwc-text);
+}
+
+/* PRODUCT CARD override completo (era .co-product-card .surface2 dark) */
+.iwc-checkout .co-product-card{
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--iwc-border);
+  border-radius: 0;
+  padding: 0 0 28px;
+  display: flex;
+  gap: 24px;
+  align-items: stretch;
+}
+.iwc-checkout .co-product-img{
+  background: var(--iwc-bg-alt);
+  border-radius: 0;
+}
+.iwc-checkout .co-product-img img{
+  object-fit: contain;
+}
+
+/* BILLING TOGGLE step 2 */
+.iwc-checkout .co-billing-toggle{
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--iwc-border-strong);
+}
+.iwc-checkout .co-billing-toggle-opt{
+  flex: 1;
+  padding: 14px 20px;
+  text-align: center;
+  cursor: pointer;
+  font-family: var(--iwc-sans);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--iwc-text-muted);
+  background: transparent;
+  border-right: 1px solid var(--iwc-border-strong);
+  transition: all .15s ease;
+}
+.iwc-checkout .co-billing-toggle-opt:last-child{ border-right: none; }
+.iwc-checkout .co-billing-toggle-opt input{ display: none; }
+.iwc-checkout .co-billing-toggle-opt.active{
+  background: var(--iwc-ink);
+  color: #fff;
+}
+
+/* PAYMENT METHODS step 3 */
+.iwc-checkout .co-pay-methods{
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.iwc-checkout .co-pay-method{
+  border: 1px solid var(--iwc-border-strong);
+  padding: 18px 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: transparent;
+  transition: border-color .15s ease;
+}
+.iwc-checkout .co-pay-method:hover{ border-color: var(--iwc-ink); }
+.iwc-checkout .co-pay-method.active{
+  border-color: var(--iwc-ink);
+  background: var(--iwc-bg-alt);
+}
+.iwc-checkout .co-pay-method-icon{
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--iwc-text);
+}
+.iwc-checkout .co-pay-method-name{
+  font-family: var(--iwc-sans);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--iwc-text);
+  letter-spacing: .01em;
+}
+.iwc-checkout .co-pay-method-desc{
+  font-family: var(--iwc-sans);
+  font-size: 12px;
+  color: var(--iwc-text-muted);
+  margin-top: 2px;
+}
+
+/* BONIFICO step 3 */
+.iwc-checkout .co-bonifico{
+  background: var(--iwc-bg-alt);
+  padding: 24px;
+  margin-bottom: 18px;
+}
+.iwc-checkout .co-bonifico-title{
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--iwc-text-muted);
+  margin-bottom: 16px;
+}
+.iwc-checkout .co-bonifico-row{
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--iwc-border);
+  gap: 12px;
+}
+.iwc-checkout .co-bonifico-row:last-child{ border-bottom: none; }
+.iwc-checkout .co-bonifico-key{
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--iwc-text-muted);
+  font-weight: 500;
+}
+.iwc-checkout .co-bonifico-val{
+  font-family: var(--iwc-sans);
+  font-size: 14px;
+  color: var(--iwc-text);
+  font-weight: 500;
+}
+.iwc-checkout .co-bonifico-val.gold{ font-weight: 600; }
+.iwc-checkout .co-copy-btn{
+  background: transparent;
+  border: 1px solid var(--iwc-border-strong);
+  color: var(--iwc-text-muted);
+  font-family: var(--iwc-sans);
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  cursor: pointer;
+  margin-left: 8px;
+  border-radius: 0;
+  transition: all .15s ease;
+}
+.iwc-checkout .co-copy-btn:hover{
+  border-color: var(--iwc-ink);
+  color: var(--iwc-ink);
+}
+
+/* CONFERMA step 4 */
+.iwc-checkout .co-confirm{
+  text-align: center;
+  padding: 24px 0;
+}
+.iwc-checkout .co-confirm-icon{
+  font-size: 32px;
+  color: var(--iwc-ink);
+  margin-bottom: 16px;
+  line-height: 1;
+}
+.iwc-checkout .co-confirm-title{
+  font-family: var(--iwc-serif);
+  font-size: 26px;
+  font-weight: 300;
+  color: var(--iwc-text);
+  margin-bottom: 12px;
+  letter-spacing: -.005em;
+}
+.iwc-checkout .co-confirm-num{
+  font-family: var(--iwc-sans);
+  font-size: 13px;
+  color: var(--iwc-text-muted);
+  letter-spacing: .04em;
+  margin-bottom: 24px;
+}
+.iwc-checkout .co-confirm-num strong{
+  color: var(--iwc-text);
+  font-weight: 600;
+}
+.iwc-checkout .co-confirm-recap{
+  background: var(--iwc-bg-alt);
+  padding: 20px 24px;
+  margin: 0 auto 28px;
+  max-width: 520px;
+  text-align: left;
+}
+.iwc-checkout .co-confirm-actions{
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Discount summary */
+.iwc-checkout .disc-summary{
+  background: var(--iwc-bg-alt);
+  border-left: 2px solid var(--iwc-ink);
+  border-radius: 0;
+  padding: 14px 16px;
+}
+.iwc-checkout .disc-summary-title{
+  color: var(--iwc-ink);
+  font-family: var(--iwc-sans);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.iwc-checkout .disc-summary-row{
+  font-family: var(--iwc-sans);
+  font-size: 12px;
+  color: var(--iwc-text-muted);
+  padding: 3px 0;
+}
+.iwc-checkout .disc-summary-row.active{
+  color: var(--iwc-text);
+  font-weight: 600;
+}
+
+/* ERRORI */
+.iwc-checkout .co-error{
+  background: transparent;
+  border: 1px solid #c0392b;
+  color: #c0392b;
+  padding: 12px 16px;
+  font-family: var(--iwc-sans);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+/* AVAILABLE block step 1 */
+.iwc-checkout #coAvailable{
+  font-family: var(--iwc-sans) !important;
+  font-size: 14px !important;
+  color: var(--iwc-text) !important;
+  padding: 8px 0;
+  font-weight: 500;
+}
+
+/* IMPORT BTN */
+.iwc-checkout .btn{
+  background: transparent;
+  border: 1px solid var(--iwc-border-strong);
+  color: var(--iwc-text);
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  padding: 8px 14px;
+  cursor: pointer;
+  border-radius: 0;
+  transition: all .15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.iwc-checkout .btn:hover{
+  border-color: var(--iwc-ink);
+  background: transparent;
+}
+.iwc-checkout .btn.sm{ padding: 6px 12px; font-size: 10px; }
+.iwc-checkout .btn.primary{
+  background: var(--iwc-ink);
+  border-color: var(--iwc-ink);
+  color: #fff;
+}
+.iwc-checkout .btn.primary:hover{
+  background: var(--iwc-ink);
+  opacity: .85;
+}
+
+/* PHOTO/CARD ICONS interni */
+.iwc-checkout .rb-i{ color: currentColor; }
+
+/* FOOTER */
+.iwc-checkout .iwc-co-footer{
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 32px;
+  border-top: 1px solid var(--iwc-border);
+  background: var(--iwc-bg);
+  z-index: 5;
+}
+.iwc-checkout .iwc-co-btn-back,
+.iwc-checkout .iwc-co-btn-cancel{
+  background: transparent;
+  border: none;
+  color: var(--iwc-text-muted);
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  padding: 12px 4px;
+  cursor: pointer;
+  transition: color .15s ease;
+}
+.iwc-checkout .iwc-co-btn-back:hover,
+.iwc-checkout .iwc-co-btn-cancel:hover{ color: var(--iwc-ink); }
+.iwc-checkout .iwc-co-btn-next{
+  background: var(--iwc-ink);
+  color: #fff;
+  border: 1px solid var(--iwc-ink);
+  border-radius: 0;
+  padding: 14px 32px;
+  font-family: var(--iwc-sans);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity .25s ease;
+  min-width: 180px;
+}
+.iwc-checkout .iwc-co-btn-next:hover:not(:disabled){ opacity: .85; }
+.iwc-checkout .iwc-co-btn-next:disabled{
+  background: var(--iwc-text-subtle);
+  border-color: var(--iwc-text-subtle);
+  cursor: not-allowed;
+}
+
+/* Responsive */
+@media (max-width: 720px){
+  .iwc-checkout .iwc-co-stepper{ padding: 24px 16px 4px; flex-wrap: wrap; gap: 4px; }
+  .iwc-checkout .iwc-co-step{ padding: 8px 14px; }
+  .iwc-checkout .iwc-co-step + .iwc-co-step::before{ display: none; }
+  .iwc-checkout .iwc-co-title{ font-size: 24px; }
+  .iwc-checkout .iwc-co-body{ padding: 32px 16px 24px; }
+  .iwc-checkout .form-grid{ grid-template-columns: 1fr; }
+  .iwc-checkout .iwc-co-footer{ padding: 14px 16px; }
+  .iwc-checkout .iwc-co-btn-next{ padding: 12px 20px; min-width: 140px; }
+  .iwc-checkout .co-product-card{ flex-direction: column; }
+  .iwc-checkout .co-product-img{ width: 100%; height: 200px; }
+}
+
 /* ═══ MARKETPLACE — Auction-style cards ═══ */
 .mkt-wrap{flex:1;overflow-y:auto;padding:20px 24px}
 .mkt-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:18px;flex-wrap:wrap}
@@ -2843,22 +3495,43 @@ textarea{resize:vertical;min-height:60px}
 
 <!-- Modal: Dettaglio prodotto / Acquisto quote -->
 <!-- Modal: Checkout multi-step -->
-<div class="modal-bg" id="buyModalBg" onclick="if(event.target===this)closeBuyModal()">
-  <div class="modal checkout-modal">
-    <div class="modal-head">
-      <h3 id="buyModalTitle">Acquista quote</h3>
-      <button class="modal-close" onclick="closeBuyModal()" title="Chiudi"><span class="rb-i rb-i-x"></span></button>
+<!-- ═════════════ CHECKOUT — Pagina fullscreen stile IWC ═════════════ -->
+<div id="buyModalBg" class="iwc-checkout">
+  <div class="iwc-checkout-inner">
+    <!-- TOP BAR: breadcrumb a sx, titolo nessuno (titolo è il nome prodotto in step1) + chiudi a dx -->
+    <div class="iwc-co-header">
+      <a class="iwc-co-breadcrumb" onclick="closeBuyModal()">‹ Torna al prodotto</a>
+      <div style="flex:1"></div>
+      <button class="iwc-co-close" onclick="closeBuyModal()" title="Chiudi">&times;</button>
     </div>
 
-    <!-- Stepper -->
-    <div class="checkout-stepper" id="coStepper">
-      <div class="checkout-step active" data-step="1"><div class="checkout-step-num">1</div>Riepilogo</div>
-      <div class="checkout-step" data-step="2"><div class="checkout-step-num">2</div>Fatturazione</div>
-      <div class="checkout-step" data-step="3"><div class="checkout-step-num">3</div>Pagamento</div>
-      <div class="checkout-step" data-step="4"><div class="checkout-step-num">4</div>Conferma</div>
+    <!-- Stepper IWC -->
+    <div class="iwc-co-stepper" id="coStepper">
+      <div class="iwc-co-step active" data-step="1">
+        <span class="iwc-co-step-num">01</span>
+        <span class="iwc-co-step-label">Riepilogo</span>
+      </div>
+      <div class="iwc-co-step" data-step="2">
+        <span class="iwc-co-step-num">02</span>
+        <span class="iwc-co-step-label">Fatturazione</span>
+      </div>
+      <div class="iwc-co-step" data-step="3">
+        <span class="iwc-co-step-num">03</span>
+        <span class="iwc-co-step-label">Pagamento</span>
+      </div>
+      <div class="iwc-co-step" data-step="4">
+        <span class="iwc-co-step-num">04</span>
+        <span class="iwc-co-step-label">Conferma</span>
+      </div>
     </div>
 
-    <div class="modal-body">
+    <!-- Titolo pagina -->
+    <div class="iwc-co-title-band">
+      <h1 class="iwc-co-title" id="buyModalTitle">Acquisto</h1>
+    </div>
+
+    <!-- Body con i 4 pane -->
+    <div class="iwc-co-body">
 
       <!-- ── STEP 1 — Riepilogo ────────────────────────────── -->
       <div class="checkout-pane active" id="coPane1">
@@ -3049,11 +3722,11 @@ textarea{resize:vertical;min-height:60px}
     </div>
 
     <!-- Footer dinamico -->
-    <div class="modal-footer" id="coFooter">
-      <button class="btn" id="coBackBtn" onclick="coStepBack()" style="display:none">&larr; Indietro</button>
+    <div class="iwc-co-footer" id="coFooter">
+      <button class="iwc-co-btn-back" id="coBackBtn" onclick="coStepBack()" style="display:none">‹ Indietro</button>
       <span style="flex:1"></span>
-      <button class="btn" onclick="closeBuyModal()">Annulla</button>
-      <button class="btn primary" id="coNextBtn" onclick="coStepNext()">Continua &rarr;</button>
+      <button class="iwc-co-btn-cancel" onclick="closeBuyModal()">Annulla</button>
+      <button class="iwc-co-btn-next" id="coNextBtn" onclick="coStepNext()">Continua →</button>
     </div>
   </div>
 </div>
@@ -4154,7 +4827,7 @@ async function openBuyModal(pid){
     var st = _mktStats[pid] || { available_quotes: _buyProduct.total_quotes };
     var avail = Math.max(0, _buyProduct.total_quotes - (st.sold_quotes||0));
 
-    document.getElementById('buyModalTitle').textContent = 'Acquista — '+_buyProduct.name;
+    document.getElementById('buyModalTitle').textContent = _buyProduct.name;
 
     // Reset campi
     var qtyEl = document.getElementById('coQty');
@@ -4215,15 +4888,20 @@ async function openBuyModal(pid){
 
     // Card prodotto
     var coverUrl = _buyProduct.cover_photo_url || _buyProduct.image_url || '';
+    var priceLine = isFullProduct
+      ? (fmtPrice(_buyProduct.price_per_quote)+'\u202F€')
+      : (fmtPrice(_buyProduct.price_per_quote)+'\u202F€ / '+(_buyProduct.quote_unit||'quota'));
+    if(_buyProduct.estimated_value){
+      priceLine += '<span style="color:var(--iwc-text-muted,#6f6f6f);font-weight:400;margin-left:8px">· valore stimato '+fmtPrice(_buyProduct.estimated_value)+'\u202F€</span>';
+    }
     document.getElementById('coProductCard').innerHTML =
         '<div class="co-product-img">'
       +   (coverUrl?'<img src="'+esc(coverUrl)+'"/>':'<span class="rb-i rb-i-package" style="color:var(--text-subtle)"></span>')
       + '</div>'
-      + '<div style="flex:1">'
+      + '<div style="flex:1;min-width:0">'
       +   '<div class="co-product-name">'+esc(_buyProduct.name)+'</div>'
       +   '<div class="co-product-meta">'+typeBadge(_buyProduct.type)+statusBadge(_buyProduct.status)+'</div>'
-      +   '<div class="co-product-price">€'+fmt2(_buyProduct.price_per_quote)+' / '+(_buyProduct.quote_unit||'quota')
-      +     (_buyProduct.estimated_value?' · valore stimato €'+fmt2(_buyProduct.estimated_value):'')+'</div>'
+      +   '<div class="co-product-price">'+priceLine+'</div>'
       + '</div>';
 
     coUpdateTotals();
@@ -4231,6 +4909,7 @@ async function openBuyModal(pid){
 
     // APRI subito — il modal è ready
     document.getElementById('buyModalBg').classList.add('show');
+    document.body.style.overflow = 'hidden';
 
     // Carica tier sconto in background, NON blocca apertura
     if(_buyProduct.type==='fractional'){
@@ -4249,6 +4928,7 @@ async function openBuyModal(pid){
 
 function closeBuyModal(){
   document.getElementById('buyModalBg').classList.remove('show');
+  document.body.style.overflow = '';
   // Se l'ordine è stato creato → ricarica marketplace per aggiornare statistiche
   if(_coOrder){ try { mktLoad(); } catch(e){} }
 }
@@ -4261,8 +4941,8 @@ function coGotoStep(n){
     var pane = document.getElementById('coPane'+i);
     if(pane) pane.classList.toggle('active', i===n);
   }
-  // Stepper
-  document.querySelectorAll('.checkout-step').forEach(function(s){
+  // Stepper (sia vecchia classe .checkout-step che nuova .iwc-co-step)
+  document.querySelectorAll('.checkout-step, .iwc-co-step').forEach(function(s){
     var st = parseInt(s.getAttribute('data-step'));
     s.classList.remove('active','done');
     if(st===n) s.classList.add('active');
@@ -4272,16 +4952,17 @@ function coGotoStep(n){
   var nextBtn = document.getElementById('coNextBtn');
   var backBtn = document.getElementById('coBackBtn');
   var labels  = {1:'Continua →', 2:'Continua →', 3:'Conferma ordine', 4:'Chiudi'};
+  // Selettore unificato: bottone Annulla nel nuovo footer pagina checkout o vecchio modal
+  var cancelBtn = document.querySelector('.iwc-co-btn-cancel') || document.querySelector('.modal-footer .btn[onclick="closeBuyModal()"]');
   if(n===4){
     nextBtn.textContent = 'Chiudi';
     nextBtn.onclick = closeBuyModal;
     backBtn.style.display = 'none';
-    document.querySelector('.modal-footer .btn[onclick="closeBuyModal()"]').style.display = 'none';
+    if(cancelBtn) cancelBtn.style.display = 'none';
   } else {
     nextBtn.textContent = labels[n];
     nextBtn.onclick = coStepNext;
     backBtn.style.display = (n>1) ? '' : 'none';
-    var cancelBtn = document.querySelector('.modal-footer .btn[onclick="closeBuyModal()"]');
     if(cancelBtn) cancelBtn.style.display = '';
   }
   document.getElementById('coCheckoutErr').innerHTML = '';
@@ -4410,19 +5091,31 @@ function coBillToggle(type){
 function coUpdateTotals(){
   if(!_buyProduct) return;
   var qty = parseInt(document.getElementById('coQty').value)||0;
+  var isFullProd = _buyProduct.type === 'full';
+  if(isFullProd) qty = 1;  // forzato
+
   var calc = calcDiscountedTotal(_buyProduct.price_per_quote, qty, _buyDiscTiers);
 
-  var html = '<div class="co-total-row muted"><span>Quote</span><span>'+qty+' × €'+fmt2(_buyProduct.price_per_quote)+'</span></div>'
-           + '<div class="co-total-row"><span>Subtotale</span><span>€'+fmt2(calc.gross)+'</span></div>';
-  if(calc.applied){
-    html += '<div class="co-total-row discount"><span>Sconto volume '+fmt2(calc.discount_pct)+'% (≥ '+calc.tier.min_qty+' quote)</span><span>−€'+fmt2(calc.discount_amount)+'</span></div>';
+  var html;
+  if(isFullProd){
+    // Per Full Ownership: solo riga totale, niente moltiplicazioni
+    html = '<div class="co-total-row grand"><span>Totale</span><span class="val">'+fmtPrice(calc.net)+'\u202F€</span></div>';
+  } else {
+    // Per prodotti a quote: mostra dettaglio Quote × prezzo, subtotale, sconto, totale
+    html = '<div class="co-total-row muted"><span>Quote</span><span>'+qty+' × '+fmtPrice(_buyProduct.price_per_quote)+'\u202F€</span></div>'
+         + '<div class="co-total-row"><span>Subtotale</span><span>'+fmtPrice(calc.gross)+'\u202F€</span></div>';
+    if(calc.applied){
+      html += '<div class="co-total-row discount"><span>Sconto volume '+fmt2(calc.discount_pct)+'% (≥ '+calc.tier.min_qty+' quote)</span><span>−'+fmtPrice(calc.discount_amount)+'\u202F€</span></div>';
+    }
+    html += '<div class="co-total-row grand"><span>Totale</span><span class="val">'+fmtPrice(calc.net)+'\u202F€</span></div>';
   }
-  html += '<div class="co-total-row grand"><span>Totale</span><span class="val">€'+fmt2(calc.net)+'</span></div>';
   document.getElementById('coTotals').innerHTML = html;
 
-  // Tier summary
+  // Tier summary (solo se non Full)
   var sumBox = document.getElementById('coDiscSummary');
-  if(sumBox){ sumBox.innerHTML = renderDiscountSummary(_buyDiscTiers, qty); }
+  if(sumBox){
+    sumBox.innerHTML = isFullProd ? '' : renderDiscountSummary(_buyDiscTiers, qty);
+  }
 }
 
 // ── Step 2 — raccolta billing ───────────────────────────────
@@ -4598,11 +5291,12 @@ function coSelectPayMethod(method){
 
 function coUpdateBonificoSummary(){
   var qty = parseInt(document.getElementById('coQty').value)||0;
+  if(_buyProduct && _buyProduct.type === 'full') qty = 1;
   var calc = calcDiscountedTotal(_buyProduct.price_per_quote, qty, _buyDiscTiers);
   var causale = 'RBK-'+_buyProduct.id.slice(0,8).toUpperCase()+'-Q'+qty;
   document.getElementById('coIban').textContent = BANK_DETAILS.iban;
   document.getElementById('coCausale').textContent = causale;
-  document.getElementById('coAmount').textContent = '€'+fmt2(calc.net);
+  document.getElementById('coAmount').textContent = fmtPrice(calc.net)+'\u202F€';
 }
 
 function coCopy(elId, btn){
@@ -4756,12 +5450,16 @@ async function coSubmitOrder(){
 function coRenderConfirmation(){
   if(!_coOrder) return;
   document.getElementById('coConfirmNum').textContent = _coOrder.number;
+  var isFull = _buyProduct && _buyProduct.type === 'full';
+  var qtyLine = isFull
+    ? '<div class="co-bonifico-row"><span class="co-bonifico-key">Tipologia</span><span class="co-bonifico-val">Acquisto integrale</span></div>'
+    : '<div class="co-bonifico-row"><span class="co-bonifico-key">Quote</span><span class="co-bonifico-val">'+_coOrder.qty+' '+(_buyProduct.quote_unit||'quote')+'</span></div>';
   document.getElementById('coConfirmRecap').innerHTML = ''
     + '<div class="co-bonifico-row"><span class="co-bonifico-key">Intestatario</span><span class="co-bonifico-val">'+esc(BANK_DETAILS.intestatario)+'</span></div>'
     + '<div class="co-bonifico-row"><span class="co-bonifico-key">IBAN</span><span><span class="co-bonifico-val">'+esc(BANK_DETAILS.iban)+'</span></span></div>'
     + '<div class="co-bonifico-row"><span class="co-bonifico-key">Causale</span><span class="co-bonifico-val gold">'+esc(_coOrder.causale)+'</span></div>'
-    + '<div class="co-bonifico-row"><span class="co-bonifico-key">Importo</span><span class="co-bonifico-val gold">€'+fmt2(_coOrder.total)+'</span></div>'
-    + '<div class="co-bonifico-row"><span class="co-bonifico-key">Quote</span><span class="co-bonifico-val">'+_coOrder.qty+' '+(_buyProduct.quote_unit||'quote')+'</span></div>';
+    + '<div class="co-bonifico-row"><span class="co-bonifico-key">Importo</span><span class="co-bonifico-val gold">'+fmtPrice(_coOrder.total)+'\u202F€</span></div>'
+    + qtyLine;
 }
 
 // ── Download riepilogo PDF (semplice: print della finestra) ─
