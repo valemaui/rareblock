@@ -2864,7 +2864,7 @@ textarea{resize:vertical;min-height:60px}
       <div class="checkout-pane active" id="coPane1">
         <div class="co-product-card" id="coProductCard"></div>
 
-        <div class="form-grid">
+        <div class="form-grid" id="coQtyGrid">
           <div class="field">
             <label>Numero di quote</label>
             <input type="number" id="coQty" value="1" min="1" oninput="coUpdateTotals()"/>
@@ -3255,7 +3255,7 @@ textarea{resize:vertical;min-height:60px}
 
       <!-- Status / countdown / disponibili (riga compatta) -->
       <div class="pdv-buy-meta">
-        <div class="pdv-buy-meta-row">
+        <div class="pdv-buy-meta-row" id="pdvTermineRow">
           <span class="pdv-buy-meta-label">Termine</span>
           <span class="pdv-buy-meta-value">
             <span id="pdvCountdown">—</span>
@@ -3263,7 +3263,7 @@ textarea{resize:vertical;min-height:60px}
           </span>
         </div>
         <div class="pdv-buy-meta-row">
-          <span class="pdv-buy-meta-label">Disponibili</span>
+          <span class="pdv-buy-meta-label" id="pdvAvailableLabel">Disponibili</span>
           <span class="pdv-buy-meta-value" id="pdvAvailable">—</span>
         </div>
         <div class="pdv-buy-meta-row" id="pdvBidsRow">
@@ -4158,15 +4158,14 @@ async function openBuyModal(pid){
 
     // Reset campi
     var qtyEl = document.getElementById('coQty');
+    var qtyGrid = document.getElementById('coQtyGrid');
     var isFullProduct = _buyProduct.type === 'full';
     if(isFullProduct){
-      // Full Ownership: 1 unità sola, campo bloccato
+      // Full Ownership: niente scelta quote, prezzo fisso, niente totale variabile
       qtyEl.value = 1;
       qtyEl.min = 1;
       qtyEl.max = 1;
-      qtyEl.readOnly = true;
-      qtyEl.style.opacity = '.55';
-      qtyEl.style.pointerEvents = 'none';
+      if(qtyGrid) qtyGrid.style.display = 'none';
     } else {
       qtyEl.max = avail;
       qtyEl.min = 1;
@@ -4174,6 +4173,7 @@ async function openBuyModal(pid){
       qtyEl.readOnly = false;
       qtyEl.style.opacity = '';
       qtyEl.style.pointerEvents = '';
+      if(qtyGrid) qtyGrid.style.display = '';
     }
     document.getElementById('coAvailable').textContent = isFullProduct
       ? '1 unità (Full Ownership)'
@@ -4879,6 +4879,9 @@ async function openProductDetail(pid){
   var avail = Math.max(0, p.total_quotes - bidsCount);
   document.getElementById('pdvPrice').textContent = fmtPrice(p.price_per_quote)+'\u202F€';
   document.getElementById('pdvBidsCount').textContent = bidsCount+(bidsCount===1?' acquisto':' acquisti');
+
+  var isFullPdv = p.type === 'full';
+
   // Tagline dinamica sotto il titolo
   var taglineEl = document.getElementById('pdvTagline');
   if(taglineEl){
@@ -4890,24 +4893,35 @@ async function openProductDetail(pid){
     };
     taglineEl.textContent = taglines[p.type] || '';
   }
-  // Aggiorna note prezzo in base al tipo
+
+  // Nota prezzo: per Full niente "Prezzo unitario" (è ovvio che lo è),
+  // solo IVA inclusa. Per fractional/millesimal/grade_hold mostra "per quota"
   var priceNoteEl = document.getElementById('pdvPriceNote');
   if(priceNoteEl){
-    if(p.type==='full'){
-      priceNoteEl.textContent = 'Prezzo unitario — IVA inclusa';
+    if(isFullPdv){
+      priceNoteEl.textContent = 'IVA inclusa';
     } else {
       priceNoteEl.textContent = 'Prezzo per '+(p.quote_unit||'quota')+' — IVA inclusa';
     }
   }
+
   // Link "Storico vendite" visibile solo per fractional con vendite
   var histLink = document.getElementById('pdvBidHistory');
   if(histLink) histLink.style.display = (p.type==='fractional' && bidsCount>0) ? '' : 'none';
+
   // Riga acquisti visibile solo se ci sono acquisti
   var bidsRow = document.getElementById('pdvBidsRow');
   if(bidsRow) bidsRow.style.display = bidsCount>0 ? '' : 'none';
-  document.getElementById('pdvAvailable').textContent = p.type==='full'
-    ? '1 unità (Full Ownership)'
-    : (avail+' / '+p.total_quotes+' '+(p.quote_unit||'quote'));
+
+  // Etichetta "Disponibili": per Full diventa "Tipologia" con valore "Full Ownership"
+  var availLabelEl = document.getElementById('pdvAvailableLabel');
+  if(isFullPdv){
+    if(availLabelEl) availLabelEl.textContent = 'Tipologia';
+    document.getElementById('pdvAvailable').textContent = 'Acquisto integrale';
+  } else {
+    if(availLabelEl) availLabelEl.textContent = 'Disponibili';
+    document.getElementById('pdvAvailable').textContent = avail+' / '+p.total_quotes+' '+(p.quote_unit||'quote');
+  }
 
   // Carica tier sconto se fractional
   _pdvDiscTiers = [];
@@ -4915,10 +4929,13 @@ async function openProductDetail(pid){
     _pdvDiscTiers = await loadDiscountTiers(pid);
   }
 
-  // Countdown
+  // Riga Termine: visibile solo se c'è una data di chiusura prevista.
+  // Se non c'è target_date la riga viene nascosta del tutto (niente "Aperto" generico).
+  var termineRow = document.getElementById('pdvTermineRow');
   var cdEl = document.getElementById('pdvCountdown');
   var endEl= document.getElementById('pdvEndDate');
   if(p.target_date){
+    if(termineRow) termineRow.style.display = '';
     var ms = new Date(p.target_date).getTime() - Date.now();
     if(ms > 0){
       var d = Math.floor(ms/86400000);
@@ -4931,14 +4948,14 @@ async function openProductDetail(pid){
     }
     endEl.textContent = fmtDate(p.target_date);
   } else {
-    cdEl.textContent = 'Aperto';
+    if(termineRow) termineRow.style.display = 'none';
+    cdEl.textContent = '';
     endEl.textContent = '';
   }
 
-  // Quick-bid: se esistono tier sconto, mostra le soglie come quick-bid
+  // Quick-bid: solo per prodotti a quote (fractional/millesimal/grade_hold)
   // Per Full Ownership: nessun quick-bid (è 1 unità sola)
   var qb = document.getElementById('pdvQuickBids');
-  var isFullPdv = p.type === 'full';
   if(isFullPdv){
     qb.innerHTML = '';
     qb.style.display = 'none';
@@ -4965,16 +4982,14 @@ async function openProductDetail(pid){
     }).join('');
   }
 
-  // Input acquisto
+  // Input acquisto: nascosto per Full Ownership (è 1 unità a prezzo fisso)
+  var qtyRow = document.getElementById('pdvQtyRow');
   var qty = document.getElementById('pdvBidQty');
   if(isFullPdv){
-    qty.value = 1;
-    qty.min = 1;
-    qty.max = 1;
-    qty.readOnly = true;
-    qty.style.opacity = '.55';
-    qty.style.pointerEvents = 'none';
+    if(qtyRow) qtyRow.style.display = 'none';
+    qty.value = 1; qty.min = 1; qty.max = 1;
   } else {
+    if(qtyRow) qtyRow.style.display = '';
     qty.readOnly = false;
     qty.style.opacity = '';
     qty.style.pointerEvents = '';
@@ -4984,8 +4999,9 @@ async function openProductDetail(pid){
   }
   pdvUpdatePreview();
 
-  // CTA principale
+  // CTA principale — copy diversa per Full vs prodotti a quote
   var btn = document.getElementById('pdvPlaceBidBtn');
+  var ctaLabel = isFullPdv ? 'Acquista' : 'Acquista quote';
   if(p.status!=='open' && p.status!=='closing_soon'){
     btn.disabled = true;
     btn.textContent = ({open:'Aperto',closing_soon:'In chiusura',draft:'Non disponibile',closed:'Chiuso',liquidated:'Liquidato'})[p.status]||'Non disponibile';
@@ -4993,7 +5009,7 @@ async function openProductDetail(pid){
     btn.disabled = true; btn.textContent = 'Esaurito';
   } else {
     btn.disabled = false;
-    btn.textContent = p.status==='closing_soon' ? 'Acquista (in chiusura)' : 'Acquista quote';
+    btn.textContent = p.status==='closing_soon' ? (ctaLabel+' (in chiusura)') : ctaLabel;
   }
 
   // Watchlist
