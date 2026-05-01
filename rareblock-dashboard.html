@@ -470,6 +470,815 @@ textarea{resize:vertical;min-height:60px}
 .auth-field label{display:block;font-size:11px;color:var(--text-muted);margin-bottom:4px;font-family:var(--mono)}
 .auth-link{font-size:12px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;margin-top:10px;display:block;text-align:center}
 
+/* ═══════════════════════════════════════════════════════════════════
+   IWC MODE — Marketplace e Detail con stile editoriale haute horlogerie
+   Sfondo bianco, tipografia serif sobria, immagini protagoniste,
+   gerarchia gentile. Scoped via .iwc-mode (tab-mkt) e #productDetailView.
+   Il resto della dashboard mantiene il dark theme.
+═══════════════════════════════════════════════════════════════════════ */
+
+.iwc-mode {
+  --iwc-bg: #ffffff;
+  --iwc-bg-alt: #f5f4f1;          /* beige carta IWC */
+  --iwc-text: #111111;
+  --iwc-text-muted: #6f6f6f;
+  --iwc-text-subtle: #a8a8a8;
+  --iwc-border: #e8e6e1;
+  --iwc-border-strong: #cfcdc7;
+  --iwc-ink: #000000;
+  --iwc-serif: 'Fraunces', 'Playfair Display', 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  --iwc-sans:  'Inter', -apple-system, 'Helvetica Neue', Arial, sans-serif;
+
+  background: var(--iwc-bg);
+  color: var(--iwc-text);
+  font-family: var(--iwc-sans);
+  font-feature-settings: "ss01", "kern";
+  -webkit-font-smoothing: antialiased;
+  overflow-y: auto;
+}
+.iwc-mode .mkt-wrap{
+  background: var(--iwc-bg);
+  padding: 0;
+  flex: 1;
+}
+
+/* HERO */
+.iwc-hero{
+  text-align:center;
+  padding: 56px 32px 36px;
+  background: var(--iwc-bg);
+  border-bottom: 1px solid var(--iwc-border);
+}
+.iwc-hero-eyebrow{
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--iwc-text-muted);
+  margin-bottom: 14px;
+}
+.iwc-hero-title{
+  font-family: var(--iwc-serif);
+  font-size: 44px;
+  font-weight: 300;
+  letter-spacing: -.01em;
+  color: var(--iwc-text);
+  margin: 0 0 12px 0;
+  line-height: 1.05;
+}
+.iwc-hero-subtitle{
+  font-family: var(--iwc-sans);
+  font-size: 14px;
+  color: var(--iwc-text-muted);
+  max-width: 540px;
+  margin: 0 auto;
+  line-height: 1.7;
+  font-weight: 300;
+}
+
+/* TOOLBAR */
+.iwc-toolbar{
+  position: sticky; top: 0; z-index: 4;
+  background: var(--iwc-bg);
+  border-bottom: 1px solid var(--iwc-border);
+}
+.iwc-toolbar-inner{
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 32px;
+  flex-wrap: wrap;
+}
+.iwc-toolbar-inner input[type="text"],
+.iwc-toolbar-inner select{
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--iwc-border-strong);
+  border-radius: 0;
+  padding: 8px 4px;
+  color: var(--iwc-text);
+  font-family: var(--iwc-sans);
+  font-size: 13px;
+  letter-spacing: .02em;
+  outline: none;
+  transition: border-color .2s ease;
+  min-width: 140px;
+}
+.iwc-toolbar-inner input[type="text"]:focus,
+.iwc-toolbar-inner select:focus{
+  border-bottom-color: var(--iwc-ink);
+}
+.iwc-toolbar-inner input[type="text"]{
+  min-width: 220px;
+}
+.iwc-toolbar-inner select{
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='%23111' stroke-width='1' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 4px center;
+  padding-right: 22px;
+}
+.iwc-toolbar-spacer{ flex: 1 }
+.iwc-count{
+  font-family: var(--iwc-sans);
+  font-size: 12px;
+  color: var(--iwc-text-muted);
+  letter-spacing: .04em;
+}
+
+/* GRID */
+.iwc-mode .mkt-grid{
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 56px 32px 80px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 56px 32px;
+  background: var(--iwc-bg);
+}
+
+/* PRODUCT CARD - stile IWC */
+.iwc-mode .prod-card{
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  cursor: pointer;
+  transition: none;
+  overflow: visible;
+  padding: 0;
+}
+.iwc-mode .prod-card:hover{
+  border: none;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Niente badge sconto/watch/status nello stile IWC: nascondi per pulizia */
+.iwc-mode .prod-card-discount-badge,
+.iwc-mode .prod-card-watch,
+.iwc-mode .prod-card-status,
+.iwc-mode .prod-card-photo-count,
+.iwc-mode .prod-card-divider,
+.iwc-mode .prod-card-bids,
+.iwc-mode .prod-card-bottom,
+.iwc-mode .prod-card-history{
+  display: none !important;
+}
+
+/* Immagine grande, sfondo bianco neutro */
+.iwc-mode .prod-card-img{
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--iwc-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.iwc-mode .prod-card-img img{
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 24px;
+  transition: transform 1.2s cubic-bezier(.2,.8,.2,1);
+  background: transparent;
+}
+.iwc-mode .prod-card:hover .prod-card-img img{
+  transform: scale(1.04);
+}
+.iwc-mode .prod-card-img > span{
+  color: #d8d6d2;
+}
+
+/* Body: solo nome serif + prezzo */
+.iwc-mode .prod-card-body{
+  background: transparent;
+  padding: 0;
+  text-align: center;
+  gap: 6px;
+}
+.iwc-mode .prod-card-lot{
+  display: block;
+  font-family: var(--iwc-sans);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--iwc-text-muted);
+  margin-bottom: 6px;
+}
+.iwc-mode .prod-card-name{
+  font-family: var(--iwc-serif);
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: -.005em;
+  color: var(--iwc-text);
+  line-height: 1.35;
+  -webkit-line-clamp: 2;
+  min-height: auto;
+  margin-bottom: 8px;
+  text-align: center;
+}
+.iwc-mode .prod-card-price-row{
+  justify-content: center;
+}
+.iwc-mode .prod-card-price{
+  font-family: var(--iwc-sans);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--iwc-text);
+  letter-spacing: .02em;
+}
+.iwc-mode .prod-card-price::before{
+  content: 'da ';
+  color: var(--iwc-text-muted);
+  font-style: normal;
+  font-size: 12px;
+  margin-right: 4px;
+}
+
+/* CTA: link tipografico, non bottone */
+.iwc-mode .prod-card-cta{
+  margin: 14px auto 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--iwc-text);
+  border-radius: 0;
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  position: relative;
+  width: auto;
+  display: inline-block;
+}
+.iwc-mode .prod-card-cta:not(:disabled){
+  border-bottom: 1px solid var(--iwc-text);
+  padding-bottom: 4px;
+  transition: opacity .25s ease;
+}
+.iwc-mode .prod-card-cta:not(:disabled):hover{
+  background: transparent !important;
+  color: var(--iwc-text) !important;
+  opacity: .55;
+  border-color: var(--iwc-text) !important;
+}
+.iwc-mode .prod-card-cta:disabled{
+  color: var(--iwc-text-subtle);
+  background: transparent;
+  border: none;
+  letter-spacing: .12em;
+  text-transform: none;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 12px;
+  opacity: 1;
+  cursor: default;
+}
+
+/* Empty state */
+.iwc-mode .empty-state{
+  background: var(--iwc-bg);
+  color: var(--iwc-text-muted);
+  padding: 80px 20px;
+  text-align: center;
+}
+.iwc-mode .empty-state h3{
+  font-family: var(--iwc-serif);
+  font-weight: 400;
+  font-size: 22px;
+  color: var(--iwc-text);
+  margin-bottom: 8px;
+}
+.iwc-mode .empty-state p{
+  font-family: var(--iwc-sans);
+  font-size: 13px;
+  color: var(--iwc-text-muted);
+}
+.iwc-mode .empty-state .icon{
+  color: var(--iwc-border-strong);
+  margin-bottom: 16px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   IWC PRODUCT DETAIL — Pagina dettaglio editoriale
+═══════════════════════════════════════════════════════════════════════ */
+#productDetailView.iwc-detail{
+  --iwc-bg: #ffffff;
+  --iwc-bg-alt: #f5f4f1;
+  --iwc-text: #111111;
+  --iwc-text-muted: #6f6f6f;
+  --iwc-text-subtle: #a8a8a8;
+  --iwc-border: #e8e6e1;
+  --iwc-border-strong: #cfcdc7;
+  --iwc-ink: #000000;
+  --iwc-serif: 'Fraunces', 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
+  --iwc-sans:  'Inter', -apple-system, 'Helvetica Neue', Arial, sans-serif;
+
+  background: var(--iwc-bg);
+  color: var(--iwc-text);
+  font-family: var(--iwc-sans);
+}
+#productDetailView.iwc-detail .pdv-header{
+  background: var(--iwc-bg);
+  border-bottom: 1px solid var(--iwc-border);
+  padding: 14px 32px;
+}
+#productDetailView.iwc-detail .pdv-nav-btn{
+  background: transparent;
+  border: 1px solid var(--iwc-border-strong);
+  color: var(--iwc-text-muted);
+}
+#productDetailView.iwc-detail .pdv-nav-btn:hover:not(:disabled){
+  border-color: var(--iwc-ink);
+  color: var(--iwc-ink);
+  background: transparent;
+}
+#productDetailView.iwc-detail .pdv-nav-lot{
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .2em;
+  color: var(--iwc-text-muted);
+  text-transform: uppercase;
+}
+#productDetailView.iwc-detail .pdv-close{
+  color: var(--iwc-text-muted);
+}
+#productDetailView.iwc-detail .pdv-close:hover{
+  background: var(--iwc-bg-alt);
+  color: var(--iwc-ink);
+}
+
+/* Banda titolo: nome enorme serif al centro, eyebrow sopra */
+#productDetailView.iwc-detail .pdv-title-band{
+  background: var(--iwc-bg);
+  padding: 56px 32px 8px;
+  border-bottom: none;
+  text-align: center;
+}
+#productDetailView.iwc-detail .pdv-title{
+  font-family: var(--iwc-serif);
+  font-size: 40px;
+  font-weight: 300;
+  font-style: normal;
+  color: var(--iwc-text);
+  letter-spacing: -.01em;
+  line-height: 1.1;
+  max-width: 900px;
+  margin: 0 auto;
+}
+#productDetailView.iwc-detail .pdv-title-eyebrow{
+  display: block;
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--iwc-text-muted);
+  margin-bottom: 12px;
+}
+
+/* Body: layout 1.5 col + 1 col */
+#productDetailView.iwc-detail .pdv-body{
+  background: var(--iwc-bg);
+  padding: 32px 32px 80px;
+  max-width: 1400px;
+  gap: 64px;
+}
+
+/* GALLERY: niente cornici, solo immagine grande */
+#productDetailView.iwc-detail .pdv-main-img{
+  background: var(--iwc-bg);
+  border: none;
+  border-radius: 0;
+  aspect-ratio: 1;
+  position: relative;
+}
+#productDetailView.iwc-detail .pdv-main-img img{
+  padding: 32px;
+  background: transparent;
+}
+#productDetailView.iwc-detail .pdv-main-img-prev,
+#productDetailView.iwc-detail .pdv-main-img-next{
+  background: transparent;
+  border: none;
+  color: var(--iwc-text);
+  width: 44px;
+  height: 44px;
+  font-size: 20px;
+  box-shadow: none;
+  font-weight: 300;
+}
+#productDetailView.iwc-detail .pdv-main-img-prev:hover,
+#productDetailView.iwc-detail .pdv-main-img-next:hover{
+  background: transparent;
+  transform: translateY(-50%);
+  opacity: .55;
+}
+#productDetailView.iwc-detail .pdv-thumbs{
+  justify-content: center;
+  margin-top: 8px;
+}
+#productDetailView.iwc-detail .pdv-thumb{
+  width: 64px;
+  height: 64px;
+  border: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  opacity: .5;
+}
+#productDetailView.iwc-detail .pdv-thumb.active{
+  border-color: var(--iwc-ink);
+  opacity: 1;
+}
+#productDetailView.iwc-detail .pdv-thumb:hover{
+  opacity: 1;
+}
+
+/* BID PANEL → trasformato in pannello acquisto editoriale */
+#productDetailView.iwc-detail .pdv-bid-panel{
+  background: var(--iwc-bg);
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  position: sticky;
+  top: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Reference / SKU sopra prezzo */
+#productDetailView.iwc-detail .pdv-bid-panel::before{
+  content: '';
+  display: block;
+  width: 30px;
+  height: 1px;
+  background: var(--iwc-border-strong);
+  margin-bottom: 24px;
+}
+
+#productDetailView.iwc-detail .pdv-bid-row{
+  border-bottom: 1px solid var(--iwc-border);
+  padding: 18px 0;
+  align-items: center;
+}
+#productDetailView.iwc-detail .pdv-bid-row:first-of-type{
+  border-bottom: none;
+  padding-top: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+#productDetailView.iwc-detail .pdv-bid-row:last-of-type{
+  border-bottom: 1px solid var(--iwc-border);
+}
+#productDetailView.iwc-detail .pdv-bid-label{
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--iwc-text-muted);
+}
+#productDetailView.iwc-detail .pdv-bid-value{
+  font-family: var(--iwc-sans);
+  font-size: 14px;
+  color: var(--iwc-text);
+}
+#productDetailView.iwc-detail .pdv-bid-current{
+  font-family: var(--iwc-serif);
+  font-size: 32px;
+  font-weight: 300;
+  color: var(--iwc-text);
+  letter-spacing: -.005em;
+  line-height: 1.1;
+}
+#productDetailView.iwc-detail .pdv-bid-premium{
+  font-family: var(--iwc-sans);
+  font-size: 12px;
+  color: var(--iwc-text-muted);
+  letter-spacing: .02em;
+}
+#productDetailView.iwc-detail .pdv-bid-history-link{
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--iwc-text);
+  text-decoration: none;
+  border-bottom: 1px solid var(--iwc-text);
+  padding-bottom: 2px;
+}
+#productDetailView.iwc-detail .pdv-bid-history-link:hover{
+  opacity: .55;
+}
+#productDetailView.iwc-detail .pdv-countdown{
+  font-family: var(--iwc-sans);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: .04em;
+  color: var(--iwc-text);
+}
+#productDetailView.iwc-detail .pdv-countdown.urgent{
+  color: var(--iwc-text);
+}
+#productDetailView.iwc-detail .pdv-countdown-date{
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  color: var(--iwc-text-muted);
+}
+
+/* Quick-bid pills tipografiche */
+#productDetailView.iwc-detail .pdv-quick-bids{
+  margin: 24px 0 12px;
+  gap: 8px;
+}
+#productDetailView.iwc-detail .pdv-quick-bid{
+  background: transparent;
+  color: var(--iwc-text);
+  border: 1px solid var(--iwc-border-strong);
+  border-radius: 0;
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  letter-spacing: .04em;
+  font-weight: 500;
+  padding: 12px 6px;
+  line-height: 1.5;
+  transition: all .25s ease;
+}
+#productDetailView.iwc-detail .pdv-quick-bid:hover{
+  border-color: var(--iwc-ink);
+  background: transparent;
+}
+#productDetailView.iwc-detail .pdv-quick-bid.active{
+  background: var(--iwc-ink);
+  color: #fff;
+  border-color: var(--iwc-ink);
+  box-shadow: none;
+}
+
+#productDetailView.iwc-detail .pdv-or-divider{
+  font-family: var(--iwc-sans);
+  font-size: 10px;
+  letter-spacing: .25em;
+  color: var(--iwc-text-subtle);
+  margin: 14px 0;
+}
+
+#productDetailView.iwc-detail .pdv-bid-input-label{
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--iwc-text-muted);
+  margin-bottom: 10px;
+}
+#productDetailView.iwc-detail .pdv-bid-input{
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--iwc-border-strong);
+  border-radius: 0;
+  padding: 8px 0;
+  font-family: var(--iwc-sans);
+  font-size: 16px;
+  color: var(--iwc-text);
+}
+#productDetailView.iwc-detail .pdv-bid-input:focus{
+  border-bottom-color: var(--iwc-ink);
+  box-shadow: none;
+}
+#productDetailView.iwc-detail .pdv-bid-input-hint{
+  font-family: var(--iwc-sans);
+  font-size: 12px;
+  color: var(--iwc-text-muted);
+  letter-spacing: .02em;
+  margin-top: 8px;
+}
+
+/* CTA primaria: bottone nero pieno largo */
+#productDetailView.iwc-detail .pdv-place-bid{
+  background: var(--iwc-ink);
+  color: #fff;
+  border: 1px solid var(--iwc-ink);
+  border-radius: 0;
+  padding: 18px;
+  font-family: var(--iwc-sans);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  margin-top: 24px;
+  transition: opacity .25s ease;
+}
+#productDetailView.iwc-detail .pdv-place-bid:hover:not(:disabled){
+  background: var(--iwc-ink);
+  opacity: .85;
+}
+#productDetailView.iwc-detail .pdv-place-bid:disabled{
+  opacity: .35;
+  background: var(--iwc-text-subtle);
+  border-color: var(--iwc-text-subtle);
+}
+
+/* Watchlist: link sottile tipografico */
+#productDetailView.iwc-detail .pdv-watchlist-toggle{
+  background: transparent;
+  border: none;
+  color: var(--iwc-text-muted);
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  padding: 14px 0 0;
+  margin-top: 0;
+  border-radius: 0;
+}
+#productDetailView.iwc-detail .pdv-watchlist-toggle:hover{
+  background: transparent;
+  color: var(--iwc-ink);
+}
+#productDetailView.iwc-detail .pdv-watchlist-toggle.active{
+  color: var(--iwc-ink);
+  background: transparent;
+  border: none;
+}
+
+/* Sezioni info / descrizione: layout fascia con accordion-feel */
+#productDetailView.iwc-detail .pdv-info-section{
+  border-top: 1px solid var(--iwc-border);
+  padding-top: 28px;
+  margin-top: 32px;
+}
+#productDetailView.iwc-detail .pdv-info-title{
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--iwc-text-muted);
+  margin-bottom: 18px;
+}
+#productDetailView.iwc-detail .pdv-info-grid{
+  gap: 16px 32px;
+}
+#productDetailView.iwc-detail .pdv-info-cell-label{
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--iwc-text-muted);
+}
+#productDetailView.iwc-detail .pdv-info-cell-value{
+  font-family: var(--iwc-sans);
+  font-size: 14px;
+  color: var(--iwc-text);
+  font-weight: 400;
+  letter-spacing: .01em;
+}
+#productDetailView.iwc-detail .pdv-description{
+  font-family: var(--iwc-sans);
+  font-size: 14px;
+  line-height: 1.85;
+  color: var(--iwc-text);
+  font-weight: 300;
+  letter-spacing: .005em;
+}
+
+/* Disc summary nel pdv (sconto volume) */
+#productDetailView.iwc-detail .disc-summary{
+  background: var(--iwc-bg-alt);
+  border: none;
+  border-left: 2px solid var(--iwc-ink);
+  border-radius: 0;
+  margin: 18px 0;
+  padding: 14px 16px;
+  color: var(--iwc-text);
+}
+#productDetailView.iwc-detail .disc-summary-title{
+  color: var(--iwc-ink);
+  font-family: var(--iwc-sans);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .18em;
+}
+#productDetailView.iwc-detail .disc-summary-row{
+  font-family: var(--iwc-sans);
+  font-size: 12px;
+  color: var(--iwc-text-muted);
+}
+#productDetailView.iwc-detail .disc-summary-row.active{
+  color: var(--iwc-text);
+  font-weight: 600;
+}
+
+/* Storico vendite con stile editoriale */
+#productDetailView.iwc-detail .pdv-history{
+  background: var(--iwc-bg);
+  border: none;
+  border-top: 1px solid var(--iwc-border);
+  border-radius: 0;
+  margin-top: 32px;
+}
+#productDetailView.iwc-detail .pdv-history-head{
+  background: var(--iwc-bg);
+  border-bottom: 1px solid var(--iwc-border);
+  padding: 16px 0;
+}
+#productDetailView.iwc-detail .pdv-history-title{
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .22em;
+  color: var(--iwc-text-muted);
+}
+#productDetailView.iwc-detail .pdv-history-count{
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  color: var(--iwc-text-subtle);
+}
+#productDetailView.iwc-detail .pdv-history-table thead th{
+  background: var(--iwc-bg);
+  color: var(--iwc-text-muted);
+  border-bottom: 1px solid var(--iwc-border);
+  font-family: var(--iwc-sans);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .14em;
+  padding: 12px 0;
+}
+#productDetailView.iwc-detail .pdv-history-table tbody td{
+  border-bottom: 1px solid var(--iwc-border);
+  font-family: var(--iwc-sans);
+  font-size: 13px;
+  color: var(--iwc-text);
+  padding: 14px 0;
+}
+#productDetailView.iwc-detail .pdv-history-table tbody tr:hover td{
+  background: var(--iwc-bg-alt);
+}
+#productDetailView.iwc-detail .pdv-history-table .qty-col{
+  color: var(--iwc-text);
+  font-weight: 600;
+}
+#productDetailView.iwc-detail .pdv-history-origin{
+  background: transparent;
+  border: 1px solid var(--iwc-border-strong);
+  color: var(--iwc-text-muted);
+  border-radius: 0;
+  font-family: var(--iwc-sans);
+  font-size: 9px;
+  letter-spacing: .14em;
+}
+#productDetailView.iwc-detail .pdv-history-origin.secondary{
+  background: var(--iwc-bg-alt);
+  border-color: var(--iwc-text);
+  color: var(--iwc-text);
+}
+
+/* Wrap full-width storico nel detail */
+#productDetailView.iwc-detail #pdvHistoryWrap{
+  background: var(--iwc-bg);
+  padding: 0 32px 80px;
+}
+
+/* Lightbox compatibile */
+#productDetailView.iwc-detail .pdv-main-img-empty{
+  color: var(--iwc-border-strong);
+}
+
+@media (max-width: 900px){
+  .iwc-mode .mkt-grid{
+    padding: 32px 16px 48px;
+    gap: 36px 16px;
+  }
+  .iwc-hero{ padding: 36px 20px 28px; }
+  .iwc-hero-title{ font-size: 32px; }
+  #productDetailView.iwc-detail .pdv-body{
+    padding: 24px 16px 48px;
+    gap: 32px;
+  }
+  #productDetailView.iwc-detail .pdv-title{ font-size: 28px; }
+  #productDetailView.iwc-detail .pdv-title-band{ padding: 32px 16px 8px; }
+}
+
 /* ═══ MARKETPLACE — Auction-style cards ═══ */
 .mkt-wrap{flex:1;overflow-y:auto;padding:20px 24px}
 .mkt-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:18px;flex-wrap:wrap}
@@ -1190,33 +1999,46 @@ textarea{resize:vertical;min-height:60px}
 <div style="display:flex;flex:1;overflow:hidden">
 
 <!-- ═══ TAB: MARKETPLACE ═══ -->
-<div class="tab active" id="tab-mkt" style="display:flex;flex:1;flex-direction:column;overflow:hidden">
+<div class="tab active iwc-mode" id="tab-mkt" style="display:flex;flex:1;flex-direction:column;overflow:hidden">
   <div class="mkt-wrap">
-    <div class="mkt-toolbar">
-      <input type="text" id="mktSearch" placeholder="Cerca prodotto..." oninput="mktRender()" style="max-width:220px"/>
-      <select id="mktType" onchange="mktRender()" style="max-width:160px">
-        <option value="">Tutti i tipi</option>
-        <option value="full">Full Ownership</option>
-        <option value="fractional">Fractional</option>
-        <option value="millesimal">Millesimale</option>
-        <option value="grade_hold">Grade &amp; Hold</option>
-      </select>
-      <select id="mktStatus" onchange="mktRender()" style="max-width:160px">
-        <option value="purchasable">Acquistabili</option>
-        <option value="">Tutti</option>
-        <option value="open">Solo Aperti</option>
-        <option value="closing_soon">In chiusura</option>
-        <option value="closed">Chiusi</option>
-        <option value="liquidated">Liquidati</option>
-      </select>
-      <span style="flex:1"></span>
-      <span id="mktCount" style="font-size:12px;font-family:var(--mono);color:var(--text-muted)"></span>
+    <!-- Hero / titolo collezione -->
+    <div class="iwc-hero">
+      <div class="iwc-hero-eyebrow">Catalogo investimenti</div>
+      <h1 class="iwc-hero-title">RareBlock Collection</h1>
+      <div class="iwc-hero-subtitle">Selezione curata di sealed Pokémon e prodotti da investimento. Quote frazionate o full-ownership.</div>
+    </div>
+
+    <div class="iwc-toolbar">
+      <div class="iwc-toolbar-inner">
+        <input type="text" id="mktSearch" placeholder="Cerca" oninput="mktRender()"/>
+        <select id="mktType" onchange="mktRender()">
+          <option value="">Tutti i tipi</option>
+          <option value="full">Full Ownership</option>
+          <option value="fractional">Fractional</option>
+          <option value="millesimal">Millesimale</option>
+          <option value="grade_hold">Grade &amp; Hold</option>
+        </select>
+        <select id="mktStatus" onchange="mktRender()">
+          <option value="purchasable">Acquistabili</option>
+          <option value="">Tutti</option>
+          <option value="open">Solo Aperti</option>
+          <option value="closing_soon">In chiusura</option>
+          <option value="closed">Chiusi</option>
+          <option value="liquidated">Liquidati</option>
+        </select>
+        <span class="iwc-toolbar-spacer"></span>
+        <span id="mktCount" class="iwc-count"></span>
+      </div>
     </div>
     <div class="mkt-grid" id="mktGrid"></div>
     <div class="empty-state" id="mktEmpty" style="display:none">
       <div class="icon"><span class="rb-i rb-i-package"></span></div>
       <h3>Nessun prodotto disponibile</h3>
       <p>I prodotti aperti agli investimenti appariranno qui</p>
+    </div>
+    <!-- Toolbar legacy (nascosta in iwc-mode ma mantenuta per compat con codice esistente) -->
+    <div class="mkt-toolbar" style="display:none">
+      <span style="flex:1"></span>
     </div>
   </div>
 </div>
@@ -1966,7 +2788,10 @@ textarea{resize:vertical;min-height:60px}
     <button class="pdv-close" onclick="closeProductDetail()" title="Chiudi">&times;</button>
   </div>
   <div class="pdv-title-band">
-    <h1 class="pdv-title" id="pdvTitle">—</h1>
+    <h1 class="pdv-title">
+      <span class="pdv-title-eyebrow" id="pdvTitleEyebrow"></span>
+      <span id="pdvTitle">—</span>
+    </h1>
   </div>
   <div class="pdv-body">
     <!-- Gallery -->
@@ -3385,6 +4210,13 @@ async function openProductDetail(pid){
 
   // Title
   document.getElementById('pdvTitle').textContent = p.name||'';
+  // Eyebrow dinamica (Lot # + tipo) per stile editoriale IWC
+  var typeLabel = ({full:'Full Ownership',fractional:'Fractional',millesimal:'Millesimale',grade_hold:'Grade & Hold'})[p.type]||'';
+  var eyebrowParts = [];
+  if(lotNum) eyebrowParts.push('Lotto N. '+lotNum);
+  if(typeLabel) eyebrowParts.push(typeLabel);
+  var eyebrowEl = document.getElementById('pdvTitleEyebrow');
+  if(eyebrowEl) eyebrowEl.textContent = eyebrowParts.join(' · ');
 
   // Render gallery
   pdvRenderGallery();
@@ -3502,7 +4334,7 @@ async function openProductDetail(pid){
   }
 
   // Mostra la view
-  document.getElementById('productDetailView').classList.add('show');
+  document.getElementById('productDetailView').classList.add('show', 'iwc-detail');
   document.body.style.overflow='hidden';
 }
 
