@@ -1320,6 +1320,39 @@ textarea{resize:vertical;min-height:60px}
   font-weight: 400;
   letter-spacing: .01em;
 }
+#productDetailView.iwc-detail .pdv-grading-verify{
+  display: inline-block;
+  margin-top: 8px;
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--iwc-text);
+  text-decoration: none;
+  border-bottom: 1px solid var(--iwc-text);
+  padding-bottom: 2px;
+  transition: opacity .2s ease;
+}
+#productDetailView.iwc-detail .pdv-grading-verify:hover{ opacity: .55; }
+/* Anche per il dark theme legacy del detail (se non in iwc-mode) */
+.pdv-grading-verify{
+  display: inline-block;
+  margin-top: 6px;
+  font-family: var(--mono, 'JetBrains Mono', monospace);
+  font-size: 11px;
+  letter-spacing: .04em;
+  color: var(--gold, #c9a84c);
+  text-decoration: none;
+  border: 1px solid var(--gold, #c9a84c);
+  padding: 4px 10px;
+  border-radius: 2px;
+  transition: all .15s ease;
+}
+.pdv-grading-verify:hover{
+  background: var(--gold, #c9a84c);
+  color: #0d1117;
+}
 #productDetailView.iwc-detail .pdv-description{
   font-family: var(--iwc-sans);
   font-size: 14px;
@@ -2953,6 +2986,10 @@ textarea{resize:vertical;min-height:60px}
             <option value="ACE">ACE</option>
           </select>
         </div>
+        <div class="field" id="pmGradingCertRow" style="display:none">
+          <label>Numero certificazione</label>
+          <input type="text" id="pmGradingCertNum" placeholder="es. 12345678"/>
+        </div>
         <div class="field" id="pmGradingCostRow" style="display:none">
           <label>Costo gradazione stimato (€)</label>
           <input type="number" id="pmGradingCost" placeholder="0.00" step="0.01"/>
@@ -3079,7 +3116,7 @@ textarea{resize:vertical;min-height:60px}
           <div class="pdv-info-cell"><span class="pdv-info-cell-label">Categoria</span><span class="pdv-info-cell-value" id="pdvCategory">—</span></div>
           <div class="pdv-info-cell"><span class="pdv-info-cell-label">Quote totali</span><span class="pdv-info-cell-value" id="pdvTotalQuotes">—</span></div>
           <div class="pdv-info-cell"><span class="pdv-info-cell-label">Valore stimato</span><span class="pdv-info-cell-value" id="pdvEstValue">—</span></div>
-          <div class="pdv-info-cell" id="pdvGradeCell" style="display:none"><span class="pdv-info-cell-label">Gradazione</span><span class="pdv-info-cell-value" id="pdvGrading">—</span></div>
+          <div class="pdv-info-cell" id="pdvGradeCell" style="display:none"><span class="pdv-info-cell-label">Gradazione</span><span class="pdv-info-cell-value" id="pdvGrading">—</span><a id="pdvGradingVerify" class="pdv-grading-verify" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Verifica certificazione &nbsp;↗</a></div>
           <div class="pdv-info-cell"><span class="pdv-info-cell-label">Hold</span><span class="pdv-info-cell-value" id="pdvHold">—</span></div>
         </div>
       </div>
@@ -3383,6 +3420,22 @@ function fmt2(v){ return (parseFloat(v)||0).toFixed(2); }
 function fmtPrice(v){
   var n = Math.round(parseFloat(v)||0);
   return n.toLocaleString('it-IT', {maximumFractionDigits:0});
+}
+
+// Costruisce URL di verifica certificazione per le case di gradazione supportate
+function buildGradingVerifyUrl(house, certNum){
+  if(!house || !certNum) return null;
+  var n = String(certNum).trim().replace(/\s+/g,'');
+  if(!n) return null;
+  var encoded = encodeURIComponent(n);
+  switch(String(house).toUpperCase()){
+    case 'PSA': return 'https://www.psacard.com/cert/'+encoded;
+    case 'BGS': return 'https://www.beckett.com/grading/card-lookup/?certNumber='+encoded;
+    case 'CGC': return 'https://www.cgccards.com/certlookup/'+encoded+'/';
+    case 'CGS': return 'https://www.cgsgradedcards.com/cert-verification?cert='+encoded;
+    case 'ACE': return 'https://acegrading.com/verify/'+encoded;
+    default:    return null;
+  }
 }
 
 function fmtDate(d){
@@ -3886,9 +3939,27 @@ async function openBuyModal(pid){
     document.getElementById('buyModalTitle').textContent = 'Acquista — '+_buyProduct.name;
 
     // Reset campi
-    document.getElementById('coQty').max = avail;
-    document.getElementById('coQty').value = Math.min(1, avail);
-    document.getElementById('coAvailable').textContent = avail+' / '+_buyProduct.total_quotes+' '+(_buyProduct.quote_unit||'quote');
+    var qtyEl = document.getElementById('coQty');
+    var isFullProduct = _buyProduct.type === 'full';
+    if(isFullProduct){
+      // Full Ownership: 1 unità sola, campo bloccato
+      qtyEl.value = 1;
+      qtyEl.min = 1;
+      qtyEl.max = 1;
+      qtyEl.readOnly = true;
+      qtyEl.style.opacity = '.55';
+      qtyEl.style.pointerEvents = 'none';
+    } else {
+      qtyEl.max = avail;
+      qtyEl.min = 1;
+      qtyEl.value = Math.min(1, avail);
+      qtyEl.readOnly = false;
+      qtyEl.style.opacity = '';
+      qtyEl.style.pointerEvents = '';
+    }
+    document.getElementById('coAvailable').textContent = isFullProduct
+      ? '1 unità (Full Ownership)'
+      : (avail+' / '+_buyProduct.total_quotes+' '+(_buyProduct.quote_unit||'quote'));
     document.getElementById('coNotes').value = '';
     document.getElementById('coBankRef').value = '';
     ['coBillName','coBillEmail','coBillPhone','coBillFC','coBillVAT','coBillPEC','coBillSDI','coBillAddress','coBillCity','coBillZip'].forEach(function(id){
@@ -4622,31 +4693,52 @@ async function openProductDetail(pid){
   }
 
   // Quick-bid: se esistono tier sconto, mostra le soglie come quick-bid
+  // Per Full Ownership: nessun quick-bid (è 1 unità sola)
   var qb = document.getElementById('pdvQuickBids');
-  var quickQtys;
-  if(_pdvDiscTiers && _pdvDiscTiers.length){
-    // Usa le soglie dei tier (max 3) come quick-bid
-    quickQtys = _pdvDiscTiers.slice().sort(function(a,b){return a.min_qty-b.min_qty}).slice(0,3).map(function(t){return t.min_qty}).filter(function(n){return n<=avail});
-    if(quickQtys.length<3 && avail>=1 && quickQtys.indexOf(1)<0){ quickQtys.unshift(1); }
+  var isFullPdv = p.type === 'full';
+  if(isFullPdv){
+    qb.innerHTML = '';
+    qb.style.display = 'none';
   } else {
-    quickQtys = [1,2,5].filter(function(n){return n<=avail});
-  }
-  qb.innerHTML = quickQtys.map(function(n){
-    var calc = calcDiscountedTotal(p.price_per_quote, n, _pdvDiscTiers);
-    var label = n+' '+(n===1?(p.quote_unit||'quota'):(p.quote_unit||'quote'));
-    var priceLabel;
-    if(calc.applied){
-      priceLabel = '<span style="text-decoration:line-through;color:var(--text-subtle);font-size:10px">€'+fmt2(calc.gross)+'</span> <span style="color:var(--gold)">€'+fmt2(calc.net)+'</span>';
+    qb.style.display = '';
+    var quickQtys;
+    if(_pdvDiscTiers && _pdvDiscTiers.length){
+      // Usa le soglie dei tier (max 3) come quick-bid
+      quickQtys = _pdvDiscTiers.slice().sort(function(a,b){return a.min_qty-b.min_qty}).slice(0,3).map(function(t){return t.min_qty}).filter(function(n){return n<=avail});
+      if(quickQtys.length<3 && avail>=1 && quickQtys.indexOf(1)<0){ quickQtys.unshift(1); }
     } else {
-      priceLabel = '€'+fmt2(calc.net);
+      quickQtys = [1,2,5].filter(function(n){return n<=avail});
     }
-    return '<button class="pdv-quick-bid" data-qty="'+n+'" onclick="pdvSetQty('+n+')">'+label+'<br>'+priceLabel+'</button>';
-  }).join('');
+    qb.innerHTML = quickQtys.map(function(n){
+      var calc = calcDiscountedTotal(p.price_per_quote, n, _pdvDiscTiers);
+      var label = n+' '+(n===1?(p.quote_unit||'quota'):(p.quote_unit||'quote'));
+      var priceLabel;
+      if(calc.applied){
+        priceLabel = '<span style="text-decoration:line-through;color:var(--text-subtle);font-size:10px">€'+fmt2(calc.gross)+'</span> <span style="color:var(--gold)">€'+fmt2(calc.net)+'</span>';
+      } else {
+        priceLabel = '€'+fmt2(calc.net);
+      }
+      return '<button class="pdv-quick-bid" data-qty="'+n+'" onclick="pdvSetQty('+n+')">'+label+'<br>'+priceLabel+'</button>';
+    }).join('');
+  }
 
   // Input acquisto
   var qty = document.getElementById('pdvBidQty');
-  qty.max = avail;
-  qty.value = avail>0 ? 1 : 0;
+  if(isFullPdv){
+    qty.value = 1;
+    qty.min = 1;
+    qty.max = 1;
+    qty.readOnly = true;
+    qty.style.opacity = '.55';
+    qty.style.pointerEvents = 'none';
+  } else {
+    qty.readOnly = false;
+    qty.style.opacity = '';
+    qty.style.pointerEvents = '';
+    qty.min = 1;
+    qty.max = avail;
+    qty.value = avail>0 ? 1 : 0;
+  }
   pdvUpdatePreview();
 
   // CTA principale
@@ -4675,9 +4767,24 @@ async function openProductDetail(pid){
   var gradeCell = document.getElementById('pdvGradeCell');
   if(p.type==='grade_hold' && p.grading_house){
     gradeCell.style.display='';
-    document.getElementById('pdvGrading').textContent = p.grading_house+(p.grading_cost_estimated?' · €'+fmt2(p.grading_cost_estimated):'');
+    var gradeText = p.grading_house;
+    if(p.grading_cert_number) gradeText += ' · #'+p.grading_cert_number;
+    if(p.grading_cost_estimated) gradeText += ' · €'+fmt2(p.grading_cost_estimated);
+    document.getElementById('pdvGrading').textContent = gradeText;
+    // Link "Verifica certificazione" se cert number disponibile
+    var verifyEl = document.getElementById('pdvGradingVerify');
+    if(verifyEl){
+      var verifyUrl = buildGradingVerifyUrl(p.grading_house, p.grading_cert_number);
+      if(verifyUrl){
+        verifyEl.style.display='';
+        verifyEl.href = verifyUrl;
+      } else {
+        verifyEl.style.display='none';
+      }
+    }
   } else {
     gradeCell.style.display='none';
+    var v2 = document.getElementById('pdvGradingVerify'); if(v2) v2.style.display='none';
   }
 
   // Descrizione
@@ -6414,7 +6521,7 @@ function openProductModal(pid){
   _editProductId = pid||null;
   document.getElementById('productModalTitle').textContent = pid?'Modifica Prodotto':'Nuovo Prodotto';
   if(!pid){
-    ['pmName','pmDesc','pmImg','pmAdminNotes','pmHoldYears','pmGradingCost'].forEach(function(id){ var el=document.getElementById(id);if(el)el.value=''; });
+    ['pmName','pmDesc','pmImg','pmAdminNotes','pmHoldYears','pmGradingCost','pmGradingCertNum'].forEach(function(id){ var el=document.getElementById(id);if(el)el.value=''; });
     document.getElementById('pmTotalQuotes').value='100';
     document.getElementById('pmPricePerQuote').value='';
     document.getElementById('pmEstValue').value='';
@@ -6442,7 +6549,11 @@ function openProductModal(pid){
       var pmCat2=document.getElementById('pmCategory'); if(pmCat2) pmCat2.value=p.category||'';
       document.getElementById('pmStatus').value=p.status||'draft';
       document.getElementById('pmAdminNotes').value=p.admin_notes||'';
-      if(p.type==='grade_hold'){ document.getElementById('pmGradingHouse').value=p.grading_house||'PSA'; document.getElementById('pmGradingCost').value=p.grading_cost_estimated||''; }
+      if(p.type==='grade_hold'){
+        document.getElementById('pmGradingHouse').value=p.grading_house||'PSA';
+        document.getElementById('pmGradingCertNum').value=p.grading_cert_number||'';
+        document.getElementById('pmGradingCost').value=p.grading_cost_estimated||'';
+      }
       pmToggleFields();
     }
   }
@@ -6470,8 +6581,31 @@ function pmToggleFields(){
   var typeVal = document.getElementById('pmType').value;
   var isGrade = typeVal==='grade_hold';
   var isFractional = typeVal==='fractional';
+  var isFull = typeVal==='full';
   document.getElementById('pmGradingRow').style.display    = isGrade?'':'none';
+  document.getElementById('pmGradingCertRow').style.display= isGrade?'':'none';
   document.getElementById('pmGradingCostRow').style.display= isGrade?'':'none';
+
+  // Full Ownership: blocca quote a 1 (sempre 1 unità per definizione)
+  var qEl = document.getElementById('pmTotalQuotes');
+  var qLabel = qEl ? qEl.parentElement.querySelector('label') : null;
+  var qUnitEl = document.getElementById('pmQuoteUnit');
+  if(qEl){
+    if(isFull){
+      qEl.value = 1;
+      qEl.readOnly = true;
+      qEl.style.opacity = '.55';
+      qEl.style.pointerEvents = 'none';
+      if(qLabel) qLabel.textContent = 'Quote totali (Full = 1)';
+      if(qUnitEl){ qUnitEl.value = 'unità'; }
+    } else {
+      qEl.readOnly = false;
+      qEl.style.opacity = '';
+      qEl.style.pointerEvents = '';
+      if(qLabel) qLabel.textContent = 'Quote totali';
+    }
+  }
+
   // Sezione sconti: visibile sempre ma disabilitata se non fractional
   var discSec = document.getElementById('pmDiscSection');
   var note    = document.getElementById('pmDiscFractionalNote');
@@ -6509,6 +6643,7 @@ async function pmSave(){
   if(category) body.category = category;
   if(type==='grade_hold'){
     body.grading_house            = document.getElementById('pmGradingHouse').value;
+    body.grading_cert_number      = document.getElementById('pmGradingCertNum').value.trim()||null;
     body.grading_cost_estimated   = parseFloat(document.getElementById('pmGradingCost').value)||null;
   }
   try {
