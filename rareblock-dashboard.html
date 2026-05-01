@@ -761,10 +761,8 @@ textarea{resize:vertical;min-height:60px}
   width: 100%;
   height: 100%;
   object-fit: contain;
-  padding: 22%;            /* ~70-80px su card 320px → immagine compatta */
-  transition: transform .5s cubic-bezier(.2,.8,.2,1);
+  padding: 22%;
 }
-.iwc-mode .prod-card:hover .prod-card-img img{ transform: scale(1.04); }
 .iwc-mode .prod-card-img > span{ color: var(--iwc-border-strong); }
 
 /* Bookmark (in alto a destra) — sottile */
@@ -3416,10 +3414,11 @@ async function supaAuth(path, body){
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function fmt2(v){ return (parseFloat(v)||0).toFixed(2); }
-// Prezzi card/lista: senza decimali, separatore migliaia europeo (1.250 invece di 1250)
+// Prezzi card/lista: stile IWC '6 200 €' (spazio narrow non-breaking come separatore migliaia, simbolo dopo)
 function fmtPrice(v){
   var n = Math.round(parseFloat(v)||0);
-  return n.toLocaleString('it-IT', {maximumFractionDigits:0});
+  // U+202F = NARROW NO-BREAK SPACE (separatore migliaia tipografico, stile europeo/IWC)
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202F');
 }
 
 // Costruisce URL di verifica certificazione per le case di gradazione supportate
@@ -3762,7 +3761,7 @@ function mktRender(){
         +'<div class="prod-card-body-top">'
           +'<div class="prod-card-name">'+esc(p.name)+'</div>'
           +'<div class="prod-card-price-row">'
-            +'<div class="prod-card-price">€'+fmtPrice(p.price_per_quote)+'</div>'
+            +'<div class="prod-card-price">'+fmtPrice(p.price_per_quote)+'\u202F€</div>'
           +'</div>'
         +'</div>'
         +(lotNum?'<div class="prod-card-lot">Lot #'+lotNum+'</div>':'')
