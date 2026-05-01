@@ -476,7 +476,7 @@ textarea{resize:vertical;min-height:60px}
 
 .iwc-mode {
   --iwc-bg: #ffffff;
-  --iwc-bg-alt: #fafaf9;          /* grigio neutro freddo, non beige */
+  --iwc-bg-alt: #eeeeee;          /* grigio puro neutro, ben visibile */
   --iwc-text: #111111;
   --iwc-text-muted: #6f6f6f;
   --iwc-text-subtle: #b5b3ad;
@@ -666,44 +666,36 @@ textarea{resize:vertical;min-height:60px}
   flex-direction: column;
   overflow: hidden;
 }
-.iwc-grid-toolbar{
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 28px;
-  border-bottom: 1px solid var(--iwc-border);
-  background: var(--iwc-bg);
-  flex-shrink: 0;
+
+/* Sidebar — sezione "Ordina per" leggermente separata */
+.iwc-sidebar-meta{
+  margin-top: 4px;
+  padding-top: 22px;
+  border-top: 1px solid var(--iwc-border);
 }
-.iwc-toolbar-spacer{ flex: 1; }
-.iwc-count{
-  font-size: 12px;
-  color: var(--iwc-text-muted);
-  letter-spacing: .04em;
-}
-.iwc-count strong{ color: var(--iwc-text); font-weight: 600; }
-.iwc-sort{
-  background: transparent;
-  border: none;
-  padding: 4px 22px 4px 0;
-  color: var(--iwc-text);
+.iwc-sidebar-count{
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--iwc-border);
   font-family: var(--iwc-sans);
-  font-size: 12px;
-  letter-spacing: .02em;
-  outline: none;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='%23111' stroke-width='1' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 4px center;
-  border-radius: 0;
+  font-size: 11px;
+  letter-spacing: .04em;
+  color: var(--iwc-text-muted);
+}
+.iwc-sidebar-count .iwc-count{
+  font-size: 11px;
+  color: var(--iwc-text-muted);
+}
+.iwc-sidebar-count .iwc-count strong{
+  font-weight: 600;
+  color: var(--iwc-text);
 }
 
 /* GRID sempre 3 colonne, scroll dentro */
 .iwc-mode .mkt-grid{
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: min-content;    /* righe alte quanto la card più alta della riga */
   gap: 0;
   background: var(--iwc-bg);
   padding: 0;
@@ -712,6 +704,7 @@ textarea{resize:vertical;min-height:60px}
   flex: 1;
   min-height: 0;
   border-bottom: 1px solid var(--iwc-border);
+  align-content: start;            /* righe in alto, non stretcha verticale */
 }
 
 /* ── PRODUCT CARD: minimal, card più contenute ──────────────── */
@@ -752,10 +745,10 @@ textarea{resize:vertical;min-height:60px}
   display: none !important;
 }
 
-/* IMG con padding generoso → immagine più piccola/contenuta dentro la card */
+/* IMG con padding generoso → immagine "in vetrina", non tappezza la card */
 .iwc-mode .prod-card-img{
   width: 100%;
-  aspect-ratio: 1;
+  aspect-ratio: 4 / 3;     /* card meno alte */
   background: transparent;
   display: flex;
   align-items: center;
@@ -768,7 +761,7 @@ textarea{resize:vertical;min-height:60px}
   width: 100%;
   height: 100%;
   object-fit: contain;
-  padding: 18%;            /* responsive: ~54-60px su card 300-340 → immagine "contenuta" */
+  padding: 22%;            /* ~70-80px su card 320px → immagine compatta */
   transition: transform .5s cubic-bezier(.2,.8,.2,1);
 }
 .iwc-mode .prod-card:hover .prod-card-img img{ transform: scale(1.04); }
@@ -855,16 +848,21 @@ textarea{resize:vertical;min-height:60px}
 }
 .iwc-card-dot.active{ background: var(--iwc-ink); }
 
-/* BODY card compatto */
+/* BODY card compatto: row1 = titolo + prezzo, row2 = lot # */
 .iwc-mode .prod-card-body{
   background: transparent;
-  padding: 10px 14px 14px;
+  padding: 12px 16px 16px;
   text-align: left;
   border-top: none;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 2px 10px;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.iwc-mode .prod-card-body-top{
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
 .iwc-mode .prod-card-name{
   font-family: var(--iwc-sans);
@@ -877,8 +875,8 @@ textarea{resize:vertical;min-height:60px}
   min-height: auto;
   margin: 0;
   text-align: left;
-  grid-column: 1;
-  grid-row: 1;
+  flex: 1;
+  min-width: 0;
 }
 .iwc-mode .prod-card-lot{
   display: block;
@@ -889,14 +887,9 @@ textarea{resize:vertical;min-height:60px}
   text-transform: uppercase;
   color: var(--iwc-text-subtle);
   margin: 0;
-  grid-column: 1;
-  grid-row: 2;
 }
 .iwc-mode .prod-card-price-row{
-  grid-column: 2;
-  grid-row: 1 / span 2;
-  align-self: start;
-  text-align: right;
+  flex-shrink: 0;
 }
 .iwc-mode .prod-card-price{
   font-family: var(--iwc-sans);
@@ -2222,6 +2215,22 @@ textarea{resize:vertical;min-height:60px}
           <span>Solo preferiti</span>
         </label>
 
+        <!-- Sort + count nella sidebar (spostati dalla toolbar grid) -->
+        <div class="iwc-filter-block iwc-sidebar-meta">
+          <div class="iwc-filter-label">Ordina per</div>
+          <ul class="iwc-filter-list" id="iwcSortList">
+            <li class="active" data-val="newest" onclick="iwcPickFilter('sort','newest',this)">Più recenti</li>
+            <li data-val="price_asc" onclick="iwcPickFilter('sort','price_asc',this)">Prezzo crescente</li>
+            <li data-val="price_desc" onclick="iwcPickFilter('sort','price_desc',this)">Prezzo decrescente</li>
+            <li data-val="name" onclick="iwcPickFilter('sort','name',this)">Nome A–Z</li>
+            <li data-val="closing" onclick="iwcPickFilter('sort','closing',this)">In chiusura prima</li>
+          </ul>
+        </div>
+
+        <div class="iwc-sidebar-count">
+          <span id="mktCount" class="iwc-count"></span>
+        </div>
+
         <!-- Select originali nascoste, sincronizzate -->
         <div style="display:none">
           <select id="mktType" onchange="mktRender()">
@@ -2239,22 +2248,18 @@ textarea{resize:vertical;min-height:60px}
             <option value="closed">Chiusi</option>
             <option value="liquidated">Liquidati</option>
           </select>
-        </div>
-      </aside>
-
-      <!-- COLONNA DESTRA: GRID prodotti -->
-      <div class="iwc-grid-wrap">
-        <div class="iwc-grid-toolbar">
-          <span id="mktCount" class="iwc-count"></span>
-          <span class="iwc-toolbar-spacer"></span>
-          <select id="iwcSort" onchange="mktRender()" class="iwc-sort">
-            <option value="newest">Più recenti</option>
+          <select id="iwcSort">
+            <option value="newest" selected>Più recenti</option>
             <option value="price_asc">Prezzo crescente</option>
             <option value="price_desc">Prezzo decrescente</option>
             <option value="name">Nome A–Z</option>
             <option value="closing">In chiusura prima</option>
           </select>
         </div>
+      </aside>
+
+      <!-- COLONNA DESTRA: GRID prodotti (no toolbar) -->
+      <div class="iwc-grid-wrap">
         <div class="mkt-grid" id="mktGrid"></div>
         <div class="empty-state" id="mktEmpty" style="display:none">
           <h3>Nessun prodotto</h3>
@@ -3374,6 +3379,11 @@ async function supaAuth(path, body){
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function fmt2(v){ return (parseFloat(v)||0).toFixed(2); }
+// Prezzi card/lista: senza decimali, separatore migliaia europeo (1.250 invece di 1250)
+function fmtPrice(v){
+  var n = Math.round(parseFloat(v)||0);
+  return n.toLocaleString('it-IT', {maximumFractionDigits:0});
+}
 
 function fmtDate(d){
   if(!d) return '—';
@@ -3696,11 +3706,13 @@ function mktRender(){
         +dotsHtml
       +'</div>'
       +'<div class="prod-card-body" onclick="openProductDetail(\''+p.id+'\')">'
-        +'<div class="prod-card-name">'+esc(p.name)+'</div>'
-        +(lotNum?'<div class="prod-card-lot">Lot #'+lotNum+'</div>':'')
-        +'<div class="prod-card-price-row">'
-          +'<div class="prod-card-price">€'+fmt2(p.price_per_quote)+'</div>'
+        +'<div class="prod-card-body-top">'
+          +'<div class="prod-card-name">'+esc(p.name)+'</div>'
+          +'<div class="prod-card-price-row">'
+            +'<div class="prod-card-price">€'+fmtPrice(p.price_per_quote)+'</div>'
+          +'</div>'
         +'</div>'
+        +(lotNum?'<div class="prod-card-lot">Lot #'+lotNum+'</div>':'')
       +'</div>'
     +'</div>';
   }).join('');
@@ -3762,6 +3774,9 @@ function iwcPickFilter(kind, value, el){
     if(sel2) sel2.value = value;
   } else if(kind === 'price'){
     _iwcPriceRange = value || '';
+  } else if(kind === 'sort'){
+    var sel3 = document.getElementById('iwcSort');
+    if(sel3) sel3.value = value;
   }
   mktRender();
 }
@@ -3791,6 +3806,7 @@ function iwcResetFilters(){
   setActive('iwcTypeList', '');
   setActive('iwcStatusList', 'purchasable');
   setActive('iwcPriceList', '');
+  setActive('iwcSortList', 'newest');
   // Sync select legacy
   var typeEl = document.getElementById('mktType'); if(typeEl) typeEl.value = '';
   var statusEl = document.getElementById('mktStatus'); if(statusEl) statusEl.value = 'purchasable';
