@@ -3198,6 +3198,7 @@ textarea{resize:vertical;min-height:60px}
     <button class="nav-btn" onclick="showTab('market')"><span class="rb-i rb-i-swap"></span> Secondario</button>
     <button class="nav-btn" onclick="showTab('tx')"><span class="rb-i rb-i-list"></span> Transazioni</button>
     <button class="nav-btn" onclick="showTab('agenda')"><span class="rb-i rb-i-calendar"></span> Agenda</button>
+    <button class="nav-btn vendor-only" id="vendorNavBtn" style="display:none" onclick="showTab('vendor')"><span class="rb-i rb-i-package"></span> I miei prodotti</button>
     <button class="nav-btn admin-only" id="adminNavBtn" style="display:none" onclick="showTab('admin')"><span class="rb-i rb-i-gear"></span> Admin</button>
   </nav>
   <div class="user-badge" id="userBadge" style="display:none">
@@ -3423,6 +3424,50 @@ textarea{resize:vertical;min-height:60px}
       <button class="btn sm" onclick="agendaLoad()" title="Aggiorna agenda"><span class="rb-i rb-i-refresh"></span> Aggiorna</button>
     </div>
     <div id="agendaContent"></div>
+  </div>
+</div>
+
+<!-- ═══ TAB: VENDOR — solo per utenti censiti come venditori ═══ -->
+<div class="tab" id="tab-vendor" style="display:none;flex:1;overflow:auto;padding:20px 24px">
+  <div style="max-width:1200px;margin:0 auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div>
+        <div style="font-size:18px;font-weight:600;letter-spacing:.005em;display:inline-flex;align-items:center;gap:10px"><span class="rb-i rb-i-package" style="color:var(--accent)"></span> I miei prodotti</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px" id="vendorSubtitle">Prodotti assegnati al tuo account venditore.</div>
+      </div>
+      <button class="btn sm" onclick="vendorLoadProducts()" title="Aggiorna"><span class="rb-i rb-i-refresh"></span> Aggiorna</button>
+    </div>
+    <!-- Card riepilogo vendor -->
+    <div id="vendorOverview" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;margin:14px 0 20px;display:grid;grid-template-columns:repeat(4,1fr);gap:18px">
+      <div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--text-muted)">Prodotti totali</div>
+        <div style="font-size:22px;font-weight:600;font-family:var(--mono);margin-top:4px" id="voTotalProducts">0</div>
+      </div>
+      <div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--text-muted)">In vendita</div>
+        <div style="font-size:22px;font-weight:600;font-family:var(--mono);margin-top:4px;color:var(--success)" id="voOpenProducts">0</div>
+      </div>
+      <div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--text-muted)">Venduti</div>
+        <div style="font-size:22px;font-weight:600;font-family:var(--mono);margin-top:4px;color:var(--danger)" id="voSoldProducts">0</div>
+      </div>
+      <div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--text-muted)">Ricavi totali</div>
+        <div style="font-size:22px;font-weight:600;font-family:var(--mono);margin-top:4px;color:var(--gold)" id="voRevenue">€0</div>
+      </div>
+    </div>
+    <!-- Avviso permessi -->
+    <div style="background:var(--surface2);border-left:2px solid var(--accent);padding:10px 14px;margin-bottom:18px;font-size:12px;color:var(--text-muted);line-height:1.6;border-radius:2px">
+      <strong style="color:var(--text)">Permessi limitati:</strong>
+      Puoi modificare descrizione e foto dei prodotti, ma <strong>prezzo, quote e scadenza</strong> sono concordati con l'amministrazione e non sono modificabili.
+      Per qualsiasi necessità contatta l'admin.
+    </div>
+    <!-- Tabella prodotti vendor -->
+    <table class="admin-table" id="vendorProductsTable">
+      <thead><tr><th>Nome</th><th>Tipo</th><th>Status</th><th>Quote</th><th>Prezzo</th><th>Scadenza</th><th></th></tr></thead>
+      <tbody id="vendorProductsTbody"></tbody>
+    </table>
+    <div class="empty-state" id="vendorProductsEmpty" style="display:none"><div class="icon"><span class="rb-i rb-i-package"></span></div><h3>Nessun prodotto assegnato</h3><p>L'amministratore non ti ha ancora assegnato prodotti.</p></div>
   </div>
 </div>
 
@@ -4662,6 +4707,10 @@ async function onSession(data){
     else if(_profile && _profile.role && _profile.role!=='admin') _isAdmin = false;
   } catch(e){ console.warn('profile non-fatal:', e.message); }
 
+  // Verifica se l'utente è anche un vendor attivo (non blocca il flow se la
+  // migration 025 non è stata eseguita: silenzioso fallback)
+  try { await checkIsVendor(); } catch(e){ console.warn('vendor check non-fatal:', e && e.message); }
+
   // Gate status: account sospeso o eliminato → blocca tutto (admin esclusi per failsafe)
   if(_profile && (_profile.status==='suspended'||_profile.status==='deleted') && !_isAdmin){
     var st=_profile.status;
@@ -4773,6 +4822,7 @@ function showTab(t){
   if(t==='tx')     txLoad();
   if(t==='agenda') agendaLoad();
   if(t==='market') marketLoad();
+  if(t==='vendor') vendorLoadProducts();
   if(t==='admin')  adminLoad();
 }
 
@@ -8782,6 +8832,76 @@ function redirectToLogin(){
 }
 </script>
 
+<!-- ══════════════ MODALE EDIT PRODOTTO LATO VENDOR ══════════════ -->
+<!-- Solo descrizione + cover URL. I campi sensibili sono read-only e protetti dal trigger DB. -->
+<div class="modal-bg" id="vendorEditModalBg" onclick="if(event.target===this)closeVendorEditModal()">
+  <div class="modal" style="max-width:720px">
+    <div class="modal-head">
+      <h3>Modifica prodotto</h3>
+      <button class="modal-close" onclick="closeVendorEditModal()" aria-label="Chiudi"><span class="rb-i rb-i-x"></span></button>
+    </div>
+    <div class="modal-body">
+      <!-- Info prodotto read-only -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:18px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--text-muted);margin-bottom:10px">Informazioni concordate con l'amministrazione</div>
+        <div id="veName" style="font-size:15px;font-weight:600;margin-bottom:10px">—</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;font-size:12px">
+          <div>
+            <div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px">Tipo</div>
+            <div id="veType">—</div>
+          </div>
+          <div>
+            <div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px">Status</div>
+            <div id="veStatus">—</div>
+          </div>
+          <div>
+            <div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px">Quote</div>
+            <div id="veQuotes" style="font-family:var(--mono)">—</div>
+          </div>
+          <div>
+            <div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px">Prezzo</div>
+            <div id="vePrice" style="font-family:var(--mono);font-weight:600">—</div>
+          </div>
+          <div>
+            <div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px">Scadenza</div>
+            <div id="veTarget" style="font-family:var(--mono)">—</div>
+          </div>
+        </div>
+        <div style="font-size:10.5px;color:var(--text-subtle);margin-top:12px;line-height:1.5">
+          Per modifiche a prezzo, scadenza, status o quote contatta l'amministrazione.
+        </div>
+      </div>
+
+      <!-- Campi editabili -->
+      <div class="form-grid">
+        <div class="field span2">
+          <label>Descrizione prodotto</label>
+          <textarea id="veDesc" rows="6" placeholder="Descrivi il prodotto: condizione, provenienza, set di appartenenza, anomalie/dettagli da segnalare..."></textarea>
+        </div>
+        <div class="field span2">
+          <label>URL immagine cover</label>
+          <input type="url" id="veCover" placeholder="https://..."/>
+          <div style="font-size:10.5px;color:var(--text-subtle);font-family:var(--mono);margin-top:3px">Foto principale mostrata nel marketplace.</div>
+        </div>
+      </div>
+
+      <!-- Galleria foto (read-only per il vendor) -->
+      <div style="margin-top:22px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--text-muted);margin-bottom:10px">Galleria foto</div>
+        <div id="vePhotosGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;max-height:280px;overflow-y:auto"></div>
+        <div style="font-size:10.5px;color:var(--text-subtle);margin-top:8px;line-height:1.5">L'aggiunta/riordino delle foto in galleria è gestita dall'amministratore. Puoi modificare la cover URL qui sopra.</div>
+      </div>
+
+      <div id="veSt" style="margin-top:14px;font-size:12px"></div>
+    </div>
+    <div class="modal-footer">
+      <span style="flex:1"></span>
+      <button class="btn" onclick="closeVendorEditModal()">Annulla</button>
+      <button class="btn primary" onclick="vendorSaveProduct()">Salva modifiche</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════ MODALE VENDITORE ══════════════ -->
 <div class="modal-bg" id="vendorModalBg" onclick="if(event.target===this)closeVendorModal()">
   <div class="modal" style="max-width:680px">
@@ -9091,6 +9211,174 @@ async function adminDeleteVendor(){
     closeVendorModal();
     await adminLoadVendors();
   } catch(e){ alert('Errore: '+e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  VENDOR DASHBOARD — Vista lato venditore (utente con account vendor)
+// ═══════════════════════════════════════════════════════════════════
+
+var _isVendor = false;
+var _currentVendor = null;     // record inv_vendors dell'utente loggato
+var _vendorProducts = [];
+
+// Verifica se l'utente loggato è anche un vendor attivo. Chiamato all'avvio
+// dopo il restore della sessione, accanto al check is_admin.
+async function checkIsVendor(){
+  if(!_session || !_session.user){ _isVendor = false; _currentVendor = null; return; }
+  try {
+    var rows = await supa('GET','inv_vendors?user_id=eq.'+_session.user.id+'&status=eq.active&select=*');
+    if(rows && rows.length){
+      _isVendor = true;
+      _currentVendor = rows[0];
+    } else {
+      _isVendor = false;
+      _currentVendor = null;
+    }
+  } catch(e){
+    // Migration 025 non eseguita → silenzioso
+    _isVendor = false;
+    _currentVendor = null;
+  }
+  // Mostra/nascondi il bottone nav
+  var btn = document.getElementById('vendorNavBtn');
+  if(btn) btn.style.display = _isVendor ? '' : 'none';
+}
+
+async function vendorLoadProducts(){
+  if(!_isVendor || !_currentVendor){
+    document.getElementById('vendorProductsTbody').innerHTML = '';
+    document.getElementById('vendorProductsEmpty').style.display = '';
+    return;
+  }
+  try {
+    // Carica i prodotti del vendor (la RLS già filtra, ma filtriamo anche client-side per sicurezza)
+    var rows;
+    try {
+      // Prova vista dedicata (con stats)
+      rows = await supa('GET','v_vendor_products?order=created_at.desc');
+    } catch(e){
+      // Fallback alla tabella
+      rows = await supa('GET','inv_products?vendor_id=eq.'+_currentVendor.id+'&order=created_at.desc');
+    }
+    _vendorProducts = rows || [];
+
+    // Calcola stats riepilogo
+    var totalCount = _vendorProducts.length;
+    var openCount = 0, soldCount = 0, totalRaised = 0;
+    _vendorProducts.forEach(function(p){
+      if(p.status==='open' || p.status==='closing_soon') openCount++;
+      if(p.status==='sold_out' || p.status==='liquidated') soldCount++;
+      if(p.total_raised) totalRaised += parseFloat(p.total_raised)||0;
+    });
+    document.getElementById('voTotalProducts').textContent = totalCount;
+    document.getElementById('voOpenProducts').textContent = openCount;
+    document.getElementById('voSoldProducts').textContent = soldCount;
+    document.getElementById('voRevenue').textContent = '€'+fmtPrice(totalRaised);
+    document.getElementById('vendorOverview').style.display = totalCount ? 'grid' : 'none';
+
+    // Subtitle con nome vendor
+    var sub = document.getElementById('vendorSubtitle');
+    if(sub && _currentVendor){
+      sub.textContent = 'Account venditore: '+_currentVendor.display_name+' · Commissione RareBlock: '+(_currentVendor.commission_pct||0)+'%';
+    }
+
+    var tbody = document.getElementById('vendorProductsTbody');
+    var empty = document.getElementById('vendorProductsEmpty');
+    if(!_vendorProducts.length){
+      empty.style.display = '';
+      tbody.innerHTML = '';
+      return;
+    }
+    empty.style.display = 'none';
+    tbody.innerHTML = _vendorProducts.map(function(p){
+      var sold = p.sold_quotes || 0;
+      var qtyDisplay = sold+'/'+p.total_quotes;
+      return '<tr>'
+        +'<td><div style="font-weight:500">'+esc(p.name)+'</div>'+(p.description?'<div style="font-size:11px;color:var(--text-muted)">'+esc((p.description||'').slice(0,60))+'…</div>':'')+'</td>'
+        +'<td>'+typeBadge(p.type)+'</td>'
+        +'<td>'+statusBadge(p.status)+'</td>'
+        +'<td style="font-family:var(--mono)">'+qtyDisplay+'</td>'
+        +'<td style="font-family:var(--mono)">€'+fmt2(p.price_per_quote)+'</td>'
+        +'<td style="font-size:12px;font-family:var(--mono)">'+fmtDate(p.target_date)+'</td>'
+        +'<td><button class="btn sm primary" onclick="openVendorEditModal(\''+p.id+'\')" title="Modifica descrizione e foto"><span class="rb-i rb-i-edit"></span> Modifica</button></td>'
+      +'</tr>';
+    }).join('');
+  } catch(e){
+    document.getElementById('vendorProductsTbody').innerHTML='<tr><td colspan="7" style="color:var(--danger);font-size:12px">'+esc(e.message)+'</td></tr>';
+  }
+}
+
+// Modal di edit limitato per il vendor: solo descrizione + foto + cover
+var _vendorEditingProductId = null;
+
+function openVendorEditModal(pid){
+  _vendorEditingProductId = pid;
+  var p = _vendorProducts.find(function(x){return x.id===pid;});
+  if(!p){ alert('Prodotto non trovato'); return; }
+  // Popola campi read-only (info prodotto)
+  document.getElementById('veName').textContent = p.name;
+  document.getElementById('veType').innerHTML = typeBadge(p.type);
+  document.getElementById('veStatus').innerHTML = statusBadge(p.status);
+  document.getElementById('vePrice').textContent = '€'+fmt2(p.price_per_quote);
+  document.getElementById('veQuotes').textContent = (p.sold_quotes||0)+'/'+p.total_quotes;
+  document.getElementById('veTarget').textContent = fmtDate(p.target_date)||'—';
+  // Campi editabili
+  document.getElementById('veDesc').value = p.description||'';
+  document.getElementById('veCover').value = p.cover_photo_url||p.image_url||'';
+  document.getElementById('veSt').innerHTML = '';
+  // Sezione foto: caricheremo le foto del prodotto dalla tabella inv_product_photos
+  vendorLoadPhotos(pid);
+  document.getElementById('vendorEditModalBg').classList.add('show');
+}
+
+function closeVendorEditModal(){
+  document.getElementById('vendorEditModalBg').classList.remove('show');
+  _vendorEditingProductId = null;
+}
+
+async function vendorLoadPhotos(pid){
+  var grid = document.getElementById('vePhotosGrid');
+  if(!grid) return;
+  grid.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px">Caricamento foto…</div>';
+  try {
+    var photos = await supa('GET','inv_product_photos?product_id=eq.'+pid+'&order=sort_order.asc') || [];
+    if(!photos.length){
+      grid.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px">Nessuna foto. Le foto vengono caricate dall\'admin nel modal prodotto principale.</div>';
+      return;
+    }
+    grid.innerHTML = photos.map(function(ph){
+      return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column">'
+        +'<div style="aspect-ratio:1;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden"><img src="'+esc(ph.photo_url)+'" style="max-width:100%;max-height:100%;object-fit:contain"/></div>'
+        +'<div style="padding:8px;font-size:11px;font-family:var(--mono);color:var(--text-muted);text-align:center">'+(ph.is_cover?'<span style="color:var(--gold)">★ Cover</span>':'#'+(ph.sort_order||0))+'</div>'
+      +'</div>';
+    }).join('');
+  } catch(e){
+    grid.innerHTML = '<div style="color:var(--danger);font-size:12px;padding:8px">'+esc(e.message)+'</div>';
+  }
+}
+
+async function vendorSaveProduct(){
+  if(!_vendorEditingProductId) return;
+  var msg = document.getElementById('veSt');
+  msg.innerHTML = '';
+  var body = {
+    description: document.getElementById('veDesc').value.trim() || null,
+    cover_photo_url: document.getElementById('veCover').value.trim() || null,
+    updated_at: new Date().toISOString()
+  };
+  // Nota: anche se l'utente provasse a passare campi sensibili nel body,
+  // il trigger DB li ripristinerebbe ai valori OLD. Il vendor non puo' bypassare
+  // il limite nemmeno via API diretta.
+  try {
+    await supa('PATCH','inv_products?id=eq.'+_vendorEditingProductId, body);
+    msg.innerHTML = '<span style="color:var(--success);font-size:12px"><span class="rb-i rb-i-check"></span> Modifiche salvate</span>';
+    setTimeout(function(){
+      closeVendorEditModal();
+      vendorLoadProducts();
+    }, 800);
+  } catch(e){
+    msg.innerHTML = '<span style="color:var(--danger);font-size:12px">Errore: '+esc(e.message)+'</span>';
+  }
 }
 </script>
 
