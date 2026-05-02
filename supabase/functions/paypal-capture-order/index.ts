@@ -167,6 +167,7 @@ Deno.serve(async (req) => {
       captureId,
       paypalFee,
       payerEmail,
+      holdingId:      holding?.id || null,
     });
   } catch (e) {
     console.error('[paypal-capture-order] Fatal:', e);

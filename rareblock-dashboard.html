@@ -337,6 +337,102 @@ textarea{resize:vertical;min-height:60px}
 .form-grid.three{grid-template-columns:1fr 1fr 1fr}
 .span2{grid-column:span 2}
 
+/* ═══ QUOTE SLOTS — selezione numeri quote ═══ */
+.qs-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(54px,1fr));
+  gap:6px;
+  max-height:340px;
+  overflow-y:auto;
+  padding:2px;
+}
+.qs-cell{
+  aspect-ratio:1/1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:var(--mono);
+  font-size:13px;
+  font-weight:500;
+  border:1px solid var(--border);
+  background:var(--surface);
+  color:var(--text);
+  cursor:pointer;
+  user-select:none;
+  transition:background .12s ease, border-color .12s ease, color .12s ease, transform .08s ease;
+  border-radius:3px;
+  letter-spacing:.02em;
+}
+.qs-cell:hover:not(.qs-disabled){
+  border-color:var(--gold,#c9a84c);
+  color:var(--gold,#c9a84c);
+  transform:scale(1.04);
+}
+.qs-cell.qs-selected-cell{
+  background:var(--gold,#c9a84c);
+  color:#000;
+  border-color:var(--gold,#c9a84c);
+  font-weight:600;
+}
+.qs-cell.qs-selected-cell:hover{
+  transform:scale(1.04);
+  filter:brightness(1.05);
+}
+.qs-cell.qs-reserved-cell{
+  background:rgba(255,193,7,.08);
+  border-color:rgba(255,193,7,.4);
+  color:#cc9c00;
+  cursor:not-allowed;
+}
+.qs-cell.qs-assigned-cell{
+  background:var(--surface2);
+  border-color:var(--border);
+  color:var(--text-subtle);
+  cursor:not-allowed;
+  text-decoration:line-through;
+  opacity:.6;
+}
+.qs-cell.qs-disabled{ cursor:not-allowed; }
+
+/* Legenda dots */
+.qs-legend-dot{
+  display:inline-block;
+  width:10px;height:10px;
+  border-radius:2px;
+  border:1px solid var(--border);
+}
+.qs-legend-dot.qs-available{ background:var(--surface); }
+.qs-legend-dot.qs-selected{ background:var(--gold,#c9a84c); border-color:var(--gold,#c9a84c); }
+.qs-legend-dot.qs-reserved{ background:rgba(255,193,7,.2); border-color:rgba(255,193,7,.4); }
+.qs-legend-dot.qs-assigned{ background:var(--surface2); }
+
+/* Chip numeri assegnati nella tabella portfolio */
+.port-slots-list{
+  display:flex;
+  gap:3px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+.port-slot-chip{
+  display:inline-block;
+  font-family:var(--mono);
+  font-size:10px;
+  font-weight:500;
+  padding:1px 5px;
+  background:rgba(201,168,76,.1);
+  border:1px solid rgba(201,168,76,.35);
+  color:var(--gold,#c9a84c);
+  border-radius:2px;
+  letter-spacing:.02em;
+}
+.port-slot-chip-more{
+  display:inline-block;
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--text-muted);
+  padding:1px 4px;
+}
+
 /* ═══ CHECKOUT — multi-step ═══ */
 .checkout-modal{width:min(820px,96vw)!important;max-height:92vh}
 .checkout-stepper{
@@ -3940,7 +4036,7 @@ textarea{resize:vertical;min-height:60px}
       <div style="overflow-x:auto">
         <table class="port-table" id="portTable">
           <thead><tr>
-            <th>Prodotto</th><th>Tipo</th><th>Quote</th><th>Pagato/quota</th>
+            <th>Prodotto</th><th>Tipo</th><th>Quote</th><th>Numeri</th><th>Pagato/quota</th>
             <th>Val. stimato</th><th>P&amp;L</th><th>Scadenza</th><th>Costi pendenti</th><th></th>
           </tr></thead>
           <tbody id="portTbody"></tbody>
@@ -7080,6 +7176,7 @@ function coRenderPayPalButtons(){
             orderNumber: captured.orderNumber,
             method: 'paypal',
             captureId: captured.captureId,
+            holdingId: captured.holdingId,
           });
         } else {
           // Fallback: alert + reload
@@ -7319,10 +7416,230 @@ function coOnPaymentSuccess(payload){
     bill:     bill,
     method:   payload.method || 'paypal',
     captureId: payload.captureId || null,
+    holdingId: payload.holdingId || null,  // popolato da paypal-capture-order
     paid:     true,
   };
   if(typeof coRenderConfirmation === 'function') coRenderConfirmation();
   if(typeof coGotoStep === 'function') coGotoStep(4);
+  // Trigger automatico del modal selezione numeri SOLO se:
+  //   · prodotto fractional o millesimal (qty > 1 ha senso)
+  //   · holding_id disponibile (PayPal capture lo restituisce)
+  //   · pagamento già confermato (PayPal flow, non bonifico in attesa)
+  if(_buyProduct && (_buyProduct.type === 'fractional' || _buyProduct.type === 'millesimal')
+     && _coOrder.holdingId && _coOrder.method === 'paypal'){
+    setTimeout(function(){
+      qsOpenModalForHolding(_coOrder.holdingId, _buyProduct.id, qty);
+    }, 800); // breve delay per dare tempo allo step 4 di renderizzarsi
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// QUOTE SLOTS — selezione numeri quote post-pagamento
+// ═══════════════════════════════════════════════════════════
+// Stato modal:
+//  · _qsHoldingId  — UUID della holding per cui stiamo assegnando
+//  · _qsProductId  — UUID del prodotto
+//  · _qsRequired   — numero esatto di slot che l'utente DEVE selezionare
+//  · _qsSlots      — array degli slot caricati da DB ({slot_number, status, ...})
+//  · _qsSelected   — Set degli slot_number attualmente selezionati dall'utente
+var _qsHoldingId = null;
+var _qsProductId = null;
+var _qsRequired  = 0;
+var _qsSlots     = [];
+var _qsSelected  = null;  // Set
+
+async function qsOpenModalForHolding(holdingId, productId, requiredCount){
+  _qsHoldingId = holdingId;
+  _qsProductId = productId;
+  _qsRequired  = requiredCount;
+  _qsSelected  = new Set();
+  // Reset UI
+  var bg = document.getElementById('qsModalBg');
+  if(!bg){ console.warn('[qs] modal not found'); return; }
+  document.getElementById('qsRequiredCount').textContent = requiredCount;
+  document.getElementById('qsTotalRequired').textContent = requiredCount;
+  document.getElementById('qsSelectedCount').textContent = '0';
+  document.getElementById('qsConfirmBtn').disabled = true;
+  document.getElementById('qsError').style.display = 'none';
+  // Recap
+  var recap = document.getElementById('qsRecap');
+  if(recap && _buyProduct){
+    recap.innerHTML = ''
+      +'<div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Prodotto</span><strong>'+esc(_buyProduct.name||'—')+'</strong></div>'
+      +'<div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Quote acquistate</span><strong style="color:var(--gold)">'+requiredCount+' / '+(_buyProduct.total_quotes||requiredCount)+'</strong></div>';
+  }
+  bg.classList.add('show');
+  // Carica slot
+  await qsLoadSlots();
+}
+
+async function qsLoadSlots(){
+  var grid = document.getElementById('qsGrid');
+  grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--text-muted);font-size:12px">Caricamento numeri…</div>';
+  try {
+    // Pre-pulizia reservation scadute (best-effort)
+    try { await supa('POST','rpc/release_expired_reservations',{}); } catch(e){}
+    // Fetch tutti gli slot del prodotto
+    var rows = await supa('GET','inv_quote_slots?product_id=eq.'+_qsProductId+'&order=slot_number.asc&select=slot_number,status,user_id,reserved_until,reserved_by');
+    _qsSlots = rows || [];
+    qsRenderGrid();
+  } catch(e){
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--danger);font-size:12px">Errore caricamento numeri: '+esc(e.message||String(e))+'</div>';
+  }
+}
+
+function qsRenderGrid(){
+  var grid = document.getElementById('qsGrid');
+  if(!_qsSlots.length){
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text-muted);font-size:12px">Nessuno slot disponibile per questo prodotto. Contatta il supporto.</div>';
+    return;
+  }
+  var userId = _session && _session.user && _session.user.id;
+  var now    = Date.now();
+  grid.innerHTML = _qsSlots.map(function(s){
+    var n = s.slot_number;
+    var label = (n < 10 ? '0' : '') + n;
+    var cls = 'qs-cell';
+    var disabled = false;
+    if(s.status === 'assigned'){
+      cls += ' qs-assigned-cell qs-disabled';
+      disabled = true;
+    } else if(s.status === 'reserved'){
+      // Riservato: disabilitato a meno che non sia mio (raro, edge case)
+      var isMine = s.reserved_by === userId;
+      var stillValid = !s.reserved_until || new Date(s.reserved_until).getTime() > now;
+      if(!isMine && stillValid){
+        cls += ' qs-reserved-cell qs-disabled';
+        disabled = true;
+      }
+    }
+    if(_qsSelected.has(n)) cls += ' qs-selected-cell';
+    return '<div class="'+cls+'" data-slot="'+n+'" '+(disabled?'':'onclick="qsToggleSlot('+n+')"')+' title="Quota #'+label+'">#'+label+'</div>';
+  }).join('');
+}
+
+function qsToggleSlot(slotNumber){
+  if(_qsSelected.has(slotNumber)){
+    _qsSelected.delete(slotNumber);
+  } else {
+    if(_qsSelected.size >= _qsRequired){
+      // Limita a required: rimuovi il primo se l'utente vuole sostituirlo
+      // Comportamento meno intrusivo: feedback + non aggiungere
+      qsShowError('Hai già selezionato '+_qsRequired+' numeri. Deseleziona uno per cambiarlo.');
+      setTimeout(function(){ qsHideError(); }, 2000);
+      return;
+    }
+    _qsSelected.add(slotNumber);
+  }
+  qsHideError();
+  qsRenderGrid();
+  qsUpdateCounter();
+}
+
+function qsUpdateCounter(){
+  var c = _qsSelected.size;
+  document.getElementById('qsSelectedCount').textContent = c;
+  document.getElementById('qsConfirmBtn').disabled = (c !== _qsRequired);
+}
+
+function qsAutoSelect(){
+  // Seleziona automaticamente i primi N slot disponibili
+  _qsSelected.clear();
+  for(var i=0; i<_qsSlots.length && _qsSelected.size < _qsRequired; i++){
+    var s = _qsSlots[i];
+    if(s.status === 'available'){
+      _qsSelected.add(s.slot_number);
+    } else if(s.status === 'reserved'){
+      var isMine = s.reserved_by === (_session && _session.user && _session.user.id);
+      var stillValid = !s.reserved_until || new Date(s.reserved_until).getTime() > Date.now();
+      if(isMine || !stillValid){
+        _qsSelected.add(s.slot_number);
+      }
+    }
+  }
+  qsRenderGrid();
+  qsUpdateCounter();
+}
+
+function qsShowError(msg){
+  var el = document.getElementById('qsError');
+  if(el){ el.textContent = msg; el.style.display = ''; }
+}
+function qsHideError(){
+  var el = document.getElementById('qsError');
+  if(el) el.style.display = 'none';
+}
+
+async function qsConfirmSelection(){
+  if(_qsSelected.size !== _qsRequired){
+    qsShowError('Devi selezionare esattamente '+_qsRequired+' numeri.');
+    return;
+  }
+  var btn = document.getElementById('qsConfirmBtn');
+  btn.disabled = true;
+  btn.textContent = 'Conferma in corso…';
+  try {
+    var slotArr = Array.from(_qsSelected).sort(function(a,b){return a-b;});
+    var result = await supa('POST','rpc/claim_slots', {
+      p_holding_id: _qsHoldingId,
+      p_slot_numbers: slotArr,
+    });
+    // Successo: chiudi modal + feedback
+    qsCloseModal();
+    if(typeof window.toast === 'function'){
+      window.toast('Numeri assegnati: ' + slotArr.map(function(n){return '#'+(n<10?'0':'')+n;}).join(', '));
+    }
+    // Refresh portfolio se presente
+    if(typeof loadPortfolio === 'function') loadPortfolio();
+  } catch(e){
+    var msg = e.message || String(e);
+    // Mappatura errori Postgres
+    if(/non sono più disponibili/i.test(msg)){
+      qsShowError('Alcuni numeri sono stati appena presi da altri. Aggiorna e riprova.');
+      // Auto-reload slot per mostrare lo stato aggiornato
+      setTimeout(function(){ qsLoadSlots(); }, 1500);
+    } else if(/già numeri assegnati/i.test(msg)){
+      qsShowError('Questa quota ha già numeri assegnati.');
+    } else if(/esattamente/i.test(msg)){
+      qsShowError(msg);
+    } else {
+      qsShowError('Errore: ' + msg);
+    }
+    btn.disabled = false;
+    btn.textContent = 'Conferma selezione';
+  }
+}
+
+function qsCloseModal(){
+  var bg = document.getElementById('qsModalBg');
+  if(bg) bg.classList.remove('show');
+  _qsHoldingId = null;
+  _qsProductId = null;
+  _qsRequired  = 0;
+  _qsSlots     = [];
+  _qsSelected  = null;
+  // Reset bottone conferma
+  var btn = document.getElementById('qsConfirmBtn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Conferma selezione'; }
+}
+
+// API pubblica: apertura manuale del modal da Portfolio per holding senza numeri
+async function qsOpenForHoldingId(holdingId){
+  // Carica info holding
+  try {
+    var rows = await supa('GET','inv_holdings?id=eq.'+holdingId+'&select=*,product:product_id(id,name,type,total_quotes)');
+    var h = rows && rows[0];
+    if(!h){ alert('Holding non trovata'); return; }
+    if(!h.product || (h.product.type !== 'fractional' && h.product.type !== 'millesimal')){
+      alert('Questa quota è di un prodotto a possesso integrale, niente numeri da assegnare.');
+      return;
+    }
+    // Imposta _buyProduct minimal per il recap
+    _buyProduct = h.product;
+    qsOpenModalForHolding(holdingId, h.product.id, h.qty);
+  } catch(e){
+    alert('Errore: '+(e.message||e));
+  }
 }
 
 // ── Download riepilogo PDF (semplice: print della finestra) ─
@@ -7929,6 +8246,7 @@ var _portHoldings = [];
 var _portPayments = [];
 var _portAccruals = [];
 var _portLiquidations = [];
+var _portSlotsByHolding = {};  // {holdingId: [slot_number, ...]}
 
 async function portLoad(){
   if(!_session) return;
@@ -7946,6 +8264,19 @@ async function portLoad(){
     } else {
       _portAccruals = [];
     }
+    // Quote slots assegnati alle holdings dell'utente (best-effort: se la
+    // migration 027 non è applicata, semplicemente non popoliamo questa info).
+    _portSlotsByHolding = {};
+    try {
+      var holdingIds = _portHoldings.map(function(h){ return h.id; });
+      if(holdingIds.length){
+        var slots = (await supa('GET','inv_quote_slots?holding_id=in.('+holdingIds.join(',')+')&order=slot_number.asc&select=holding_id,slot_number,status')) || [];
+        slots.forEach(function(s){
+          if(!_portSlotsByHolding[s.holding_id]) _portSlotsByHolding[s.holding_id] = [];
+          _portSlotsByHolding[s.holding_id].push(s.slot_number);
+        });
+      }
+    } catch(eS){ /* migration 027 non applicata: niente slot info */ }
   } catch(e){ console.warn('portLoad:', e.message); _portHoldings=[]; }
   portRender();
 }
@@ -8005,11 +8336,32 @@ function portRender(){
     // Payment status
     var pay = _portPayments.find(function(x){ return x.holding_id===h.id&&x.type==='purchase'; });
     var payStatus = pay ? payBadge(pay.status) : '<span style="color:var(--text-muted);font-size:11px">—</span>';
+    // Numeri assegnati / da scegliere (solo per fractional/millesimal)
+    var slotsCell = '<span style="color:var(--text-muted);font-size:11px">—</span>';
+    var isFractional = p && (p.type === 'fractional' || p.type === 'millesimal');
+    if(isFractional){
+      var slots = _portSlotsByHolding[h.id] || [];
+      if(slots.length === h.qty){
+        // Tutti i numeri assegnati: mostra come chips compatti
+        var chips = slots.slice(0, 8).map(function(n){
+          return '<span class="port-slot-chip">#'+(n<10?'0':'')+n+'</span>';
+        }).join('');
+        if(slots.length > 8) chips += '<span class="port-slot-chip-more">+'+(slots.length-8)+'</span>';
+        slotsCell = '<div class="port-slots-list">'+chips+'</div>';
+      } else if(slots.length > 0 && slots.length < h.qty){
+        // Parziale: edge case (admin ha riassegnato alcuni)
+        slotsCell = '<button class="btn sm" style="font-size:10.5px;padding:3px 8px" onclick="qsOpenForHoldingId(\''+h.id+'\')" title="Completa selezione">'+slots.length+'/'+h.qty+' · Completa</button>';
+      } else {
+        // Nessun numero assegnato: bottone azione
+        slotsCell = '<button class="btn sm primary" style="font-size:10.5px;padding:3px 10px" onclick="qsOpenForHoldingId(\''+h.id+'\')">Scegli numeri</button>';
+      }
+    }
 
     return '<tr>'
       +'<td><div style="font-weight:500">'+esc(pname)+'</div><div style="font-size:11px;margin-top:2px">'+payStatus+'</div></td>'
       +'<td>'+ptype+'</td>'
       +'<td style="font-family:var(--mono)">'+h.qty+' / '+((p&&p.total_quotes)||'?')+'<div style="font-size:10px;color:var(--text-muted)">'+(myShare*100).toFixed(1)+'%</div></td>'
+      +'<td>'+slotsCell+'</td>'
       +'<td style="font-family:var(--mono)">'+fmtMoney(h.price_per_quote)+'</td>'
       +'<td style="font-family:var(--mono)">'+fmtMoney(myEst)+'</td>'
       +'<td class="'+plCls+'" style="font-family:var(--mono)">'+(pl2>=0?'+':'−')+fmtMoney(Math.abs(pl2))+'</td>'
@@ -10529,6 +10881,51 @@ function redirectToLogin(){
     <div class="modal-foot">
       <button class="btn" onclick="vpCloseModal()">Annulla</button>
       <button class="btn primary" onclick="vpConfirmPay()" id="vpPayBtn">Conferma pagamento</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODALE SELEZIONE NUMERI QUOTE ══════════════ -->
+<!-- Si apre dopo il pagamento di un prodotto fractional/millesimal.
+     L'utente sceglie i numeri delle quote acquistate da una griglia
+     visuale con stati: available (verde), reserved (giallo), assigned (rosso). -->
+<div class="modal-bg" id="qsModalBg" onclick="if(event.target===this)qsCloseModal()">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-head">
+      <h3>Scegli i numeri delle tue quote</h3>
+      <button class="modal-close" onclick="qsCloseModal()" aria-label="Chiudi"><span class="rb-i rb-i-x"></span></button>
+    </div>
+    <div class="modal-body">
+      <div id="qsIntro" style="font-size:12.5px;color:var(--text-muted);line-height:1.6;margin-bottom:16px">
+        Seleziona <strong id="qsRequiredCount">1</strong> numero/i tra quelli disponibili.
+        I numeri assegnati restano associati permanentemente alla tua quota.
+      </div>
+
+      <!-- Recap acquisto -->
+      <div id="qsRecap" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;margin-bottom:16px;font-size:12px;line-height:1.7"></div>
+
+      <!-- Legenda -->
+      <div style="display:flex;gap:18px;margin-bottom:12px;font-size:11px;color:var(--text-muted);flex-wrap:wrap">
+        <div style="display:inline-flex;align-items:center;gap:6px"><span class="qs-legend-dot qs-available"></span> Disponibile</div>
+        <div style="display:inline-flex;align-items:center;gap:6px"><span class="qs-legend-dot qs-selected"></span> Selezionato</div>
+        <div style="display:inline-flex;align-items:center;gap:6px"><span class="qs-legend-dot qs-reserved"></span> Riservato</div>
+        <div style="display:inline-flex;align-items:center;gap:6px"><span class="qs-legend-dot qs-assigned"></span> Già assegnato</div>
+      </div>
+
+      <!-- Griglia numerica -->
+      <div id="qsGrid" class="qs-grid"></div>
+
+      <!-- Counter selezione -->
+      <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;font-size:12.5px">
+        <span style="color:var(--text-muted)">Selezionati: <strong id="qsSelectedCount" style="color:var(--gold)">0</strong> / <span id="qsTotalRequired">1</span></span>
+        <button class="btn sm" onclick="qsAutoSelect()" id="qsAutoBtn" style="font-size:11px">Selezione automatica</button>
+      </div>
+
+      <div id="qsError" style="display:none;margin-top:12px;padding:10px 12px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.3);border-radius:var(--r);color:var(--danger);font-size:12px"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="qsCloseModal()" id="qsLaterBtn">Scegli più tardi</button>
+      <button class="btn primary" onclick="qsConfirmSelection()" id="qsConfirmBtn" disabled>Conferma selezione</button>
     </div>
   </div>
 </div>
