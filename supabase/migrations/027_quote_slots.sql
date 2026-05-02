@@ -129,7 +129,12 @@ END$$;
 --   · Il numero di slot richiesti corrisponda alla qty della holding
 --   · Il prodotto della holding combaci con quello degli slot
 -- Usa SELECT FOR UPDATE per prevenire race condition.
-CREATE OR REPLACE FUNCTION public.claim_slots(
+--
+-- DROP esplicito: un CREATE OR REPLACE FUNCTION non può cambiare la
+-- signature dei parametri di OUTPUT in PostgreSQL — serve DROP+CREATE
+-- quando si modifica RETURNS TABLE(...). Idempotente con IF EXISTS.
+DROP FUNCTION IF EXISTS public.claim_slots(UUID, INT[]);
+CREATE FUNCTION public.claim_slots(
   p_holding_id UUID,
   p_slot_numbers INT[]
 ) RETURNS TABLE(out_slot_number INT, out_status TEXT) AS $$
