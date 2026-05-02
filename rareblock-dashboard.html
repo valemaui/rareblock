@@ -3674,7 +3674,7 @@ textarea{resize:vertical;min-height:60px}
       <button class="admin-side-btn" onclick="adminSection('transfers')"><span class="rb-i rb-i-swap"></span> Trasferimenti</button>
       <button class="admin-side-btn" onclick="adminSection('memorandum')"><span class="rb-i rb-i-list"></span> Memorandum</button>
       <button class="admin-side-btn" onclick="adminSection('submissions')"><span class="rb-i rb-i-package"></span> Richieste</button>
-      <a href="rareblock-admin-users.html" class="admin-side-btn" style="text-decoration:none"><span class="rb-i rb-i-user"></span> Utenti</a>
+      <button class="admin-side-btn" onclick="adminSection('users')"><span class="rb-i rb-i-user"></span> Utenti</button>
     </div>
     <div class="admin-main">
 
@@ -3930,6 +3930,17 @@ textarea{resize:vertical;min-height:60px}
           <tbody id="submTbody"></tbody>
         </table>
         <div class="empty-state" id="submEmpty" style="display:none;padding:32px"><div class="icon"><span class="rb-i rb-i-package"></span></div><h3>Nessuna richiesta</h3><div style="color:var(--text-muted);font-size:13px;margin-top:6px">Quando un prospect compila il form "Per il venditore" sul memorandum, la richiesta apparirà qui in tempo reale.</div></div>
+      </div>
+
+      <!-- UTENTI — embed di rareblock-admin-users.html via iframe lazy.
+           Mantiene la singola fonte di codice (gestione utenti vive in
+           rareblock-admin-users.html) ma rende l'esperienza coerente con
+           le altre voci della sidebar admin (no più redirect esterno). -->
+      <div class="admin-section" id="admin-users" style="height:calc(100vh - 100px)">
+        <iframe id="adminUsersIframe"
+                style="display:none;width:100%;height:100%;border:none;background:transparent"
+                src="about:blank"
+                title="Gestione utenti"></iframe>
       </div>
 
     </div><!-- /admin-main -->
@@ -7433,6 +7444,23 @@ function adminSection(s){
   if(s==='transfers')   adminLoadTransfers();
   if(s==='memorandum')  memoLoadAll();
   if(s==='submissions') submLoadAll();
+  if(s==='users')       adminLoadUsers();
+}
+
+// Lazy-load dell'iframe Utenti: lo carichiamo solo al primo accesso al tab,
+// per non aggiungere fetch e render iniziali costosi all'apertura della
+// dashboard. La sessione admin viene letta da localStorage dall'iframe stesso
+// (stessa origine, stessa key 'rb_auth_session').
+function adminLoadUsers(){
+  var iframe = document.getElementById('adminUsersIframe');
+  if(!iframe) return;
+  if(iframe.dataset.loaded === '1'){
+    iframe.style.display = 'block';
+    return;
+  }
+  iframe.style.display = 'block';
+  iframe.src = 'rareblock-admin-users.html?embed=1';
+  iframe.dataset.loaded = '1';
 }
 
 async function adminLoad(){

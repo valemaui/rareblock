@@ -215,6 +215,16 @@ tr.row-deleted td.email,tr.row-deleted td.name{text-decoration:line-through}
 .modal-info{font-size:12.5px;color:var(--text-muted);line-height:1.6;background:var(--surface2);padding:11px 13px;border-radius:var(--r);border-left:2px solid var(--accent)}
 .modal-info.warn{border-left-color:var(--warning);color:var(--warning)}
 .modal-info.danger{border-left-color:var(--danger);color:var(--danger)}
+
+/* ── EMBED MODE ──────────────────────────────────────────────
+   Quando la pagina è caricata via iframe dalla dashboard
+   (?embed=1), nasconde header/breadcrumbs/logo perché vivono
+   già nel parent. Lo spazio viene usato per il contenuto. */
+body.embed-mode .header{ display:none !important }
+body.embed-mode #deniedScreen{ background:transparent }
+body.embed-mode main{ padding-top:0 }
+body.embed-mode{ background:transparent }
+body.embed-mode .page-head{ padding-top:6px }
 </style>
 </head>
 <body>
@@ -405,6 +415,25 @@ const SUPA_URL='https://rbjaaeyjeeqfpbzyavag.supabase.co';
 const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
 const RB_SESSION_KEY='rb_auth_session';
 const ADMIN_EMAILS=['admin@rareblock.eu','valemaui@gmail.com'];
+
+// Modalità embed: la pagina è caricata via iframe dalla dashboard.
+// Nasconde header/breadcrumbs/logo perché vivono già nel parent.
+// Si attiva con ?embed=1 nell'URL OPPURE rilevando window.parent diverso.
+var IS_EMBED = (function(){
+  try {
+    if(/[?&]embed=1\b/.test(window.location.search)) return true;
+    if(window.parent && window.parent !== window) return true;
+  } catch(e){}
+  return false;
+})();
+if(IS_EMBED){
+  // Aggiungo subito la classe al body (anche se body non esiste ancora —
+  // il browser applicherà gli stili appena appare)
+  if(document.body) document.body.classList.add('embed-mode');
+  else document.addEventListener('DOMContentLoaded', function(){
+    document.body.classList.add('embed-mode');
+  });
+}
 
 var _session=null;
 var _users=[];
