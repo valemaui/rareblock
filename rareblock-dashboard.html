@@ -7770,7 +7770,6 @@ function qsCloseModal(){
 
 // API pubblica: apertura manuale del modal da Portfolio per holding senza numeri
 async function qsOpenForHoldingId(holdingId){
-  // Carica info holding
   try {
     var rows = await supa('GET','inv_holdings?id=eq.'+holdingId+'&select=*,product:product_id(id,name,type,total_quotes)');
     var h = rows && rows[0];
@@ -7779,9 +7778,25 @@ async function qsOpenForHoldingId(holdingId){
       alert('Questa quota è di un prodotto a possesso integrale, niente numeri da assegnare.');
       return;
     }
-    // Imposta _buyProduct minimal per il recap
+    // Pre-check: se la holding ha già tutti i numeri assegnati, NON aprire il
+    // modal — la RPC claim_slots fallirebbe con 'Questa holding ha già numeri
+    // assegnati'. Refresha la cache locale e segnala all'utente.
+    var existingSlots = await supa('GET','inv_quote_slots?holding_id=eq.'+holdingId+'&status=eq.assigned&select=slot_number');
+    var assignedCount = (existingSlots && existingSlots.length) || 0;
+    if(assignedCount >= h.qty){
+      alert('Hai già assegnato tutti i numeri per questa quota. Aggiorna la pagina per vederli.');
+      // Aggiorna la cache locale così il portfolio mostra subito i chip senza F5
+      if(typeof _portSlotsByHolding !== 'undefined' && existingSlots){
+        _portSlotsByHolding[holdingId] = existingSlots.map(function(s){ return s.slot_number; }).sort(function(a,b){return a-b;});
+        if(typeof portRender === 'function') portRender();
+      }
+      return;
+    }
+    // Imposta _buyProduct minimal per il recap del modal
     _buyProduct = h.product;
-    qsOpenModalForHolding(holdingId, h.product.id, h.qty);
+    // Calcola quanti numeri restano da scegliere (= qty - già assegnati)
+    var remaining = h.qty - assignedCount;
+    qsOpenModalForHolding(holdingId, h.product.id, remaining);
   } catch(e){
     alert('Errore: '+(e.message||e));
   }

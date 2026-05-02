@@ -156,20 +156,35 @@ BEGIN
   IF v_holding.user_id <> v_user_id THEN
     RAISE EXCEPTION 'Non autorizzato per questa holding' USING ERRCODE = '42501';
   END IF;
-  -- Verifica numero slot richiesti = qty holding
+  -- Verifica numero slot richiesti coerente con holding:
+  -- · v_count > 0
+  -- · qty_già_assegnata + v_count <= holding.qty
+  -- (così l'utente può completare progressivamente la sua holding senza
+  --  dover scegliere tutti i numeri in un'unica sessione)
   v_count := array_length(p_slot_numbers, 1);
-  IF v_count IS NULL OR v_count <> v_holding.qty THEN
-    RAISE EXCEPTION 'Devi selezionare esattamente % numeri (selezionati: %)',
-      v_holding.qty, COALESCE(v_count, 0)
+  IF v_count IS NULL OR v_count <= 0 THEN
+    RAISE EXCEPTION 'Devi selezionare almeno 1 numero'
       USING ERRCODE = '23514';
   END IF;
-  -- Se la holding ha già slot assegnati, blocca: prima va liberata da admin
+  -- Slot già assegnati a questa holding (per consentire completamento parziale)
   SELECT COUNT(*) INTO v_existing_count
   FROM public.inv_quote_slots s
   WHERE s.holding_id = p_holding_id AND s.status = 'assigned';
-  IF v_existing_count > 0 THEN
-    RAISE EXCEPTION 'Questa holding ha già numeri assegnati. Contatta il supporto per modificarli.'
+  IF v_existing_count + v_count > v_holding.qty THEN
+    RAISE EXCEPTION 'Selezione eccede la qty della quota: % già assegnati + % nuovi > % totali',
+      v_existing_count, v_count, v_holding.qty
       USING ERRCODE = '23514';
+  END IF;
+  -- I nuovi slot richiesti NON possono coincidere con quelli già assegnati
+  -- a questa holding (sarebbe un duplicato logico dello stesso numero)
+  IF EXISTS (
+    SELECT 1 FROM public.inv_quote_slots s
+    WHERE s.holding_id = p_holding_id
+      AND s.status = 'assigned'
+      AND s.slot_number = ANY(p_slot_numbers)
+  ) THEN
+    RAISE EXCEPTION 'Uno o più numeri sono già assegnati a questa quota'
+      USING ERRCODE = '23505';
   END IF;
   -- Lock degli slot richiesti per evitare race condition
   PERFORM 1 FROM public.inv_quote_slots s
