@@ -3350,6 +3350,29 @@ textarea{resize:vertical;min-height:60px}
 
 /* Filter bar admin (riusabile per Prodotti/Pagamenti/Vendori/...) */
 .admin-filter-bar{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px}
+
+/* Thumbnail prodotto in tabella admin: 36x36 fissi, no aumento altezza riga.
+   Container quadrato con object-fit:cover; fallback con icona placeholder. */
+.ap-thumb-col{width:48px;padding:0 6px 0 10px !important}
+.ap-thumb{
+  display:block;
+  width:36px;height:36px;
+  border-radius:4px;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  object-fit:cover;
+  flex-shrink:0;
+}
+.ap-thumb-empty{
+  display:inline-flex;
+  width:36px;height:36px;
+  border-radius:4px;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  align-items:center;justify-content:center;
+  color:var(--text-subtle);
+}
+.ap-thumb-empty .rb-i{width:16px;height:16px}
 .admin-filter-search{position:relative;flex:1 1 220px;min-width:200px;max-width:320px}
 .admin-filter-search input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px 7px 32px;color:var(--text);font-family:var(--font);font-size:12.5px;outline:none;transition:border-color .12s}
 .admin-filter-search input:focus{border-color:var(--accent)}
@@ -3774,7 +3797,7 @@ textarea{resize:vertical;min-height:60px}
         </div>
 
         <table class="admin-table" id="adminProductsTable">
-          <thead><tr><th>Nome</th><th>Tipo</th><th>Status</th><th>Quote</th><th>Prezzo</th><th>Scadenza</th><th></th></tr></thead>
+          <thead><tr><th class="ap-thumb-col"></th><th>Nome</th><th>Tipo</th><th>Status</th><th>Quote</th><th>Prezzo</th><th>Scadenza</th><th></th></tr></thead>
           <tbody id="adminProductsTbody"></tbody>
         </table>
         <div class="empty-state" id="adminProductsEmpty" style="display:none"><div class="icon"><span class="rb-i rb-i-package"></span></div><h3>Nessun prodotto</h3></div>
@@ -7571,7 +7594,7 @@ async function adminLoad(){
 async function adminLoadProducts(){
   // Mostra skeleton durante il fetch
   var tbody0 = document.getElementById('adminProductsTbody');
-  if(tbody0) tbody0.innerHTML = skelRows(4, ['long','tag','tag','short','short','short','medium']);
+  if(tbody0) tbody0.innerHTML = skelRows(4, ['tag','long','tag','tag','short','short','short','medium']);
   var empty0 = document.getElementById('adminProductsEmpty');
   if(empty0) empty0.style.display='none';
   try {
@@ -7599,7 +7622,7 @@ async function adminLoadProducts(){
     apPopulateVendorFilter();
     // Render con i filtri attualmente impostati
     apApplyFilters();
-  } catch(e){ document.getElementById('adminProductsTbody').innerHTML = uiErrorCell(7, 'Caricamento prodotti fallito', e, 'adminLoadProducts()'); }
+  } catch(e){ document.getElementById('adminProductsTbody').innerHTML = uiErrorCell(8, 'Caricamento prodotti fallito', e, 'adminLoadProducts()'); }
 }
 
 // Popola la dropdown 'Vendor' nei filtri admin con i vendor distinti
@@ -7727,6 +7750,12 @@ function apRenderProducts(rows){
       var canRelist = (allSold || p.status==='closed' || p.status==='sold_out' || p.status==='liquidated');
       var statusOpts = ['draft','open','closing_soon','closed','sold_out','hold','liquidated']
         .map(function(s){ return '<option'+(p.status===s?' selected':'')+' value="'+s+'">'+s+'</option>'; }).join('');
+      // Thumbnail: priorità cover_photo_url > image_url > placeholder package icon.
+      // onerror sostituisce con placeholder se l'URL non carica (404, broken).
+      var thumbUrl = p.cover_photo_url || p.image_url || '';
+      var thumbCell = thumbUrl
+        ? '<img class="ap-thumb" src="'+esc(thumbUrl)+'" alt="" loading="lazy" onerror="this.outerHTML=\'<span class=&quot;ap-thumb-empty&quot;><span class=&quot;rb-i rb-i-package&quot;></span></span>\'"/>'
+        : '<span class="ap-thumb-empty"><span class="rb-i rb-i-package"></span></span>';
       var actionsCell = '<td class="admin-actions">'
         // 1. Modifica
         +'<button class="btn sm icon-btn" onclick="adminEditProduct(\''+p.id+'\')" title="Modifica"><span class="rb-i rb-i-edit"></span></button>'
@@ -7742,6 +7771,7 @@ function apRenderProducts(rows){
         +'</button>'
         +'</td>';
       return '<tr>'
+        +'<td class="ap-thumb-col">'+thumbCell+'</td>'
         +'<td><div style="font-weight:500">'+esc(p.name)+'</div>'+(p.description?'<div style="font-size:11px;color:var(--text-muted)">'+esc(p.description.slice(0,60))+'…</div>':'')+'</td>'
         +'<td>'+typeBadge(p.type)+'</td>'
         +'<td>'+statusBadge(effectiveStatus)+'</td>'
