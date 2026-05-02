@@ -3347,6 +3347,18 @@ textarea{resize:vertical;min-height:60px}
 .admin-table th{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-family:var(--mono);padding:7px 10px;border-bottom:1px solid var(--border);text-align:left;background:var(--surface);position:sticky;top:0;z-index:1}
 .admin-table td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
 .admin-table tr:hover td{background:rgba(255,255,255,.025)}
+
+/* Filter bar admin (riusabile per Prodotti/Pagamenti/Vendori/...) */
+.admin-filter-bar{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px}
+.admin-filter-search{position:relative;flex:1 1 220px;min-width:200px;max-width:320px}
+.admin-filter-search input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px 7px 32px;color:var(--text);font-family:var(--font);font-size:12.5px;outline:none;transition:border-color .12s}
+.admin-filter-search input:focus{border-color:var(--accent)}
+.admin-filter-search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--text-muted);pointer-events:none}
+.admin-filter-group{display:flex;flex-direction:column;gap:4px}
+.admin-filter-lbl{font-size:9.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;font-family:var(--mono)}
+.admin-filter-group select{padding:6px 26px 6px 9px;font-size:12px;min-width:140px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--font);cursor:pointer;outline:none;transition:border-color .12s}
+.admin-filter-group select:focus,.admin-filter-group select:hover{border-color:var(--border-strong)}
+.admin-filter-reset{align-self:flex-end;height:30px}
 </style>
 </head>
 <body>
@@ -3680,10 +3692,87 @@ textarea{resize:vertical;min-height:60px}
 
       <!-- PRODOTTI -->
       <div class="admin-section active" id="admin-products">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <div style="font-size:15px;font-weight:600">Gestione Prodotti</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;gap:14px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:15px;font-weight:600;letter-spacing:.005em;display:inline-flex;align-items:center;gap:8px"><span class="rb-i rb-i-package" style="color:var(--accent)"></span> Gestione Prodotti</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:3px" id="adminProductsCount">Caricamento…</div>
+          </div>
           <button class="btn primary" onclick="openProductModal()"><span class="rb-i rb-i-plus"></span> Nuovo prodotto</button>
         </div>
+
+        <!-- Toolbar filtri -->
+        <div class="admin-filter-bar">
+          <div class="admin-filter-search">
+            <span class="rb-i rb-i-search admin-filter-search-icon"></span>
+            <input type="text" id="apFilterSearch" placeholder="Cerca per nome…" oninput="apApplyFilters()"/>
+          </div>
+          <div class="admin-filter-group">
+            <label class="admin-filter-lbl">Stato</label>
+            <select id="apFilterStatus" onchange="apApplyFilters()">
+              <option value="">Tutti</option>
+              <option value="active" selected>Attivi (open + closing_soon)</option>
+              <option value="draft">Bozze</option>
+              <option value="open">Aperti</option>
+              <option value="closing_soon">In chiusura</option>
+              <option value="closed">Chiusi</option>
+              <option value="sold_out">Esauriti</option>
+              <option value="pending_grading">In gradazione</option>
+              <option value="grading_complete">Gradati</option>
+              <option value="hold">Hold</option>
+              <option value="liquidated">Liquidati</option>
+            </select>
+          </div>
+          <div class="admin-filter-group">
+            <label class="admin-filter-lbl">Tipo</label>
+            <select id="apFilterType" onchange="apApplyFilters()">
+              <option value="">Tutti</option>
+              <option value="full">Full Ownership</option>
+              <option value="fractional">Fractional</option>
+              <option value="millesimal">Millesimale</option>
+              <option value="grade_hold">Grade &amp; Hold</option>
+            </select>
+          </div>
+          <div class="admin-filter-group">
+            <label class="admin-filter-lbl">Categoria</label>
+            <select id="apFilterCategory" onchange="apApplyFilters()">
+              <option value="">Tutte</option>
+              <option value="booster_box">Booster Box</option>
+              <option value="etb">ETB</option>
+              <option value="booster_bundle">Booster Bundle</option>
+              <option value="collection_box">Collection Box</option>
+              <option value="tin">Tin</option>
+              <option value="case">Case</option>
+              <option value="box_break">Box Break</option>
+              <option value="blister">Blister</option>
+              <option value="single_pack">Singola busta</option>
+              <option value="graded_card">Carta gradata</option>
+              <option value="sealed_other">Altro sigillato</option>
+              <option value="other">Altro</option>
+            </select>
+          </div>
+          <div class="admin-filter-group">
+            <label class="admin-filter-lbl">Vendor</label>
+            <select id="apFilterVendor" onchange="apApplyFilters()">
+              <option value="">Tutti</option>
+              <option value="__none__">Senza vendor</option>
+              <!-- popolato dinamicamente da pmPopulateVendors -->
+            </select>
+          </div>
+          <div class="admin-filter-group">
+            <label class="admin-filter-lbl">Ordina</label>
+            <select id="apFilterSort" onchange="apApplyFilters()">
+              <option value="newest">Più recenti</option>
+              <option value="oldest">Meno recenti</option>
+              <option value="target_asc">Scadenza ravvicinata</option>
+              <option value="target_desc">Scadenza lontana</option>
+              <option value="price_desc">Prezzo decrescente</option>
+              <option value="price_asc">Prezzo crescente</option>
+              <option value="name">Nome A→Z</option>
+            </select>
+          </div>
+          <button class="btn sm admin-filter-reset" onclick="apResetFilters()" title="Ripristina filtri di default"><span class="rb-i rb-i-refresh"></span> Reset</button>
+        </div>
+
         <table class="admin-table" id="adminProductsTable">
           <thead><tr><th>Nome</th><th>Tipo</th><th>Status</th><th>Quote</th><th>Prezzo</th><th>Scadenza</th><th></th></tr></thead>
           <tbody id="adminProductsTbody"></tbody>
@@ -7487,10 +7576,15 @@ async function adminLoadProducts(){
   if(empty0) empty0.style.display='none';
   try {
     _mktProducts = (await supa('GET','inv_products?order=created_at.desc'))||[];
-    var tbody = document.getElementById('adminProductsTbody');
-    var empty = document.getElementById('adminProductsEmpty');
-    if(!_mktProducts.length){ empty.style.display=''; tbody.innerHTML=''; return; }
-    empty.style.display='none';
+    if(!_mktProducts.length){
+      var tb = document.getElementById('adminProductsTbody');
+      var emp = document.getElementById('adminProductsEmpty');
+      if(emp) emp.style.display='';
+      if(tb) tb.innerHTML='';
+      var cnt0 = document.getElementById('adminProductsCount');
+      if(cnt0) cnt0.textContent = 'Nessun prodotto';
+      return;
+    }
     try {
       var stats = await supa('GET','inv_product_stats');
       if(stats && stats.length) stats.forEach(function(s){ _mktStats[s.id]=s; });
@@ -7501,10 +7595,124 @@ async function adminLoadProducts(){
         if(allH2){ var bp={}; allH2.forEach(function(h){ if(!bp[h.product_id])bp[h.product_id]={sold:0,raised:0}; bp[h.product_id].sold+=(h.qty||0); bp[h.product_id].raised+=(h.qty||0)*(h.price_per_quote||0); }); _mktProducts.forEach(function(p){ var d=bp[p.id]||{sold:0,raised:0}; _mktStats[p.id]={id:p.id,total_quotes:p.total_quotes,sold_quotes:d.sold,available_quotes:p.total_quotes-d.sold,total_raised:d.raised}; }); }
       } catch(e2){}
     }
-    // Auto-detect: prodotti aperti con tutte le quote vendute → segnala come "venduto"
-    // Non modifichiamo lo status sul DB qui (lasciamo decidere all'admin), ma mostriamo
-    // visivamente lo stato effettivo + suggeriamo l'azione.
-    tbody.innerHTML = _mktProducts.map(function(p){
+    // Popola dropdown vendor con i vendor unici tra i prodotti
+    apPopulateVendorFilter();
+    // Render con i filtri attualmente impostati
+    apApplyFilters();
+  } catch(e){ document.getElementById('adminProductsTbody').innerHTML = uiErrorCell(7, 'Caricamento prodotti fallito', e, 'adminLoadProducts()'); }
+}
+
+// Popola la dropdown 'Vendor' nei filtri admin con i vendor distinti
+// presenti tra i prodotti caricati (più 'Tutti' e 'Senza vendor').
+function apPopulateVendorFilter(){
+  var sel = document.getElementById('apFilterVendor');
+  if(!sel) return;
+  var prev = sel.value;
+  // Raccogli vendor_id distinti dai prodotti
+  var vendorIds = {};
+  _mktProducts.forEach(function(p){ if(p.vendor_id) vendorIds[p.vendor_id] = true; });
+  var ids = Object.keys(vendorIds);
+  // Mappa id -> nome (usa _adminVendors se popolato da adminLoadVendors, altrimenti
+  // fallisce silently mostrando solo l'id)
+  var nameById = {};
+  if(window._adminVendors && Array.isArray(window._adminVendors)){
+    window._adminVendors.forEach(function(v){ nameById[v.id] = v.display_name || v.legal_name || v.email; });
+  }
+  var opts = '<option value="">Tutti</option><option value="__none__">Senza vendor</option>'
+    + ids.map(function(id){ return '<option value="'+id+'">'+esc(nameById[id]||id.slice(0,8)+'…')+'</option>'; }).join('');
+  sel.innerHTML = opts;
+  // Ripristina selezione precedente se ancora valida
+  if(prev && (prev==='' || prev==='__none__' || ids.indexOf(prev)>=0)) sel.value = prev;
+}
+
+// Applica i filtri correnti e renderizza la tabella.
+// Chiamato da: input/change dei filtri, dopo ogni adminLoadProducts.
+function apApplyFilters(){
+  if(!_mktProducts) return;
+  var q       = ((document.getElementById('apFilterSearch')||{}).value||'').trim().toLowerCase();
+  var statusF = ((document.getElementById('apFilterStatus')||{}).value||'');
+  var typeF   = ((document.getElementById('apFilterType')||{}).value||'');
+  var catF    = ((document.getElementById('apFilterCategory')||{}).value||'');
+  var vendorF = ((document.getElementById('apFilterVendor')||{}).value||'');
+  var sortF   = ((document.getElementById('apFilterSort')||{}).value||'newest');
+
+  var rows = _mktProducts.filter(function(p){
+    if(q && (p.name||'').toLowerCase().indexOf(q) === -1) return false;
+    if(statusF){
+      // 'active' è un alias che include open + closing_soon
+      if(statusF === 'active'){ if(p.status!=='open' && p.status!=='closing_soon') return false; }
+      else { if(p.status !== statusF) return false; }
+    }
+    if(typeF && p.type !== typeF) return false;
+    if(catF && p.category !== catF) return false;
+    if(vendorF){
+      if(vendorF === '__none__'){ if(p.vendor_id) return false; }
+      else { if(p.vendor_id !== vendorF) return false; }
+    }
+    return true;
+  });
+
+  // Ordina
+  rows.sort(function(a,b){
+    if(sortF === 'oldest')      return new Date(a.created_at||0) - new Date(b.created_at||0);
+    if(sortF === 'price_asc')   return (parseFloat(a.price_per_quote)||0) - (parseFloat(b.price_per_quote)||0);
+    if(sortF === 'price_desc')  return (parseFloat(b.price_per_quote)||0) - (parseFloat(a.price_per_quote)||0);
+    if(sortF === 'name')        return (a.name||'').localeCompare(b.name||'');
+    if(sortF === 'target_asc'){
+      var ad = a.target_date ? new Date(a.target_date).getTime() : Infinity;
+      var bd = b.target_date ? new Date(b.target_date).getTime() : Infinity;
+      return ad - bd;
+    }
+    if(sortF === 'target_desc'){
+      var ad2 = a.target_date ? new Date(a.target_date).getTime() : -Infinity;
+      var bd2 = b.target_date ? new Date(b.target_date).getTime() : -Infinity;
+      return bd2 - ad2;
+    }
+    // default newest
+    return new Date(b.created_at||0) - new Date(a.created_at||0);
+  });
+
+  apRenderProducts(rows);
+}
+
+// Reset filtri ai default (Stato='active' = solo aperti+in chiusura).
+function apResetFilters(){
+  ['apFilterSearch','apFilterType','apFilterCategory','apFilterVendor'].forEach(function(id){
+    var el = document.getElementById(id); if(el) el.value = '';
+  });
+  var s = document.getElementById('apFilterStatus'); if(s) s.value = 'active';
+  var sort = document.getElementById('apFilterSort'); if(sort) sort.value = 'newest';
+  apApplyFilters();
+}
+
+// Render tabella. Riceve lista filtrata pronta.
+function apRenderProducts(rows){
+  var tbody = document.getElementById('adminProductsTbody');
+  var empty = document.getElementById('adminProductsEmpty');
+  var cntEl = document.getElementById('adminProductsCount');
+  var totalCount = (_mktProducts||[]).length;
+  if(!rows.length){
+    if(empty){
+      empty.style.display = '';
+      empty.innerHTML = totalCount > 0
+        ? '<div class="icon"><span class="rb-i rb-i-search"></span></div><h3>Nessun risultato</h3><p>Modifica o resetta i filtri per vedere altri prodotti.</p><button class="btn sm" onclick="apResetFilters()" style="margin-top:14px"><span class="rb-i rb-i-refresh"></span> Reset filtri</button>'
+        : '<div class="icon"><span class="rb-i rb-i-package"></span></div><h3>Nessun prodotto</h3>';
+    }
+    if(tbody) tbody.innerHTML = '';
+    if(cntEl) cntEl.textContent = totalCount > 0
+      ? '0 di '+totalCount+' prodotti (filtri attivi)'
+      : 'Nessun prodotto';
+    return;
+  }
+  if(empty) empty.style.display='none';
+  if(cntEl) cntEl.textContent = (rows.length === totalCount)
+    ? totalCount + ' prodotti'
+    : rows.length + ' di ' + totalCount + ' prodotti';
+
+  // Auto-detect: prodotti aperti con tutte le quote vendute → segnala come "venduto"
+  // Non modifichiamo lo status sul DB qui (lasciamo decidere all'admin), ma mostriamo
+  // visivamente lo stato effettivo + suggeriamo l'azione.
+  tbody.innerHTML = rows.map(function(p){
       var st = _mktStats[p.id]||{sold_quotes:0};
       var sold = st.sold_quotes||0;
       var total = p.total_quotes||0;
@@ -7543,7 +7751,6 @@ async function adminLoadProducts(){
         +actionsCell
       +'</tr>';
     }).join('');
-  } catch(e){ document.getElementById('adminProductsTbody').innerHTML = uiErrorCell(7, 'Caricamento prodotti fallito', e, 'adminLoadProducts()'); }
 }
 
 // Rimette un prodotto in vendita: status=open, eventuale aggiornamento target_date opzionale.
