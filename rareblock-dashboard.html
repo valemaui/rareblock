@@ -433,6 +433,32 @@ textarea{resize:vertical;min-height:60px}
   padding:1px 4px;
 }
 
+/* Banner notifica numeri da scegliere — appare sopra la tabella holdings
+   se l'utente ha quote acquistate ma non ancora numerate */
+.port-slots-banner{
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+  background:rgba(201,168,76,.08);
+  border:1px solid rgba(201,168,76,.35);
+  border-left:3px solid var(--gold,#c9a84c);
+  border-radius:var(--r);
+  padding:12px 16px;
+  margin-bottom:16px;
+  font-size:12.5px;
+  line-height:1.6;
+  color:var(--text);
+}
+.port-slots-banner-icon{
+  flex-shrink:0;
+  width:18px;height:18px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--gold,#c9a84c);
+}
+.port-slots-banner-icon .rb-i{ width:16px; height:16px; }
+.port-slots-banner-text{ flex:1; }
+.port-slots-banner-text strong{ color:var(--gold,#c9a84c); font-weight:600; }
+
 /* ═══ CHECKOUT — multi-step ═══ */
 .checkout-modal{width:min(820px,96vw)!important;max-height:92vh}
 .checkout-stepper{
@@ -8248,6 +8274,34 @@ var _portAccruals = [];
 var _portLiquidations = [];
 var _portSlotsByHolding = {};  // {holdingId: [slot_number, ...]}
 
+// Banner sopra la tabella holdings: visibile solo se ci sono quote
+// possedute senza numero assegnato. CTA = apre il portfolio focalizzando
+// le righe con bottone "Scegli numeri".
+function portRenderSlotsBanner(pendingHoldings, pendingQuotes){
+  var existing = document.getElementById('portSlotsBanner');
+  if(pendingHoldings === 0){
+    if(existing) existing.remove();
+    return;
+  }
+  var html = ''
+    + '<div id="portSlotsBanner" class="port-slots-banner">'
+    +   '<div class="port-slots-banner-icon"><span class="rb-i rb-i-info"></span></div>'
+    +   '<div class="port-slots-banner-text">'
+    +     '<strong>Scegli i numeri delle tue quote.</strong> '
+    +     'Hai <strong>'+pendingQuotes+' quot'+(pendingQuotes===1?'a':'e')+'</strong> '
+    +     'su '+pendingHoldings+' '+(pendingHoldings===1?'prodotto':'prodotti')+' '
+    +     'in attesa di numerazione. I numeri scelti restano associati permanentemente.'
+    +   '</div>'
+    + '</div>';
+  if(existing){
+    existing.outerHTML = html;
+  } else {
+    var portTable = document.querySelector('#portTbody');
+    var tableEl = portTable && portTable.closest('table');
+    if(tableEl) tableEl.insertAdjacentHTML('beforebegin', html);
+  }
+}
+
 async function portLoad(){
   if(!_session) return;
   var uid = _session.user && _session.user.id;
@@ -8316,8 +8370,22 @@ function portRender(){
 
   var empty = document.getElementById('portEmpty');
   var tbody = document.getElementById('portTbody');
-  if(!_portHoldings.length){ empty.style.display=''; tbody.innerHTML=''; return; }
+  if(!_portHoldings.length){ empty.style.display=''; tbody.innerHTML=''; portRenderSlotsBanner(0,0); return; }
   empty.style.display='none';
+
+  // Calcola quante holdings hanno numeri ancora da scegliere
+  // (solo per fractional/millesimal con holdingId presente).
+  var pendingHoldings = 0, pendingQuotes = 0;
+  _portHoldings.forEach(function(h){
+    var p = _mktProducts.find(function(x){ return x.id===h.product_id; });
+    if(!p || (p.type !== 'fractional' && p.type !== 'millesimal')) return;
+    var slots = _portSlotsByHolding[h.id] || [];
+    if(slots.length < h.qty){
+      pendingHoldings++;
+      pendingQuotes += (h.qty - slots.length);
+    }
+  });
+  portRenderSlotsBanner(pendingHoldings, pendingQuotes);
 
   tbody.innerHTML = _portHoldings.map(function(h){
     var p = _mktProducts.find(function(x){ return x.id===h.product_id; });
