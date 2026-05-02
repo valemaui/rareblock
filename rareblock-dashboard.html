@@ -406,6 +406,110 @@ textarea{resize:vertical;min-height:60px}
 .qs-legend-dot.qs-reserved{ background:rgba(255,193,7,.2); border-color:rgba(255,193,7,.4); }
 .qs-legend-dot.qs-assigned{ background:var(--surface2); }
 
+/* ── MODALE CONFERMA FINALE ─────────────────────────────────
+   Step di conferma esplicito per scelta irreversibile dei numeri.
+   Pattern destructive-confirmation con avviso visivo prominente. */
+
+/* Banner avviso "Scelta irreversibile" — gold/warning */
+.qs-confirm-warning{
+  display:flex;
+  gap:14px;
+  background:rgba(201,168,76,.08);
+  border:1px solid rgba(201,168,76,.35);
+  border-left:3px solid var(--gold,#c9a84c);
+  border-radius:var(--r);
+  padding:14px 16px;
+  margin-bottom:18px;
+}
+.qs-confirm-warning-icon{
+  flex-shrink:0;
+  width:22px;height:22px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--gold,#c9a84c);
+}
+.qs-confirm-warning-icon .rb-i{ width:20px; height:20px; }
+.qs-confirm-warning-content{ flex:1; }
+.qs-confirm-warning-title{
+  font-family:var(--iwc-sans, inherit);
+  font-size:13px;
+  font-weight:600;
+  color:var(--gold,#c9a84c);
+  letter-spacing:.02em;
+  margin-bottom:4px;
+}
+.qs-confirm-warning-text{
+  font-size:12.5px;
+  line-height:1.55;
+  color:var(--text);
+}
+.qs-confirm-warning-text strong{
+  color:var(--gold,#c9a84c);
+  font-weight:600;
+}
+
+/* Recap chips dei numeri selezionati */
+.qs-confirm-recap-label{
+  font-family:var(--iwc-sans, inherit);
+  font-size:10.5px;
+  font-weight:600;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--text-muted);
+  margin-bottom:10px;
+}
+.qs-confirm-recap-chips{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-bottom:20px;
+  padding:12px;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  min-height:42px;
+  align-items:center;
+}
+.qs-confirm-chip{
+  display:inline-block;
+  font-family:var(--mono);
+  font-size:12px;
+  font-weight:500;
+  padding:4px 9px;
+  background:var(--surface);
+  border:1px solid var(--gold,#c9a84c);
+  color:var(--gold,#c9a84c);
+  border-radius:3px;
+  letter-spacing:.04em;
+}
+
+/* Checkbox acknowledgment finale */
+.qs-confirm-ack{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  cursor:pointer;
+  padding:12px 14px;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  font-size:12.5px;
+  line-height:1.5;
+  color:var(--text);
+  transition:border-color .15s ease, background .15s ease;
+  user-select:none;
+}
+.qs-confirm-ack:hover{
+  border-color:var(--gold,#c9a84c);
+}
+.qs-confirm-ack input[type="checkbox"]{
+  margin-top:1px;
+  flex-shrink:0;
+  cursor:pointer;
+  accent-color:var(--gold,#c9a84c);
+  width:15px;
+  height:15px;
+}
+
 /* Chip numeri assegnati nella tabella portfolio */
 .port-slots-list{
   display:flex;
@@ -7715,6 +7819,73 @@ function qsHideError(){
   if(el) el.style.display = 'none';
 }
 
+// ── STEP DI CONFERMA FINALE ────────────────────────────────
+// L'utente clicca "Conferma selezione" → apriamo un mini-modal con:
+// 1. Avviso esplicito che la scelta è permanente
+// 2. Recap visuale dei numeri scelti
+// 3. Checkbox di acknowledgment obbligatoria
+// Solo dopo "Conferma definitivamente" parte la chiamata RPC.
+function qsRequestConfirmation(){
+  // Validazione preliminare (stesso check che faceva qsConfirmSelection)
+  if(!_qsSelected || _qsSelected.size !== _qsRequired){
+    qsShowError('Devi selezionare esattamente '+_qsRequired+' numeri.');
+    return;
+  }
+  // Popola recap chips con i numeri selezionati ordinati
+  var slotArr = Array.from(_qsSelected).sort(function(a,b){return a-b;});
+  var chipsHtml = slotArr.map(function(n){
+    var nStr = (n < 10 ? '0' : '') + n;
+    return '<span class="qs-confirm-chip">#'+nStr+'</span>';
+  }).join('');
+  var chipsEl = document.getElementById('qsConfirmFinalChips');
+  if(chipsEl) chipsEl.innerHTML = chipsHtml;
+  // Reset stato modal: checkbox unchecked, bottone disabled
+  var ackChk = document.getElementById('qsConfirmAckChk');
+  if(ackChk) ackChk.checked = false;
+  var finalBtn = document.getElementById('qsConfirmFinalBtn');
+  if(finalBtn){
+    finalBtn.disabled = true;
+    finalBtn.textContent = 'Conferma definitivamente';
+  }
+  // Apri il modal di conferma (sopra il modal di selezione, già aperto)
+  var bg = document.getElementById('qsConfirmFinalBg');
+  if(bg) bg.classList.add('show');
+}
+
+function qsConfirmAckToggle(){
+  // Abilita/disabilita il bottone "Conferma definitivamente" in base alla
+  // checkbox di acknowledgment. L'utente deve dichiarare consapevolezza
+  // dell'irreversibilità prima di poter confermare.
+  var ackChk = document.getElementById('qsConfirmAckChk');
+  var finalBtn = document.getElementById('qsConfirmFinalBtn');
+  if(ackChk && finalBtn){
+    finalBtn.disabled = !ackChk.checked;
+  }
+}
+
+function qsConfirmFinalCancel(){
+  // Chiude SOLO il modal di conferma, lasciando aperto quello di selezione.
+  // L'utente può modificare la scelta e ripremere "Conferma selezione".
+  var bg = document.getElementById('qsConfirmFinalBg');
+  if(bg) bg.classList.remove('show');
+}
+
+async function qsConfirmFinalProceed(){
+  // Click sul bottone definitivo: chiude modal conferma e procede con
+  // la chiamata RPC effettiva (delegata a qsConfirmSelection esistente).
+  var bg = document.getElementById('qsConfirmFinalBg');
+  if(bg) bg.classList.remove('show');
+  // Disabilita immediatamente per evitare double-click
+  var finalBtn = document.getElementById('qsConfirmFinalBtn');
+  if(finalBtn){
+    finalBtn.disabled = true;
+    finalBtn.textContent = 'Elaborazione…';
+  }
+  // Esegue il claim. Eventuali errori vengono mostrati dentro il modal
+  // di selezione tramite qsShowError (già implementato).
+  await qsConfirmSelection();
+}
+
 async function qsConfirmSelection(){
   if(_qsSelected.size !== _qsRequired){
     qsShowError('Devi selezionare esattamente '+_qsRequired+' numeri.');
@@ -11199,7 +11370,48 @@ function redirectToLogin(){
     </div>
     <div class="modal-foot">
       <button class="btn" onclick="qsCloseModal()" id="qsLaterBtn">Scegli più tardi</button>
-      <button class="btn primary" onclick="qsConfirmSelection()" id="qsConfirmBtn" disabled>Conferma selezione</button>
+      <button class="btn primary" onclick="qsRequestConfirmation()" id="qsConfirmBtn" disabled>Conferma selezione</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODALE CONFERMA FINALE QUOTE ══════════════ -->
+<!-- Step di conferma esplicito prima di chiamare claim_slots: l'utente
+     deve riconoscere che la scelta è permanente e non reversibile.
+     Pattern "destructive confirmation" tipico delle azioni irreversibili
+     (eliminazione account, transazioni finanziarie, ecc). -->
+<div class="modal-bg" id="qsConfirmFinalBg" onclick="if(event.target===this)qsConfirmFinalCancel()">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-head">
+      <h3>Conferma definitiva</h3>
+      <button class="modal-close" onclick="qsConfirmFinalCancel()" aria-label="Chiudi"><span class="rb-i rb-i-x"></span></button>
+    </div>
+    <div class="modal-body">
+      <!-- Icon + titolo dell'avviso -->
+      <div class="qs-confirm-warning">
+        <div class="qs-confirm-warning-icon"><span class="rb-i rb-i-warn"></span></div>
+        <div class="qs-confirm-warning-content">
+          <div class="qs-confirm-warning-title">Scelta irreversibile</div>
+          <div class="qs-confirm-warning-text">
+            I numeri delle quote selezionate <strong>non potranno essere modificati</strong> dopo
+            la conferma. Verifica attentamente la tua scelta prima di procedere.
+          </div>
+        </div>
+      </div>
+
+      <!-- Recap visuale dei numeri selezionati -->
+      <div class="qs-confirm-recap-label">Numeri che stai per assegnare definitivamente:</div>
+      <div class="qs-confirm-recap-chips" id="qsConfirmFinalChips"></div>
+
+      <!-- Acknowledgment esplicito tramite checkbox -->
+      <label class="qs-confirm-ack">
+        <input type="checkbox" id="qsConfirmAckChk" onchange="qsConfirmAckToggle()"/>
+        <span>Ho compreso che la scelta dei numeri è definitiva e non potrà essere modificata.</span>
+      </label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="qsConfirmFinalCancel()">Annulla</button>
+      <button class="btn primary" onclick="qsConfirmFinalProceed()" id="qsConfirmFinalBtn" disabled>Conferma definitivamente</button>
     </div>
   </div>
 </div>
