@@ -9047,13 +9047,48 @@ function redirectToLogin(){
         <div class="field span2" style="border-top:1px solid var(--border);padding-top:14px;margin-top:6px">
           <label style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.1em">Account utente</label>
           <div style="font-size:11px;color:var(--text-subtle);font-family:var(--mono);margin-top:3px;line-height:1.5">
-            ID utente Supabase associato al vendor. Può essere lasciato vuoto e collegato successivamente.
+            Account RareBlock associato al vendor. Inserisci l'UUID se l'utente è già registrato, oppure crea un nuovo account.
           </div>
         </div>
         <div class="field span2">
           <label>Auth user ID (UUID)</label>
-          <input type="text" id="vmUserId" placeholder="00000000-0000-0000-0000-000000000000"/>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <input type="text" id="vmUserId" placeholder="00000000-0000-0000-0000-000000000000" style="flex:1"/>
+            <button type="button" class="btn sm" onclick="vmToggleCreateAccount()" id="vmCreateAccountBtn" title="Crea un nuovo account RareBlock con i dati del vendor"><span class="rb-i rb-i-plus"></span> Crea account</button>
+          </div>
         </div>
+
+        <!-- Sezione creazione account: visibile solo dopo click su "Crea account" -->
+        <div class="field span2" id="vmCreateAccountPanel" style="display:none">
+          <div style="background:var(--surface2);border:1px solid var(--accent);border-radius:var(--r);padding:14px 16px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+              <div style="font-size:12px;font-weight:600;color:var(--accent)"><span class="rb-i rb-i-user"></span> Nuovo account RareBlock</div>
+              <button type="button" class="btn sm" onclick="vmToggleCreateAccount()" title="Annulla"><span class="rb-i rb-i-x"></span></button>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);line-height:1.5;margin-bottom:12px">
+              Verrà creato un nuovo account usando email e dati del vendor. L'utente riceverà via email il link per impostare la password al primo accesso.
+            </div>
+            <div class="form-grid">
+              <div class="field">
+                <label>Password temporanea (opzionale)</label>
+                <input type="text" id="vmTempPassword" placeholder="lascia vuoto per invio link via email"/>
+                <div style="font-size:10.5px;color:var(--text-subtle);font-family:var(--mono);margin-top:3px;line-height:1.4">Se lasciata vuota, l'utente riceve un link di invito. Se compilata, l'utente potrà accedere subito con questa password.</div>
+              </div>
+              <div class="field">
+                <label>Ruolo iniziale</label>
+                <select id="vmInitialRole">
+                  <option value="investor" selected>Investor</option>
+                  <option value="collector">Collector</option>
+                </select>
+              </div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+              <button type="button" class="btn primary sm" onclick="vmCreateAccount()" id="vmCreateAccountSubmit"><span class="rb-i rb-i-check"></span> Crea account ora</button>
+              <span id="vmCreateAccountStatus" style="font-size:12px"></span>
+            </div>
+          </div>
+        </div>
+
         <div class="field span2">
           <label>Note interne admin</label>
           <textarea id="vmNotes" rows="2" placeholder="Note private dell'amministratore"></textarea>
@@ -9134,6 +9169,13 @@ function openVendorModal(){
   var radioP = document.querySelector('input[name="vBillType"][value="private"]');
   if(radioP) radioP.checked = true;
   vmToggleBillType('private');
+  // Reset pannello creazione account (potrebbe essere rimasto aperto da sessione precedente)
+  var caPanel = document.getElementById('vmCreateAccountPanel');
+  if(caPanel) caPanel.style.display = 'none';
+  var caStatus = document.getElementById('vmCreateAccountStatus');
+  if(caStatus) caStatus.innerHTML = '';
+  var caPwd = document.getElementById('vmTempPassword');
+  if(caPwd) caPwd.value = '';
   document.getElementById('vendorModalBg').classList.add('show');
 }
 
@@ -9167,6 +9209,13 @@ function adminEditVendor(vid){
   if(radio) radio.checked = true;
   vmToggleBillType(type);
   document.getElementById('vmStatus_msg').textContent = '';
+  // Reset pannello creazione account
+  var caPanel2 = document.getElementById('vmCreateAccountPanel');
+  if(caPanel2) caPanel2.style.display = 'none';
+  var caStatus2 = document.getElementById('vmCreateAccountStatus');
+  if(caStatus2) caStatus2.innerHTML = '';
+  var caPwd2 = document.getElementById('vmTempPassword');
+  if(caPwd2) caPwd2.value = '';
   document.getElementById('vendorModalBg').classList.add('show');
 }
 
@@ -9184,6 +9233,117 @@ function vmToggleBillType(type){
   document.getElementById('vmPECRow').style.display      = isCompany ? '' : 'none';
   document.getElementById('vmSDIRow').style.display      = isCompany ? '' : 'none';
   document.getElementById('vmLegalNameRow').style.display= isCompany ? '' : 'none';
+}
+
+// Toggle del pannello "Crea account RareBlock" nel modal Vendor.
+// Se l'admin clicca Crea account: appare il pannello con password opzionale + ruolo.
+// Se riclicca: il pannello scompare.
+function vmToggleCreateAccount(){
+  var panel = document.getElementById('vmCreateAccountPanel');
+  if(!panel) return;
+  var isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : '';
+  // Reset stato quando si chiude
+  if(isOpen){
+    document.getElementById('vmTempPassword').value = '';
+    document.getElementById('vmCreateAccountStatus').innerHTML = '';
+  }
+}
+
+// Crea un account RareBlock per il vendor usando i dati gia' inseriti
+// nel modal (email + display_name → full_name). Chiama l'edge function
+// admin-create-user che richiede service_role key e ruolo admin del chiamante.
+async function vmCreateAccount(){
+  var statusEl = document.getElementById('vmCreateAccountStatus');
+  var btn = document.getElementById('vmCreateAccountSubmit');
+  statusEl.innerHTML = '';
+
+  // Valida email + display_name (devono essere gia' compilati)
+  var email = document.getElementById('vmEmail').value.trim().toLowerCase();
+  var displayName = document.getElementById('vmDisplayName').value.trim();
+  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    statusEl.innerHTML = '<span style="color:var(--danger)">Compila prima l\'email del vendor (sopra)</span>';
+    return;
+  }
+  if(!displayName){
+    statusEl.innerHTML = '<span style="color:var(--danger)">Compila prima il nome pubblico (sopra)</span>';
+    return;
+  }
+
+  // Verifica che il campo UUID non sia gia' compilato (nel qual caso l'account esiste gia')
+  var existingUUID = document.getElementById('vmUserId').value.trim();
+  if(existingUUID){
+    if(!confirm('Il campo Auth user ID e\' gia\' compilato. Creare un NUOVO account sovrascriverebbe il riferimento. Procedere?')) return;
+  }
+
+  var password = document.getElementById('vmTempPassword').value;
+  var initialRole = document.getElementById('vmInitialRole').value || 'investor';
+
+  btn.disabled = true;
+  statusEl.innerHTML = '<span style="color:var(--text-muted)">Creazione account...</span>';
+
+  try {
+    // Per l'azienda usa il legal_name come full_name, altrimenti il display_name
+    var isCompany = document.querySelector('input[name="vBillType"]:checked').value === 'company';
+    var legalName = document.getElementById('vmLegalName').value.trim();
+    var fullNameForProfile = (isCompany && legalName) ? legalName : displayName;
+
+    var body = {
+      email: email,
+      password: password || undefined,
+      full_name: fullNameForProfile,
+      initial_role: initialRole,
+      send_invite: !password,
+      metadata: { vendor: true, display_name: displayName }
+    };
+
+    // Chiamata all'edge function admin-create-user.
+    // Usiamo SUPA_URL e l'access_token corrente per autenticarci come admin.
+    var url = SUPA_URL + '/functions/v1/admin-create-user';
+    var token = (_session && _session.access_token) ? _session.access_token : SUPA_KEY;
+    var resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+        'apikey': SUPA_KEY
+      },
+      body: JSON.stringify(body)
+    });
+
+    var data;
+    try { data = await resp.json(); } catch(e){ data = null; }
+
+    if(!resp.ok){
+      // Caso speciale: utente esiste gia' → offri di linkare
+      if(resp.status === 409 && data && data.existing_user_id){
+        if(confirm('Esiste già un account con questa email (UUID: '+data.existing_user_id+').\n\nVuoi linkare questo vendor all\'account esistente?')){
+          document.getElementById('vmUserId').value = data.existing_user_id;
+          statusEl.innerHTML = '<span style="color:var(--success)"><span class="rb-i rb-i-check"></span> Linkato all\'account esistente. Salva il vendor per persistere.</span>';
+          // Nascondi il pannello
+          setTimeout(function(){ vmToggleCreateAccount(); }, 1200);
+          return;
+        }
+      }
+      throw new Error((data && data.error) || ('HTTP '+resp.status));
+    }
+
+    // Successo: popola il campo UUID
+    document.getElementById('vmUserId').value = data.user_id;
+    var msg = data.message || 'Account creato';
+    statusEl.innerHTML = '<span style="color:var(--success)"><span class="rb-i rb-i-check"></span> '+esc(msg)+' UUID: '+esc((data.user_id||'').slice(0,8))+'…</span>';
+
+    // Auto-chiudi il pannello dopo qualche secondo (lascia tempo per leggere il messaggio)
+    setTimeout(function(){
+      var panel = document.getElementById('vmCreateAccountPanel');
+      if(panel) panel.style.display = 'none';
+    }, 2500);
+
+  } catch(e){
+    statusEl.innerHTML = '<span style="color:var(--danger)">Errore: '+esc(e.message||String(e))+'</span>';
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function adminSaveVendor(){
