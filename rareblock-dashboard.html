@@ -662,8 +662,8 @@ textarea{resize:vertical;min-height:60px}
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 22px;
-  padding-bottom: 16px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
   border-bottom: 1px solid var(--iwc-border);
 }
 .iwc-filters-title{
@@ -673,7 +673,24 @@ textarea{resize:vertical;min-height:60px}
   letter-spacing: .01em;
   color: var(--iwc-text);
   text-transform: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
 }
+/* Counter accanto al titolo: visibile solo se filtri attivi */
+.iwc-filters-count{
+  font-family: var(--iwc-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--iwc-bg);
+  background: var(--iwc-ink);
+  padding: 2px 7px;
+  line-height: 1.4;
+  border-radius: 0;
+}
+.iwc-filters-count:empty{ display: none; }
 .iwc-filters-reset{
   background: transparent;
   border: none;
@@ -683,10 +700,13 @@ textarea{resize:vertical;min-height:60px}
   letter-spacing: .04em;
   cursor: pointer;
   padding: 0;
-  transition: color .15s ease;
+  transition: color .15s ease, opacity .15s ease;
 }
 .iwc-filters-reset:hover{ color: var(--iwc-ink); }
+/* Reset disabled quando nessun filtro attivo: cambia comunque colore quando tutti filtri sono default */
+.iwc-filters-reset.disabled{ opacity: .35; pointer-events: none; }
 
+/* Search sempre visibile (è il primo bisogno) */
 .iwc-search{
   width: 100%;
   background: transparent;
@@ -698,24 +718,98 @@ textarea{resize:vertical;min-height:60px}
   font-size: 13px;
   color: var(--iwc-text);
   outline: none;
-  margin-bottom: 28px;
+  margin-bottom: 4px;
   transition: border-color .15s ease;
   letter-spacing: .01em;
 }
 .iwc-search:focus{ border-bottom-color: var(--iwc-ink); }
 .iwc-search::placeholder{ color: var(--iwc-text-subtle); font-style: normal; }
 
-.iwc-filter-block{ margin-bottom: 26px; }
-.iwc-filter-label{
-  font-family: var(--iwc-sans);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: .22em;
-  text-transform: uppercase;
-  color: var(--iwc-text-subtle);
-  margin-bottom: 14px;
-  display: block;
+/* ── FILTRI COLLASSABILI ──────────────────────────────────────
+   Default: chiusi. Mostrano label + selezione corrente + chevron.
+   Click sul header espande la lista interna con animazione altezza.
+   Pattern accordion soft: aprire un filtro non chiude gli altri (l'utente
+   può aprirne più di uno se vuole vedere tutto in colpo d'occhio). */
+.iwc-filter-block{
+  border-bottom: 1px solid var(--iwc-border);
 }
+.iwc-filter-block:last-of-type{ border-bottom: none; }
+
+.iwc-filter-toggle{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 14px 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: var(--iwc-sans);
+  text-align: left;
+  user-select: none;
+  transition: color .15s ease;
+}
+.iwc-filter-toggle:hover .iwc-filter-toggle-label{ color: var(--iwc-ink); }
+
+.iwc-filter-toggle-label{
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--iwc-text);
+  transition: color .15s ease;
+}
+/* Riassunto valore selezionato: visibile sempre, anche con filtro chiuso.
+   Es. 'Acquistabili', '€500–€2.000'. Se default → italic + muted. */
+.iwc-filter-toggle-value{
+  font-size: 12px;
+  color: var(--iwc-text-muted);
+  letter-spacing: .005em;
+  margin-left: 12px;
+  flex: 1;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color .15s ease;
+}
+.iwc-filter-toggle-value.is-active{
+  color: var(--iwc-ink);
+  font-weight: 500;
+}
+/* Chevron a destra: ruota di 90° quando aperto */
+.iwc-filter-toggle-chevron{
+  width: 7px;
+  height: 7px;
+  border-right: 1px solid var(--iwc-text-muted);
+  border-bottom: 1px solid var(--iwc-text-muted);
+  transform: rotate(-45deg);
+  margin-left: 12px;
+  flex-shrink: 0;
+  transition: transform .25s cubic-bezier(.2,.8,.2,1), border-color .15s ease;
+}
+.iwc-filter-block.is-open .iwc-filter-toggle-chevron{
+  transform: rotate(45deg);
+  border-color: var(--iwc-ink);
+}
+.iwc-filter-toggle:hover .iwc-filter-toggle-chevron{ border-color: var(--iwc-ink); }
+
+/* Pannello collassabile: animazione max-height (CSS-only, no JS misura) */
+.iwc-filter-panel{
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height .3s cubic-bezier(.2,.8,.2,1), opacity .2s ease;
+  opacity: 0;
+}
+.iwc-filter-block.is-open .iwc-filter-panel{
+  max-height: 320px;     /* abbastanza per ogni lista (max ~10 voci) */
+  opacity: 1;
+}
+.iwc-filter-panel-inner{
+  padding: 0 0 14px;
+}
+
+/* Lista filtri interna (invariata visivamente, solo padding ridotto) */
 .iwc-filter-list{
   list-style: none;
   margin: 0;
@@ -763,7 +857,7 @@ textarea{resize:vertical;min-height:60px}
   font-family: var(--iwc-sans);
   font-size: 13px;
   color: var(--iwc-text-muted);
-  margin-top: 8px;
+  margin-top: 18px;
   padding: 5px 0;
   user-select: none;
   transition: color .15s ease;
@@ -3691,62 +3785,101 @@ textarea{resize:vertical;min-height:60px}
   <div class="mkt-wrap">
     <!-- Layout 4 colonne: 1 filtri + 3 card -->
     <div class="iwc-layout">
-      <!-- COLONNA SINISTRA: FILTRI MINIMAL -->
+      <!-- COLONNA SINISTRA: FILTRI MINIMAL COLLASSABILI -->
       <aside class="iwc-filters">
         <div class="iwc-filters-head">
-          <div class="iwc-filters-title">Filtri</div>
-          <button type="button" class="iwc-filters-reset" onclick="iwcResetFilters()">Reset</button>
+          <div class="iwc-filters-title">
+            Filtri
+            <span class="iwc-filters-count" id="iwcFiltersCount"></span>
+          </div>
+          <button type="button" class="iwc-filters-reset disabled" id="iwcFiltersResetBtn" onclick="iwcResetFilters()">Reset</button>
         </div>
 
         <input type="text" id="mktSearch" class="iwc-search" placeholder="Cerca" oninput="mktRender()"/>
 
-        <div class="iwc-filter-block">
-          <div class="iwc-filter-label">Tipologia</div>
-          <ul class="iwc-filter-list" id="iwcTypeList">
-            <li class="active" data-val="" onclick="iwcPickFilter('type','',this)">Tutte</li>
-            <li data-val="full" onclick="iwcPickFilter('type','full',this)">Full Ownership</li>
-            <li data-val="fractional" onclick="iwcPickFilter('type','fractional',this)">Fractional</li>
-            <li data-val="millesimal" onclick="iwcPickFilter('type','millesimal',this)">Millesimale</li>
-            <li data-val="grade_hold" onclick="iwcPickFilter('type','grade_hold',this)">Grade &amp; Hold</li>
-          </ul>
+        <!-- TIPOLOGIA -->
+        <div class="iwc-filter-block" data-filter="type">
+          <button type="button" class="iwc-filter-toggle" onclick="iwcToggleFilter(this)">
+            <span class="iwc-filter-toggle-label">Tipologia</span>
+            <span class="iwc-filter-toggle-value" id="iwcSummaryType">Tutte</span>
+            <span class="iwc-filter-toggle-chevron"></span>
+          </button>
+          <div class="iwc-filter-panel">
+            <div class="iwc-filter-panel-inner">
+              <ul class="iwc-filter-list" id="iwcTypeList">
+                <li class="active" data-val="" onclick="iwcPickFilter('type','',this)">Tutte</li>
+                <li data-val="full" onclick="iwcPickFilter('type','full',this)">Full Ownership</li>
+                <li data-val="fractional" onclick="iwcPickFilter('type','fractional',this)">Fractional</li>
+                <li data-val="millesimal" onclick="iwcPickFilter('type','millesimal',this)">Millesimale</li>
+                <li data-val="grade_hold" onclick="iwcPickFilter('type','grade_hold',this)">Grade &amp; Hold</li>
+              </ul>
+            </div>
+          </div>
         </div>
 
-        <div class="iwc-filter-block">
-          <div class="iwc-filter-label">Stato</div>
-          <ul class="iwc-filter-list" id="iwcStatusList">
-            <li class="active" data-val="purchasable" onclick="iwcPickFilter('status','purchasable',this)">Acquistabili</li>
-            <li data-val="closing_soon" onclick="iwcPickFilter('status','closing_soon',this)">In chiusura</li>
-            <li data-val="closed" onclick="iwcPickFilter('status','closed',this)">Chiusi</li>
-            <li data-val="" onclick="iwcPickFilter('status','',this)">Tutti</li>
-          </ul>
+        <!-- STATO -->
+        <div class="iwc-filter-block" data-filter="status">
+          <button type="button" class="iwc-filter-toggle" onclick="iwcToggleFilter(this)">
+            <span class="iwc-filter-toggle-label">Stato</span>
+            <span class="iwc-filter-toggle-value" id="iwcSummaryStatus">Acquistabili</span>
+            <span class="iwc-filter-toggle-chevron"></span>
+          </button>
+          <div class="iwc-filter-panel">
+            <div class="iwc-filter-panel-inner">
+              <ul class="iwc-filter-list" id="iwcStatusList">
+                <li class="active" data-val="purchasable" onclick="iwcPickFilter('status','purchasable',this)">Acquistabili</li>
+                <li data-val="closing_soon" onclick="iwcPickFilter('status','closing_soon',this)">In chiusura</li>
+                <li data-val="closed" onclick="iwcPickFilter('status','closed',this)">Chiusi</li>
+                <li data-val="" onclick="iwcPickFilter('status','',this)">Tutti</li>
+              </ul>
+            </div>
+          </div>
         </div>
 
-        <div class="iwc-filter-block">
-          <div class="iwc-filter-label">Prezzo / quota</div>
-          <ul class="iwc-filter-list" id="iwcPriceList">
-            <li class="active" data-val="" onclick="iwcPickFilter('price','',this)">Qualsiasi</li>
-            <li data-val="0-500" onclick="iwcPickFilter('price','0-500',this)">fino a €500</li>
-            <li data-val="500-2000" onclick="iwcPickFilter('price','500-2000',this)">€500 – €2.000</li>
-            <li data-val="2000+" onclick="iwcPickFilter('price','2000+',this)">oltre €2.000</li>
-          </ul>
+        <!-- PREZZO -->
+        <div class="iwc-filter-block" data-filter="price">
+          <button type="button" class="iwc-filter-toggle" onclick="iwcToggleFilter(this)">
+            <span class="iwc-filter-toggle-label">Prezzo</span>
+            <span class="iwc-filter-toggle-value" id="iwcSummaryPrice">Qualsiasi</span>
+            <span class="iwc-filter-toggle-chevron"></span>
+          </button>
+          <div class="iwc-filter-panel">
+            <div class="iwc-filter-panel-inner">
+              <ul class="iwc-filter-list" id="iwcPriceList">
+                <li class="active" data-val="" onclick="iwcPickFilter('price','',this)">Qualsiasi</li>
+                <li data-val="0-500" onclick="iwcPickFilter('price','0-500',this)">fino a €500</li>
+                <li data-val="500-2000" onclick="iwcPickFilter('price','500-2000',this)">€500 – €2.000</li>
+                <li data-val="2000+" onclick="iwcPickFilter('price','2000+',this)">oltre €2.000</li>
+              </ul>
+            </div>
+          </div>
         </div>
 
+        <!-- ORDINA -->
+        <div class="iwc-filter-block" data-filter="sort">
+          <button type="button" class="iwc-filter-toggle" onclick="iwcToggleFilter(this)">
+            <span class="iwc-filter-toggle-label">Ordina</span>
+            <span class="iwc-filter-toggle-value" id="iwcSummarySort">Più recenti</span>
+            <span class="iwc-filter-toggle-chevron"></span>
+          </button>
+          <div class="iwc-filter-panel">
+            <div class="iwc-filter-panel-inner">
+              <ul class="iwc-filter-list" id="iwcSortList">
+                <li class="active" data-val="newest" onclick="iwcPickFilter('sort','newest',this)">Più recenti</li>
+                <li data-val="price_asc" onclick="iwcPickFilter('sort','price_asc',this)">Prezzo crescente</li>
+                <li data-val="price_desc" onclick="iwcPickFilter('sort','price_desc',this)">Prezzo decrescente</li>
+                <li data-val="name" onclick="iwcPickFilter('sort','name',this)">Nome A–Z</li>
+                <li data-val="closing" onclick="iwcPickFilter('sort','closing',this)">In chiusura prima</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Solo preferiti: toggle inline (1 riga, non collassabile) -->
         <label class="iwc-filter-check">
           <input type="checkbox" id="iwcWatchOnly" onchange="mktRender()"/>
           <span>Solo preferiti</span>
         </label>
-
-        <!-- Sort + count nella sidebar (spostati dalla toolbar grid) -->
-        <div class="iwc-filter-block iwc-sidebar-meta">
-          <div class="iwc-filter-label">Ordina per</div>
-          <ul class="iwc-filter-list" id="iwcSortList">
-            <li class="active" data-val="newest" onclick="iwcPickFilter('sort','newest',this)">Più recenti</li>
-            <li data-val="price_asc" onclick="iwcPickFilter('sort','price_asc',this)">Prezzo crescente</li>
-            <li data-val="price_desc" onclick="iwcPickFilter('sort','price_desc',this)">Prezzo decrescente</li>
-            <li data-val="name" onclick="iwcPickFilter('sort','name',this)">Nome A–Z</li>
-            <li data-val="closing" onclick="iwcPickFilter('sort','closing',this)">In chiusura prima</li>
-          </ul>
-        </div>
 
         <div class="iwc-sidebar-count">
           <span id="mktCount" class="iwc-count"></span>
@@ -5982,7 +6115,79 @@ function iwcPickFilter(kind, value, el){
     var sel3 = document.getElementById('iwcSort');
     if(sel3) sel3.value = value;
   }
+  // Aggiorna summary visibile + count attivi
+  iwcUpdateSummary(kind, el);
+  iwcUpdateActiveCount();
   mktRender();
+}
+
+// ── Filtri collassabili: toggle apre/chiude un blocco ──
+function iwcToggleFilter(toggleBtn){
+  var block = toggleBtn.closest('.iwc-filter-block');
+  if(!block) return;
+  block.classList.toggle('is-open');
+}
+
+// ── Aggiorna il valore visibile accanto al label di un filtro chiuso ──
+// Se il valore è non-default, applica anche la classe 'is-active' (testo bold ink).
+function iwcUpdateSummary(kind, el){
+  var summaryId, defaultVal, label;
+  if(kind === 'type'){
+    summaryId = 'iwcSummaryType';
+    defaultVal = '';
+  } else if(kind === 'status'){
+    summaryId = 'iwcSummaryStatus';
+    defaultVal = 'purchasable';
+  } else if(kind === 'price'){
+    summaryId = 'iwcSummaryPrice';
+    defaultVal = '';
+  } else if(kind === 'sort'){
+    summaryId = 'iwcSummarySort';
+    defaultVal = 'newest';
+  } else return;
+
+  var summaryEl = document.getElementById(summaryId);
+  if(!summaryEl) return;
+  // Estrai label e valore: se el è passato (click) usalo; altrimenti cerca .active nella lista
+  var listMap = { type:'iwcTypeList', status:'iwcStatusList', price:'iwcPriceList', sort:'iwcSortList' };
+  var list = document.getElementById(listMap[kind]);
+  var activeEl = el || (list && list.querySelector('li.active'));
+  if(!activeEl) return;
+  label = (activeEl.textContent || '').trim();
+  var currentVal = activeEl.getAttribute('data-val') || '';
+  summaryEl.textContent = label;
+  summaryEl.classList.toggle('is-active', currentVal !== defaultVal);
+}
+
+// ── Aggiorna il counter accanto al titolo "Filtri" + abilita/disabilita Reset ──
+function iwcUpdateActiveCount(){
+  var n = 0;
+  // type non-default
+  var typeEl = document.getElementById('mktType');
+  if(typeEl && typeEl.value) n++;
+  // status non-default ('purchasable' è il default)
+  var statusEl = document.getElementById('mktStatus');
+  if(statusEl && statusEl.value && statusEl.value !== 'purchasable') n++;
+  // price non-default
+  if(_iwcPriceRange) n++;
+  // sort non-default ('newest' è il default)
+  var sortEl = document.getElementById('iwcSort');
+  if(sortEl && sortEl.value && sortEl.value !== 'newest') n++;
+  // search non vuota
+  var searchEl = document.getElementById('mktSearch');
+  if(searchEl && searchEl.value.trim()) n++;
+  // Solo preferiti
+  var watchEl = document.getElementById('iwcWatchOnly');
+  if(watchEl && watchEl.checked) n++;
+
+  var countEl = document.getElementById('iwcFiltersCount');
+  if(countEl){
+    countEl.textContent = n > 0 ? String(n) : '';
+  }
+  var resetBtn = document.getElementById('iwcFiltersResetBtn');
+  if(resetBtn){
+    resetBtn.classList.toggle('disabled', n === 0);
+  }
 }
 
 // Backward compat (vecchi handler radio ancora referenziati dal codice legacy)
@@ -5993,6 +6198,7 @@ function iwcSyncSelect(selectId, value){
 }
 function iwcSetPriceRange(v){
   _iwcPriceRange = v||'';
+  iwcUpdateActiveCount();
   mktRender();
 }
 
@@ -6020,8 +6226,25 @@ function iwcResetFilters(){
   var wo = document.getElementById('iwcWatchOnly'); if(wo) wo.checked = false;
   // Sort
   var so = document.getElementById('iwcSort'); if(so) so.value = 'newest';
+  // Aggiorna i 4 summary visibili + count + chiudi tutti i blocchi aperti
+  iwcUpdateSummary('type');
+  iwcUpdateSummary('status');
+  iwcUpdateSummary('price');
+  iwcUpdateSummary('sort');
+  iwcUpdateActiveCount();
+  document.querySelectorAll('.iwc-filter-block.is-open').forEach(function(b){
+    b.classList.remove('is-open');
+  });
   mktRender();
 }
+
+// Aggiorna count anche su input search e cambio "solo preferiti"
+document.addEventListener('input', function(e){
+  if(e.target && e.target.id === 'mktSearch') iwcUpdateActiveCount();
+});
+document.addEventListener('change', function(e){
+  if(e.target && e.target.id === 'iwcWatchOnly') iwcUpdateActiveCount();
+});
 
 // Click delegato sulla card: separa azioni in base a data-action del target
 function mktCardClick(event, pid){
