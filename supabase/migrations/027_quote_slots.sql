@@ -132,7 +132,7 @@ END$$;
 CREATE OR REPLACE FUNCTION public.claim_slots(
   p_holding_id UUID,
   p_slot_numbers INT[]
-) RETURNS TABLE(slot_number INT, status TEXT) AS $$
+) RETURNS TABLE(out_slot_number INT, out_status TEXT) AS $$
 DECLARE
   v_holding   public.inv_holdings%ROWTYPE;
   v_user_id   UUID := auth.uid();
@@ -160,15 +160,16 @@ BEGIN
   END IF;
   -- Se la holding ha già slot assegnati, blocca: prima va liberata da admin
   SELECT COUNT(*) INTO v_existing_count
-  FROM public.inv_quote_slots WHERE holding_id = p_holding_id AND status='assigned';
+  FROM public.inv_quote_slots s
+  WHERE s.holding_id = p_holding_id AND s.status = 'assigned';
   IF v_existing_count > 0 THEN
     RAISE EXCEPTION 'Questa holding ha già numeri assegnati. Contatta il supporto per modificarli.'
       USING ERRCODE = '23514';
   END IF;
   -- Lock degli slot richiesti per evitare race condition
-  PERFORM 1 FROM public.inv_quote_slots
-   WHERE product_id = v_holding.product_id
-     AND slot_number = ANY(p_slot_numbers)
+  PERFORM 1 FROM public.inv_quote_slots s
+   WHERE s.product_id = v_holding.product_id
+     AND s.slot_number = ANY(p_slot_numbers)
    FOR UPDATE;
   -- Verifica che siano tutti claimable: available, OPPURE riservati dallo stesso utente
   IF EXISTS (
@@ -184,21 +185,21 @@ BEGIN
       USING ERRCODE = '23505';
   END IF;
   -- Verifica che esistano tutti gli slot richiesti
-  IF (SELECT COUNT(*) FROM public.inv_quote_slots
-       WHERE product_id = v_holding.product_id AND slot_number = ANY(p_slot_numbers)) <> v_count THEN
+  IF (SELECT COUNT(*) FROM public.inv_quote_slots s
+       WHERE s.product_id = v_holding.product_id AND s.slot_number = ANY(p_slot_numbers)) <> v_count THEN
     RAISE EXCEPTION 'Numeri non validi per questo prodotto'
       USING ERRCODE = '22023';
   END IF;
   -- Assegna
-  UPDATE public.inv_quote_slots
+  UPDATE public.inv_quote_slots AS s
      SET status = 'assigned',
          holding_id = p_holding_id,
          user_id = v_user_id,
          assigned_at = now(),
          reserved_until = NULL,
          reserved_by = NULL
-   WHERE product_id = v_holding.product_id
-     AND slot_number = ANY(p_slot_numbers);
+   WHERE s.product_id = v_holding.product_id
+     AND s.slot_number = ANY(p_slot_numbers);
 
   RETURN QUERY
     SELECT s.slot_number, s.status
