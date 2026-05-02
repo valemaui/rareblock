@@ -1304,98 +1304,76 @@ textarea{resize:vertical;min-height:60px}
 #productDetailView.iwc-detail .pdv-close:hover{ color: var(--iwc-ink); }
 
 /* TOP BAR rimossa: niente più header sopra la foto.
-   Navigazione lotti + chiudi sono ora nella sidebar sinistra.
    Le classi .pdv-header / .pdv-breadcrumb / .pdv-nav-group / .pdv-close
-   restano definite per compat ma non sono più usate nel markup principale. */
+   restano definite per compat ma non sono più usate nel markup. */
 #productDetailView.iwc-detail .pdv-header{ display: none; }
 
-/* ── HERO 3 COLONNE: sidebar (sx) + gallery (centro) + acquisto (dx) ──
-   La foto del prodotto è al centro, niente elementi sopra.
-   La sidebar replica il pattern del marketplace per coerenza. */
+/* ── HERO 2 COLONNE: gallery (sx) + acquisto (dx) ──
+   Foto centrale dominante. La navigazione (close + lot nav) vive come
+   overlay flottanti agli angoli — niente barra superiore che tolga spazio. */
 #productDetailView.iwc-detail .pdv-hero{
   display: grid;
-  grid-template-columns: 240px 1.4fr 1fr;
+  grid-template-columns: 1.4fr 1fr;
   gap: 0;
   padding: 0;
   max-width: none;
   margin: 0;
   align-items: stretch;
   min-height: 100vh;
+  position: relative;
 }
 
-/* ── SIDEBAR sinistra (stile marketplace iwc-filters) ── */
-#productDetailView.iwc-detail .pdv-sidebar{
-  background: var(--iwc-bg);
-  border-right: 1px solid var(--iwc-border);
-  padding: 28px 22px 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow-y: auto;
-}
-
-/* Back button: torna al marketplace, prominente in alto */
-#productDetailView.iwc-detail .pdv-side-back{
-  background: none;
+/* ── FLOATING CLOSE (alto-sx) ── */
+#productDetailView.iwc-detail .pdv-float-close{
+  position: absolute;
+  top: 24px;
+  left: 32px;
+  z-index: 10;
+  background: transparent;
   border: none;
-  font-family: var(--iwc-sans);
-  font-size: 12px;
-  color: var(--iwc-text-muted);
+  padding: 8px 4px;
   cursor: pointer;
-  padding: 0;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  letter-spacing: .04em;
-  text-align: left;
-  transition: color .15s ease, gap .2s ease;
-  text-transform: uppercase;
-  font-weight: 500;
-  margin-bottom: 4px;
-}
-#productDetailView.iwc-detail .pdv-side-back:hover{
-  color: var(--iwc-ink);
-  gap: 10px;
-}
-#productDetailView.iwc-detail .pdv-side-back-arrow{
-  font-size: 14px;
-  line-height: 1;
-}
-#productDetailView.iwc-detail .pdv-side-back-label{
-  font-size: 11px;
-}
-
-/* Sezioni sidebar: label + contenuto */
-#productDetailView.iwc-detail .pdv-side-section{
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-#productDetailView.iwc-detail .pdv-side-label{
   font-family: var(--iwc-sans);
-  font-size: 9.5px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 500;
   letter-spacing: .14em;
   text-transform: uppercase;
-  color: var(--iwc-text-subtle);
-  margin-bottom: 2px;
+  color: var(--iwc-text-muted);
+  transition: color .15s ease, gap .2s ease;
+}
+#productDetailView.iwc-detail .pdv-float-close:hover{
+  color: var(--iwc-ink);
+  gap: 12px;
+}
+#productDetailView.iwc-detail .pdv-float-close-arrow{
+  font-size: 16px;
+  font-weight: 300;
+  line-height: 1;
 }
 
-/* Navigazione lotti: prev/next compatti */
-#productDetailView.iwc-detail .pdv-side-nav{
-  display: grid;
-  grid-template-columns: 38px 1fr 38px;
+/* ── FLOATING LOT NAV (alto-dx, sopra la gallery) ── */
+#productDetailView.iwc-detail .pdv-float-nav{
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-}
-#productDetailView.iwc-detail .pdv-side-nav-btn{
+  gap: 4px;
   background: var(--iwc-bg);
   border: 1px solid var(--iwc-border);
-  width: 38px;
-  height: 38px;
+  padding: 4px;
+  border-radius: 0;
+}
+#productDetailView.iwc-detail .pdv-float-nav-btn{
+  background: transparent;
+  border: none;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1404,120 +1382,34 @@ textarea{resize:vertical;min-height:60px}
   font-family: var(--iwc-sans);
   font-size: 14px;
   font-weight: 300;
-  transition: background .15s ease, color .15s ease, border-color .15s ease;
   padding: 0;
+  transition: background .15s ease, color .15s ease;
 }
-#productDetailView.iwc-detail .pdv-side-nav-btn:hover:not(:disabled){
+#productDetailView.iwc-detail .pdv-float-nav-btn:hover:not(:disabled){
   background: var(--iwc-bg-alt);
-  border-color: var(--iwc-border-strong);
 }
-#productDetailView.iwc-detail .pdv-side-nav-btn:disabled{
+#productDetailView.iwc-detail .pdv-float-nav-btn:disabled{
   opacity: .25;
   cursor: default;
 }
-#productDetailView.iwc-detail .pdv-side-nav-lot{
+#productDetailView.iwc-detail .pdv-float-nav-lot{
   font-family: var(--iwc-sans);
   font-size: 10px;
   letter-spacing: .14em;
   text-transform: uppercase;
   color: var(--iwc-text);
-  text-align: center;
   font-weight: 500;
-}
-#productDetailView.iwc-detail .pdv-side-hint{
-  font-family: var(--iwc-sans);
-  font-size: 10px;
-  color: var(--iwc-text-subtle);
-  letter-spacing: .005em;
-  font-style: italic;
-}
-
-/* Filtri: lista pulita con linea sx hover/active (stile iwc-filters) */
-#productDetailView.iwc-detail .pdv-side-filter-list{
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-#productDetailView.iwc-detail .pdv-side-filter-list li{
-  font-family: var(--iwc-sans);
-  font-size: 12px;
-  color: var(--iwc-text-muted);
-  cursor: pointer;
-  padding: 5px 0 5px 11px;
-  border-left: 1px solid transparent;
-  transition: color .15s ease, border-color .15s ease;
-  letter-spacing: .005em;
-}
-#productDetailView.iwc-detail .pdv-side-filter-list li:hover{
-  color: var(--iwc-ink);
-  border-left-color: var(--iwc-border-strong);
-}
-
-/* Azioni: bottone full-width con icona+label */
-#productDetailView.iwc-detail .pdv-side-action{
-  background: none;
-  border: none;
-  padding: 7px 0 7px 11px;
-  cursor: pointer;
-  font-family: var(--iwc-sans);
-  font-size: 12px;
-  color: var(--iwc-text-muted);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  text-align: left;
-  border-left: 1px solid transparent;
-  transition: color .15s ease, border-color .15s ease;
-  letter-spacing: .005em;
-}
-#productDetailView.iwc-detail .pdv-side-action:hover{
-  color: var(--iwc-ink);
-  border-left-color: var(--iwc-border-strong);
-}
-#productDetailView.iwc-detail .pdv-side-action.active{
-  color: var(--iwc-ink);
-  border-left-color: var(--iwc-ink);
-}
-#productDetailView.iwc-detail .pdv-side-action-icon{
-  font-size: 14px;
-  line-height: 1;
-  width: 16px;
+  padding: 0 8px;
+  min-width: 60px;
   text-align: center;
 }
 
-/* Footer sidebar: legal info compatta */
-#productDetailView.iwc-detail .pdv-side-foot{
-  margin-top: auto;
-  padding-top: 20px;
-  border-top: 1px solid var(--iwc-border);
-  font-family: var(--iwc-sans);
-  font-size: 9.5px;
-  color: var(--iwc-text-subtle);
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  font-weight: 500;
-  line-height: 1.6;
-}
-#productDetailView.iwc-detail .pdv-side-foot-sub{
-  font-style: italic;
-  text-transform: none;
-  letter-spacing: .01em;
-  font-weight: 400;
-  color: var(--iwc-text-subtle);
-  margin-top: 4px;
-  font-size: 10px;
-}
-
-/* GALLERY (colonna centrale) — la foto è il fuoco visivo */
+/* GALLERY (colonna sx) — la foto è il fuoco visivo */
 #productDetailView.iwc-detail .pdv-gallery{
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 48px 40px;
+  padding: 80px 56px 64px;
   align-self: start;
   position: sticky;
   top: 0;
@@ -1591,7 +1483,7 @@ textarea{resize:vertical;min-height:60px}
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding: 56px 48px 56px 24px;
+  padding: 80px 56px 64px;
   border-left: 1px solid var(--iwc-border);
   background: var(--iwc-bg);
 }
@@ -2087,49 +1979,26 @@ textarea{resize:vertical;min-height:60px}
   color: var(--iwc-border-strong);
 }
 
-/* Default: mobile toolbar nascosta. Visibile solo nella media query <=1100px. */
-#productDetailView.iwc-detail .pdv-mobile-toolbar{ display: none; }
+/* Default: nessuna mobile-toolbar (rimossa col redesign) */
 
 @media (max-width: 1280px){
-  #productDetailView.iwc-detail .pdv-hero{
-    grid-template-columns: 200px 1.4fr 1fr;
-  }
-  #productDetailView.iwc-detail .pdv-sidebar{ padding: 24px 18px; }
-  #productDetailView.iwc-detail .pdv-gallery{ padding: 36px 28px; }
-  #productDetailView.iwc-detail .pdv-buy-panel{ padding: 44px 32px 44px 20px; }
+  #productDetailView.iwc-detail .pdv-gallery{ padding: 72px 40px 48px; }
+  #productDetailView.iwc-detail .pdv-buy-panel{ padding: 72px 40px 48px; }
+  #productDetailView.iwc-detail .pdv-float-close{ left: 24px; }
 }
 @media (max-width: 1100px){
-  /* Sidebar nascosta sotto certi viewport: navigazione prev/next mostrata
-     come overlay flottante sopra la gallery. La foto resta centrale. */
   #productDetailView.iwc-detail .pdv-hero{
     grid-template-columns: 1.3fr 1fr;
     gap: 0;
-    padding: 0;
-    align-items: start;
   }
-  #productDetailView.iwc-detail .pdv-sidebar{ display: none; }
   #productDetailView.iwc-detail .pdv-gallery{
     position: static;
-    padding: 24px 24px 32px;
+    padding: 64px 28px 32px;
     max-height: none;
     overflow: visible;
   }
   #productDetailView.iwc-detail .pdv-buy-panel{
-    padding: 32px 28px;
-    border-left: 1px solid var(--iwc-border);
-  }
-  /* Mobile toolbar: sticky in alto, occupa entrambe le colonne */
-  #productDetailView.iwc-detail .pdv-mobile-toolbar{
-    display: flex;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    grid-column: 1 / -1;
-    background: var(--iwc-bg);
-    border-bottom: 1px solid var(--iwc-border);
-    padding: 12px 20px;
-    align-items: center;
-    gap: 12px;
+    padding: 64px 28px 48px;
   }
   #productDetailView.iwc-detail .pdv-buy-title{ font-size: 30px; }
 }
@@ -2139,6 +2008,9 @@ textarea{resize:vertical;min-height:60px}
   .iwc-hero-title{ font-size: 30px; }
   #productDetailView.iwc-detail .pdv-hero{
     grid-template-columns: 1fr;
+  }
+  #productDetailView.iwc-detail .pdv-gallery{
+    padding: 56px 20px 24px;
   }
   #productDetailView.iwc-detail .pdv-buy-panel{
     border-left: none;
@@ -2153,7 +2025,9 @@ textarea{resize:vertical;min-height:60px}
   #productDetailView.iwc-detail .pdv-specs-grid .pdv-spec-cell:nth-child(2n){ border-right: none; }
   #productDetailView.iwc-detail .pdv-buy-title{ font-size: 26px; }
   #productDetailView.iwc-detail .pdv-buy-price{ font-size: 28px; }
-  #productDetailView.iwc-detail .pdv-mobile-toolbar{ padding: 10px 14px; }
+  #productDetailView.iwc-detail .pdv-float-close{ top: 14px; left: 14px; }
+  #productDetailView.iwc-detail .pdv-float-close-label{ display: none; }
+  #productDetailView.iwc-detail .pdv-float-nav{ top: 12px; }
 }
 
 /* BONIFICO step 3 — sovrascrive completamente il vecchio dark theme */
@@ -5075,89 +4949,27 @@ textarea{resize:vertical;min-height:60px}
 
 <!-- ── PRODUCT DETAIL VIEW (auction-style fullscreen) ── -->
 <div id="productDetailView">
-  <!-- LAYOUT 3 COLONNE: sidebar (sx) | gallery (centro) | acquisto (dx)
-       Niente top bar: foto al centro, niente elementi sopra che ne tolgano spazio. -->
+  <!-- LAYOUT 2 COLONNE: gallery (sx) + acquisto (dx).
+       Niente top bar, niente sidebar laterale.
+       La navigazione (close + lot nav) vive come overlay leggeri sopra la
+       gallery, visibili ma non invadenti. La foto resta dominante. -->
   <div class="pdv-hero">
 
-    <!-- Mobile toolbar: visibile solo <1100px (sidebar nascosta).
-         Garantisce che la navigazione resti accessibile anche da mobile
-         senza occupare permanentemente spazio sopra la foto. -->
-    <div class="pdv-mobile-toolbar">
-      <button class="pdv-side-back" onclick="closeProductDetail()" style="margin:0">
-        <span class="pdv-side-back-arrow">←</span>
-        <span class="pdv-side-back-label">Collezione</span>
-      </button>
-      <div style="flex:1"></div>
-      <button class="pdv-side-nav-btn" id="pdvPrevBtnMobile" onclick="pdvNav(-1)" title="Lotto precedente">←</button>
-      <span class="pdv-side-nav-lot" id="pdvLotLabelMobile">Lot #—</span>
-      <button class="pdv-side-nav-btn" id="pdvNextBtnMobile" onclick="pdvNav(1)" title="Lotto successivo">→</button>
+    <!-- Close button flottante in alto-sx: non occupa una barra,
+         è un'icona discreta sopra il contenuto -->
+    <button class="pdv-float-close" onclick="closeProductDetail()" title="Chiudi (Esc)" aria-label="Chiudi">
+      <span class="pdv-float-close-arrow">←</span>
+      <span class="pdv-float-close-label">Collezione</span>
+    </button>
+
+    <!-- Lot nav flottante in alto-dx: prev/next + label compatto -->
+    <div class="pdv-float-nav" aria-label="Navigazione lotto">
+      <button class="pdv-float-nav-btn" id="pdvPrevBtn" onclick="pdvNav(-1)" title="Lotto precedente (Shift+←)" aria-label="Lotto precedente">←</button>
+      <span class="pdv-float-nav-lot" id="pdvLotLabel">Lot #—</span>
+      <button class="pdv-float-nav-btn" id="pdvNextBtn" onclick="pdvNav(1)" title="Lotto successivo (Shift+→)" aria-label="Lotto successivo">→</button>
     </div>
 
-    <!-- ════ COLONNA SINISTRA: navigazione + comandi ════ -->
-    <aside class="pdv-sidebar">
-      <!-- Brand / chiusura: torna al marketplace -->
-      <button class="pdv-side-back" onclick="closeProductDetail()" title="Torna al marketplace">
-        <span class="pdv-side-back-arrow">←</span>
-        <span class="pdv-side-back-label">Esplora collezione</span>
-      </button>
-
-      <!-- Navigazione lotti: prev/next con label centrato -->
-      <div class="pdv-side-section">
-        <div class="pdv-side-label">Navigazione</div>
-        <div class="pdv-side-nav">
-          <button class="pdv-side-nav-btn" id="pdvPrevBtn" onclick="pdvNav(-1)" title="Lotto precedente" aria-label="Lotto precedente">
-            <span>←</span>
-          </button>
-          <span class="pdv-side-nav-lot" id="pdvLotLabel">Lot #—</span>
-          <button class="pdv-side-nav-btn" id="pdvNextBtn" onclick="pdvNav(1)" title="Lotto successivo" aria-label="Lotto successivo">
-            <span>→</span>
-          </button>
-        </div>
-        <div class="pdv-side-hint">Shift + ← / → da tastiera</div>
-      </div>
-
-      <!-- Filtri rapidi: stessi del marketplace, applicano filtro e tornano alla griglia -->
-      <div class="pdv-side-section">
-        <div class="pdv-side-label">Filtra collezione</div>
-        <ul class="pdv-side-filter-list">
-          <li onclick="pdvJumpToFilter('type','full')">Solo Full Ownership</li>
-          <li onclick="pdvJumpToFilter('type','fractional')">Solo Fractional</li>
-          <li onclick="pdvJumpToFilter('type','grade_hold')">Grade &amp; Hold</li>
-          <li onclick="pdvJumpToFilter('status','closing_soon')">In chiusura</li>
-        </ul>
-      </div>
-
-      <!-- Filtri per categoria contestuali al prodotto corrente -->
-      <div class="pdv-side-section" id="pdvSideCategorySection" style="display:none">
-        <div class="pdv-side-label">Categoria</div>
-        <ul class="pdv-side-filter-list" id="pdvSideCategoryList"></ul>
-      </div>
-
-      <!-- Azioni rapide -->
-      <div class="pdv-side-section">
-        <div class="pdv-side-label">Azioni</div>
-        <button class="pdv-side-action" id="pdvSideWatch" onclick="pdvSideToggleWatch()">
-          <span class="pdv-side-action-icon" id="pdvSideWatchIcon">♡</span>
-          <span class="pdv-side-action-label" id="pdvSideWatchLabel">Aggiungi ai preferiti</span>
-        </button>
-        <button class="pdv-side-action" onclick="pdvSideShare()">
-          <span class="pdv-side-action-icon">↗</span>
-          <span class="pdv-side-action-label">Condividi link</span>
-        </button>
-        <button class="pdv-side-action" onclick="pdvSidePrint()">
-          <span class="pdv-side-action-icon">⎙</span>
-          <span class="pdv-side-action-label">Stampa scheda</span>
-        </button>
-      </div>
-
-      <!-- Footer compatto: legal info -->
-      <div class="pdv-side-foot">
-        <div>RareBlock Investor Portal</div>
-        <div class="pdv-side-foot-sub">Documento riservato — Membri</div>
-      </div>
-    </aside>
-
-    <!-- ════ COLONNA CENTRO: gallery (foto centrica) ════ -->
+    <!-- ════ GALLERY (colonna sx) ════ -->
     <div class="pdv-gallery">
       <div class="pdv-main-img" id="pdvMainImg">
         <button class="pdv-main-img-prev" onclick="pdvImgNav(-1)">&#10094;</button>
@@ -7739,128 +7551,12 @@ function pdvUpdateNavButtons(){
   if(!_pdvProduct) return;
   var ids = _mktProducts.map(function(p){return p.id});
   var idx = ids.indexOf(_pdvProduct.id);
-  ['pdvPrevBtn','pdvPrevBtnMobile'].forEach(function(id){
-    var b = document.getElementById(id); if(b) b.disabled = (idx<=0);
-  });
-  ['pdvNextBtn','pdvNextBtnMobile'].forEach(function(id){
-    var b = document.getElementById(id); if(b) b.disabled = (idx>=ids.length-1);
-  });
-  // Sincronizza la lot label nelle due posizioni (sidebar + mobile toolbar)
-  var lotEl   = document.getElementById('pdvLotLabel');
-  var lotMobi = document.getElementById('pdvLotLabelMobile');
-  if(lotEl   && lotMobi) lotMobi.textContent = lotEl.textContent;
-  // Aggiorna stato bottone "Aggiungi ai preferiti" sidebar
-  pdvUpdateSideWatchState();
-  // Popola filtri categoria contestuali se il prodotto ha categoria
-  pdvUpdateSideCategorySection();
+  var prevBtn = document.getElementById('pdvPrevBtn');
+  var nextBtn = document.getElementById('pdvNextBtn');
+  if(prevBtn) prevBtn.disabled = (idx<=0);
+  if(nextBtn) nextBtn.disabled = (idx>=ids.length-1);
 }
 
-// ── Sidebar: applica filtro al marketplace e torna alla griglia ──
-function pdvJumpToFilter(kind, value){
-  // Chiude la pagina dettaglio e applica filtro nel marketplace tornandoci.
-  closeProductDetail();
-  setTimeout(function(){
-    // Prova a settare il filtro tramite gli stessi controls del marketplace.
-    if(kind === 'type'){
-      var typeEl = document.getElementById('mktType');
-      if(typeEl){ typeEl.value = value; }
-    } else if(kind === 'status'){
-      var statEl = document.getElementById('mktStatus');
-      if(statEl){ statEl.value = value; }
-    } else if(kind === 'category'){
-      // Categoria non ha select dedicata: usa la search come fallback
-      var searchEl = document.getElementById('mktSearch');
-      if(searchEl){ searchEl.value = value; }
-    }
-    if(typeof mktRender === 'function') mktRender();
-    // Scrolla in cima al marketplace
-    var grid = document.getElementById('mktGrid');
-    if(grid) grid.scrollTop = 0;
-  }, 50);
-}
-
-// ── Filtri contestuali categoria: popola se prodotto ha p.category ──
-function pdvUpdateSideCategorySection(){
-  var section = document.getElementById('pdvSideCategorySection');
-  var list    = document.getElementById('pdvSideCategoryList');
-  if(!section || !list || !_pdvProduct) return;
-  var cat = _pdvProduct.category;
-  if(!cat){ section.style.display = 'none'; return; }
-  var labels = {
-    booster_box: 'Booster Box',
-    etb: 'Elite Trainer Box',
-    booster_bundle: 'Booster Bundle',
-    collection_box: 'Collection Box',
-    tin: 'Tin',
-    case: 'Case sigillati',
-    box_break: 'Box Break',
-    blister: 'Blister',
-    single_pack: 'Buste singole',
-    graded_card: 'Carte gradate',
-    sealed_other: 'Altro sigillato',
-    other: 'Altro',
-  };
-  // Mostra solo la categoria del prodotto + suggerimento "vedi tutti i sigillati"
-  var items = [];
-  var label = labels[cat] || cat;
-  items.push('<li onclick="pdvJumpToFilter(\'category\',\''+esc(cat)+'\')">Vedi tutti: '+esc(label)+'</li>');
-  section.style.display = '';
-  list.innerHTML = items.join('');
-}
-
-// ── Sidebar: toggle preferiti (sincronizzato con bookmark gallery) ──
-function pdvSideToggleWatch(){
-  if(!_pdvProduct) return;
-  if(typeof mktToggleWatch === 'function'){
-    mktToggleWatch(_pdvProduct.id);
-  }
-  pdvUpdateSideWatchState();
-}
-
-function pdvUpdateSideWatchState(){
-  if(!_pdvProduct) return;
-  var watched = (window._mktWatchlist || []).indexOf(_pdvProduct.id) >= 0;
-  var btn   = document.getElementById('pdvSideWatch');
-  var icon  = document.getElementById('pdvSideWatchIcon');
-  var label = document.getElementById('pdvSideWatchLabel');
-  if(btn) btn.classList.toggle('active', watched);
-  if(icon) icon.textContent = watched ? '♥' : '♡';
-  if(label) label.textContent = watched ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti';
-}
-
-// ── Sidebar: condividi link prodotto (clipboard + fallback) ──
-function pdvSideShare(){
-  if(!_pdvProduct) return;
-  var url = window.location.origin + window.location.pathname + '#prod/' + _pdvProduct.id;
-  var label = document.getElementById('pdvSideWatchLabel'); // riusa per feedback temporaneo no
-  // Fallback: cerca quale label aggiornare temporaneamente
-  var actionBtns = document.querySelectorAll('.pdv-side-action');
-  var shareBtn = actionBtns[1]; // 2° bottone = condividi
-  var origText = shareBtn ? shareBtn.querySelector('.pdv-side-action-label').textContent : '';
-  function feedback(msg){
-    if(!shareBtn) return;
-    var lbl = shareBtn.querySelector('.pdv-side-action-label');
-    lbl.textContent = msg;
-    setTimeout(function(){ lbl.textContent = origText; }, 1500);
-  }
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(url).then(function(){
-      feedback('Link copiato!');
-    }).catch(function(){
-      window.prompt('Copia il link:', url);
-    });
-  } else {
-    window.prompt('Copia il link:', url);
-  }
-}
-
-// ── Sidebar: stampa scheda prodotto ──
-function pdvSidePrint(){
-  if(!_pdvProduct) return;
-  // Usa la stampa nativa del browser sulla pagina dettaglio.
-  // Una eventuale stylesheet @media print verrà applicata dal browser.
-  window.print();
-}
 
 // ═══════════════════════════════════════════════════════════
 //  PRODUCT DETAIL — Storico vendite (fractional only)
