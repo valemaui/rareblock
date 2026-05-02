@@ -163,6 +163,43 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 .btn.danger:hover{background:rgba(248,81,73,.18);border-color:var(--danger)}
 .btn.relist-btn{background:rgba(63,185,80,.1);border-color:rgba(63,185,80,.4);color:var(--success)}
 .btn.relist-btn:hover{background:rgba(63,185,80,.2);border-color:var(--success)}
+
+/* Cella azioni admin: tutti gli elementi alla stessa altezza per allineamento verticale uniforme tra righe */
+.admin-actions{
+  white-space: nowrap;
+}
+.admin-actions > *{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  box-sizing: border-box;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.admin-actions > *:last-child{ margin-right: 0; }
+.admin-actions .icon-btn{
+  width: 30px;
+  padding: 0;
+}
+.admin-actions .status-select{
+  height: 28px;
+  font-size: 11px;
+  padding: 0 22px 0 8px;
+  width: 130px;
+  box-sizing: border-box;
+}
+.admin-actions .btn:disabled{
+  background: var(--surface2);
+  border-color: var(--border);
+  color: var(--text-subtle);
+  cursor: not-allowed;
+  opacity: .5;
+}
+.admin-actions .btn:disabled:hover{
+  background: var(--surface2);
+  border-color: var(--border);
+}
 .btn.sm{padding:4px 10px;font-size:12px}
 .btn:disabled{opacity:.4;cursor:not-allowed}
 .field{display:flex;flex-direction:column;gap:3px}
@@ -7141,21 +7178,27 @@ async function adminLoadProducts(){
       // Status effettivo: se è "open" ma tutto venduto → mostriamo sold_out
       var effectiveStatus = (p.status==='open' && allSold) ? 'sold_out' : p.status;
       var qtyCell = '<td style="font-family:var(--mono)">'+sold+'/'+total+(allSold?' <span style="color:var(--danger);font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-left:4px">SOLD</span>':'')+'</td>';
-      // Costruisco la cella azioni in base allo stato
-      var actionsCell = '<td style="white-space:nowrap;display:flex;gap:4px;align-items:center;flex-wrap:nowrap">';
-      // 1. Modifica
-      actionsCell += '<button class="btn sm" onclick="adminEditProduct(\''+p.id+'\')" title="Modifica"><span class="rb-i rb-i-edit"></span></button>';
-      // 2. Selettore status manuale (sempre disponibile)
-      actionsCell += '<select onchange="adminChangeStatus(\''+p.id+'\',this.value)" style="font-size:11px;padding:3px 6px;max-width:130px">'
-        +['draft','open','closing_soon','closed','sold_out','hold','liquidated'].map(function(s){ return '<option'+(p.status===s?' selected':'')+' value="'+s+'">'+s+'</option>'; }).join('')
-        +'</select>';
-      // 3. Rimetti in vendita: solo icona, attivo per chiusi/venduti/liquidati
-      if(allSold || p.status==='closed' || p.status==='sold_out' || p.status==='liquidated'){
-        actionsCell += '<button class="btn sm relist-btn" onclick="adminRelistProduct(\''+p.id+'\')" title="Rimetti in vendita"><span class="rb-i rb-i-redo"></span></button>';
-      }
-      // 4. Elimina
-      actionsCell += '<button class="btn danger sm" onclick="adminDeleteProduct(\''+p.id+'\')" title="Elimina"><span class="rb-i rb-i-trash"></span></button>';
-      actionsCell += '</td>';
+      // Costruisco la cella azioni (sempre 4 bottoni nello stesso ordine per
+      // mantenere allineamento verticale uniforme tra le righe).
+      // Il pulsante "Rimetti in vendita" è sempre presente: attivo solo per
+      // chiusi/venduti/liquidati, disabilitato (grigio) altrimenti.
+      var canRelist = (allSold || p.status==='closed' || p.status==='sold_out' || p.status==='liquidated');
+      var statusOpts = ['draft','open','closing_soon','closed','sold_out','hold','liquidated']
+        .map(function(s){ return '<option'+(p.status===s?' selected':'')+' value="'+s+'">'+s+'</option>'; }).join('');
+      var actionsCell = '<td class="admin-actions">'
+        // 1. Modifica
+        +'<button class="btn sm icon-btn" onclick="adminEditProduct(\''+p.id+'\')" title="Modifica"><span class="rb-i rb-i-edit"></span></button>'
+        // 2. Selettore status
+        +'<select class="status-select" onchange="adminChangeStatus(\''+p.id+'\',this.value)">'+statusOpts+'</select>'
+        // 3. Elimina
+        +'<button class="btn danger sm icon-btn" onclick="adminDeleteProduct(\''+p.id+'\')" title="Elimina"><span class="rb-i rb-i-trash"></span></button>'
+        // 4. Rimetti in vendita (sempre dopo il cestino, attivo solo se applicabile)
+        +'<button class="btn sm icon-btn'+(canRelist?' relist-btn':'')+'" '
+          +(canRelist?'onclick="adminRelistProduct(\''+p.id+'\')"':'disabled')
+          +' title="'+(canRelist?'Rimetti in vendita':'Disponibile solo per prodotti chiusi/venduti/liquidati')+'">'
+          +'<span class="rb-i rb-i-redo"></span>'
+        +'</button>'
+        +'</td>';
       return '<tr>'
         +'<td><div style="font-weight:500">'+esc(p.name)+'</div>'+(p.description?'<div style="font-size:11px;color:var(--text-muted)">'+esc(p.description.slice(0,60))+'…</div>':'')+'</td>'
         +'<td>'+typeBadge(p.type)+'</td>'
