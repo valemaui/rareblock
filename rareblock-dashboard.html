@@ -1927,6 +1927,110 @@ textarea{resize:vertical;min-height:60px}
 }
 #productDetailView.iwc-detail .pdv-history-link:hover{ opacity: .55; }
 
+/* ── MINI-GRID DISPONIBILITÀ NUMERI (informativo, read-only) ──
+   Mostra a colpo d'occhio quanti slot sono ancora liberi prima
+   dell'acquisto. Visibile solo per fractional/millesimal. */
+#productDetailView.iwc-detail .pdv-slots-overview{
+  margin-top: 32px;
+  padding-top: 26px;
+  border-top: 1px solid var(--iwc-border);
+}
+#productDetailView.iwc-detail .pdv-slots-overview-head{
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+#productDetailView.iwc-detail .pdv-slots-overview-title{
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--iwc-text);
+}
+#productDetailView.iwc-detail .pdv-slots-overview-stats{
+  font-family: var(--iwc-sans);
+  font-size: 11px;
+  letter-spacing: .04em;
+  color: var(--iwc-text-muted);
+}
+#productDetailView.iwc-detail .pdv-slots-overview-stats strong{
+  color: var(--iwc-ink);
+  font-weight: 500;
+}
+
+/* Griglia mini compatta: celle 22x22px, gap 4px, max 18 colonne */
+#productDetailView.iwc-detail .pdv-slots-mini-grid{
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(24px, 1fr));
+  gap: 4px;
+  margin-bottom: 14px;
+}
+#productDetailView.iwc-detail .pdv-slot-mini-cell{
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--iwc-sans);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0;
+  border: 1px solid var(--iwc-border);
+  background: var(--iwc-bg);
+  color: var(--iwc-text-muted);
+  cursor: default;
+  user-select: none;
+  transition: border-color .12s ease, color .12s ease;
+}
+/* Slot disponibile: sottile, neutro, "respira" su hover */
+#productDetailView.iwc-detail .pdv-slot-mini-cell.is-available:hover{
+  border-color: var(--iwc-ink);
+  color: var(--iwc-ink);
+}
+/* Slot già acquistato: bg ink + crocetta sopra (non numero leggibile) */
+#productDetailView.iwc-detail .pdv-slot-mini-cell.is-taken{
+  background: var(--iwc-ink);
+  border-color: var(--iwc-ink);
+  color: var(--iwc-bg);
+  position: relative;
+}
+#productDetailView.iwc-detail .pdv-slot-mini-cell.is-taken::after{
+  /* Una piccola "X" sottile sovrapposta per dare percezione "preso" */
+  content: '×';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--iwc-bg);
+  opacity: .5;
+}
+
+/* Hint legenda piccola sotto la grid */
+#productDetailView.iwc-detail .pdv-slots-overview-hint{
+  display: flex;
+  gap: 16px;
+  font-family: var(--iwc-sans);
+  font-size: 10px;
+  color: var(--iwc-text-subtle);
+  letter-spacing: .04em;
+}
+#productDetailView.iwc-detail .pdv-slots-legend-dot{
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--iwc-border);
+  margin-right: 4px;
+  vertical-align: middle;
+}
+#productDetailView.iwc-detail .pdv-slots-legend-dot.pdv-slots-dot-taken{
+  background: var(--iwc-ink);
+  border-color: var(--iwc-ink);
+}
+
 /* ── BANNER SERVIZI: 3 colonne ──────────────────────────────── */
 #productDetailView.iwc-detail .pdv-services{
   border-top: 1px solid var(--iwc-border);
@@ -5292,6 +5396,21 @@ textarea{resize:vertical;min-height:60px}
         </button>
         <a class="pdv-history-link" id="pdvBidHistory" onclick="pdvScrollToHistory()">Storico vendite ↓</a>
       </div>
+
+      <!-- Mini-grid disponibilità numeri (solo per fractional/millesimal):
+           mostra a colpo d'occhio quanti slot sono liberi prima dell'acquisto.
+           Pattern visuale identico al modale di selezione, ma read-only e compatto. -->
+      <div class="pdv-slots-overview" id="pdvSlotsOverview" style="display:none">
+        <div class="pdv-slots-overview-head">
+          <div class="pdv-slots-overview-title">Disponibilità numeri</div>
+          <div class="pdv-slots-overview-stats" id="pdvSlotsStats">—</div>
+        </div>
+        <div class="pdv-slots-mini-grid" id="pdvSlotsMiniGrid"></div>
+        <div class="pdv-slots-overview-hint">
+          <span class="pdv-slots-legend-dot pdv-slots-dot-available"></span> Disponibile
+          <span class="pdv-slots-legend-dot pdv-slots-dot-taken"></span> Già acquistato
+        </div>
+      </div>
     </div>
   </div>
 
@@ -7966,6 +8085,10 @@ async function openProductDetail(pid){
     histWrap.style.display='none';
   }
 
+  // Mini-grid disponibilità numeri (solo fractional/millesimal):
+  // mostra all'utente quanti slot sono ancora liberi prima dell'acquisto.
+  pdvLoadSlotsOverview(p);
+
   // Mostra la view
   document.getElementById('productDetailView').classList.add('show', 'iwc-detail');
   document.body.style.overflow='hidden';
@@ -8164,6 +8287,74 @@ function pdvScrollToHistory(){
   if(pdv){
     var top = wrap.offsetTop - 70; // account for sticky header
     pdv.scrollTo({top:top, behavior:'smooth'});
+  }
+}
+
+// ── Mini-grid disponibilità numeri (informativo) ─────────────
+// Mostra all'utente, prima dell'acquisto, lo stato visuale di tutti
+// gli slot del prodotto: liberi (chiari) vs già acquistati (ink).
+// Read-only: per la selezione effettiva si usa il modal post-acquisto.
+async function pdvLoadSlotsOverview(p){
+  var wrap = document.getElementById('pdvSlotsOverview');
+  var grid = document.getElementById('pdvSlotsMiniGrid');
+  var stats = document.getElementById('pdvSlotsStats');
+  if(!wrap || !grid) return;
+
+  // Mostrato solo per prodotti a quote multiple
+  if(!p || (p.type !== 'fractional' && p.type !== 'millesimal')){
+    wrap.style.display = 'none';
+    return;
+  }
+  var totalQuotes = p.total_quotes || 0;
+  if(totalQuotes <= 1){
+    wrap.style.display = 'none';
+    return;
+  }
+
+  wrap.style.display = '';
+  grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:14px 0;color:var(--iwc-text-subtle);font-size:10.5px">Caricamento…</div>';
+  if(stats) stats.textContent = '—';
+
+  try {
+    // Carica tutti gli slot del prodotto. Possibili stati: available / reserved / assigned
+    var rows = await supa('GET','inv_quote_slots?product_id=eq.'+p.id+'&order=slot_number.asc&select=slot_number,status');
+    var slots = rows || [];
+
+    // Se la migration 027 non è applicata, fallback informativo
+    if(!slots.length){
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px 0;color:var(--iwc-text-subtle);font-size:10.5px;font-style:italic">Sistema di numerazione non ancora attivo per questo prodotto</div>';
+      if(stats) stats.innerHTML = '<strong>'+totalQuotes+'</strong> quote totali';
+      return;
+    }
+
+    // Conta available vs taken (reserved+assigned trattati come "non più liberi"
+    // dal punto di vista dell'acquirente che sta navigando)
+    var availableCount = 0;
+    var takenCount = 0;
+    slots.forEach(function(s){
+      if(s.status === 'available') availableCount++;
+      else takenCount++;
+    });
+
+    // Render statistiche compatte
+    if(stats){
+      stats.innerHTML = '<strong>'+availableCount+'</strong> di '+totalQuotes+' libere';
+    }
+
+    // Render griglia: una cella per slot, ordinata per slot_number
+    grid.innerHTML = slots.map(function(s){
+      var n = s.slot_number;
+      var nStr = (n < 10 ? '0' : '') + n;
+      var cls = (s.status === 'available') ? 'is-available' : 'is-taken';
+      var titleAttr = (s.status === 'available')
+        ? 'Numero '+nStr+' — disponibile'
+        : 'Numero '+nStr+' — già acquistato';
+      return '<div class="pdv-slot-mini-cell '+cls+'" title="'+titleAttr+'">'+nStr+'</div>';
+    }).join('');
+  } catch(e){
+    // Errore di rete o RLS: nascondi blocco senza disturbare l'UX
+    console.warn('[pdv] slots overview load error:', e.message||e);
+    wrap.style.display = 'none';
   }
 }
 
