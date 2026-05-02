@@ -161,6 +161,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 .btn.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
 .btn.danger{background:var(--danger-soft);border-color:rgba(248,81,73,.4);color:var(--danger)}
 .btn.danger:hover{background:rgba(248,81,73,.18);border-color:var(--danger)}
+.btn.relist-btn{background:rgba(63,185,80,.1);border-color:rgba(63,185,80,.4);color:var(--success)}
+.btn.relist-btn:hover{background:rgba(63,185,80,.2);border-color:var(--success)}
 .btn.sm{padding:4px 10px;font-size:12px}
 .btn:disabled{opacity:.4;cursor:not-allowed}
 .field{display:flex;flex-direction:column;gap:3px}
@@ -7140,17 +7142,18 @@ async function adminLoadProducts(){
       var effectiveStatus = (p.status==='open' && allSold) ? 'sold_out' : p.status;
       var qtyCell = '<td style="font-family:var(--mono)">'+sold+'/'+total+(allSold?' <span style="color:var(--danger);font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-left:4px">SOLD</span>':'')+'</td>';
       // Costruisco la cella azioni in base allo stato
-      var actionsCell = '<td style="white-space:nowrap;display:flex;gap:4px;align-items:center;flex-wrap:wrap">';
+      var actionsCell = '<td style="white-space:nowrap;display:flex;gap:4px;align-items:center;flex-wrap:nowrap">';
+      // 1. Modifica
       actionsCell += '<button class="btn sm" onclick="adminEditProduct(\''+p.id+'\')" title="Modifica"><span class="rb-i rb-i-edit"></span></button>';
-      // Se venduto/chiuso/liquidato → tasto "Rimetti in vendita" come azione primaria
-      if(allSold || p.status==='closed' || p.status==='sold_out' || p.status==='liquidated'){
-        actionsCell += '<button class="btn primary sm" onclick="adminRelistProduct(\''+p.id+'\')" title="Rimetti in vendita"><span class="rb-i rb-i-redo"></span> Rimetti in vendita</button>';
-      }
-      // Selettore status manuale (sempre disponibile)
+      // 2. Selettore status manuale (sempre disponibile)
       actionsCell += '<select onchange="adminChangeStatus(\''+p.id+'\',this.value)" style="font-size:11px;padding:3px 6px;max-width:130px">'
         +['draft','open','closing_soon','closed','sold_out','hold','liquidated'].map(function(s){ return '<option'+(p.status===s?' selected':'')+' value="'+s+'">'+s+'</option>'; }).join('')
         +'</select>';
-      // Soft-delete / cestino
+      // 3. Rimetti in vendita: solo icona, attivo per chiusi/venduti/liquidati
+      if(allSold || p.status==='closed' || p.status==='sold_out' || p.status==='liquidated'){
+        actionsCell += '<button class="btn sm relist-btn" onclick="adminRelistProduct(\''+p.id+'\')" title="Rimetti in vendita"><span class="rb-i rb-i-redo"></span></button>';
+      }
+      // 4. Elimina
       actionsCell += '<button class="btn danger sm" onclick="adminDeleteProduct(\''+p.id+'\')" title="Elimina"><span class="rb-i rb-i-trash"></span></button>';
       actionsCell += '</td>';
       return '<tr>'
