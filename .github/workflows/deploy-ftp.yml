@@ -25,10 +25,14 @@ jobs:
 
       # Inietta le chiavi API dai GitHub Secrets nel file HTML
       # Le chiavi NON sono mai nel repo — solo nei Secrets di GitHub
+      # NB: PayPal Client ID è una chiave PUBBLICA (frontend) — può stare in
+      #     Secret o anche in Variables. Il Client Secret PayPal invece resta
+      #     nelle Edge Functions Supabase, mai nel frontend.
       - name: Inject API keys
         run: |
           sed -i "s|ANTHROPIC_API_KEY_PLACEHOLDER|${{ secrets.ANTHROPIC_KEY }}|g" pokemon-db.html
           sed -i "s|OPENROUTER_API_KEY_PLACEHOLDER|${{ secrets.OPENROUTER_KEY }}|g" pokemon-db.html
+          sed -i "s|PAYPAL_CLIENT_ID_PLACEHOLDER|${{ secrets.PAYPAL_CLIENT_ID }}|g" rareblock-dashboard.html
 
       - name: Deploy to FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5

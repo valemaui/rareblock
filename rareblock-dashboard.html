@@ -4,6 +4,13 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>RareBlock — Investor</title>
+<!-- Config pubblico runtime: solo chiavi lato client.
+     Il Client ID PayPal non è segreto, è destinato al frontend.
+     Il GitHub Action sostituisce PAYPAL_CLIENT_ID_PLACEHOLDER al deploy. -->
+<script>
+window.RAREBLOCK_CONFIG = window.RAREBLOCK_CONFIG || {};
+window.RAREBLOCK_CONFIG.PAYPAL_CLIENT_ID = 'PAYPAL_CLIENT_ID_PLACEHOLDER';
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Montserrat:wght@200;300&display=swap" rel="stylesheet"/>
 <style>
@@ -3857,6 +3864,7 @@ textarea{resize:vertical;min-height:60px}
       <button class="admin-side-btn active" onclick="adminSection('products')"><span class="rb-i rb-i-package"></span> Prodotti</button>
       <button class="admin-side-btn" onclick="adminSection('payments')"><span class="rb-i rb-i-card"></span> Pagamenti <span id="adminSidePayCount" class="admin-side-badge" style="display:none">0</span></button>
       <button class="admin-side-btn" onclick="adminSection('vendors')"><span class="rb-i rb-i-users"></span> Venditori</button>
+      <button class="admin-side-btn" onclick="adminSection('vendor-payouts')"><span class="rb-i rb-i-coin"></span> Payout Vendor <span id="adminSidePayoutCount" class="admin-side-badge" style="display:none">0</span></button>
       <button class="admin-side-btn" onclick="adminSection('accruals')"><span class="rb-i rb-i-paperclip"></span> Accrual</button>
       <button class="admin-side-btn" onclick="adminSection('liquidations')"><span class="rb-i rb-i-coin"></span> Liquidazioni</button>
       <button class="admin-side-btn" onclick="adminSection('transfers')"><span class="rb-i rb-i-swap"></span> Trasferimenti</button>
@@ -4023,6 +4031,61 @@ textarea{resize:vertical;min-height:60px}
           <tbody id="adminVendorsTbody"></tbody>
         </table>
         <div class="empty-state" id="adminVendorsEmpty" style="display:none"><div class="icon"><span class="rb-i rb-i-users"></span></div><h3>Nessun venditore censito</h3><p>Aggiungi un venditore per iniziare a tracciare le sue vendite.</p></div>
+      </div>
+
+      <!-- PAYOUT VENDOR — ledger contabile vendite per vendor -->
+      <div class="admin-section" id="admin-vendor-payouts">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:14px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:15px;font-weight:600;letter-spacing:.005em;display:inline-flex;align-items:center;gap:8px"><span class="rb-i rb-i-coin" style="color:var(--gold)"></span> Payout Vendor</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:3px">Tracciamento contabile dei pagamenti dovuti ai venditori. Lordo incassato − fee PayPal − commissione RareBlock = netto vendor.</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <div class="admin-filter-group inline">
+              <label class="admin-filter-lbl">Stato</label>
+              <select id="vpFilterStatus" onchange="vpApplyFilters()">
+                <option value="due" selected>Da pagare</option>
+                <option value="">Tutti</option>
+                <option value="in_progress">In corso</option>
+                <option value="paid">Pagati</option>
+                <option value="cancelled">Annullati</option>
+                <option value="disputed">Controversie</option>
+              </select>
+            </div>
+            <div class="admin-filter-group inline">
+              <label class="admin-filter-lbl">Vendor</label>
+              <select id="vpFilterVendor" onchange="vpApplyFilters()">
+                <option value="">Tutti</option>
+              </select>
+            </div>
+            <button class="btn sm" onclick="vpExportCsv()" title="Esporta CSV"><span class="rb-i rb-i-download"></span> CSV</button>
+            <button class="btn sm" onclick="adminLoadVendorPayouts()" title="Aggiorna"><span class="rb-i rb-i-refresh"></span></button>
+          </div>
+        </div>
+
+        <!-- KPI riepilogative -->
+        <div id="vpKpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:14px">
+          <div class="port-kpi"><div class="port-kpi-lbl">Da pagare</div><div class="port-kpi-val" id="vpKpiDue" style="color:var(--gold)">—</div></div>
+          <div class="port-kpi"><div class="port-kpi-lbl">In corso</div><div class="port-kpi-val" id="vpKpiInProgress">—</div></div>
+          <div class="port-kpi"><div class="port-kpi-lbl">Pagati YTD</div><div class="port-kpi-val" id="vpKpiPaid">—</div></div>
+          <div class="port-kpi"><div class="port-kpi-lbl">Comm. RB totali</div><div class="port-kpi-val" id="vpKpiCommission">—</div></div>
+        </div>
+
+        <table class="admin-table" id="adminVendorPayoutsTable">
+          <thead><tr>
+            <th>Data</th>
+            <th>Vendor</th>
+            <th>Ordine</th>
+            <th style="text-align:right">Lordo</th>
+            <th style="text-align:right">Fee PayPal</th>
+            <th style="text-align:right">Comm. RB</th>
+            <th style="text-align:right">Netto vendor</th>
+            <th>Stato</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="adminVendorPayoutsTbody"></tbody>
+        </table>
+        <div class="empty-state" id="adminVendorPayoutsEmpty" style="display:none"><div class="icon"><span class="rb-i rb-i-coin"></span></div><h3>Nessun payout</h3><p>Quando un ordine PayPal viene completato e il prodotto ha un vendor associato, qui apparirà la riga di payout.</p></div>
       </div>
 
       <!-- ACCRUAL COSTI -->
@@ -4497,15 +4560,38 @@ textarea{resize:vertical;min-height:60px}
           </div>
         </div>
 
-        <!-- Pannello PayPal -->
+        <!-- Pannello PayPal: breakdown fee + bottoni SDK ufficiali -->
         <div id="coPayPaypalDetails" style="display:none">
-          <div class="co-bonifico" style="text-align:center">
-            <div class="co-bonifico-title">Reindirizzamento PayPal</div>
-            <div style="font-family:var(--iwc-sans);font-size:14px;color:var(--iwc-text);line-height:1.7;margin-top:8px">
-              Cliccando su <strong>Conferma ordine</strong> verrai reindirizzato al portale PayPal per completare il pagamento in modo sicuro tramite il tuo account.
+          <div class="co-bonifico">
+            <div class="co-bonifico-title">Pagamento PayPal</div>
+
+            <!-- Breakdown trasparente: subtotale → fee → totale -->
+            <div class="co-bonifico-box" style="margin-top:12px">
+              <div class="co-bonifico-row">
+                <span class="co-bonifico-key">Subtotale</span>
+                <span class="co-bonifico-val" id="coPpSubtotal">—</span>
+              </div>
+              <div class="co-bonifico-row" id="coPpDiscountRow" style="display:none">
+                <span class="co-bonifico-key">Sconto volume</span>
+                <span class="co-bonifico-val" id="coPpDiscount" style="color:var(--success,#3fb950)">—</span>
+              </div>
+              <div class="co-bonifico-row">
+                <span class="co-bonifico-key">Commissione PayPal <span id="coPpFeeRate" style="font-size:10px;color:var(--iwc-text-subtle);text-transform:none;letter-spacing:0">(2,49% + 0,35€)</span></span>
+                <span class="co-bonifico-val" id="coPpFee">—</span>
+              </div>
+              <div class="co-bonifico-row" style="border-top:1px solid var(--iwc-border-strong,#e8e6e0);padding-top:8px;margin-top:4px">
+                <span class="co-bonifico-key" style="font-weight:600">Totale da pagare</span>
+                <span class="co-bonifico-val gold" id="coPpTotal" style="font-size:14px">—</span>
+              </div>
             </div>
-            <div style="font-family:var(--iwc-sans);font-size:11px;color:var(--iwc-text-muted);margin-top:14px;letter-spacing:.005em">
-              Importo: <strong style="color:var(--iwc-text)" id="coPaypalAmount">—</strong>
+
+            <!-- Container bottoni PayPal SDK (montati lazy alla selezione del metodo) -->
+            <div id="coPaypalButtonsContainer" style="margin-top:18px;min-height:48px"></div>
+
+            <div id="coPaypalStatus" style="margin-top:12px;font-family:var(--iwc-sans);font-size:12px;text-align:center"></div>
+
+            <div style="font-family:var(--iwc-sans);font-size:10.5px;color:var(--iwc-text-subtle);margin-top:14px;letter-spacing:.005em;text-align:center">
+              La commissione PayPal è calcolata in modo che l'incasso netto a RareBlock corrisponda esattamente al subtotale. Pagamento certificato e protetto da PayPal Buyer Protection.
             </div>
           </div>
         </div>
@@ -6436,18 +6522,260 @@ function coSelectPayMethod(method){
   if(bonifEl) bonifEl.style.display = 'none';
   if(cardEl)  cardEl.style.display = 'none';
   if(ppEl)    ppEl.style.display = 'none';
+  // Il bottone "Conferma ordine" del checkout si nasconde su PayPal: il pagamento
+  // avviene tramite i bottoni PayPal nel pannello (autosubmit on approve).
+  var nextBtn = document.getElementById('coNextBtn');
   if(method==='bonifico'){
     document.getElementById('coPayBonifico').classList.add('active');
     if(bonifEl) bonifEl.style.display = '';
+    if(nextBtn) nextBtn.style.display = '';
   } else if(method==='card'){
     var c = document.getElementById('coPayCard');
     if(c) c.classList.add('active');
     if(cardEl) cardEl.style.display = '';
+    if(nextBtn) nextBtn.style.display = '';
   } else if(method==='paypal'){
     var p = document.getElementById('coPayPaypal');
     if(p) p.classList.add('active');
     if(ppEl) ppEl.style.display = '';
+    if(nextBtn) nextBtn.style.display = 'none';
+    // Avvia init PayPal (lazy SDK + render bottoni)
+    coInitPayPal();
   }
+}
+
+// ── PayPal integration ──────────────────────────────────────
+// Config: Client ID viene esposto pubblicamente (è OK, è la chiave pubblica).
+// Il Client Secret resta solo nelle Edge Functions Supabase.
+var RB_PAYPAL_CONFIG = {
+  // Sostituire con il vero client_id sandbox/live al go-live.
+  // In dev: window.RB_PAYPAL_CLIENT_ID definito da config.js / variabile globale
+  clientId: (window.RAREBLOCK_CONFIG && window.RAREBLOCK_CONFIG.PAYPAL_CLIENT_ID)
+            || window.RB_PAYPAL_CLIENT_ID
+            || '',
+  currency: 'EUR',
+  feePct:   2.49,    // mostrato all'utente, deve coincidere con env edge function
+  feeFixed: 0.35,
+};
+
+var _coPayPalSdkLoaded = false;
+var _coPayPalSdkLoading = false;
+var _coPayPalButtonsRendered = false;
+
+function coCalcPayPalFee(subtotal){
+  var p = RB_PAYPAL_CONFIG.feePct / 100;
+  var fee = (subtotal * p + RB_PAYPAL_CONFIG.feeFixed) / (1 - p);
+  return Math.round(fee * 100) / 100;
+}
+
+function coUpdatePayPalBreakdown(){
+  if(!_buyProduct) return;
+  var qty = parseInt(document.getElementById('coQty').value)||0;
+  if(_buyProduct.type === 'full') qty = 1;
+  var calc = calcDiscountedTotal(_buyProduct.price_per_quote, qty, _buyDiscTiers);
+  var subtotalNet = calc.net;
+  var fee   = coCalcPayPalFee(subtotalNet);
+  var total = Math.round((subtotalNet + fee) * 100) / 100;
+
+  var subEl   = document.getElementById('coPpSubtotal');
+  var feeEl   = document.getElementById('coPpFee');
+  var totEl   = document.getElementById('coPpTotal');
+  var rateEl  = document.getElementById('coPpFeeRate');
+  var discRow = document.getElementById('coPpDiscountRow');
+  var discEl  = document.getElementById('coPpDiscount');
+
+  if(subEl)  subEl.textContent  = fmtPrice(calc.gross) + '\u202F€';
+  if(feeEl)  feeEl.textContent  = fmtPrice(fee) + '\u202F€';
+  if(totEl)  totEl.textContent  = fmtPrice(total) + '\u202F€';
+  if(rateEl) rateEl.textContent = '('+fmt2(RB_PAYPAL_CONFIG.feePct).replace('.',',')+'% + '+fmt2(RB_PAYPAL_CONFIG.feeFixed).replace('.',',')+'€)';
+  if(discRow && discEl){
+    if(calc.applied && calc.discount_amount > 0){
+      discRow.style.display = '';
+      discEl.textContent = '-'+fmtPrice(calc.discount_amount)+'\u202F€ ('+fmt2(calc.discount_pct)+'%)';
+    } else {
+      discRow.style.display = 'none';
+    }
+  }
+}
+
+function coLoadPayPalSdk(){
+  if(_coPayPalSdkLoaded) return Promise.resolve();
+  if(_coPayPalSdkLoading) return new Promise(function(resolve){
+    var iv = setInterval(function(){ if(_coPayPalSdkLoaded){ clearInterval(iv); resolve(); } }, 50);
+  });
+  if(!RB_PAYPAL_CONFIG.clientId){
+    return Promise.reject(new Error('PayPal Client ID non configurato. Imposta window.RAREBLOCK_CONFIG.PAYPAL_CLIENT_ID.'));
+  }
+  _coPayPalSdkLoading = true;
+  return new Promise(function(resolve, reject){
+    var s = document.createElement('script');
+    var qs = 'client-id='+encodeURIComponent(RB_PAYPAL_CONFIG.clientId)
+           + '&currency='+RB_PAYPAL_CONFIG.currency
+           + '&intent=capture'
+           + '&components=buttons'
+           + '&disable-funding=credit,paylater';
+    s.src = 'https://www.paypal.com/sdk/js?'+qs;
+    s.async = true;
+    s.onload = function(){ _coPayPalSdkLoaded = true; _coPayPalSdkLoading = false; resolve(); };
+    s.onerror = function(){ _coPayPalSdkLoading = false; reject(new Error('Caricamento SDK PayPal fallito')); };
+    document.head.appendChild(s);
+  });
+}
+
+async function coInitPayPal(){
+  coUpdatePayPalBreakdown();
+  var statusEl = document.getElementById('coPaypalStatus');
+  var container = document.getElementById('coPaypalButtonsContainer');
+  if(!container) return;
+  // Reset eventuali bottoni precedenti (es. cambio quantità → ridisegno)
+  container.innerHTML = '';
+  _coPayPalButtonsRendered = false;
+  if(statusEl) statusEl.textContent = '';
+
+  if(!RB_PAYPAL_CONFIG.clientId){
+    if(statusEl){
+      statusEl.style.color = 'var(--danger,#cf222e)';
+      statusEl.textContent = 'PayPal non ancora configurato. Usa Bonifico o contatta il supporto.';
+    }
+    return;
+  }
+
+  try {
+    if(statusEl) statusEl.textContent = 'Caricamento PayPal…';
+    await coLoadPayPalSdk();
+    if(statusEl) statusEl.textContent = '';
+    if(!window.paypal || !window.paypal.Buttons) throw new Error('SDK PayPal non disponibile');
+    coRenderPayPalButtons();
+  } catch(e){
+    console.error('[paypal] init error:', e);
+    if(statusEl){
+      statusEl.style.color = 'var(--danger,#cf222e)';
+      statusEl.textContent = e.message || 'Errore caricamento PayPal';
+    }
+  }
+}
+
+function coRenderPayPalButtons(){
+  if(_coPayPalButtonsRendered) return;
+  var container = document.getElementById('coPaypalButtonsContainer');
+  if(!container || !window.paypal) return;
+
+  window.paypal.Buttons({
+    style: {
+      layout: 'vertical',
+      color:  'gold',
+      shape:  'rect',
+      label:  'paypal',
+      height: 44,
+    },
+    // 1) Server-side: l'ordine PayPal viene CREATO dalla nostra Edge Function
+    //    (calcola importo dal product_id+qty, mai dal client → no tampering)
+    createOrder: async function(){
+      try {
+        var qty = parseInt(document.getElementById('coQty').value)||0;
+        if(_buyProduct.type === 'full') qty = 1;
+        var bill = coCollectBilling();
+        var notes = (document.getElementById('coNotes')||{}).value || '';
+
+        var resp = await fetch(SUPA_URL+'/functions/v1/paypal-create-order', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer '+(_session && _session.access_token || ''),
+            'apikey': SUPA_KEY,
+          },
+          body: JSON.stringify({
+            product_id: _buyProduct.id,
+            qty: qty,
+            bill: bill,
+            notes: notes,
+          }),
+        });
+        if(!resp.ok){
+          var err = await resp.json().catch(function(){ return {error:'Errore'}; });
+          throw new Error(err.error || ('HTTP '+resp.status));
+        }
+        var data = await resp.json();
+        if(!data.paypalOrderId) throw new Error('paypalOrderId mancante');
+        // Memorizza orderId locale per la capture
+        window._coPendingOrderId = data.orderId;
+        return data.paypalOrderId;
+      } catch(e){
+        var statusEl = document.getElementById('coPaypalStatus');
+        if(statusEl){
+          statusEl.style.color = 'var(--danger,#cf222e)';
+          statusEl.textContent = 'Errore: '+e.message;
+        }
+        throw e;
+      }
+    },
+    // 2) Server-side capture dopo approvazione utente
+    onApprove: async function(data){
+      var statusEl = document.getElementById('coPaypalStatus');
+      if(statusEl){
+        statusEl.style.color = 'var(--iwc-text-muted,#666)';
+        statusEl.textContent = 'Conferma del pagamento in corso…';
+      }
+      try {
+        var resp = await fetch(SUPA_URL+'/functions/v1/paypal-capture-order', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer '+(_session && _session.access_token || ''),
+            'apikey': SUPA_KEY,
+          },
+          body: JSON.stringify({ paypalOrderId: data.orderID }),
+        });
+        if(!resp.ok){
+          var err = await resp.json().catch(function(){ return {error:'Capture fallita'}; });
+          throw new Error(err.error || ('HTTP '+resp.status));
+        }
+        var captured = await resp.json();
+        // Successo: mostra step di conferma esistente del checkout
+        if(typeof coOnPaymentSuccess === 'function'){
+          coOnPaymentSuccess({
+            orderNumber: captured.orderNumber,
+            method: 'paypal',
+            captureId: captured.captureId,
+          });
+        } else {
+          // Fallback: alert + reload
+          if(statusEl){
+            statusEl.style.color = 'var(--success,#3fb950)';
+            statusEl.textContent = 'Pagamento completato! Ordine #'+(captured.orderNumber||'—');
+          }
+          setTimeout(function(){
+            if(typeof closeBuyModal === 'function') closeBuyModal();
+            if(typeof mktLoad === 'function') mktLoad();
+          }, 2500);
+        }
+      } catch(e){
+        if(statusEl){
+          statusEl.style.color = 'var(--danger,#cf222e)';
+          statusEl.textContent = 'Capture fallita: '+e.message+'. Contatta il supporto se l\'addebito è già avvenuto.';
+        }
+      }
+    },
+    onCancel: function(){
+      var statusEl = document.getElementById('coPaypalStatus');
+      if(statusEl){
+        statusEl.style.color = 'var(--iwc-text-muted,#666)';
+        statusEl.textContent = 'Pagamento annullato. Puoi riprovare o scegliere un altro metodo.';
+      }
+    },
+    onError: function(err){
+      console.error('[paypal] onError:', err);
+      var statusEl = document.getElementById('coPaypalStatus');
+      if(statusEl){
+        statusEl.style.color = 'var(--danger,#cf222e)';
+        statusEl.textContent = 'Errore PayPal. Riprova o usa Bonifico.';
+      }
+    },
+  }).render('#coPaypalButtonsContainer').then(function(){
+    _coPayPalButtonsRendered = true;
+  }).catch(function(e){
+    console.error('[paypal] render error:', e);
+  });
 }
 
 function coUpdateBonificoSummary(){
@@ -6459,9 +6787,14 @@ function coUpdateBonificoSummary(){
   document.getElementById('coCausale').textContent = causale;
   var amt = fmtPrice(calc.net)+'\u202F€';
   document.getElementById('coAmount').textContent = amt;
-  // PayPal pannello
-  var pp = document.getElementById('coPaypalAmount');
-  if(pp) pp.textContent = amt;
+  // Aggiorna anche breakdown PayPal se il pannello è in uso
+  if(_coPayMethod === 'paypal'){
+    coUpdatePayPalBreakdown();
+    // Re-render bottoni: il prezzo è cambiato, l'ordine PayPal va ricreato dal createOrder
+    _coPayPalButtonsRendered = false;
+    var c = document.getElementById('coPaypalButtonsContainer');
+    if(c){ c.innerHTML = ''; coRenderPayPalButtons(); }
+  }
 }
 
 function coCopy(elId, btn){
@@ -6625,6 +6958,28 @@ function coRenderConfirmation(){
     + '<div class="co-bonifico-row"><span class="co-bonifico-key">Causale</span><span class="co-bonifico-val gold">'+esc(_coOrder.causale)+'</span></div>'
     + '<div class="co-bonifico-row"><span class="co-bonifico-key">Importo</span><span class="co-bonifico-val gold">'+fmtPrice(_coOrder.total)+'\u202F€</span></div>'
     + qtyLine;
+}
+
+// Callback per pagamenti completati live (PayPal). Riusa lo step 4 di
+// conferma esistente, popolando _coOrder con i dati ricevuti dal capture.
+function coOnPaymentSuccess(payload){
+  payload = payload || {};
+  var qty = parseInt((document.getElementById('coQty')||{}).value)||0;
+  if(_buyProduct && _buyProduct.type === 'full') qty = 1;
+  var calc = calcDiscountedTotal(_buyProduct.price_per_quote, qty, _buyDiscTiers);
+  var bill = coCollectBilling();
+  _coOrder = {
+    number:   payload.orderNumber || ('ORD-'+new Date().getFullYear()+'-'+Date.now().toString().slice(-5)),
+    causale:  payload.orderNumber || ('RBK-'+_buyProduct.id.slice(0,8).toUpperCase()+'-Q'+qty),
+    qty:      qty,
+    amount:   calc.net,
+    bill:     bill,
+    method:   payload.method || 'paypal',
+    captureId: payload.captureId || null,
+    paid:     true,
+  };
+  if(typeof coRenderConfirmation === 'function') coRenderConfirmation();
+  if(typeof coGotoStep === 'function') coGotoStep(4);
 }
 
 // ── Download riepilogo PDF (semplice: print della finestra) ─
@@ -7834,6 +8189,7 @@ function adminSection(s){
   if(s==='memorandum')  memoLoadAll();
   if(s==='submissions') submLoadAll();
   if(s==='users')       adminLoadUsers();
+  if(s==='vendor-payouts') adminLoadVendorPayouts();
 }
 
 // Lazy-load dell'iframe Utenti: lo carichiamo solo al primo accesso al tab,
@@ -7856,6 +8212,8 @@ async function adminLoad(){
   // Carica anche pagamenti in background per popolare il badge sidebar (anche
   // se l'utente è inizialmente nel tab Prodotti, così vede subito i pending)
   try { adminLoadPayments(); } catch(e){}
+  // Carica payout vendor in background per il badge "Payout Vendor"
+  try { adminLoadVendorPayouts(); } catch(e){}
   // Populate product selectors for accrual and liq modals
   var opts = _mktProducts.map(function(p){ return '<option value="'+p.id+'">'+esc(p.name)+'</option>'; }).join('');
   var ap = document.getElementById('accrualProduct');
@@ -9778,6 +10136,51 @@ function redirectToLogin(){
 }
 </script>
 
+<!-- ══════════════ MODALE PAYOUT VENDOR — Marca come pagato ══════════════ -->
+<div class="modal-bg" id="vpPayModalBg" onclick="if(event.target===this)vpCloseModal()">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-head">
+      <h3>Registra pagamento vendor</h3>
+      <button class="modal-close" onclick="vpCloseModal()" aria-label="Chiudi"><span class="rb-i rb-i-x"></span></button>
+    </div>
+    <div class="modal-body">
+      <div id="vpPayRecap" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;font-size:12px;line-height:1.7"></div>
+      <div class="form-grid">
+        <div class="field">
+          <label>Metodo *</label>
+          <select id="vpPayMethod">
+            <option value="bonifico">Bonifico</option>
+            <option value="paypal">PayPal</option>
+            <option value="contanti">Contanti</option>
+            <option value="altro">Altro</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Data pagamento *</label>
+          <input type="date" id="vpPayDate"/>
+        </div>
+        <div class="field span2">
+          <label>Importo trasferito (€) *</label>
+          <input type="number" id="vpPayAmount" step="0.01" min="0"/>
+          <div style="font-size:10.5px;color:var(--text-subtle);font-family:var(--mono);margin-top:4px">Lascia il valore proposto (= netto vendor) salvo necessità di rettifica.</div>
+        </div>
+        <div class="field span2">
+          <label>Riferimento (CRO bonifico, ID transazione)</label>
+          <input type="text" id="vpPayRef" placeholder="es. BNL12345, PAYPAL-TX-789"/>
+        </div>
+        <div class="field span2">
+          <label>Note</label>
+          <textarea id="vpPayNotes" placeholder="Eventuali note interne sul pagamento" style="height:60px"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="vpCloseModal()">Annulla</button>
+      <button class="btn primary" onclick="vpConfirmPay()" id="vpPayBtn">Conferma pagamento</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════ MODALE EDIT PRODOTTO LATO VENDOR ══════════════ -->
 <!-- Solo descrizione + cover URL. I campi sensibili sono read-only e protetti dal trigger DB. -->
 <div class="modal-bg" id="vendorEditModalBg" onclick="if(event.target===this)closeVendorEditModal()">
@@ -10057,6 +10460,240 @@ async function adminLoadVendors(){
     var hint = /relation .* does not exist/i.test(msg) ? 'Esegui la migration 025_vendors.sql in Supabase per attivare la gestione venditori.' : null;
     document.getElementById('adminVendorsTbody').innerHTML = uiErrorCell(9, 'Caricamento venditori fallito', hint || e, 'adminLoadVendors()');
   }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// VENDOR PAYOUTS — ledger contabile pagamenti dovuti ai vendor
+// ═══════════════════════════════════════════════════════════════
+var _vpRows = [];
+
+async function adminLoadVendorPayouts(){
+  if(!_isAdmin) return;
+  var tbody = document.getElementById('adminVendorPayoutsTbody');
+  if(tbody) tbody.innerHTML = skelRows(4, ['short','medium','medium','short','short','short','short','tag','medium']);
+  try {
+    // Join con order + product + vendor per visualizzazione completa
+    var rows = await supa('GET',
+      'vendor_payouts?select=*,order:order_id(order_number,paid_at,paypal_capture_id),product:product_id(name),vendor:vendor_id(display_name,legal_name,iban)'
+      + '&order=created_at.desc&limit=500');
+    _vpRows = rows || [];
+    vpPopulateVendorFilter();
+    vpRenderKpis();
+    vpApplyFilters();
+    // Aggiorna badge sidebar con count "due"
+    var dueCount = _vpRows.filter(function(r){ return r.status==='due'; }).length;
+    var badge = document.getElementById('adminSidePayoutCount');
+    if(badge){
+      if(dueCount>0){ badge.textContent = dueCount; badge.style.display=''; }
+      else badge.style.display='none';
+    }
+  } catch(e){
+    var msg = e.message||String(e);
+    var hint = /relation .* does not exist/i.test(msg) ? 'Esegui la migration 026_paypal.sql in Supabase per attivare i payout vendor.' : null;
+    document.getElementById('adminVendorPayoutsTbody').innerHTML = uiErrorCell(9, 'Caricamento payout fallito', hint || e, 'adminLoadVendorPayouts()');
+  }
+}
+
+function vpPopulateVendorFilter(){
+  var sel = document.getElementById('vpFilterVendor');
+  if(!sel) return;
+  var prev = sel.value;
+  var seen = {};
+  var opts = '<option value="">Tutti</option>';
+  _vpRows.forEach(function(r){
+    if(r.vendor_id && !seen[r.vendor_id]){
+      seen[r.vendor_id] = true;
+      var nm = (r.vendor && (r.vendor.display_name || r.vendor.legal_name)) || r.vendor_id.slice(0,8);
+      opts += '<option value="'+r.vendor_id+'">'+esc(nm)+'</option>';
+    }
+  });
+  sel.innerHTML = opts;
+  if(prev && Object.prototype.hasOwnProperty.call(seen, prev)) sel.value = prev;
+}
+
+function vpRenderKpis(){
+  var due = 0, inProg = 0, paidYtd = 0, comm = 0;
+  var ytdStart = new Date(new Date().getFullYear(), 0, 1).getTime();
+  _vpRows.forEach(function(r){
+    var net  = parseFloat(r.vendor_net)||0;
+    var rbc  = parseFloat(r.rb_commission)||0;
+    if(r.status==='due')         due += net;
+    if(r.status==='in_progress') inProg += net;
+    if(r.status==='paid'){
+      var paidAt = r.paid_at ? new Date(r.paid_at).getTime() : 0;
+      if(paidAt >= ytdStart) paidYtd += parseFloat(r.paid_amount || r.vendor_net) || 0;
+    }
+    comm += rbc;
+  });
+  var d = document.getElementById('vpKpiDue');         if(d) d.textContent = fmtMoney(due);
+  var ip = document.getElementById('vpKpiInProgress'); if(ip) ip.textContent = fmtMoney(inProg);
+  var pa = document.getElementById('vpKpiPaid');       if(pa) pa.textContent = fmtMoney(paidYtd);
+  var c = document.getElementById('vpKpiCommission');  if(c) c.textContent = fmtMoney(comm);
+}
+
+function vpApplyFilters(){
+  var st = (document.getElementById('vpFilterStatus')||{}).value || '';
+  var vd = (document.getElementById('vpFilterVendor')||{}).value || '';
+  var rows = _vpRows.filter(function(r){
+    if(st && r.status !== st) return false;
+    if(vd && r.vendor_id !== vd) return false;
+    return true;
+  });
+  vpRender(rows);
+}
+
+function vpRender(rows){
+  var tbody = document.getElementById('adminVendorPayoutsTbody');
+  var empty = document.getElementById('adminVendorPayoutsEmpty');
+  if(!rows.length){
+    if(tbody) tbody.innerHTML = '';
+    if(empty) empty.style.display = '';
+    return;
+  }
+  if(empty) empty.style.display = 'none';
+
+  var statusBadgeMap = {
+    due:         '<span class="badge" style="background:rgba(201,168,76,.12);color:var(--gold);border:1px solid rgba(201,168,76,.35)">Da pagare</span>',
+    in_progress: '<span class="badge" style="background:rgba(88,166,255,.1);color:var(--accent);border:1px solid var(--accent-border)">In corso</span>',
+    paid:        '<span class="badge" style="background:rgba(63,185,80,.1);color:var(--success);border:1px solid rgba(63,185,80,.35)">Pagato</span>',
+    cancelled:   '<span class="badge" style="background:var(--surface2);color:var(--text-muted);border:1px solid var(--border)">Annullato</span>',
+    disputed:    '<span class="badge" style="background:rgba(248,81,73,.1);color:var(--danger);border:1px solid rgba(248,81,73,.35)">Disputa</span>',
+  };
+
+  tbody.innerHTML = rows.map(function(r){
+    var orderNum = (r.order && r.order.order_number) || '—';
+    var paidAt   = r.order && r.order.paid_at;
+    var dt       = paidAt ? fmtDate(paidAt) : fmtDate(r.created_at);
+    var vendorNm = (r.vendor && (r.vendor.display_name || r.vendor.legal_name)) || '—';
+    var prodNm   = (r.product && r.product.name) || '—';
+    var canPay   = (r.status === 'due' || r.status === 'in_progress');
+    var rowAct   = '<div style="display:flex;gap:6px;justify-content:flex-end">'
+      + (canPay ? '<button class="btn primary sm" onclick="vpOpenPayModal(\''+r.id+'\')" title="Marca come pagato">Paga</button>' : '')
+      + '<button class="btn sm icon-btn" onclick="vpToggleInProgress(\''+r.id+'\','+(r.status==='in_progress'?'true':'false')+')" title="'+(r.status==='in_progress'?'Riporta a Da pagare':'Marca In corso')+'">'
+      + '<span class="rb-i rb-i-'+(r.status==='in_progress'?'undo':'edit')+'"></span></button>'
+      + '</div>';
+    return '<tr>'
+      +'<td style="font-family:var(--mono);color:var(--text-muted);font-size:11.5px">'+esc(dt)+'</td>'
+      +'<td><div style="font-weight:500">'+esc(vendorNm)+'</div><div style="font-size:11px;color:var(--text-muted)">'+esc(prodNm.slice(0,50))+(prodNm.length>50?'…':'')+'</div></td>'
+      +'<td style="font-family:var(--mono);font-size:11.5px;color:var(--accent)">'+esc(orderNum)+'</td>'
+      +'<td style="font-family:var(--mono);text-align:right">'+fmtMoney(r.gross_amount)+'</td>'
+      +'<td style="font-family:var(--mono);text-align:right;color:var(--text-muted)">−'+fmtMoney(r.paypal_fee)+'</td>'
+      +'<td style="font-family:var(--mono);text-align:right;color:var(--text-muted)">−'+fmtMoney(r.rb_commission)+' <span style="font-size:10px">('+fmt2(r.rb_commission_pct)+'%)</span></td>'
+      +'<td style="font-family:var(--mono);text-align:right;font-weight:600;color:var(--gold)">'+fmtMoney(r.vendor_net)+'</td>'
+      +'<td>'+(statusBadgeMap[r.status]||esc(r.status))+'</td>'
+      +'<td>'+rowAct+'</td>'
+      +'</tr>';
+  }).join('');
+}
+
+// ── Modal "Marca come pagato" ──
+var _vpEditingId = null;
+function vpOpenPayModal(payoutId){
+  var r = _vpRows.find(function(x){ return x.id === payoutId; });
+  if(!r) return;
+  _vpEditingId = payoutId;
+  var vendorNm = (r.vendor && (r.vendor.display_name || r.vendor.legal_name)) || '—';
+  var iban = (r.vendor && r.vendor.iban) || '';
+  var orderNum = (r.order && r.order.order_number) || '—';
+  document.getElementById('vpPayRecap').innerHTML = ''
+    +'<div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Vendor</span><strong>'+esc(vendorNm)+'</strong></div>'
+    +'<div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Ordine</span><span style="font-family:var(--mono)">'+esc(orderNum)+'</span></div>'
+    +'<div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Lordo</span><span style="font-family:var(--mono)">'+fmtMoney(r.gross_amount)+'</span></div>'
+    +'<div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Fee PayPal</span><span style="font-family:var(--mono)">−'+fmtMoney(r.paypal_fee)+'</span></div>'
+    +'<div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Commissione RB</span><span style="font-family:var(--mono)">−'+fmtMoney(r.rb_commission)+'</span></div>'
+    +'<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:6px;margin-top:6px"><strong>Netto vendor</strong><strong style="font-family:var(--mono);color:var(--gold)">'+fmtMoney(r.vendor_net)+'</strong></div>'
+    +(iban?'<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px"><span style="color:var(--text-muted)">IBAN</span><span style="font-family:var(--mono)">'+esc(iban)+'</span></div>':'<div style="margin-top:6px;font-size:11px;color:var(--danger)">⚠ IBAN vendor non impostato</div>');
+  document.getElementById('vpPayMethod').value = 'bonifico';
+  document.getElementById('vpPayDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('vpPayAmount').value = parseFloat(r.vendor_net).toFixed(2);
+  document.getElementById('vpPayRef').value = '';
+  document.getElementById('vpPayNotes').value = '';
+  document.getElementById('vpPayModalBg').classList.add('show');
+}
+
+function vpCloseModal(){
+  _vpEditingId = null;
+  document.getElementById('vpPayModalBg').classList.remove('show');
+}
+
+async function vpConfirmPay(){
+  if(!_vpEditingId) return;
+  var method = document.getElementById('vpPayMethod').value;
+  var date   = document.getElementById('vpPayDate').value;
+  var amount = parseFloat(document.getElementById('vpPayAmount').value);
+  var ref    = document.getElementById('vpPayRef').value.trim();
+  var notes  = document.getElementById('vpPayNotes').value.trim();
+  if(!date){ alert('Imposta la data del pagamento'); return; }
+  if(!amount || amount <= 0){ alert('Imposta un importo valido'); return; }
+  var btn = document.getElementById('vpPayBtn');
+  btn.disabled = true; btn.textContent = 'Salvataggio…';
+  try {
+    await supa('PATCH','vendor_payouts?id=eq.'+_vpEditingId, {
+      status:         'paid',
+      paid_at:        new Date(date).toISOString(),
+      paid_method:    method,
+      paid_amount:    amount,
+      paid_reference: ref || null,
+      paid_notes:     notes || null,
+      updated_by:     _session && _session.user && _session.user.id || null,
+    });
+    vpCloseModal();
+    await adminLoadVendorPayouts();
+  } catch(e){
+    alert('Errore salvataggio: ' + (e.message||e));
+  } finally {
+    btn.disabled = false; btn.textContent = 'Conferma pagamento';
+  }
+}
+
+async function vpToggleInProgress(payoutId, isAlreadyInProgress){
+  try {
+    await supa('PATCH','vendor_payouts?id=eq.'+payoutId, {
+      status: isAlreadyInProgress ? 'due' : 'in_progress',
+      updated_by: _session && _session.user && _session.user.id || null,
+    });
+    await adminLoadVendorPayouts();
+  } catch(e){ alert('Errore: '+e.message); }
+}
+
+// ── Export CSV ──
+function vpExportCsv(){
+  var st = (document.getElementById('vpFilterStatus')||{}).value || '';
+  var vd = (document.getElementById('vpFilterVendor')||{}).value || '';
+  var rows = _vpRows.filter(function(r){
+    if(st && r.status !== st) return false;
+    if(vd && r.vendor_id !== vd) return false;
+    return true;
+  });
+  var headers = ['data_creazione','data_pagamento','vendor','ordine','prodotto','lordo','fee_paypal','commissione_rb_pct','commissione_rb','netto_vendor','stato','metodo_pagamento','riferimento'];
+  var lines = [headers.join(';')];
+  rows.forEach(function(r){
+    var vendorNm = (r.vendor && (r.vendor.display_name || r.vendor.legal_name)) || '';
+    var prodNm   = (r.product && r.product.name) || '';
+    var orderNum = (r.order && r.order.order_number) || '';
+    lines.push([
+      r.created_at ? r.created_at.slice(0,10) : '',
+      r.paid_at    ? r.paid_at.slice(0,10)    : '',
+      '"'+vendorNm.replace(/"/g,'""')+'"',
+      orderNum,
+      '"'+prodNm.replace(/"/g,'""')+'"',
+      r.gross_amount,
+      r.paypal_fee,
+      r.rb_commission_pct,
+      r.rb_commission,
+      r.vendor_net,
+      r.status,
+      r.paid_method || '',
+      r.paid_reference || '',
+    ].join(';'));
+  });
+  var blob = new Blob(['\uFEFF'+lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'rareblock-vendor-payouts-' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); document.body.removeChild(a); }, 100);
 }
 
 function openVendorModal(){
