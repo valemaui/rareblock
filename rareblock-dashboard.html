@@ -3343,6 +3343,16 @@ textarea{resize:vertical;min-height:60px}
 .admin-main{flex:1;overflow-y:auto;padding:20px 24px}
 .admin-section{display:none}
 .admin-section.active{display:block}
+/* Sezione Utenti: layout speciale per l'iframe full-height.
+   Quando attiva, neutralizziamo padding+overflow del parent .admin-main
+   tramite :has() così l'iframe occupa precisamente tutta l'area disponibile
+   senza overflow orizzontale. */
+.admin-section-users{flex:1;flex-direction:column;height:100%;padding:0;margin:0}
+.admin-section-users.active{display:flex}
+.admin-section-users iframe{flex:1;width:100%;height:100%;border:none;background:transparent;display:block}
+/* Quando admin-users è attivo: padding 0 + overflow hidden sul main parent,
+   l'iframe gestisce il proprio scroll interno ed evita doppia scrollbar */
+.admin-main:has(.admin-section-users.active){padding:0;overflow:hidden}
 .admin-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px}
 .admin-table th{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-family:var(--mono);padding:7px 10px;border-bottom:1px solid var(--border);text-align:left;background:var(--surface);position:sticky;top:0;z-index:1}
 .admin-table td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
@@ -4123,9 +4133,8 @@ textarea{resize:vertical;min-height:60px}
            Mantiene la singola fonte di codice (gestione utenti vive in
            rareblock-admin-users.html) ma rende l'esperienza coerente con
            le altre voci della sidebar admin (no più redirect esterno). -->
-      <div class="admin-section" id="admin-users" style="height:calc(100vh - 100px)">
+      <div class="admin-section admin-section-users" id="admin-users">
         <iframe id="adminUsersIframe"
-                style="display:none;width:100%;height:100%;border:none;background:transparent"
                 src="about:blank"
                 title="Gestione utenti"></iframe>
       </div>
@@ -7641,13 +7650,11 @@ function adminSection(s){
 function adminLoadUsers(){
   var iframe = document.getElementById('adminUsersIframe');
   if(!iframe) return;
-  if(iframe.dataset.loaded === '1'){
-    iframe.style.display = 'block';
-    return;
+  // Lazy load al primo accesso. Il display è gestito dal CSS via .active.
+  if(iframe.dataset.loaded !== '1'){
+    iframe.src = 'rareblock-admin-users.html?embed=1';
+    iframe.dataset.loaded = '1';
   }
-  iframe.style.display = 'block';
-  iframe.src = 'rareblock-admin-users.html?embed=1';
-  iframe.dataset.loaded = '1';
 }
 
 async function adminLoad(){

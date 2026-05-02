@@ -218,13 +218,62 @@ tr.row-deleted td.email,tr.row-deleted td.name{text-decoration:line-through}
 
 /* ── EMBED MODE ──────────────────────────────────────────────
    Quando la pagina è caricata via iframe dalla dashboard
-   (?embed=1), nasconde header/breadcrumbs/logo perché vivono
-   già nel parent. Lo spazio viene usato per il contenuto. */
+   (?embed=1), uniforma il layout alle altre sezioni admin:
+   - nasconde header proprio (vive nel parent)
+   - rimuove max-width / centratura del main
+   - tipografia titolo allineata al pattern admin
+   - bg trasparente per ereditare dal parent */
+body.embed-mode{ background:transparent }
 body.embed-mode .header{ display:none !important }
 body.embed-mode #deniedScreen{ background:transparent }
-body.embed-mode main{ padding-top:0 }
-body.embed-mode{ background:transparent }
-body.embed-mode .page-head{ padding-top:6px }
+
+/* main: piena larghezza, padding interno coerente con altre tab admin (20px 24px) */
+body.embed-mode main{
+  padding: 20px 24px !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+
+/* page-head: allineato al pattern delle altre tab admin (Prodotti/Vendori/...) */
+body.embed-mode .page-head{
+  padding-top: 0;
+  margin-bottom: 16px;
+  align-items: flex-start;
+}
+body.embed-mode .page-title{
+  font-family: var(--font, Inter, system-ui, sans-serif);
+  font-size: 15px;
+  font-weight: 600;
+  font-style: normal;
+  letter-spacing: .005em;
+  line-height: 1.3;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+/* Icona dot prima del titolo per coerenza con le altre tab admin che hanno l'icona */
+body.embed-mode .page-title::before{
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  background-color: var(--accent);
+  -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>');
+          mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>');
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-position:center;mask-position:center;
+  -webkit-mask-size:contain;mask-size:contain;
+}
+body.embed-mode .page-sub{
+  font-size: 12px;
+  margin-top: 3px;
+  max-width: none;
+}
+/* Toolbar buttons più compatti per coerenza */
+body.embed-mode .page-head .btn{
+  font-size: 12px;
+  padding: 5px 12px;
+}
 </style>
 </head>
 <body>
