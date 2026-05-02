@@ -3373,6 +3373,42 @@ textarea{resize:vertical;min-height:60px}
   color:var(--text-subtle);
 }
 .ap-thumb-empty .rb-i{width:16px;height:16px}
+
+/* Filtri inline nel thead — pattern enterprise data-grid.
+   Riga 2 del thead allineata sulle colonne, sticky sotto la riga 1. */
+.ap-table thead tr:first-child th{position:sticky;top:0;z-index:2}
+.ap-filter-row th{
+  position:sticky;top:30px;z-index:2;
+  background:var(--surface2);
+  border-bottom:1px solid var(--border-strong,var(--border));
+  padding:8px 10px !important;
+  font-weight:400;
+  text-transform:none;
+  letter-spacing:0;
+  font-family:var(--font);
+}
+.ap-filter-row th:first-child{padding-left:10px !important}
+.ap-cell-search{position:relative}
+.ap-cell-search > .rb-i{position:absolute;left:9px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--text-muted);pointer-events:none;background-color:var(--text-muted)}
+.ap-cell-search input{width:100%;min-width:140px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:5px 9px 5px 28px;color:var(--text);font-family:var(--font);font-size:12px;outline:none;transition:border-color .12s,background .12s}
+.ap-cell-search input:focus{border-color:var(--accent);background:var(--surface)}
+.ap-cell-select{
+  width:100%;min-width:90px;
+  background:var(--bg);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:5px 22px 5px 8px;
+  color:var(--text);font-family:var(--font);font-size:12px;
+  outline:none;cursor:pointer;
+  transition:border-color .12s,background .12s;
+}
+.ap-cell-select:hover,.ap-cell-select:focus{border-color:var(--border-strong);background:var(--surface)}
+/* Visivo: filtro con valore non-default ha bordo+colore gold per indicare filtro attivo */
+.ap-cell-select.ap-active{border-color:var(--gold,#c9a84c);color:var(--gold,#c9a84c);background:rgba(201,168,76,.06)}
+.ap-cell-search input.ap-active{border-color:var(--gold,#c9a84c);background:rgba(201,168,76,.06)}
+.ap-reset-btn{height:28px;width:30px}
+.admin-filter-group.inline{flex-direction:column;gap:3px}
+.admin-filter-group.inline select{min-width:130px;padding:5px 22px 5px 9px;font-size:12px}
 .admin-filter-search{position:relative;flex:1 1 220px;min-width:200px;max-width:320px}
 .admin-filter-search input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px 7px 32px;color:var(--text);font-family:var(--font);font-size:12.5px;outline:none;transition:border-color .12s}
 .admin-filter-search input:focus{border-color:var(--accent)}
@@ -3715,89 +3751,128 @@ textarea{resize:vertical;min-height:60px}
 
       <!-- PRODOTTI -->
       <div class="admin-section active" id="admin-products">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;gap:14px;flex-wrap:wrap">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:14px;flex-wrap:wrap">
           <div>
             <div style="font-size:15px;font-weight:600;letter-spacing:.005em;display:inline-flex;align-items:center;gap:8px"><span class="rb-i rb-i-package" style="color:var(--accent)"></span> Gestione Prodotti</div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:3px" id="adminProductsCount">Caricamento…</div>
           </div>
-          <button class="btn primary" onclick="openProductModal()"><span class="rb-i rb-i-plus"></span> Nuovo prodotto</button>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <!-- Filtri secondari (categoria/vendor/ordina) -->
+            <div class="admin-filter-group inline">
+              <label class="admin-filter-lbl">Categoria</label>
+              <select id="apFilterCategory" onchange="apApplyFilters()">
+                <option value="">Tutte</option>
+                <option value="booster_box">Booster Box</option>
+                <option value="etb">ETB</option>
+                <option value="booster_bundle">Booster Bundle</option>
+                <option value="collection_box">Collection Box</option>
+                <option value="tin">Tin</option>
+                <option value="case">Case</option>
+                <option value="box_break">Box Break</option>
+                <option value="blister">Blister</option>
+                <option value="single_pack">Singola busta</option>
+                <option value="graded_card">Carta gradata</option>
+                <option value="sealed_other">Altro sigillato</option>
+                <option value="other">Altro</option>
+              </select>
+            </div>
+            <div class="admin-filter-group inline">
+              <label class="admin-filter-lbl">Vendor</label>
+              <select id="apFilterVendor" onchange="apApplyFilters()">
+                <option value="">Tutti</option>
+                <option value="__none__">Senza vendor</option>
+              </select>
+            </div>
+            <div class="admin-filter-group inline">
+              <label class="admin-filter-lbl">Ordina</label>
+              <select id="apFilterSort" onchange="apApplyFilters()">
+                <option value="newest">Più recenti</option>
+                <option value="oldest">Meno recenti</option>
+                <option value="target_asc">Scadenza ravvicinata</option>
+                <option value="target_desc">Scadenza lontana</option>
+                <option value="price_desc">Prezzo decrescente</option>
+                <option value="price_asc">Prezzo crescente</option>
+                <option value="name">Nome A→Z</option>
+              </select>
+            </div>
+            <button class="btn primary" onclick="openProductModal()" style="margin-left:6px"><span class="rb-i rb-i-plus"></span> Nuovo prodotto</button>
+          </div>
         </div>
 
-        <!-- Toolbar filtri -->
-        <div class="admin-filter-bar">
-          <div class="admin-filter-search">
-            <span class="rb-i rb-i-search admin-filter-search-icon"></span>
-            <input type="text" id="apFilterSearch" placeholder="Cerca per nome…" oninput="apApplyFilters()"/>
-          </div>
-          <div class="admin-filter-group">
-            <label class="admin-filter-lbl">Stato</label>
-            <select id="apFilterStatus" onchange="apApplyFilters()">
-              <option value="">Tutti</option>
-              <option value="active" selected>Attivi (open + closing_soon)</option>
-              <option value="draft">Bozze</option>
-              <option value="open">Aperti</option>
-              <option value="closing_soon">In chiusura</option>
-              <option value="closed">Chiusi</option>
-              <option value="sold_out">Esauriti</option>
-              <option value="pending_grading">In gradazione</option>
-              <option value="grading_complete">Gradati</option>
-              <option value="hold">Hold</option>
-              <option value="liquidated">Liquidati</option>
-            </select>
-          </div>
-          <div class="admin-filter-group">
-            <label class="admin-filter-lbl">Tipo</label>
-            <select id="apFilterType" onchange="apApplyFilters()">
-              <option value="">Tutti</option>
-              <option value="full">Full Ownership</option>
-              <option value="fractional">Fractional</option>
-              <option value="millesimal">Millesimale</option>
-              <option value="grade_hold">Grade &amp; Hold</option>
-            </select>
-          </div>
-          <div class="admin-filter-group">
-            <label class="admin-filter-lbl">Categoria</label>
-            <select id="apFilterCategory" onchange="apApplyFilters()">
-              <option value="">Tutte</option>
-              <option value="booster_box">Booster Box</option>
-              <option value="etb">ETB</option>
-              <option value="booster_bundle">Booster Bundle</option>
-              <option value="collection_box">Collection Box</option>
-              <option value="tin">Tin</option>
-              <option value="case">Case</option>
-              <option value="box_break">Box Break</option>
-              <option value="blister">Blister</option>
-              <option value="single_pack">Singola busta</option>
-              <option value="graded_card">Carta gradata</option>
-              <option value="sealed_other">Altro sigillato</option>
-              <option value="other">Altro</option>
-            </select>
-          </div>
-          <div class="admin-filter-group">
-            <label class="admin-filter-lbl">Vendor</label>
-            <select id="apFilterVendor" onchange="apApplyFilters()">
-              <option value="">Tutti</option>
-              <option value="__none__">Senza vendor</option>
-              <!-- popolato dinamicamente da pmPopulateVendors -->
-            </select>
-          </div>
-          <div class="admin-filter-group">
-            <label class="admin-filter-lbl">Ordina</label>
-            <select id="apFilterSort" onchange="apApplyFilters()">
-              <option value="newest">Più recenti</option>
-              <option value="oldest">Meno recenti</option>
-              <option value="target_asc">Scadenza ravvicinata</option>
-              <option value="target_desc">Scadenza lontana</option>
-              <option value="price_desc">Prezzo decrescente</option>
-              <option value="price_asc">Prezzo crescente</option>
-              <option value="name">Nome A→Z</option>
-            </select>
-          </div>
-          <button class="btn sm admin-filter-reset" onclick="apResetFilters()" title="Ripristina filtri di default"><span class="rb-i rb-i-refresh"></span> Reset</button>
-        </div>
-
-        <table class="admin-table" id="adminProductsTable">
-          <thead><tr><th class="ap-thumb-col"></th><th>Nome</th><th>Tipo</th><th>Status</th><th>Quote</th><th>Prezzo</th><th>Scadenza</th><th></th></tr></thead>
+        <table class="admin-table ap-table" id="adminProductsTable">
+          <thead>
+            <!-- Riga 1: header colonne -->
+            <tr>
+              <th class="ap-thumb-col"></th>
+              <th>Nome</th>
+              <th>Tipo</th>
+              <th>Status</th>
+              <th>Quote</th>
+              <th>Prezzo</th>
+              <th>Scadenza</th>
+              <th></th>
+            </tr>
+            <!-- Riga 2: filtri inline allineati alle colonne -->
+            <tr class="ap-filter-row">
+              <th class="ap-thumb-col"></th>
+              <th>
+                <div class="ap-cell-search">
+                  <span class="rb-i rb-i-search"></span>
+                  <input type="text" id="apFilterSearch" placeholder="Cerca per nome…" oninput="apApplyFilters()"/>
+                </div>
+              </th>
+              <th>
+                <select class="ap-cell-select" id="apFilterType" onchange="apApplyFilters()">
+                  <option value="">Tutti</option>
+                  <option value="full">Full</option>
+                  <option value="fractional">Fractional</option>
+                  <option value="millesimal">Millesimal</option>
+                  <option value="grade_hold">Grade &amp; Hold</option>
+                </select>
+              </th>
+              <th>
+                <select class="ap-cell-select" id="apFilterStatus" onchange="apApplyFilters()">
+                  <option value="active" selected>Attivi</option>
+                  <option value="">Tutti</option>
+                  <option value="draft">Bozze</option>
+                  <option value="open">Aperti</option>
+                  <option value="closing_soon">In chiusura</option>
+                  <option value="closed">Chiusi</option>
+                  <option value="sold_out">Esauriti</option>
+                  <option value="pending_grading">In gradazione</option>
+                  <option value="grading_complete">Gradati</option>
+                  <option value="hold">Hold</option>
+                  <option value="liquidated">Liquidati</option>
+                </select>
+              </th>
+              <th></th>
+              <th>
+                <select class="ap-cell-select" id="apFilterPrice" onchange="apApplyFilters()">
+                  <option value="">Tutti</option>
+                  <option value="0-500">≤ €500</option>
+                  <option value="500-2000">€500–2k</option>
+                  <option value="2000-10000">€2k–10k</option>
+                  <option value="10000+">&gt; €10k</option>
+                </select>
+              </th>
+              <th>
+                <select class="ap-cell-select" id="apFilterDate" onchange="apApplyFilters()">
+                  <option value="">Tutte</option>
+                  <option value="overdue">Scadute</option>
+                  <option value="30">≤ 30gg</option>
+                  <option value="90">≤ 90gg</option>
+                  <option value="365">≤ 1 anno</option>
+                  <option value="future">Oltre 1 anno</option>
+                  <option value="none">Senza data</option>
+                </select>
+              </th>
+              <th>
+                <button class="btn sm icon-btn ap-reset-btn" onclick="apResetFilters()" title="Reset filtri">
+                  <span class="rb-i rb-i-refresh"></span>
+                </button>
+              </th>
+            </tr>
+          </thead>
           <tbody id="adminProductsTbody"></tbody>
         </table>
         <div class="empty-state" id="adminProductsEmpty" style="display:none"><div class="icon"><span class="rb-i rb-i-package"></span></div><h3>Nessun prodotto</h3></div>
@@ -7598,7 +7673,13 @@ async function adminLoadProducts(){
   var empty0 = document.getElementById('adminProductsEmpty');
   if(empty0) empty0.style.display='none';
   try {
-    _mktProducts = (await supa('GET','inv_products?order=created_at.desc'))||[];
+    // Prova view con cover_photo_url joinato (stessa che usa il marketplace),
+    // fallback su tabella base se la migration 019/020 non è applicata.
+    try {
+      _mktProducts = (await supa('GET','v_inv_products_with_cover?order=created_at.desc&limit=500'))||[];
+    } catch(e){
+      _mktProducts = (await supa('GET','inv_products?order=created_at.desc&limit=500'))||[];
+    }
     if(!_mktProducts.length){
       var tb = document.getElementById('adminProductsTbody');
       var emp = document.getElementById('adminProductsEmpty');
@@ -7657,7 +7738,25 @@ function apApplyFilters(){
   var typeF   = ((document.getElementById('apFilterType')||{}).value||'');
   var catF    = ((document.getElementById('apFilterCategory')||{}).value||'');
   var vendorF = ((document.getElementById('apFilterVendor')||{}).value||'');
+  var priceF  = ((document.getElementById('apFilterPrice')||{}).value||'');
+  var dateF   = ((document.getElementById('apFilterDate')||{}).value||'');
   var sortF   = ((document.getElementById('apFilterSort')||{}).value||'newest');
+
+  // Aggiorna stato visivo "ap-active" su filtri non-default
+  function setActive(id, isDefault){
+    var el = document.getElementById(id); if(!el) return;
+    el.classList.toggle('ap-active', !isDefault);
+  }
+  setActive('apFilterSearch',   q==='');
+  setActive('apFilterStatus',   statusF==='active');  // active è il default
+  setActive('apFilterType',     typeF==='');
+  setActive('apFilterPrice',    priceF==='');
+  setActive('apFilterDate',     dateF==='');
+  setActive('apFilterCategory', catF==='');
+  setActive('apFilterVendor',   vendorF==='');
+
+  var now = Date.now();
+  var DAY = 86400000;
 
   var rows = _mktProducts.filter(function(p){
     if(q && (p.name||'').toLowerCase().indexOf(q) === -1) return false;
@@ -7671,6 +7770,28 @@ function apApplyFilters(){
     if(vendorF){
       if(vendorF === '__none__'){ if(p.vendor_id) return false; }
       else { if(p.vendor_id !== vendorF) return false; }
+    }
+    if(priceF){
+      var pr = parseFloat(p.price_per_quote)||0;
+      if(priceF==='0-500'      && pr > 500)               return false;
+      if(priceF==='500-2000'   && (pr <= 500 || pr > 2000)) return false;
+      if(priceF==='2000-10000' && (pr <= 2000 || pr > 10000)) return false;
+      if(priceF==='10000+'     && pr <= 10000)            return false;
+    }
+    if(dateF){
+      if(dateF === 'none'){ if(p.target_date) return false; }
+      else if(dateF === 'overdue'){
+        if(!p.target_date) return false;
+        if(new Date(p.target_date).getTime() >= now) return false;
+      } else {
+        if(!p.target_date) return false;
+        var diff = new Date(p.target_date).getTime() - now;
+        if(diff < 0) return false;  // scadute escluse dai range futuri
+        if(dateF === '30'     && diff > 30*DAY)  return false;
+        if(dateF === '90'     && diff > 90*DAY)  return false;
+        if(dateF === '365'    && diff > 365*DAY) return false;
+        if(dateF === 'future' && diff <= 365*DAY) return false;
+      }
     }
     return true;
   });
@@ -7700,7 +7821,7 @@ function apApplyFilters(){
 
 // Reset filtri ai default (Stato='active' = solo aperti+in chiusura).
 function apResetFilters(){
-  ['apFilterSearch','apFilterType','apFilterCategory','apFilterVendor'].forEach(function(id){
+  ['apFilterSearch','apFilterType','apFilterCategory','apFilterVendor','apFilterPrice','apFilterDate'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.value = '';
   });
   var s = document.getElementById('apFilterStatus'); if(s) s.value = 'active';
