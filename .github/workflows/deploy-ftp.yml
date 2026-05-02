@@ -6,6 +6,7 @@ on:
     paths:
       - 'pokemon-db.html'
       - 'rareblock-cardmarket.user.js'
+      - 'rareblock-hunter-scraper.user.js'
       - 'sw.js'
       - 'memorandum.html'
       - 'memorandum-admin.html'
@@ -37,11 +38,23 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           server-dir: ${{ secrets.FTP_PATH }}/
           local-dir: ./
+          # Exclude robusto: solo i file destinati al web finiscono su Aruba.
+          # Sorgenti TS edge function, docs e tooling restano nel repo ma non
+          # vengono pubblicati. NB: userscript Tampermonkey *.user.js SONO
+          # deployati (gli utenti li scaricano dal sito) — non escluderli.
           exclude: |
             **/.git*
             **/.git*/**
             **/node_modules/**
             .github/**
             README.md
+            HUNTER.md
             .env.example
+            .deploy-ping
             supabase/**
+            diagnostics/**
+            extension/**
+            local-lab/**
+            tools/**
+            **/*.ts
+            **/*.md
