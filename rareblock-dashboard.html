@@ -872,6 +872,8 @@ textarea{resize:vertical;min-height:60px}
   display: grid;
   grid-template-columns: 220px 1fr;
   gap: 0;
+  flex: 1;
+  min-height: 0;
   background: var(--iwc-bg);
 }
 
@@ -879,12 +881,8 @@ textarea{resize:vertical;min-height:60px}
 .iwc-filters{
   border-right: 1px solid var(--iwc-border);
   padding: 26px 24px 32px;
-  background: var(--iwc-bg);
-  position: sticky;
-  top: 0;
-  align-self: start;
-  max-height: 100vh;
   overflow-y: auto;
+  background: var(--iwc-bg);
 }
 .iwc-filters-head{
   display: flex;
@@ -1122,8 +1120,10 @@ textarea{resize:vertical;min-height:60px}
 .iwc-grid-wrap{
   padding: 0;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
 }
 
 /* Sidebar — sezione "Ordina per" leggermente separata */
@@ -1159,6 +1159,7 @@ textarea{resize:vertical;min-height:60px}
   background: var(--iwc-bg);
   padding: 0;
   margin: 0;
+  flex: 0 0 auto;
   border-bottom: 1px solid var(--iwc-border);
   align-content: start;
 }
@@ -3292,7 +3293,7 @@ textarea{resize:vertical;min-height:60px}
 }
 
 /* ═══ MARKETPLACE — Auction-style cards ═══ */
-.mkt-wrap{flex:1;overflow-y:auto;padding:20px 24px}
+.mkt-wrap{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:20px 24px}
 .mkt-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:18px;flex-wrap:wrap}
 .mkt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
 
@@ -4089,11 +4090,11 @@ textarea{resize:vertical;min-height:60px}
    Estetica: dorato luxury, sole/aurora gradient, simile a teaser cinematici.
    ════════════════════════════════════════════════════════════════════ */
 .drop-banner-wrap{
-  width:auto;
-  /* Estende il banner oltre il padding 24px di .mkt-wrap, full-bleed orizzontale */
-  margin:-20px -24px 22px;
+  width:100%;
+  margin:0;
   padding:0;
   box-sizing:border-box;
+  flex:0 0 auto;
 }
 .drop-banner{
   position:relative;
@@ -4430,17 +4431,6 @@ textarea{resize:vertical;min-height:60px}
 <!-- ═══ TAB: MARKETPLACE ═══ -->
 <div class="tab active iwc-mode" id="tab-mkt" style="display:flex;flex:1;flex-direction:column;overflow:hidden">
   <div class="mkt-wrap">
-    <!-- DROP COUNTDOWN BANNER (visibile solo se admin ha attivato un drop) -->
-    <div class="drop-banner-wrap" id="dropBannerWrap" style="display:none">
-      <div class="drop-banner" id="dropBanner" onclick="dropBannerClick()">
-        <div class="drop-banner-sun"></div>
-        <div class="drop-banner-flare"></div>
-        <div class="drop-banner-content" id="dropBannerContent">
-          <!-- Riempito da JS: logo / title / countdown -->
-        </div>
-      </div>
-    </div>
-
     <!-- Layout 4 colonne: 1 filtri + 3 card -->
     <div class="iwc-layout">
       <!-- COLONNA SINISTRA: FILTRI MINIMAL COLLASSABILI -->
@@ -4572,6 +4562,16 @@ textarea{resize:vertical;min-height:60px}
 
       <!-- COLONNA DESTRA: GRID prodotti (no toolbar) -->
       <div class="iwc-grid-wrap">
+        <!-- DROP COUNTDOWN BANNER (sopra prodotti, scorre con essi, sparisce alla scroll-out) -->
+        <div class="drop-banner-wrap" id="dropBannerWrap" style="display:none">
+          <div class="drop-banner" id="dropBanner" onclick="dropBannerClick()">
+            <div class="drop-banner-sun"></div>
+            <div class="drop-banner-flare"></div>
+            <div class="drop-banner-content" id="dropBannerContent">
+              <!-- Riempito da JS: logo / title / countdown -->
+            </div>
+          </div>
+        </div>
         <div class="mkt-grid" id="mktGrid"></div>
         <div id="mktEmpty" style="display:none"></div>
       </div>
