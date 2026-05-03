@@ -4933,6 +4933,31 @@ textarea{resize:vertical;min-height:60px}
           </div>
         </div>
 
+        <!-- Pannello diagnosi: mostra in tempo reale lo stato del banner -->
+        <div id="dropDiagnosisPanel" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;max-width:680px;font-family:var(--mono);font-size:11.5px;line-height:1.7">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div style="font-weight:600;color:var(--text);font-family:var(--font);font-size:12px;display:flex;align-items:center;gap:6px">
+              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--text-muted)" id="dropDiagDot"></span>
+              Stato banner Marketplace
+            </div>
+            <button type="button" class="btn" style="padding:4px 10px;font-size:11px" onclick="dropAdminUpdateDiagnosis()">↻ Aggiorna</button>
+          </div>
+          <div id="dropDiagnosisContent" style="color:var(--text-muted)">
+            Caricamento diagnosi…
+          </div>
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn" style="padding:5px 12px;font-size:11px" onclick="showTab('mkt');setTimeout(function(){var el=document.getElementById('dropBannerWrap');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});},150)">
+              <span class="rb-i rb-i-store"></span> Vai al Marketplace
+            </button>
+            <button type="button" class="btn" style="padding:5px 12px;font-size:11px" onclick="if(typeof dropLoadConfig==='function'){dropLoadConfig().then(dropAdminUpdateDiagnosis)}">
+              ↻ Ricarica config dal server
+            </button>
+            <button type="button" class="btn" style="padding:5px 12px;font-size:11px" onclick="console.log(window.dropDebug())">
+              🔍 Stampa diagnosi in console
+            </button>
+          </div>
+        </div>
+
         <form class="drop-admin-form" id="dropAdminForm" onsubmit="event.preventDefault();dropAdminSave()">
           <div class="drop-admin-toggle">
             <input type="checkbox" id="dropAdminActive"/>
@@ -12784,13 +12809,19 @@ var _dropTickTimer = null;
 var _dropPollTimer = null;
 var _dropReleasing = false;
 
+// Stato diagnostico esposto a window per debug rapido da console.
+// Chiama window.dropDebug() in console per vedere tutto.
+var _dropLastError = null;
+
 async function dropLoadConfig(){
   try{
     var r = await supa('GET','v_drop_countdown?select=*');
     _dropConfig = (Array.isArray(r) && r.length) ? r[0] : null;
+    _dropLastError = null;
   }catch(e){
     _dropConfig = null;
     var msg = (e && e.message) || String(e);
+    _dropLastError = msg;
     if(/(404|not found|relation .* does not exist|v_drop_countdown)/i.test(msg)){
       // Loggato una volta sola per non spammare la console
       if(!window._dropMigrationWarned){
@@ -12802,7 +12833,30 @@ async function dropLoadConfig(){
     }
   }
   dropRenderBanner();
+  // Aggiorna pannello diagnosi se aperto
+  if(typeof dropAdminUpdateDiagnosis === 'function') dropAdminUpdateDiagnosis();
 }
+
+// Comando console per debug rapido. L'admin può scrivere `dropDebug()` in console.
+window.dropDebug = function(){
+  var info = {
+    'Migrazione SQL installata': _dropLastError && /(404|relation .* does not exist|v_drop_countdown)/i.test(_dropLastError) ? '❌ NO — esegui 028_drop_countdown.sql' : '✅ sì (o non ancora chiamato)',
+    'Ultimo errore fetch': _dropLastError || 'nessuno',
+    'Config caricata': _dropConfig ? JSON.parse(JSON.stringify(_dropConfig)) : null,
+    'Sessione utente': (typeof _session !== 'undefined' && _session) ? 'attiva' : 'NON attiva',
+    'Tab attiva': (function(){ var t=document.querySelector('.tab.active'); return t?t.id:'?'; })(),
+    'Banner DOM presente': !!document.getElementById('dropBannerWrap'),
+    'Banner display': (function(){ var el=document.getElementById('dropBannerWrap'); return el?(el.style.display||'visible'):'NON ESISTE'; })(),
+    'Polling timer attivo': !!_dropPollTimer,
+    'Tick timer attivo': !!_dropTickTimer
+  };
+  console.log('═══ RareBlock Drop Countdown — Debug ═══');
+  Object.keys(info).forEach(function(k){ console.log('  '+k+':', info[k]); });
+  console.log('═══════════════════════════════════════');
+  console.log('Per forzare ricarica: dropLoadConfig()');
+  console.log('Per ricaricare manualmente: location.reload()');
+  return info;
+};
 
 function dropParseTarget(iso){
   if(!iso) return null;
@@ -12965,6 +13019,86 @@ function dropBannerClick(){
 }
 
 // ── Admin: load form ───────────────────────────────────────────────
+// Pannello diagnosi: traduce in linguaggio umano lo stato del banner.
+// Spiega esattamente PERCHÉ il banner è/non è visibile in marketplace.
+function dropAdminUpdateDiagnosis(){
+  var el = document.getElementById('dropDiagnosisContent');
+  var dot = document.getElementById('dropDiagDot');
+  if(!el) return;
+
+  var lines = [];
+  var color = 'var(--text-muted)'; // default neutro
+
+  // 1. Migrazione SQL
+  var migrationOk = !(_dropLastError && /(404|relation .* does not exist|v_drop_countdown|inv_drop_countdown)/i.test(_dropLastError));
+  if(!migrationOk){
+    lines.push('❌ <b>Migrazione SQL non installata</b> — banner disabilitato.');
+    color = 'var(--danger)';
+    el.innerHTML = lines.join('<br>');
+    if(dot) dot.style.background = 'var(--danger)';
+    return;
+  }
+  lines.push('✓ Tabella <code>inv_drop_countdown</code> raggiungibile.');
+
+  // 2. Sessione
+  var sessOk = (typeof _session !== 'undefined' && _session && _session.access_token);
+  if(!sessOk){
+    lines.push('❌ <b>Sessione non attiva</b> — accedi prima.');
+    color = 'var(--danger)';
+    el.innerHTML = lines.join('<br>');
+    if(dot) dot.style.background = 'var(--danger)';
+    return;
+  }
+  lines.push('✓ Sessione utente attiva.');
+
+  // 3. Config
+  var cfg = _dropConfig;
+  if(!cfg){
+    lines.push('• Nessuna config trovata. Compila i campi sotto e clicca "Salva configurazione".');
+    color = 'var(--text-muted)';
+    el.innerHTML = lines.join('<br>');
+    if(dot) dot.style.background = 'var(--text-muted)';
+    return;
+  }
+  lines.push('✓ Config caricata dal server.');
+
+  // 4. Active flag
+  if(!cfg.active){
+    lines.push('⚠ <b>Banner non attivo</b> — spunta "Banner attivo" e salva per renderlo visibile agli investor.');
+    color = 'var(--warning, #d29922)';
+    el.innerHTML = lines.join('<br>');
+    if(dot) dot.style.background = 'var(--warning, #d29922)';
+    return;
+  }
+  lines.push('✓ Banner impostato come attivo.');
+
+  // 5. Campi obbligatori
+  if(!cfg.product_id){
+    lines.push('❌ Manca il <b>prodotto</b> collegato.');
+    color = 'var(--danger)'; el.innerHTML = lines.join('<br>'); if(dot) dot.style.background='var(--danger)'; return;
+  }
+  if(!cfg.target_at){
+    lines.push('❌ Manca la <b>data target</b>.');
+    color = 'var(--danger)'; el.innerHTML = lines.join('<br>'); if(dot) dot.style.background='var(--danger)'; return;
+  }
+  lines.push('✓ Prodotto collegato e data target valida.');
+
+  // 6. Stato finale: visibile!
+  var rem = new Date(cfg.target_at).getTime() - Date.now();
+  if(rem > 0){
+    var d = Math.floor(rem/86400000);
+    var h = Math.floor((rem%86400000)/3600000);
+    lines.push('🟢 <b style="color:var(--success)">Banner visibile in Marketplace</b> · countdown attivo · scadenza tra ~'+d+'g '+h+'h.');
+  } else if(cfg.released_at){
+    lines.push('🟢 <b style="color:var(--success)">Drop LIVE</b> · prodotto rilasciato il '+dropFormatTargetIT(cfg.released_at)+'.');
+  } else {
+    lines.push('🟢 <b style="color:var(--success)">Drop scaduto</b> · prodotto in fase di rilascio automatico.');
+  }
+  color = 'var(--success)';
+  el.innerHTML = lines.join('<br>');
+  if(dot) dot.style.background = 'var(--success)';
+}
+
 // Wire dei listener — chiamato sia da dropAdminLoad che subito alla prima
 // apertura della sezione, così l'anteprima funziona anche se i fetch
 // successivi falliscono (es. migrazione SQL non installata).
@@ -13011,6 +13145,8 @@ async function dropAdminLoad(){
         ? 'Migrazione SQL 028 non installata — vedi avviso sopra'
         : 'Errore caricamento config: '+msg;
     }
+    _dropLastError = msg;
+    dropAdminUpdateDiagnosis();
     // Non interrompo: l'utente può comunque vedere l'anteprima live mentre
     // digita, anche senza poter salvare.
     return;
@@ -13072,6 +13208,7 @@ async function dropAdminLoad(){
     }
   }
   dropAdminPreviewUpdate();
+  dropAdminUpdateDiagnosis();
 }
 
 // Anteprima live: mostra il banner SEMPRE che ci sia un dato significativo
@@ -13185,7 +13322,8 @@ async function dropAdminSave(){
       statusEl.textContent = 'Salvato ✓ '+(active?'(banner attivo, visibile agli investor)':'(banner disattivato)');
     }
     // Ricarica config investor view (banner si aggiorna immediatamente per chi è admin)
-    dropLoadConfig();
+    await dropLoadConfig();
+    dropAdminUpdateDiagnosis();
   }catch(e){
     if(statusEl){
       statusEl.style.color = 'var(--danger)';
