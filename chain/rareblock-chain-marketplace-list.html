@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RareBlock — List for Sale</title>
+<meta name="description" content="List your RareBlock certificate on the marketplace.">
+<meta name="robots" content="noindex">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Figtree:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#0d1117; --bg-elev:#161b22; --bg-elev-2:#1c2128; --bg-elev-3:#22272e;
+  --border:#21262d; --border-soft:#1f242b;
+  --text:#e6edf3; --text-muted:#8b949e; --text-dim:#6e7681;
+  --gold:#c9a961; --gold-deep:#a8893f; --gold-soft:rgba(201,169,97,.10);
+  --green:#3fb950; --red:#f85149; --amber:#d29922;
+  --serif:'Fraunces','Times New Roman',Georgia,serif;
+  --sans:'Figtree',-apple-system,system-ui,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  --maxw:1080px;
+  --radius:8px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+         font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+::selection{background:var(--gold);color:var(--bg)}
+button{font-family:inherit}
+
+.page{max-width:var(--maxw);margin:0 auto;padding:32px 28px 96px}
+@media (max-width:640px){.page{padding:24px 16px 64px}}
+
+.rule{height:1px;background:var(--border);margin:24px 0}
+.rule-gold{height:1px;background:linear-gradient(90deg,transparent,var(--gold) 30%,var(--gold) 70%,transparent);margin:32px 0}
+
+/* ─── Topbar ─── */
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;
+        padding-bottom:24px;border-bottom:1px solid var(--border)}
+.brand{font-weight:700;font-size:13px;letter-spacing:.32em;color:var(--text)}
+.brand-sub{font-size:9px;letter-spacing:.22em;color:var(--text-muted);margin-top:2px}
+.back-link{font-size:12px;color:var(--text-muted);display:inline-flex;align-items:center;gap:6px}
+.back-link:hover{color:var(--gold)}
+
+/* ─── Hero ─── */
+.hero{padding:24px 0 32px}
+.hero-eyebrow{font-size:10px;letter-spacing:.32em;color:var(--gold);text-transform:uppercase;margin-bottom:10px}
+.hero h1{font-family:var(--serif);font-style:italic;font-weight:300;font-size:42px;line-height:1.1;
+         margin:0 0 8px;letter-spacing:-.01em}
+.hero p{color:var(--text-muted);max-width:560px;margin:0;font-size:15px}
+@media (max-width:640px){.hero h1{font-size:32px}}
+
+/* ─── Two-column layout ─── */
+.cols{display:grid;grid-template-columns:1.2fr 1fr;gap:24px}
+@media (max-width:840px){.cols{grid-template-columns:1fr}}
+
+.card{background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);padding:28px}
+.card h2{font-family:var(--serif);font-style:italic;font-weight:400;font-size:22px;margin:0 0 16px;letter-spacing:-.01em}
+.card .eyebrow{font-size:9px;letter-spacing:.3em;color:var(--gold);text-transform:uppercase;margin-bottom:6px}
+
+/* ─── Selected certificate card ─── */
+.cert-summary{display:grid;grid-template-columns:80px 1fr;gap:14px;align-items:start;margin-bottom:18px}
+.cert-thumb{aspect-ratio:5/7;background:var(--bg-elev-2);border:1px solid var(--gold);border-radius:4px;
+            overflow:hidden;display:flex;align-items:center;justify-content:center}
+.cert-thumb img{width:100%;height:100%;object-fit:cover}
+.cert-thumb .placeholder{font-family:var(--serif);font-style:italic;font-size:9px;color:var(--text-dim);text-align:center;padding:4px}
+.cert-summary .name{font-family:var(--serif);font-style:italic;font-weight:300;font-size:22px;line-height:1.15;margin:0 0 4px}
+.cert-summary .meta{font-size:12px;color:var(--text-muted);margin-bottom:6px}
+.cert-summary .serial{font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:.04em}
+
+/* ─── Form ─── */
+.field{margin-bottom:18px}
+.field label{display:block;font-size:10px;letter-spacing:.18em;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px}
+.field .hint{font-size:11px;color:var(--text-dim);margin-top:6px}
+.field .err{font-size:12px;color:var(--red);margin-top:6px;display:none}
+.field.has-error .err{display:block}
+.field.has-error .input{border-color:var(--red)}
+
+.input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);
+       padding:12px 13px;border-radius:6px;font-family:var(--sans);font-size:14px;outline:none;transition:border-color .15s}
+.input:focus{border-color:var(--gold)}
+.input.mono{font-family:var(--mono)}
+textarea.input{resize:vertical;min-height:80px;font-family:var(--sans)}
+
+.input-prefix{position:relative}
+.input-prefix .input{padding-left:28px}
+.input-prefix .pfx{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:14px;pointer-events:none}
+
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:520px){.field-row{grid-template-columns:1fr}}
+
+/* ─── Preview / payout breakdown ─── */
+.preview-card{position:sticky;top:20px}
+.payout-strip{margin:18px 0 14px;padding:14px;background:var(--bg);border:1px solid var(--gold);border-radius:6px}
+.payout-strip .lab{font-size:9px;letter-spacing:.22em;color:var(--gold);text-transform:uppercase;margin-bottom:4px}
+.payout-strip .val{font-family:var(--serif);font-style:italic;font-weight:400;font-size:32px;line-height:1.1;color:var(--text)}
+.payout-strip .sub{font-size:11px;color:var(--text-muted);margin-top:4px}
+
+.fee-table{width:100%;border-collapse:collapse}
+.fee-table th{text-align:left;font-size:9px;letter-spacing:.18em;color:var(--text-muted);text-transform:uppercase;font-weight:500;
+              padding:8px 0;border-bottom:1px solid var(--border)}
+.fee-table th.num{text-align:right}
+.fee-table td{padding:10px 0;border-bottom:1px solid var(--border-soft);font-size:13px}
+.fee-table td.num{text-align:right;font-family:var(--mono);font-size:12px}
+.fee-table tr:last-child td{border-bottom:none}
+.fee-method{font-weight:500}
+.fee-method .small{display:block;font-size:11px;color:var(--text-muted);font-family:var(--sans);font-weight:400}
+
+.disclosure{font-size:11px;color:var(--text-dim);line-height:1.5;margin-top:14px;padding-top:14px;border-top:1px solid var(--border-soft)}
+
+/* ─── Buttons ─── */
+.actions{display:flex;gap:10px;margin-top:24px}
+.btn{flex:1;background:var(--gold);color:var(--bg);border:none;padding:13px 22px;border-radius:6px;
+     font-weight:600;font-size:13px;letter-spacing:.04em;cursor:pointer;transition:background .15s ease;font-family:var(--sans)}
+.btn:hover{background:var(--gold-deep)}
+.btn:disabled{opacity:.5;cursor:wait}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-ghost:hover{background:var(--bg-elev-2);border-color:var(--gold)}
+
+/* ─── States ─── */
+.state{text-align:center;padding:80px 20px}
+.state-icon{font-size:36px;margin-bottom:18px;color:var(--gold);opacity:.7}
+.state h2{font-family:var(--serif);font-style:italic;font-weight:300;font-size:28px;margin:0 0 10px}
+.state p{color:var(--text-muted);max-width:520px;margin:0 auto 20px}
+.spinner{width:32px;height:32px;border:2px solid var(--border);border-top-color:var(--gold);
+         border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.alert{padding:12px 14px;border-radius:6px;font-size:13px;margin-bottom:14px}
+.alert-error{background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.3);color:var(--red)}
+.alert-success{background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.3);color:var(--green)}
+
+/* Footer */
+.foot{text-align:center;color:var(--text-dim);font-size:11px;margin-top:64px}
+.foot a{color:var(--text-muted);border-bottom:1px solid transparent}
+.foot a:hover{border-color:var(--gold);color:var(--gold)}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ─── LOADING STATE ─── -->
+  <section id="state-loading" class="state" hidden>
+    <div class="spinner"></div>
+    <h2>Loading…</h2>
+  </section>
+
+  <!-- ─── LOGIN-REQUIRED STATE ─── -->
+  <section id="state-auth" class="state" hidden>
+    <div class="state-icon">⚿</div>
+    <h2>Sign in required</h2>
+    <p>Please sign in to your RareBlock account to list a certificate for sale.</p>
+    <a href="./rareblock-chain-portfolio.html" class="btn" style="display:inline-block;flex:none;padding:12px 28px">Sign in</a>
+  </section>
+
+  <!-- ─── NO-CERT STATE (need ?certificate_id=) ─── -->
+  <section id="state-nocert" class="state" hidden>
+    <div class="state-icon">◇</div>
+    <h2>No certificate selected</h2>
+    <p>Open this page from your portfolio by clicking "Sell on marketplace" on a certificate.</p>
+    <a href="./rareblock-chain-portfolio.html" class="btn-ghost btn" style="display:inline-block;flex:none;padding:12px 28px">Back to portfolio</a>
+  </section>
+
+  <!-- ─── CERT-NOT-OWNED STATE ─── -->
+  <section id="state-notown" class="state" hidden>
+    <div class="state-icon">⛔</div>
+    <h2>Not your certificate</h2>
+    <p>You can only list certificates that you own.</p>
+    <a href="./rareblock-chain-portfolio.html" class="btn-ghost btn" style="display:inline-block;flex:none;padding:12px 28px">Back to portfolio</a>
+  </section>
+
+  <!-- ─── ALREADY-LISTED STATE ─── -->
+  <section id="state-listed" class="state" hidden>
+    <div class="state-icon">!</div>
+    <h2>Already listed</h2>
+    <p>This certificate is already on sale. Cancel the existing listing first if you want to change the price.</p>
+    <a href="./rareblock-chain-portfolio.html" class="btn-ghost btn" style="display:inline-block;flex:none;padding:12px 28px">Back to portfolio</a>
+  </section>
+
+  <!-- ─── SUCCESS STATE ─── -->
+  <section id="state-done" class="state" hidden>
+    <div class="state-icon" style="color:var(--green)">✓</div>
+    <h2>Your listing is live</h2>
+    <p id="done-summary"></p>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:8px;flex-wrap:wrap">
+      <a id="done-marketplace" class="btn" style="flex:none;padding:12px 24px;display:inline-block" href="#">View on marketplace</a>
+      <a href="./rareblock-chain-portfolio.html" class="btn btn-ghost" style="flex:none;padding:12px 24px;display:inline-block">Back to portfolio</a>
+    </div>
+  </section>
+
+  <!-- ─── MAIN STATE ─── -->
+  <section id="state-main" hidden>
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <div>
+        <div class="brand">RARE BLOCK</div>
+        <div class="brand-sub">MARKETPLACE · LIST FOR SALE</div>
+      </div>
+      <a class="back-link" href="./rareblock-chain-portfolio.html">← Portfolio</a>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-eyebrow">List your shares</div>
+      <h1>Set a price and reach our community.</h1>
+      <p>Buyers see your listing instantly on the RareBlock marketplace. You stay in control: cancel anytime before a sale is finalized.</p>
+    </section>
+
+    <div id="form-error" class="alert alert-error" hidden></div>
+
+    <div class="cols">
+
+      <!-- LEFT: Form -->
+      <div class="card">
+        <div class="eyebrow">Certificate</div>
+        <div class="cert-summary" id="cert-summary"></div>
+
+        <div class="rule"></div>
+
+        <h2>Set your price</h2>
+
+        <div class="field-row">
+          <div class="field" id="f-qty">
+            <label for="i-qty">Shares to list</label>
+            <input type="number" id="i-qty" class="input mono" min="1" step="1" />
+            <div class="hint" id="qty-hint">You own <span id="owned">—</span> shares.</div>
+            <div class="err">Quantity must be between 1 and your owned shares.</div>
+          </div>
+          <div class="field" id="f-price">
+            <label for="i-price">Price per share</label>
+            <div class="input-prefix">
+              <span class="pfx">€</span>
+              <input type="number" id="i-price" class="input mono" min="0.01" step="0.01" placeholder="0.00" />
+            </div>
+            <div class="hint">Buyers pay this × shares + buyer's premium.</div>
+            <div class="err">Price must be a positive amount.</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="i-title">Listing title <span style="color:var(--text-dim);font-weight:400;letter-spacing:0;text-transform:none">(optional)</span></label>
+          <input type="text" id="i-title" class="input" maxlength="120" placeholder="e.g. Pristine PSA 9 — rare 1st edition" />
+          <div class="hint">A short headline shown on the marketplace listing.</div>
+        </div>
+
+        <div class="field">
+          <label for="i-desc">Description <span style="color:var(--text-dim);font-weight:400;letter-spacing:0;text-transform:none">(optional)</span></label>
+          <textarea id="i-desc" class="input" maxlength="2000" placeholder="Why are you selling? Anything notable about these shares?"></textarea>
+        </div>
+
+        <div class="field">
+          <label for="i-expires">Expires on <span style="color:var(--text-dim);font-weight:400;letter-spacing:0;text-transform:none">(optional)</span></label>
+          <input type="date" id="i-expires" class="input mono" />
+          <div class="hint">Leave empty for an open-ended listing.</div>
+        </div>
+
+        <div class="actions">
+          <button class="btn" id="submit-btn" type="button">List for sale</button>
+          <a class="btn btn-ghost" href="./rareblock-chain-portfolio.html" style="flex:0 0 auto;text-align:center;line-height:24px">Cancel</a>
+        </div>
+      </div>
+
+      <!-- RIGHT: Live preview -->
+      <div class="card preview-card">
+        <div class="eyebrow">Preview</div>
+        <h2>Your payout</h2>
+
+        <div class="payout-strip">
+          <div class="lab">You receive (net)</div>
+          <div class="val" id="p-payout">€ —</div>
+          <div class="sub" id="p-payout-sub">Set a price to see your net payout.</div>
+        </div>
+
+        <table class="fee-table">
+          <thead>
+            <tr>
+              <th>Buyer payment method</th>
+              <th class="num">Buyer pays</th>
+              <th class="num">Premium</th>
+            </tr>
+          </thead>
+          <tbody id="fee-tbody">
+            <tr><td colspan="3" style="text-align:center;color:var(--text-dim);padding:24px 0">Loading fees…</td></tr>
+          </tbody>
+        </table>
+
+        <div class="disclosure">
+          A platform fee of <span id="seller-fee-pct">3%</span> is deducted from the seller's proceeds. Buyer's premium varies by payment method as shown above. Fees current at time of order; final invoice issued at settlement.
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <footer class="foot">
+    <div class="rule-gold"></div>
+    <p>© RareBlock S.r.l. — <a href="https://www.rareblock.eu/legal/terms">Terms</a> ·
+       <a href="https://www.rareblock.eu/legal/privacy">Privacy</a></p>
+  </footer>
+
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   CONFIG
+   ═══════════════════════════════════════════════════════════════════ */
+const SUPA_URL  = 'https://rbjaaeyjeeqfpbzyavag.supabase.co';
+const SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
+const RB_SESSION_KEY = 'rb_auth_session';
+
+const PAYMENT_METHOD_LABELS = {
+  bank_transfer: { name: 'Bank transfer', sub: 'SEPA · 1–3 business days' },
+  stripe_card:   { name: 'Credit / debit card', sub: 'Visa / Mastercard · instant' },
+  paypal:        { name: 'PayPal', sub: 'PayPal balance / linked card · instant' },
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════════════════ */
+var _session = null;
+var _certificate = null;
+var _feeConfig = [];
+
+/* ═══════════════════════════════════════════════════════════════════
+   HELPERS
+   ═══════════════════════════════════════════════════════════════════ */
+const $ = id => document.getElementById(id);
+const show = (id, on=true) => $(id).hidden = !on;
+const setText = (id, t) => { const e=$(id); if(e) e.textContent = t; };
+const escHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const fmtEUR = (cents) => {
+  if (cents == null || isNaN(cents)) return '€ —';
+  const eur = cents / 100;
+  return new Intl.NumberFormat('it-IT', { style:'currency', currency:'EUR', maximumFractionDigits: 2 }).format(eur);
+};
+
+function loadSession(){ try{ const r = localStorage.getItem(RB_SESSION_KEY); return r ? JSON.parse(r) : null; }catch(e){ return null; }}
+function saveSession(s){ try{ localStorage.setItem(RB_SESSION_KEY, JSON.stringify(s)); }catch(e){} }
+function clearSession(){ try{ localStorage.removeItem(RB_SESSION_KEY); }catch(e){} }
+
+function authHeaders(){
+  const token = (_session && _session.access_token) || SUPA_ANON;
+  return { 'Content-Type':'application/json', 'apikey':SUPA_ANON, 'Authorization':'Bearer '+token };
+}
+
+async function refreshToken(refresh_token) {
+  const r = await fetch(SUPA_URL + '/auth/v1/token?grant_type=refresh_token', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'apikey':SUPA_ANON },
+    body: JSON.stringify({ refresh_token }),
+  });
+  if (!r.ok) throw new Error('refresh failed');
+  return await r.json();
+}
+
+async function restoreSession() {
+  const s = loadSession();
+  if (!s || !s.access_token || !s.refresh_token) return null;
+  const now = Math.floor(Date.now() / 1000);
+  if (s.expires_at && s.expires_at <= now + 30) {
+    try { const fresh = await refreshToken(s.refresh_token); _session = fresh; saveSession(fresh); return fresh.user; }
+    catch(e){ clearSession(); return null; }
+  }
+  _session = s;
+  return s.user;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DATA
+   ═══════════════════════════════════════════════════════════════════ */
+async function fetchCertificate(certId) {
+  const select = 'id,certificate_serial,token_id,chain_id,qty_minted,status,minted_at,'
+              + 'current_owner_user_id,certificate_pdf_url,'
+              + 'product:inv_products(name,image_url,type,set,year,edition,grading_label,shares_total)';
+  const url = `${SUPA_URL}/rest/v1/chain_certificates?id=eq.${encodeURIComponent(certId)}&select=${encodeURIComponent(select)}&limit=1`;
+  const r = await fetch(url, { headers: authHeaders() });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const arr = await r.json();
+  return arr[0] || null;
+}
+
+async function fetchFeeConfig() {
+  const url = `${SUPA_URL}/rest/v1/marketplace_fee_config?is_active=eq.true&order=buyer_fee_bps.asc`;
+  const r = await fetch(url, { headers: authHeaders() });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return await r.json();
+}
+
+async function checkExistingListing(certId) {
+  const url = `${SUPA_URL}/rest/v1/marketplace_listings`
+            + `?certificate_id=eq.${encodeURIComponent(certId)}`
+            + `&status=in.(active,reserved)&limit=1`;
+  const r = await fetch(url, { headers: authHeaders() });
+  if (!r.ok) return null;
+  const arr = await r.json();
+  return arr[0] || null;
+}
+
+async function createListing(payload) {
+  const url = `${SUPA_URL}/rest/v1/rpc/marketplace_create_listing`;
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    const txt = await r.text();
+    let msg = txt;
+    try { msg = (JSON.parse(txt).message) || txt; } catch(e){}
+    const err = new Error(msg);
+    err.status = r.status;
+    throw err;
+  }
+  return await r.json();
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RENDER
+   ═══════════════════════════════════════════════════════════════════ */
+function renderCertSummary(cert) {
+  const product = cert.product || {};
+  const setYear = [product.set, product.year].filter(Boolean).join(' · ');
+  const meta = [setYear, product.grading_label].filter(Boolean).join(' · ');
+  let imgHtml = '<div class="placeholder">No image</div>';
+  if (product.image_url) {
+    const src = product.image_url.startsWith('ipfs://')
+      ? `https://ipfs.io/ipfs/${product.image_url.slice(7)}`
+      : product.image_url;
+    imgHtml = `<img src="${escHtml(src)}" alt="" loading="lazy">`;
+  }
+  $('cert-summary').innerHTML = `
+    <div class="cert-thumb">${imgHtml}</div>
+    <div>
+      <h3 class="name">${escHtml(product.name || '—')}</h3>
+      <div class="meta">${escHtml(meta || '—')}</div>
+      <div class="serial">${escHtml(cert.certificate_serial)}</div>
+      <div class="meta" style="margin-top:6px">${cert.qty_minted} shares total</div>
+    </div>`;
+  setText('owned', cert.qty_minted);
+  $('i-qty').max = cert.qty_minted;
+}
+
+function renderFeeTable(qty, priceCents) {
+  const tbody = $('fee-tbody');
+  if (_feeConfig.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;color:var(--red);padding:24px 0">No fee configuration found.</td></tr>`;
+    return;
+  }
+  // Compute subtotal
+  const subtotal = (qty || 0) * (priceCents || 0);
+  const hasInputs = qty > 0 && priceCents > 0;
+
+  // Render rows
+  tbody.innerHTML = _feeConfig.map(f => {
+    const label = PAYMENT_METHOD_LABELS[f.payment_method] || { name: f.payment_method, sub: '' };
+    const buyerFee = Math.round(subtotal * f.buyer_fee_bps / 10000);
+    const total = subtotal + buyerFee;
+    const pct = (f.buyer_fee_bps / 100).toFixed(f.buyer_fee_bps % 100 === 0 ? 0 : 1);
+    return `<tr>
+      <td class="fee-method">${escHtml(label.name)}<span class="small">${escHtml(label.sub)}</span></td>
+      <td class="num">${hasInputs ? escHtml(fmtEUR(total)) : '—'}</td>
+      <td class="num" style="color:var(--text-muted)">${pct}%</td>
+    </tr>`;
+  }).join('');
+
+  // Compute seller payout (uses seller_fee_bps from first row — same for all in our config)
+  const sellerFeeBps = _feeConfig[0].seller_fee_bps;
+  const sellerFee   = Math.round(subtotal * sellerFeeBps / 10000);
+  const payout      = subtotal - sellerFee;
+  setText('seller-fee-pct', `${(sellerFeeBps/100).toFixed(sellerFeeBps % 100 === 0 ? 0 : 1)}%`);
+  if (hasInputs) {
+    setText('p-payout', fmtEUR(payout));
+    setText('p-payout-sub', `From €${(subtotal/100).toLocaleString('it-IT', {minimumFractionDigits:2})} subtotal − ${(sellerFeeBps/100).toFixed(0)}% platform fee.`);
+  } else {
+    setText('p-payout', '€ —');
+    setText('p-payout-sub', 'Set a price to see your net payout.');
+  }
+}
+
+function recomputePreview() {
+  const qty = parseInt($('i-qty').value, 10);
+  const priceEur = parseFloat($('i-price').value);
+  const priceCents = isNaN(priceEur) ? 0 : Math.round(priceEur * 100);
+  renderFeeTable(isNaN(qty) ? 0 : qty, priceCents);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   VALIDATION + SUBMIT
+   ═══════════════════════════════════════════════════════════════════ */
+function validateForm() {
+  let ok = true;
+  $('f-qty').classList.remove('has-error');
+  $('f-price').classList.remove('has-error');
+
+  const qty = parseInt($('i-qty').value, 10);
+  const owned = _certificate.qty_minted;
+  if (isNaN(qty) || qty < 1 || qty > owned) {
+    $('f-qty').classList.add('has-error'); ok = false;
+  }
+  const priceEur = parseFloat($('i-price').value);
+  if (isNaN(priceEur) || priceEur <= 0) {
+    $('f-price').classList.add('has-error'); ok = false;
+  }
+  return ok;
+}
+
+async function onSubmit() {
+  $('form-error').hidden = true;
+  if (!validateForm()) return;
+
+  const qty   = parseInt($('i-qty').value, 10);
+  const priceCents = Math.round(parseFloat($('i-price').value) * 100);
+  const title = $('i-title').value.trim() || null;
+  const desc  = $('i-desc').value.trim()  || null;
+  const expRaw = $('i-expires').value;
+  const expIso = expRaw ? new Date(expRaw + 'T23:59:59Z').toISOString() : null;
+
+  $('submit-btn').disabled = true;
+  $('submit-btn').textContent = 'Listing…';
+  try {
+    const listing = await createListing({
+      p_certificate_id: _certificate.id,
+      p_qty_listed: qty,
+      p_price_per_share_cents: priceCents,
+      p_title: title,
+      p_description: desc,
+      p_expires_at: expIso,
+    });
+
+    // Show success state
+    show('state-main', false);
+    const total = priceCents * qty;
+    setText('done-summary',
+      `${qty} share${qty>1?'s':''} listed at €${(priceCents/100).toLocaleString('it-IT',{minimumFractionDigits:2})} each (subtotal €${(total/100).toLocaleString('it-IT',{minimumFractionDigits:2})}).`);
+    $('done-marketplace').href = `./rareblock-chain-marketplace.html?listing=${encodeURIComponent(listing.id)}`;
+    show('state-done', true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch (e) {
+    let userMsg = 'Could not create listing.';
+    const m = (e.message || '').toLowerCase();
+    if (m.includes('already listed') || m.includes('unique') || e.status === 409) {
+      userMsg = 'This certificate is already on sale. Cancel the existing listing first.';
+    } else if (m.includes('not the owner') || e.status === 403) {
+      userMsg = 'You can only list certificates that you own.';
+    } else if (m.includes('exceeds owned')) {
+      userMsg = `You can list at most ${_certificate.qty_minted} shares.`;
+    } else if (m.includes('certificate is not active')) {
+      userMsg = 'This certificate is not in an active status and cannot be listed.';
+    } else if (m.includes('auth required') || e.status === 401) {
+      userMsg = 'Please sign in again.';
+      clearSession();
+    } else {
+      userMsg = `Listing failed: ${e.message}`;
+    }
+    $('form-error').textContent = userMsg;
+    $('form-error').hidden = false;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } finally {
+    $('submit-btn').disabled = false;
+    $('submit-btn').textContent = 'List for sale';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   FLOW
+   ═══════════════════════════════════════════════════════════════════ */
+async function init() {
+  // 1) Get certificate_id from URL
+  const url = new URL(location.href);
+  const certId = url.searchParams.get('certificate_id') || url.searchParams.get('cert');
+  if (!certId) {
+    show('state-nocert', true);
+    return;
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(certId)) {
+    show('state-nocert', true);
+    return;
+  }
+
+  // 2) Auth
+  show('state-loading', true);
+  const user = await restoreSession();
+  if (!user) {
+    show('state-loading', false);
+    show('state-auth', true);
+    return;
+  }
+
+  // 3) Load certificate (RLS will filter to owner-only via API)
+  let cert;
+  try {
+    cert = await fetchCertificate(certId);
+  } catch (e) {
+    show('state-loading', false);
+    show('state-auth', true);
+    setText('err-msg', 'Failed to load certificate: ' + e.message);
+    return;
+  }
+  if (!cert) {
+    // RLS blocked it OR cert doesn't exist
+    show('state-loading', false);
+    show('state-notown', true);
+    return;
+  }
+  // Verify ownership client-side too (RLS already enforces server-side)
+  if (cert.current_owner_user_id !== user.id) {
+    show('state-loading', false);
+    show('state-notown', true);
+    return;
+  }
+  if (cert.status !== 'minted') {
+    show('state-loading', false);
+    show('state-listed', true);  // reuse the alert for "not listable"
+    setText('done-summary', `Certificate status is "${cert.status}" and cannot be listed.`);
+    return;
+  }
+
+  // 4) Already listed?
+  const existing = await checkExistingListing(certId);
+  if (existing) {
+    show('state-loading', false);
+    show('state-listed', true);
+    return;
+  }
+
+  // 5) Load fee config
+  try {
+    _feeConfig = await fetchFeeConfig();
+  } catch (e) {
+    _feeConfig = [];
+  }
+
+  _certificate = cert;
+  show('state-loading', false);
+  show('state-main', true);
+  renderCertSummary(cert);
+  renderFeeTable(0, 0);
+
+  // Wire form
+  $('i-qty').addEventListener('input', recomputePreview);
+  $('i-price').addEventListener('input', recomputePreview);
+  $('submit-btn').addEventListener('click', onSubmit);
+  // Default qty = all owned shares
+  $('i-qty').value = cert.qty_minted;
+  recomputePreview();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
