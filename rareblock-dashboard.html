@@ -4080,6 +4080,325 @@ textarea{resize:vertical;min-height:60px}
 .admin-filter-group select{padding:6px 26px 6px 9px;font-size:12px;min-width:140px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--font);cursor:pointer;outline:none;transition:border-color .12s}
 .admin-filter-group select:focus,.admin-filter-group select:hover{border-color:var(--border-strong)}
 .admin-filter-reset{align-self:flex-end;height:30px}
+
+/* ════════════════════════════════════════════════════════════════════
+   DROP COUNTDOWN — Banner cinematic 16:9
+   Visibile in cima al marketplace investor quando admin attiva un drop.
+   Tre righe:
+     1. Logo wordmark RareBlock
+     2. Nome prodotto (configurabile)
+     3. Data target + countdown live tabular
+   Estetica: dorato luxury, sole/aurora gradient, simile a teaser cinematici.
+   ════════════════════════════════════════════════════════════════════ */
+.drop-banner-wrap{
+  width:100%;
+  max-width:1180px;
+  margin:0 auto 24px;
+  padding:0 18px;
+  box-sizing:border-box;
+}
+.drop-banner{
+  position:relative;
+  width:100%;
+  aspect-ratio:16/9;
+  max-height:520px;
+  border-radius:14px;
+  overflow:hidden;
+  cursor:default;
+  isolation:isolate;
+  container-type:inline-size;
+  background:
+    radial-gradient(ellipse 90% 60% at 50% 80%, rgba(255,210,120,.95) 0%, rgba(220,160,60,.55) 28%, rgba(60,30,10,.0) 60%),
+    radial-gradient(circle at 50% 78%, rgba(255,240,200,1) 0%, rgba(255,200,100,.75) 8%, rgba(180,120,40,.0) 35%),
+    linear-gradient(180deg, #2a1a08 0%, #6e4218 28%, #b97a2b 58%, #f3c66a 78%, #f7e1a3 92%, #d8a850 100%);
+  box-shadow:
+    0 18px 48px -18px rgba(180,120,40,.55),
+    0 2px 0 rgba(255,225,160,.18) inset,
+    0 0 0 1px rgba(201,168,76,.22);
+  transition:transform .35s cubic-bezier(.2,.7,.2,1), box-shadow .35s;
+}
+.drop-banner.clickable{ cursor:pointer; }
+.drop-banner.clickable:hover{
+  transform:translateY(-2px);
+  box-shadow:
+    0 24px 56px -18px rgba(220,160,60,.65),
+    0 2px 0 rgba(255,225,160,.22) inset,
+    0 0 0 1px rgba(220,180,90,.5);
+}
+/* Strada/orizzonte simulati con gradient lineare */
+.drop-banner::before{
+  content:"";
+  position:absolute; inset:auto 0 0 0;
+  height:34%;
+  background:
+    linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(60,30,10,.18) 35%, rgba(60,30,10,.55) 100%),
+    repeating-linear-gradient(180deg, rgba(255,235,180,.0) 0 18px, rgba(255,235,180,.06) 18px 19px);
+  z-index:0;
+  pointer-events:none;
+}
+/* Vignettatura ai lati */
+.drop-banner::after{
+  content:"";
+  position:absolute; inset:0;
+  background:
+    radial-gradient(ellipse 120% 80% at 50% 100%, rgba(0,0,0,0) 40%, rgba(20,10,0,.45) 100%),
+    linear-gradient(90deg, rgba(20,10,0,.35) 0%, rgba(0,0,0,0) 18%, rgba(0,0,0,0) 82%, rgba(20,10,0,.35) 100%);
+  pointer-events:none;
+  z-index:1;
+}
+/* Sole pulsante (bagliore al centro) */
+.drop-banner-sun{
+  position:absolute;
+  left:50%; top:84%;
+  transform:translate(-50%,-50%);
+  width:24%; aspect-ratio:1/1;
+  border-radius:50%;
+  background:radial-gradient(circle, rgba(255,250,220,1) 0%, rgba(255,225,140,.8) 18%, rgba(255,200,90,.0) 70%);
+  filter:blur(2px);
+  z-index:0;
+  animation:dropSunPulse 4.2s ease-in-out infinite;
+  pointer-events:none;
+}
+@keyframes dropSunPulse{
+  0%,100%{ opacity:.85; transform:translate(-50%,-50%) scale(1); }
+  50%   { opacity:1;   transform:translate(-50%,-50%) scale(1.06); }
+}
+/* Lens flare diagonale */
+.drop-banner-flare{
+  position:absolute;
+  left:-10%; top:-10%; width:140%; height:140%;
+  background:linear-gradient(115deg, rgba(255,240,200,0) 40%, rgba(255,250,220,.18) 50%, rgba(255,240,200,0) 60%);
+  z-index:1;
+  pointer-events:none;
+  mix-blend-mode:screen;
+}
+/* Contenuto */
+.drop-banner-content{
+  position:absolute; inset:0;
+  z-index:2;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  padding:6% 8%;
+  box-sizing:border-box;
+  gap:clamp(10px, 2cqw, 22px);
+}
+/* Riga 1: Logo wordmark */
+.drop-banner-logo{
+  font-family:'Montserrat', var(--font);
+  font-weight:400;
+  font-size:clamp(13px, 1.6cqw, 20px);
+  letter-spacing:.32em;
+  text-transform:uppercase;
+  color:#fff8e3;
+  text-shadow:
+    0 1px 0 rgba(40,20,5,.5),
+    0 2px 18px rgba(40,20,5,.65),
+    0 0 30px rgba(40,20,5,.4);
+  position:relative;
+  z-index:3;
+}
+.drop-banner-logo > .gold{
+  color:#ffe9a8;
+  font-weight:600;
+  text-shadow:
+    0 1px 0 rgba(40,20,5,.55),
+    0 2px 18px rgba(40,20,5,.5),
+    0 0 14px rgba(255,210,120,.5);
+}
+/* Riga 2: Nome prodotto */
+.drop-banner-title{
+  font-family:'Fraunces', 'Times New Roman', serif;
+  font-weight:600;
+  font-size:clamp(28px, 5.4cqw, 86px);
+  line-height:1.02;
+  letter-spacing:-.005em;
+  text-transform:uppercase;
+  background:linear-gradient(180deg, #2a1404 0%, #5a2f0a 38%, #c98e34 75%, #f6dd9a 100%);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  text-shadow:0 2px 22px rgba(80,40,10,.18);
+  filter:drop-shadow(0 0 24px rgba(255,220,140,.25));
+  max-width:94%;
+  white-space:normal;
+  word-break:normal;
+  overflow-wrap:break-word;
+  text-wrap:balance;
+}
+.drop-banner-title.live{
+  background:linear-gradient(180deg, #fff5d4 0%, #f7d77a 50%, #b97a2b 100%);
+  -webkit-background-clip:text;
+  background-clip:text;
+}
+/* Subtitle opzionale */
+.drop-banner-sub{
+  font-family:'Fraunces', serif;
+  font-style:italic;
+  font-weight:400;
+  font-size:clamp(11px, 1.4cqw, 16px);
+  color:rgba(50,25,5,.82);
+  letter-spacing:.08em;
+  margin-top:-6px;
+  max-width:80%;
+}
+/* Riga 3: Countdown */
+.drop-banner-countdown{
+  font-family:'JetBrains Mono', var(--mono);
+  font-weight:600;
+  font-size:clamp(22px, 4.5cqw, 64px);
+  letter-spacing:.04em;
+  color:#2a1404;
+  text-shadow:0 2px 14px rgba(255,235,180,.35);
+  font-variant-numeric:tabular-nums;
+  display:flex; align-items:baseline; gap:clamp(4px,.6cqw,12px);
+}
+.drop-banner-countdown .num{
+  display:inline-block;
+  min-width:2ch;
+  text-align:center;
+}
+.drop-banner-countdown .sep{
+  color:rgba(40,20,5,.6);
+  font-weight:400;
+}
+.drop-banner-countdown .lbl{
+  font-family:'Montserrat', var(--font);
+  font-size:clamp(9px,.9cqw,11px);
+  font-weight:600;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:rgba(50,25,5,.65);
+  display:block;
+  text-align:center;
+  margin-top:4px;
+}
+.drop-banner-cd-unit{ display:flex; flex-direction:column; align-items:center; }
+/* Data target piccola */
+.drop-banner-target{
+  font-family:'JetBrains Mono', var(--mono);
+  font-size:clamp(10px, 1.05cqw, 13px);
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:rgba(50,25,5,.7);
+  margin-top:-2px;
+}
+/* Stato LIVE quando scaduto */
+.drop-banner.live{
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 50%, rgba(255,225,140,.95) 0%, rgba(220,160,60,.7) 32%, rgba(60,30,10,0) 65%),
+    linear-gradient(180deg, #1a0e02 0%, #3a1f06 30%, #8c5a18 60%, #d8a850 90%, #f3c66a 100%);
+}
+.drop-banner-live-badge{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:6px 14px;
+  border-radius:999px;
+  background:rgba(40,20,5,.85);
+  color:#f6dd9a;
+  font-family:'Montserrat',var(--font);
+  font-size:clamp(10px,.95cqw,13px);
+  font-weight:600;
+  letter-spacing:.22em;
+  text-transform:uppercase;
+  border:1px solid rgba(246,221,154,.45);
+  margin-bottom:6px;
+}
+.drop-banner-live-badge::before{
+  content:"";
+  width:8px; height:8px; border-radius:50%;
+  background:#ff5b3d;
+  box-shadow:0 0 0 0 rgba(255,91,61,.7);
+  animation:dropLivePulse 1.4s ease-in-out infinite;
+}
+@keyframes dropLivePulse{
+  0%   { box-shadow:0 0 0 0   rgba(255,91,61,.7); }
+  70%  { box-shadow:0 0 0 10px rgba(255,91,61,0); }
+  100% { box-shadow:0 0 0 0   rgba(255,91,61,0); }
+}
+.drop-banner-cta{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:10px 22px;
+  border-radius:999px;
+  background:#2a1404;
+  color:#f6dd9a;
+  font-family:'Montserrat',var(--font);
+  font-size:clamp(11px,1.05cqw,14px);
+  font-weight:600;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  border:1px solid rgba(246,221,154,.6);
+  text-decoration:none;
+  transition:transform .2s, background .2s;
+  margin-top:8px;
+}
+.drop-banner-cta:hover{ background:#3a1f06; transform:translateY(-1px); }
+.drop-banner-cta .arrow{ transition:transform .2s; }
+.drop-banner-cta:hover .arrow{ transform:translateX(3px); }
+
+/* Mobile compaction */
+@media (max-width: 720px){
+  .drop-banner-wrap{ padding:0 12px; margin-bottom:16px; }
+  .drop-banner{ aspect-ratio:4/3; }
+  .drop-banner-content{ gap:8px; padding:6% 6%; }
+  .drop-banner-countdown{ gap:3px; }
+}
+
+/* ── Admin: form drop countdown ───────────────────────────────────── */
+.drop-admin-form{
+  max-width:680px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+  padding:18px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+}
+.drop-admin-row{ display:flex; flex-direction:column; gap:6px; }
+.drop-admin-row label{
+  font-size:11px; font-weight:600; color:var(--text-muted);
+  text-transform:uppercase; letter-spacing:.5px; font-family:var(--mono);
+}
+.drop-admin-row input[type=text],
+.drop-admin-row input[type=datetime-local],
+.drop-admin-row select,
+.drop-admin-row textarea{
+  padding:9px 11px; font-size:13px;
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:var(--r); color:var(--text); font-family:var(--font);
+  outline:none; transition:border-color .12s;
+}
+.drop-admin-row input:focus,.drop-admin-row select:focus,.drop-admin-row textarea:focus{
+  border-color:var(--accent);
+}
+.drop-admin-row textarea{ resize:vertical; min-height:60px; }
+.drop-admin-toggle{
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+}
+.drop-admin-toggle input{ width:18px; height:18px; cursor:pointer; }
+.drop-admin-toggle-lbl{ font-size:13px; color:var(--text); font-weight:500; }
+.drop-admin-actions{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.drop-admin-status{
+  font-size:12px; color:var(--text-muted); font-family:var(--mono);
+  padding:6px 10px; background:var(--surface2);
+  border:1px solid var(--border); border-radius:var(--r);
+}
+.drop-admin-preview{
+  margin-top:8px;
+  border-top:1px solid var(--border);
+  padding-top:14px;
+}
+.drop-admin-preview-lbl{
+  font-size:11px; color:var(--text-muted);
+  text-transform:uppercase; letter-spacing:.5px; font-family:var(--mono);
+  margin-bottom:8px;
+}
 </style>
 </head>
 <body>
@@ -4113,6 +4432,17 @@ textarea{resize:vertical;min-height:60px}
 <!-- ═══ TAB: MARKETPLACE ═══ -->
 <div class="tab active iwc-mode" id="tab-mkt" style="display:flex;flex:1;flex-direction:column;overflow:hidden">
   <div class="mkt-wrap">
+    <!-- DROP COUNTDOWN BANNER (visibile solo se admin ha attivato un drop) -->
+    <div class="drop-banner-wrap" id="dropBannerWrap" style="display:none">
+      <div class="drop-banner" id="dropBanner" onclick="dropBannerClick()">
+        <div class="drop-banner-sun"></div>
+        <div class="drop-banner-flare"></div>
+        <div class="drop-banner-content" id="dropBannerContent">
+          <!-- Riempito da JS: logo / title / countdown -->
+        </div>
+      </div>
+    </div>
+
     <!-- Layout 4 colonne: 1 filtri + 3 card -->
     <div class="iwc-layout">
       <!-- COLONNA SINISTRA: FILTRI MINIMAL COLLASSABILI -->
@@ -4446,6 +4776,7 @@ textarea{resize:vertical;min-height:60px}
       <button class="admin-side-btn" onclick="adminSection('liquidations')"><span class="rb-i rb-i-coin"></span> Liquidazioni</button>
       <button class="admin-side-btn" onclick="adminSection('transfers')"><span class="rb-i rb-i-swap"></span> Trasferimenti</button>
       <button class="admin-side-btn" onclick="adminSection('memorandum')"><span class="rb-i rb-i-list"></span> Memorandum</button>
+      <button class="admin-side-btn" onclick="adminSection('drop')"><span class="rb-i rb-i-clock"></span> Drop Countdown</button>
       <button class="admin-side-btn" onclick="adminSection('submissions')"><span class="rb-i rb-i-package"></span> Richieste</button>
       <button class="admin-side-btn" onclick="adminSection('users')"><span class="rb-i rb-i-user"></span> Utenti</button>
     </div>
@@ -4578,6 +4909,66 @@ textarea{resize:vertical;min-height:60px}
           <tbody id="adminProductsTbody"></tbody>
         </table>
         <div class="empty-state" id="adminProductsEmpty" style="display:none"><div class="icon"><span class="rb-i rb-i-package"></span></div><h3>Nessun prodotto</h3></div>
+      </div>
+
+      <!-- DROP COUNTDOWN — Configurazione banner cinematic -->
+      <div class="admin-section" id="admin-drop">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:14px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:15px;font-weight:600;letter-spacing:.005em;display:inline-flex;align-items:center;gap:8px"><span class="rb-i rb-i-clock" style="color:var(--accent)"></span> Drop Countdown</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:3px;max-width:680px;line-height:1.5">
+              Configura un banner cinematic 16:9 visibile a tutti gli investor in cima al marketplace.
+              Lega un prodotto in stato <code style="font-family:var(--mono);font-size:11px;background:var(--surface2);padding:1px 5px;border-radius:3px">draft</code> e una data target: alla scadenza il prodotto viene promosso automaticamente a <code style="font-family:var(--mono);font-size:11px;background:var(--surface2);padding:1px 5px;border-radius:3px">open</code> e il banner mostra "DROP LIVE".
+            </div>
+          </div>
+        </div>
+
+        <form class="drop-admin-form" id="dropAdminForm" onsubmit="event.preventDefault();dropAdminSave()">
+          <div class="drop-admin-toggle">
+            <input type="checkbox" id="dropAdminActive"/>
+            <label for="dropAdminActive" class="drop-admin-toggle-lbl">Banner attivo (visibile agli investor)</label>
+          </div>
+
+          <div class="drop-admin-row">
+            <label for="dropAdminProduct">Prodotto draft da rilasciare</label>
+            <select id="dropAdminProduct">
+              <option value="">— Nessun prodotto selezionato —</option>
+            </select>
+            <div style="font-size:11px;color:var(--text-muted);font-family:var(--mono)">Solo prodotti con stato <code>draft</code> vengono mostrati. Alla scadenza il prodotto passa a <code>open</code>.</div>
+          </div>
+
+          <div class="drop-admin-row">
+            <label for="dropAdminTarget">Data e ora target (fuso locale)</label>
+            <input type="datetime-local" id="dropAdminTarget"/>
+          </div>
+
+          <div class="drop-admin-row">
+            <label for="dropAdminTitle">Override titolo banner (opzionale)</label>
+            <input type="text" id="dropAdminTitle" placeholder="Lascia vuoto per usare il nome del prodotto" maxlength="60"/>
+          </div>
+
+          <div class="drop-admin-row">
+            <label for="dropAdminSub">Sottotitolo (opzionale)</label>
+            <input type="text" id="dropAdminSub" placeholder="es. Drop esclusivo · Solo per investor" maxlength="80"/>
+          </div>
+
+          <div class="drop-admin-actions">
+            <button type="submit" class="btn primary"><span class="rb-i rb-i-check"></span> Salva configurazione</button>
+            <button type="button" class="btn" onclick="dropAdminReset()">Disattiva e svuota</button>
+            <span class="drop-admin-status" id="dropAdminStatus">—</span>
+          </div>
+
+          <div class="drop-admin-preview">
+            <div class="drop-admin-preview-lbl">Anteprima live</div>
+            <div class="drop-banner-wrap" style="padding:0;margin:0;max-width:560px">
+              <div class="drop-banner" id="dropAdminPreview">
+                <div class="drop-banner-sun"></div>
+                <div class="drop-banner-flare"></div>
+                <div class="drop-banner-content" id="dropAdminPreviewContent"></div>
+              </div>
+            </div>
+          </div>
+        </form>
       </div>
 
       <!-- PAGAMENTI DA CONFERMARE -->
@@ -9336,6 +9727,7 @@ function adminSection(s){
   if(s==='liquidations')adminLoadLiquidations();
   if(s==='transfers')   adminLoadTransfers();
   if(s==='memorandum')  memoLoadAll();
+  if(s==='drop')        dropAdminLoad();
   if(s==='submissions') submLoadAll();
   if(s==='users')       adminLoadUsers();
   if(s==='vendor-payouts') adminLoadVendorPayouts();
@@ -12362,6 +12754,395 @@ async function vendorSaveProduct(){
     msg.innerHTML = '<span style="color:var(--danger);font-size:12px">Errore: '+esc(e.message)+'</span>';
   }
 }
+
+// ════════════════════════════════════════════════════════════════════
+//  DROP COUNTDOWN — Banner cinematic 16:9 + admin form
+//
+//  Tabella: inv_drop_countdown (singleton id=1)
+//  View   : v_drop_countdown (join con inv_products)
+//  RPC    : drop_release_product() — promuove prodotto a 'open' alla scadenza
+//
+//  Flusso:
+//    1. dropLoadConfig() polled all'avvio investor + ogni 60s
+//    2. dropRenderBanner() renderizza il banner se config.active
+//    3. dropTick() aggiorna countdown ogni 1s
+//    4. Allo scadere: chiama RPC + ricarica config + mostra "DROP LIVE"
+// ════════════════════════════════════════════════════════════════════
+
+var _dropConfig    = null;
+var _dropTickTimer = null;
+var _dropPollTimer = null;
+var _dropReleasing = false;
+
+async function dropLoadConfig(){
+  try{
+    var r = await supa('GET','v_drop_countdown?select=*');
+    _dropConfig = (Array.isArray(r) && r.length) ? r[0] : null;
+  }catch(e){ _dropConfig = null; }
+  dropRenderBanner();
+}
+
+function dropParseTarget(iso){
+  if(!iso) return null;
+  var t = new Date(iso).getTime();
+  return isNaN(t) ? null : t;
+}
+
+function dropFormatTargetIT(iso){
+  if(!iso) return '';
+  try{
+    var d = new Date(iso);
+    return d.toLocaleString('it-IT',{
+      day:'2-digit', month:'long', year:'numeric',
+      hour:'2-digit', minute:'2-digit'
+    });
+  }catch(e){ return ''; }
+}
+
+function dropBuildContent(cfg, remainingMs){
+  var live = remainingMs <= 0;
+  var titleRaw = (cfg && (cfg.title_override || cfg.product_name)) || 'Prossimo drop';
+  var title = String(titleRaw).toUpperCase();
+  var subtitle = (cfg && cfg.subtitle) ? String(cfg.subtitle) : '';
+
+  var html =
+    '<div class="drop-banner-logo">'+
+      '<span>Rare</span>&nbsp;<span class="gold">Block</span>'+
+    '</div>'+
+    (live
+      ? '<div class="drop-banner-live-badge">Drop Live</div>'
+      : ''
+    )+
+    '<div class="drop-banner-title'+(live?' live':'')+'">'+esc(title)+'</div>'+
+    (subtitle ? '<div class="drop-banner-sub">'+esc(subtitle)+'</div>' : '');
+
+  if(live){
+    html +=
+      '<a href="javascript:void(0)" class="drop-banner-cta" onclick="event.stopPropagation();dropBannerClick()">'+
+        '<span>Visita il prodotto</span>'+
+        '<span class="arrow">→</span>'+
+      '</a>';
+  } else {
+    var parts = dropMsToParts(remainingMs);
+    html +=
+      '<div class="drop-banner-countdown">'+
+        '<div class="drop-banner-cd-unit"><span class="num">'+parts.dd+'</span><span class="lbl">Giorni</span></div>'+
+        '<span class="sep">:</span>'+
+        '<div class="drop-banner-cd-unit"><span class="num">'+parts.hh+'</span><span class="lbl">Ore</span></div>'+
+        '<span class="sep">:</span>'+
+        '<div class="drop-banner-cd-unit"><span class="num">'+parts.mm+'</span><span class="lbl">Min</span></div>'+
+        '<span class="sep">:</span>'+
+        '<div class="drop-banner-cd-unit"><span class="num">'+parts.ss+'</span><span class="lbl">Sec</span></div>'+
+      '</div>';
+    if(cfg && cfg.target_at){
+      html += '<div class="drop-banner-target">'+esc(dropFormatTargetIT(cfg.target_at))+'</div>';
+    }
+  }
+  return html;
+}
+
+function dropMsToParts(ms){
+  if(ms<0) ms=0;
+  var s = Math.floor(ms/1000);
+  var dd = Math.floor(s/86400); s -= dd*86400;
+  var hh = Math.floor(s/3600);  s -= hh*3600;
+  var mm = Math.floor(s/60);    var ss = s - mm*60;
+  var pad = function(n){ return n<10 ? '0'+n : ''+n; };
+  return { dd:pad(dd), hh:pad(hh), mm:pad(mm), ss:pad(ss) };
+}
+
+function dropRenderBanner(){
+  var wrap = document.getElementById('dropBannerWrap');
+  var banner = document.getElementById('dropBanner');
+  var content = document.getElementById('dropBannerContent');
+  if(!wrap || !banner || !content) return;
+
+  var cfg = _dropConfig;
+  if(!cfg || !cfg.active || !cfg.product_id || !cfg.target_at){
+    wrap.style.display = 'none';
+    if(_dropTickTimer){ clearInterval(_dropTickTimer); _dropTickTimer=null; }
+    return;
+  }
+
+  var target = dropParseTarget(cfg.target_at);
+  if(!target){ wrap.style.display='none'; return; }
+
+  var now = Date.now();
+  var rem = target - now;
+  var live = rem <= 0;
+
+  wrap.style.display = '';
+  banner.classList.toggle('live', live);
+  banner.classList.toggle('clickable', live);
+  content.innerHTML = dropBuildContent(cfg, rem);
+
+  // Avvia tick se non scaduto, altrimenti tenta release una volta
+  if(!live){
+    if(!_dropTickTimer) _dropTickTimer = setInterval(dropTick, 1000);
+  } else {
+    if(_dropTickTimer){ clearInterval(_dropTickTimer); _dropTickTimer=null; }
+    if(!cfg.released_at && !_dropReleasing) dropTryRelease();
+  }
+}
+
+function dropTick(){
+  var cfg = _dropConfig;
+  if(!cfg || !cfg.target_at){ return; }
+  var content = document.getElementById('dropBannerContent');
+  var banner = document.getElementById('dropBanner');
+  if(!content || !banner) return;
+  var rem = dropParseTarget(cfg.target_at) - Date.now();
+  if(rem <= 0){
+    banner.classList.add('live','clickable');
+    content.innerHTML = dropBuildContent(cfg, 0);
+    if(_dropTickTimer){ clearInterval(_dropTickTimer); _dropTickTimer=null; }
+    if(!cfg.released_at && !_dropReleasing) dropTryRelease();
+    return;
+  }
+  // Aggiornamento ottimizzato: solo i numeri del countdown
+  var parts = dropMsToParts(rem);
+  var nums = content.querySelectorAll('.drop-banner-cd-unit .num');
+  if(nums.length === 4){
+    nums[0].textContent = parts.dd;
+    nums[1].textContent = parts.hh;
+    nums[2].textContent = parts.mm;
+    nums[3].textContent = parts.ss;
+  } else {
+    content.innerHTML = dropBuildContent(cfg, rem);
+  }
+}
+
+async function dropTryRelease(){
+  if(_dropReleasing) return;
+  _dropReleasing = true;
+  try{
+    await fetch(SUPA_URL+'/rest/v1/rpc/drop_release_product', {
+      method:'POST', headers:getHDR(), body:'{}'
+    });
+  }catch(e){ /* ignora — riprovo al prossimo poll */ }
+  _dropReleasing = false;
+  // Ricarica config per ottenere released_at e nuovo status prodotto
+  setTimeout(dropLoadConfig, 600);
+}
+
+function dropBannerClick(){
+  var cfg = _dropConfig;
+  if(!cfg || !cfg.product_id) return;
+  var target = dropParseTarget(cfg.target_at);
+  if(!target || target > Date.now()) return; // non cliccabile prima della scadenza
+  // Apri dettaglio prodotto: usa la funzione esistente openProductDetail se disponibile
+  if(typeof openProductDetail === 'function'){
+    openProductDetail(cfg.product_id);
+  } else if(typeof showProductDetail === 'function'){
+    showProductDetail(cfg.product_id);
+  } else {
+    // Fallback: scroll alla griglia prodotti, l'utente vedrà che è "open"
+    var grid = document.getElementById('mktGrid');
+    if(grid) grid.scrollIntoView({behavior:'smooth'});
+  }
+}
+
+// ── Admin: load form ───────────────────────────────────────────────
+async function dropAdminLoad(){
+  if(!_isAdmin) return;
+  var statusEl = document.getElementById('dropAdminStatus');
+  if(statusEl) statusEl.textContent = 'Caricamento…';
+
+  // Carica config corrente
+  var cfg = null;
+  try{
+    var r = await supa('GET','inv_drop_countdown?id=eq.1&select=*');
+    cfg = (Array.isArray(r) && r.length) ? r[0] : null;
+  }catch(e){
+    if(statusEl) statusEl.textContent = 'Errore: '+e.message;
+    return;
+  }
+
+  // Carica prodotti draft per il select
+  var drafts = [];
+  try{
+    drafts = await supa('GET','inv_products?status=eq.draft&select=id,name&order=created_at.desc') || [];
+  }catch(e){ drafts = []; }
+
+  // Se cfg.product_id punta a un prodotto NON più draft (già rilasciato), includilo comunque
+  var sel = document.getElementById('dropAdminProduct');
+  if(sel){
+    var opts = ['<option value="">— Nessun prodotto selezionato —</option>'];
+    var hasCurrent = false;
+    drafts.forEach(function(p){
+      opts.push('<option value="'+p.id+'">'+esc(p.name)+' · draft</option>');
+      if(cfg && p.id === cfg.product_id) hasCurrent = true;
+    });
+    if(cfg && cfg.product_id && !hasCurrent){
+      // Fetch nome del prodotto già rilasciato per non perderlo dal select
+      try{
+        var pr = await supa('GET','inv_products?id=eq.'+cfg.product_id+'&select=id,name,status');
+        if(Array.isArray(pr) && pr.length){
+          opts.push('<option value="'+pr[0].id+'">'+esc(pr[0].name)+' · '+esc(pr[0].status)+' (corrente)</option>');
+        }
+      }catch(e){}
+    }
+    sel.innerHTML = opts.join('');
+    sel.value = (cfg && cfg.product_id) || '';
+  }
+
+  document.getElementById('dropAdminActive').checked = !!(cfg && cfg.active);
+  document.getElementById('dropAdminTitle').value    = (cfg && cfg.title_override) || '';
+  document.getElementById('dropAdminSub').value      = (cfg && cfg.subtitle) || '';
+
+  // datetime-local: convertire ISO UTC in stringa locale "YYYY-MM-DDTHH:MM"
+  var tEl = document.getElementById('dropAdminTarget');
+  if(tEl){
+    if(cfg && cfg.target_at){
+      var d = new Date(cfg.target_at);
+      var pad = function(n){ return n<10 ? '0'+n : n; };
+      tEl.value = d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+
+                  'T'+pad(d.getHours())+':'+pad(d.getMinutes());
+    } else {
+      tEl.value = '';
+    }
+  }
+
+  // Wire preview live
+  ['dropAdminActive','dropAdminProduct','dropAdminTarget','dropAdminTitle','dropAdminSub'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el && !el.dataset.bound){
+      el.addEventListener('input',  dropAdminPreviewUpdate);
+      el.addEventListener('change', dropAdminPreviewUpdate);
+      el.dataset.bound = '1';
+    }
+  });
+
+  if(statusEl){
+    if(cfg && cfg.released_at){
+      statusEl.textContent = 'Rilasciato il '+dropFormatTargetIT(cfg.released_at);
+    } else if(cfg && cfg.active){
+      statusEl.textContent = 'Attivo · target '+dropFormatTargetIT(cfg.target_at);
+    } else {
+      statusEl.textContent = 'Banner non attivo';
+    }
+  }
+  dropAdminPreviewUpdate();
+}
+
+function dropAdminPreviewUpdate(){
+  var prevEl = document.getElementById('dropAdminPreviewContent');
+  var prevBanner = document.getElementById('dropAdminPreview');
+  if(!prevEl || !prevBanner) return;
+
+  var active = document.getElementById('dropAdminActive').checked;
+  var prodSel = document.getElementById('dropAdminProduct');
+  var prodName = prodSel && prodSel.options[prodSel.selectedIndex]
+    ? prodSel.options[prodSel.selectedIndex].text.replace(/ · (draft|open|closed|.*\(corrente\))$/,'').trim()
+    : '';
+  var titleOv = document.getElementById('dropAdminTitle').value.trim();
+  var subtitle = document.getElementById('dropAdminSub').value.trim();
+  var tStr = document.getElementById('dropAdminTarget').value;
+  var target = tStr ? new Date(tStr).getTime() : 0;
+
+  if(!active || !target){
+    prevBanner.classList.remove('live','clickable');
+    prevEl.innerHTML =
+      '<div class="drop-banner-logo"><span>Rare</span>&nbsp;<span class="gold">Block</span></div>'+
+      '<div class="drop-banner-title">Anteprima banner</div>'+
+      '<div class="drop-banner-sub">Compila i campi per vedere il countdown</div>';
+    return;
+  }
+
+  var rem = target - Date.now();
+  var pseudoCfg = {
+    title_override: titleOv,
+    product_name: prodName,
+    subtitle: subtitle,
+    target_at: tStr ? new Date(tStr).toISOString() : null,
+    active:true, product_id:'preview'
+  };
+  prevBanner.classList.toggle('live', rem<=0);
+  prevEl.innerHTML = dropBuildContent(pseudoCfg, rem);
+}
+
+async function dropAdminSave(){
+  if(!_isAdmin) return;
+  var statusEl = document.getElementById('dropAdminStatus');
+  var btn = document.querySelector('#dropAdminForm button[type=submit]');
+  if(btn){ btn.disabled = true; }
+  if(statusEl) statusEl.textContent = 'Salvataggio…';
+
+  var active   = document.getElementById('dropAdminActive').checked;
+  var prodId   = document.getElementById('dropAdminProduct').value || null;
+  var tStr     = document.getElementById('dropAdminTarget').value;
+  var titleOv  = document.getElementById('dropAdminTitle').value.trim() || null;
+  var subtitle = document.getElementById('dropAdminSub').value.trim() || null;
+
+  // Validazione
+  if(active){
+    if(!prodId){
+      if(statusEl) statusEl.textContent = 'Seleziona un prodotto';
+      if(btn) btn.disabled = false;
+      return;
+    }
+    if(!tStr){
+      if(statusEl) statusEl.textContent = 'Imposta data e ora target';
+      if(btn) btn.disabled = false;
+      return;
+    }
+  }
+
+  // Reset released_at se cambia config (nuovo target o prodotto)
+  var body = {
+    active: active,
+    product_id: prodId,
+    target_at: tStr ? new Date(tStr).toISOString() : null,
+    title_override: titleOv,
+    subtitle: subtitle,
+    released_at: null,
+    updated_at: new Date().toISOString(),
+    updated_by: _session && _session.user ? _session.user.id : null
+  };
+
+  try{
+    await supa('PATCH','inv_drop_countdown?id=eq.1', body);
+    if(statusEl) statusEl.textContent = 'Salvato ✓ '+(active?'(banner attivo)':'(banner disattivato)');
+    // Ricarica config investor view
+    dropLoadConfig();
+  }catch(e){
+    if(statusEl) statusEl.textContent = 'Errore: '+e.message;
+  } finally {
+    if(btn) btn.disabled = false;
+  }
+}
+
+async function dropAdminReset(){
+  if(!confirm('Disattivare il banner e svuotare i campi?')) return;
+  document.getElementById('dropAdminActive').checked = false;
+  document.getElementById('dropAdminProduct').value = '';
+  document.getElementById('dropAdminTarget').value = '';
+  document.getElementById('dropAdminTitle').value = '';
+  document.getElementById('dropAdminSub').value = '';
+  await dropAdminSave();
+}
+
+// ── Bootstrap: carica config all'avvio + poll ogni 60s ────────────
+(function dropBoot(){
+  function start(){
+    dropLoadConfig();
+    if(!_dropPollTimer) _dropPollTimer = setInterval(dropLoadConfig, 60000);
+  }
+  // Aspetta che la sessione sia pronta. Riprovo finché _session non è null.
+  var tries = 0;
+  function waitSession(){
+    if(typeof _session !== 'undefined' && _session && _session.access_token){
+      start();
+      return;
+    }
+    if(++tries < 60){ setTimeout(waitSession, 500); }
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', waitSession);
+  } else {
+    waitSession();
+  }
+})();
 </script>
 
 <!-- ══════════════ MODALE DETTAGLIO RICHIESTA ══════════════ -->
