@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RareBlock — My Certificates</title>
+<meta name="description" content="Your RareBlock blockchain-anchored certificates of fractional co-ownership.">
+<meta name="robots" content="noindex">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Figtree:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+/* ════════════════════════ DESIGN TOKENS ════════════════════════ */
+:root{
+  --bg:           #0d1117;
+  --bg-elev:      #161b22;
+  --bg-elev-2:    #1c2128;
+  --bg-elev-3:    #22272e;
+  --border:       #21262d;
+  --border-soft:  #1f242b;
+  --text:         #e6edf3;
+  --text-muted:   #8b949e;
+  --text-dim:     #6e7681;
+  --gold:         #c9a961;
+  --gold-deep:    #a8893f;
+  --gold-soft:    rgba(201,169,97,.10);
+  --green:        #3fb950;
+  --red:          #f85149;
+  --amber:        #d29922;
+  --serif:        'Fraunces','Times New Roman',Georgia,serif;
+  --sans:         'Figtree',-apple-system,system-ui,'Segoe UI',sans-serif;
+  --mono:         'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  --maxw:         1180px;
+  --radius:       8px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+         font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:inherit;text-decoration:none}
+::selection{background:var(--gold);color:var(--bg)}
+button{font-family:inherit}
+
+/* ════════════════════════ LAYOUT ════════════════════════ */
+.page{max-width:var(--maxw);margin:0 auto;padding:32px 28px 96px}
+@media (max-width:640px){.page{padding:24px 16px 64px}}
+
+.rule{height:1px;background:var(--border);margin:24px 0}
+.rule-gold{height:1px;background:linear-gradient(90deg,transparent,var(--gold) 30%,var(--gold) 70%,transparent);margin:32px 0}
+
+/* ─── Topbar ─── */
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;
+        padding-bottom:24px;border-bottom:1px solid var(--border)}
+.topbar-left{display:flex;align-items:center;gap:18px}
+.brand{font-weight:700;font-size:13px;letter-spacing:.32em;color:var(--text)}
+.brand-sub{font-size:9px;letter-spacing:.22em;color:var(--text-muted);margin-top:2px}
+.topbar-right{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--text-muted)}
+.user-pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px 6px 6px;
+           background:var(--bg-elev);border:1px solid var(--border);border-radius:999px}
+.user-pill .avatar{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--gold) 0%,var(--gold-deep) 100%);
+                   display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--bg)}
+.user-pill .uname{font-family:var(--mono);font-size:11px;color:var(--text)}
+.btn-link{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:6px 10px}
+.btn-link:hover{color:var(--gold)}
+
+/* ─── Hero ─── */
+.hero{padding:24px 0 32px}
+.hero-eyebrow{font-size:10px;letter-spacing:.32em;color:var(--gold);text-transform:uppercase;margin-bottom:10px}
+.hero h1{font-family:var(--serif);font-style:italic;font-weight:300;font-size:42px;line-height:1.1;margin:0 0 8px;letter-spacing:-.01em}
+.hero p{color:var(--text-muted);max-width:560px;margin:0;font-size:15px}
+@media (max-width:640px){.hero h1{font-size:30px}}
+
+/* ─── Stats strip ─── */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);
+       border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin:24px 0 28px}
+@media (max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{background:var(--bg-elev);padding:18px 20px}
+.stat .lab{font-size:9px;letter-spacing:.22em;color:var(--text-muted);text-transform:uppercase;font-weight:500;margin-bottom:6px}
+.stat .val{font-family:var(--serif);font-style:italic;font-weight:400;font-size:24px;color:var(--text);line-height:1.1}
+.stat .val-mono{font-family:var(--mono);font-style:normal;font-size:18px}
+
+/* ─── Filter bar ─── */
+.filter-bar{display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.chip{padding:7px 14px;border:1px solid var(--border);border-radius:999px;background:var(--bg-elev);
+      font-size:12px;color:var(--text-muted);cursor:pointer;transition:all .15s ease}
+.chip:hover{border-color:var(--gold);color:var(--text)}
+.chip.active{background:var(--gold-soft);border-color:var(--gold);color:var(--gold)}
+.search-mini{flex:1;min-width:180px;background:var(--bg-elev);border:1px solid var(--border);color:var(--text);
+             padding:9px 12px;border-radius:999px;font-family:var(--mono);font-size:12px;outline:none}
+.search-mini:focus{border-color:var(--gold)}
+
+/* ─── Grid of certs ─── */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.cert-card{background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);
+           padding:20px;display:flex;flex-direction:column;transition:all .2s ease;position:relative;overflow:hidden}
+.cert-card:hover{border-color:var(--gold);box-shadow:0 4px 24px rgba(201,169,97,.08)}
+.cert-card .head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
+.cert-card .serial{font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:.04em}
+.cert-card h3{font-family:var(--serif);font-style:italic;font-weight:300;font-size:22px;line-height:1.15;margin:0 0 6px;color:var(--text)}
+.cert-card .meta{font-size:12px;color:var(--text-muted);margin-bottom:14px}
+
+.thumb-row{display:grid;grid-template-columns:80px 1fr;gap:14px;margin:10px 0 16px}
+.thumb{aspect-ratio:5/7;background:var(--bg-elev-2);border:1px solid var(--border-soft);border-radius:4px;
+       display:flex;align-items:center;justify-content:center;overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb .placeholder{font-family:var(--serif);font-style:italic;font-size:9px;color:var(--text-dim);text-align:center;padding:4px}
+
+.cert-fraction{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.fraction-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border:1px solid var(--gold);
+               border-radius:999px;font-weight:600;font-size:12px;color:var(--gold)}
+.fraction-pill .pct{font-weight:400;color:var(--text-muted);font-size:11px}
+
+.proof-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-top:14px;border-top:1px solid var(--border-soft);margin-bottom:14px}
+.proof{font-size:11px}
+.proof .lab{font-size:8px;letter-spacing:.18em;color:var(--text-dim);text-transform:uppercase;margin-bottom:3px}
+.proof .val{font-family:var(--mono);color:var(--text-muted);word-break:break-all}
+
+.actions{display:flex;gap:6px;margin-top:auto;flex-wrap:wrap}
+.btn-mini{flex:1;padding:9px 10px;border-radius:6px;font-size:12px;font-weight:500;text-align:center;
+          cursor:pointer;border:1px solid var(--border);background:var(--bg-elev-2);color:var(--text);
+          transition:all .15s ease;min-width:80px}
+.btn-mini:hover{border-color:var(--gold);color:var(--gold)}
+.btn-mini.primary{background:var(--gold);color:var(--bg);border-color:var(--gold);font-weight:600}
+.btn-mini.primary:hover{background:var(--gold-deep);color:var(--bg)}
+
+/* Status pill (riusato da verify page) */
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:9px;letter-spacing:.14em;text-transform:uppercase;
+      padding:4px 9px;border-radius:999px;border:1px solid var(--border);font-weight:600}
+.pill::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--text-dim)}
+.pill-ok{color:var(--green);border-color:rgba(63,185,80,.4)}
+.pill-ok::before{background:var(--green);box-shadow:0 0 4px rgba(63,185,80,.5)}
+.pill-warn{color:var(--amber);border-color:rgba(210,153,34,.4)}
+.pill-warn::before{background:var(--amber)}
+.pill-err{color:var(--red);border-color:rgba(248,81,73,.4)}
+.pill-err::before{background:var(--red)}
+
+/* ─── States ─── */
+.state{text-align:center;padding:80px 20px}
+.state-icon{font-size:36px;margin-bottom:18px;color:var(--gold);opacity:.7}
+.state h2{font-family:var(--serif);font-style:italic;font-weight:300;font-size:28px;margin:0 0 10px}
+.state p{color:var(--text-muted);max-width:480px;margin:0 auto 20px}
+.spinner{width:32px;height:32px;border:2px solid var(--border);border-top-color:var(--gold);
+         border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ─── Login overlay ─── */
+.login-card{max-width:420px;margin:60px auto;background:var(--bg-elev);border:1px solid var(--border);
+            border-radius:var(--radius);padding:36px}
+.login-card h2{font-family:var(--serif);font-style:italic;font-weight:300;font-size:28px;margin:0 0 8px}
+.login-card p{color:var(--text-muted);font-size:14px;margin:0 0 24px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:10px;letter-spacing:.18em;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px}
+.input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);
+       padding:12px 13px;border-radius:6px;font-family:var(--sans);font-size:14px;outline:none}
+.input:focus{border-color:var(--gold)}
+.btn{width:100%;background:var(--gold);color:var(--bg);border:none;padding:13px 22px;border-radius:6px;
+     font-weight:600;font-size:13px;letter-spacing:.04em;cursor:pointer;transition:background .15s ease}
+.btn:hover{background:var(--gold-deep)}
+.btn:disabled{opacity:.5;cursor:wait}
+.alert{background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.3);color:var(--red);
+       padding:11px 14px;border-radius:6px;font-size:13px;margin-bottom:14px}
+
+/* Footer */
+.foot{text-align:center;color:var(--text-dim);font-size:11px;margin-top:64px}
+.foot a{color:var(--text-muted);border-bottom:1px solid transparent}
+.foot a:hover{border-color:var(--gold);color:var(--gold)}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ════════════════════ LOGIN STATE ════════════════════ -->
+<section id="state-login" hidden>
+  <div class="login-card">
+    <h2>Welcome back</h2>
+    <p>Sign in to view your RareBlock certificates.</p>
+    <div id="login-error" class="alert" hidden></div>
+    <div class="field">
+      <label for="email">Email</label>
+      <input type="email" id="email" class="input" autocomplete="email" />
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" class="input" autocomplete="current-password" />
+    </div>
+    <button class="btn" id="login-btn">Sign in</button>
+  </div>
+</section>
+
+<!-- ════════════════════ LOADING STATE ════════════════════ -->
+<section id="state-loading" class="state" hidden>
+  <div class="spinner"></div>
+  <h2>Loading your certificates…</h2>
+</section>
+
+<!-- ════════════════════ MAIN STATE ════════════════════ -->
+<section id="state-main" hidden>
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div>
+        <div class="brand">RARE BLOCK</div>
+        <div class="brand-sub">PORTFOLIO · MY CERTIFICATES</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="user-pill">
+        <div class="avatar" id="user-avatar">·</div>
+        <div class="uname" id="user-email">…</div>
+      </div>
+      <button class="btn-link" id="logout-btn">Sign out</button>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-eyebrow">Your portfolio</div>
+    <h1>Blockchain-anchored ownership</h1>
+    <p>Each certificate represents your verifiable, on-chain stake in a physical collectible held in custody.</p>
+  </section>
+
+  <!-- Stats -->
+  <div class="stats" id="stats">
+    <div class="stat"><div class="lab">Certificates</div><div class="val" id="stat-count">—</div></div>
+    <div class="stat"><div class="lab">Total shares</div><div class="val" id="stat-shares">—</div></div>
+    <div class="stat"><div class="lab">Active</div><div class="val" id="stat-active">—</div></div>
+    <div class="stat"><div class="lab">Networks</div><div class="val val-mono" id="stat-chains">—</div></div>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="filter-bar">
+    <div class="chip active" data-filter="all">All</div>
+    <div class="chip" data-filter="minted">Active</div>
+    <div class="chip" data-filter="transferred">Transferred</div>
+    <input type="text" class="search-mini" id="search-input" placeholder="Search by serial or asset name…" />
+  </div>
+
+  <!-- Grid of certificates (populated via JS) -->
+  <div id="grid" class="grid"></div>
+
+  <!-- Empty state (when no certs) -->
+  <section id="state-empty" class="state" hidden>
+    <div class="state-icon">◇</div>
+    <h2>No certificates yet</h2>
+    <p>Your blockchain-anchored certificates will appear here as soon as your first investment is settled.</p>
+    <a href="https://www.rareblock.eu" class="btn" style="display:inline-block;width:auto;padding:12px 28px;text-decoration:none">Discover investments</a>
+  </section>
+
+</section>
+
+<!-- ════════════════════ ERROR STATE ════════════════════ -->
+<section id="state-error" class="state" hidden>
+  <div class="state-icon" style="color:var(--red)">!</div>
+  <h2>Something went wrong</h2>
+  <p id="err-msg">An error occurred while loading your portfolio.</p>
+  <button class="btn" style="display:inline-block;width:auto;padding:11px 24px" onclick="location.reload()">Retry</button>
+</section>
+
+<footer class="foot">
+  <div class="rule-gold"></div>
+  <p>© RareBlock S.r.l. — <a href="https://www.rareblock.eu/legal/terms">Terms</a> ·
+     <a href="https://www.rareblock.eu/legal/privacy">Privacy</a></p>
+</footer>
+
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   CONFIG
+   ═══════════════════════════════════════════════════════════════════ */
+const SUPA_URL  = 'https://rbjaaeyjeeqfpbzyavag.supabase.co';
+const SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
+
+// CONDIVISA col Collector e Dashboard. NON cambiare.
+const RB_SESSION_KEY = 'rb_auth_session';
+
+const CHAIN_CFG = {
+  8453:  { name:'Base',         explorer:'https://basescan.org' },
+  84532: { name:'Base Sepolia', explorer:'https://sepolia.basescan.org' },
+  31337: { name:'Local',        explorer:null },
+};
+
+// Verify page — siblings nello stesso path
+const VERIFY_PAGE = './rareblock-chain-verify.html';
+
+/* ═══════════════════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════════════════ */
+var _session = null;
+var _certs = [];
+var _filter = 'all';
+var _search = '';
+
+/* ═══════════════════════════════════════════════════════════════════
+   HELPERS
+   ═══════════════════════════════════════════════════════════════════ */
+const $  = (id) => document.getElementById(id);
+const show = (id, on=true) => $(id).hidden = !on;
+const setText = (id, t) => { const e=$(id); if(e) e.textContent = t; };
+const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString('en-US', { day:'2-digit', month:'short', year:'numeric' });
+}
+function shortHex(s, head=8, tail=6) {
+  if (!s) return '';
+  return s.length < head+tail+3 ? s : s.slice(0,head)+'…'+s.slice(-tail);
+}
+function avatar(email) {
+  return (email || '?').slice(0,1).toUpperCase();
+}
+
+function saveSession(s){ try{ localStorage.setItem(RB_SESSION_KEY, JSON.stringify(s)); }catch(e){} }
+function loadSession(){ try{ const r = localStorage.getItem(RB_SESSION_KEY); return r ? JSON.parse(r) : null; }catch(e){ return null; }}
+function clearSession(){ try{ localStorage.removeItem(RB_SESSION_KEY); }catch(e){} }
+
+function authHeaders(){
+  const token = (_session && _session.access_token) || SUPA_ANON;
+  return { 'Content-Type':'application/json', 'apikey':SUPA_ANON, 'Authorization':'Bearer '+token };
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   AUTH
+   ═══════════════════════════════════════════════════════════════════ */
+async function loginWithPassword(email, password) {
+  const r = await fetch(SUPA_URL + '/auth/v1/token?grant_type=password', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'apikey':SUPA_ANON },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}));
+    throw new Error(e.error_description || e.msg || 'Invalid credentials');
+  }
+  return await r.json();
+}
+
+async function refreshToken(refresh_token) {
+  const r = await fetch(SUPA_URL + '/auth/v1/token?grant_type=refresh_token', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'apikey':SUPA_ANON },
+    body: JSON.stringify({ refresh_token }),
+  });
+  if (!r.ok) throw new Error('refresh failed');
+  return await r.json();
+}
+
+/** Restore session from localStorage. Refresh if expired. Returns user or null. */
+async function restoreSession() {
+  const s = loadSession();
+  if (!s || !s.access_token || !s.refresh_token) return null;
+  // Check expiry
+  const now = Math.floor(Date.now() / 1000);
+  if (s.expires_at && s.expires_at <= now + 30) {
+    try {
+      const fresh = await refreshToken(s.refresh_token);
+      _session = fresh;
+      saveSession(fresh);
+      return fresh.user;
+    } catch (e) {
+      clearSession();
+      return null;
+    }
+  }
+  _session = s;
+  return s.user;
+}
+
+function logout() {
+  _session = null;
+  clearSession();
+  show('state-main', false);
+  show('state-login', true);
+  $('email').value = '';
+  $('password').value = '';
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DATA — fetch certificates with RLS-filtered query
+   ═══════════════════════════════════════════════════════════════════ */
+async function fetchCertificates() {
+  // RLS policy "chain_certs_select_own" filtra automaticamente by auth.uid().
+  // Joiniamo i campi prodotto via Supabase nested select.
+  const select = 'id,certificate_serial,token_id,chain_id,contract_address,tx_hash_mint,'
+              + 'qty_minted,status,minted_at,certificate_pdf_url,certificate_pdf_hash,'
+              + 'ipfs_metadata_uri,current_owner_wallet,'
+              + 'product:inv_products(name,image_url,type,set,year,edition,grading_label,shares_total)';
+  const url = `${SUPA_URL}/rest/v1/chain_certificates?select=${encodeURIComponent(select)}&order=minted_at.desc`;
+  const r = await fetch(url, { headers: authHeaders() });
+  if (!r.ok) {
+    const txt = await r.text();
+    throw new Error(`HTTP ${r.status}: ${txt.slice(0, 200)}`);
+  }
+  return await r.json();
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RENDER
+   ═══════════════════════════════════════════════════════════════════ */
+function renderHeader(user) {
+  setText('user-email', user.email || '');
+  setText('user-avatar', avatar(user.email));
+}
+
+function renderStats(certs) {
+  const active = certs.filter(c => c.status === 'minted');
+  const totalShares = certs.reduce((s, c) => s + (c.qty_minted || 0), 0);
+  const chains = new Set(certs.map(c => c.chain_id));
+  setText('stat-count',  certs.length);
+  setText('stat-shares', totalShares);
+  setText('stat-active', active.length);
+  const chainNames = Array.from(chains).map(id => CHAIN_CFG[id]?.name || ('chain '+id));
+  setText('stat-chains', chainNames.length ? chainNames.join(' · ') : '—');
+}
+
+function applyFilter(certs) {
+  let out = certs;
+  if (_filter !== 'all') {
+    out = out.filter(c => c.status === _filter);
+  }
+  if (_search) {
+    const q = _search.toLowerCase();
+    out = out.filter(c =>
+      (c.certificate_serial || '').toLowerCase().includes(q) ||
+      (c.product?.name || '').toLowerCase().includes(q)
+    );
+  }
+  return out;
+}
+
+function statusPill(status) {
+  const map = {
+    minted:      { cls:'pill-ok',   t:'Active' },
+    transferred: { cls:'pill-warn', t:'Transferred' },
+    frozen:      { cls:'pill-warn', t:'Frozen' },
+    burned:      { cls:'pill-err',  t:'Burned' },
+    minting:     { cls:'',          t:'Minting' },
+  };
+  const m = map[status] || { cls:'', t:String(status||'').toUpperCase() };
+  return `<span class="pill ${m.cls}">${m.t}</span>`;
+}
+
+function renderGrid() {
+  const filtered = applyFilter(_certs);
+  if (filtered.length === 0 && _certs.length === 0) {
+    show('state-empty', true);
+    $('grid').innerHTML = '';
+    return;
+  }
+  show('state-empty', false);
+  if (filtered.length === 0) {
+    $('grid').innerHTML = `<div class="state" style="grid-column:1/-1;padding:48px 20px">
+      <h2>No matches</h2>
+      <p>Try a different filter or search term.</p>
+    </div>`;
+    return;
+  }
+  $('grid').innerHTML = filtered.map(c => renderCertCard(c)).join('');
+}
+
+function renderCertCard(c) {
+  const product = c.product || {};
+  const chainCfg = CHAIN_CFG[c.chain_id] || { name: 'Chain '+c.chain_id, explorer: null };
+
+  const verifyUrl = `${VERIFY_PAGE}?serial=${encodeURIComponent(c.certificate_serial)}`;
+  const explorerUrl = chainCfg.explorer
+    ? `${chainCfg.explorer}/tx/${c.tx_hash_mint}`
+    : '#';
+
+  const fractionPill = product.shares_total
+    ? `<div class="fraction-pill">${c.qty_minted}/${product.shares_total} <span class="pct">shares</span></div>`
+    : `<div class="fraction-pill">${c.qty_minted} shares</div>`;
+
+  // Image (handle ipfs:// → gateway)
+  let imgHtml = '<div class="placeholder">Card image</div>';
+  if (product.image_url) {
+    const src = product.image_url.startsWith('ipfs://')
+      ? `https://ipfs.io/ipfs/${product.image_url.slice(7)}`
+      : product.image_url;
+    imgHtml = `<img src="${escHtml(src)}" alt="" loading="lazy" onerror="this.outerHTML='<div class=&quot;placeholder&quot;>Image unavailable</div>'">`;
+  }
+
+  const setYear = [product.set, product.year].filter(Boolean).join(' · ');
+
+  return `
+  <article class="cert-card">
+    <div class="head">
+      <div class="serial">${escHtml(c.certificate_serial)}</div>
+      ${statusPill(c.status)}
+    </div>
+    <div class="thumb-row">
+      <div class="thumb">${imgHtml}</div>
+      <div>
+        <h3>${escHtml(product.name || '—')}</h3>
+        <div class="meta">${escHtml(setYear)}${product.grading_label ? ' · ' + escHtml(product.grading_label) : ''}</div>
+        ${fractionPill}
+      </div>
+    </div>
+    <div class="proof-row">
+      <div class="proof">
+        <div class="lab">Network</div>
+        <div class="val">${escHtml(chainCfg.name)}</div>
+      </div>
+      <div class="proof">
+        <div class="lab">Issued</div>
+        <div class="val" style="color:var(--text)">${fmtDate(c.minted_at)}</div>
+      </div>
+    </div>
+    <div class="actions">
+      <a class="btn-mini primary" href="${escHtml(verifyUrl)}" target="_blank" rel="noopener">Verify</a>
+      ${c.certificate_pdf_url
+        ? `<a class="btn-mini" href="${escHtml(c.certificate_pdf_url)}" target="_blank" rel="noopener" download>PDF</a>`
+        : ''}
+      ${chainCfg.explorer
+        ? `<a class="btn-mini" href="${escHtml(explorerUrl)}" target="_blank" rel="noopener">Tx ↗</a>`
+        : ''}
+    </div>
+  </article>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   FILTER WIRING
+   ═══════════════════════════════════════════════════════════════════ */
+function wireFilters() {
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      _filter = chip.dataset.filter;
+      renderGrid();
+    });
+  });
+  $('search-input').addEventListener('input', (e) => {
+    _search = e.target.value.trim();
+    renderGrid();
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   FLOW
+   ═══════════════════════════════════════════════════════════════════ */
+async function showPortfolio(user) {
+  show('state-login', false);
+  show('state-loading', true);
+  renderHeader(user);
+  try {
+    _certs = await fetchCertificates();
+  } catch (e) {
+    show('state-loading', false);
+    show('state-error', true);
+    setText('err-msg', 'Failed to load certificates: ' + e.message);
+    return;
+  }
+  show('state-loading', false);
+  show('state-main', true);
+  renderStats(_certs);
+  renderGrid();
+  wireFilters();
+}
+
+async function init() {
+  // 1. Try restore session
+  const user = await restoreSession();
+  if (user) {
+    return showPortfolio(user);
+  }
+  // 2. Show login
+  show('state-login', true);
+  $('login-btn').addEventListener('click', async () => {
+    const email = $('email').value.trim();
+    const pw    = $('password').value;
+    if (!email || !pw) {
+      $('login-error').textContent = 'Please fill in both fields.';
+      $('login-error').hidden = false;
+      return;
+    }
+    $('login-error').hidden = true;
+    $('login-btn').disabled = true;
+    $('login-btn').textContent = 'Signing in…';
+    try {
+      const sess = await loginWithPassword(email, pw);
+      _session = sess;
+      saveSession(sess);
+      await showPortfolio(sess.user);
+    } catch (e) {
+      $('login-error').textContent = 'Login failed: ' + e.message;
+      $('login-error').hidden = false;
+    } finally {
+      $('login-btn').disabled = false;
+      $('login-btn').textContent = 'Sign in';
+    }
+  });
+  $('password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') $('login-btn').click();
+  });
+  $('email').addEventListener('keydown', e => {
+    if (e.key === 'Enter') $('password').focus();
+  });
+}
+
+// Logout button is wired only when state-main is visible
+document.addEventListener('click', (e) => {
+  if (e.target?.id === 'logout-btn') logout();
+});
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
