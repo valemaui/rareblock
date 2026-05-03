@@ -13064,7 +13064,13 @@ function dropAdminUpdateDiagnosis(){
 
   // 4. Active flag
   if(!cfg.active){
-    lines.push('⚠ <b>Banner non attivo</b> — spunta "Banner attivo" e salva per renderlo visibile agli investor.');
+    var hasFields = !!cfg.product_id && !!cfg.target_at;
+    lines.push('⚠ <b>Banner non attivo</b> — '+(hasFields
+      ? 'tutti i campi sono compilati. Clicca "Attiva ora" per renderlo visibile agli investor:'
+      : 'spunta "Banner attivo" e salva per renderlo visibile agli investor.'));
+    if(hasFields){
+      lines.push('<button type="button" class="btn primary" style="margin-top:8px;padding:6px 14px;font-size:11px" onclick="dropAdminActivateNow()"><span class="rb-i rb-i-check"></span> Attiva ora</button>');
+    }
     color = 'var(--warning, #d29922)';
     el.innerHTML = lines.join('<br>');
     if(dot) dot.style.background = 'var(--warning, #d29922)';
@@ -13341,6 +13347,17 @@ async function dropAdminReset(){
   document.getElementById('dropAdminTarget').value = '';
   document.getElementById('dropAdminTitle').value = '';
   document.getElementById('dropAdminSub').value = '';
+  await dropAdminSave();
+}
+
+// Attivazione rapida dal pannello diagnosi: spunta "attivo" e salva.
+// Comodo quando l'admin ha già compilato tutto ma ha dimenticato di spuntare.
+async function dropAdminActivateNow(){
+  var ckb = document.getElementById('dropAdminActive');
+  if(!ckb) return;
+  ckb.checked = true;
+  // Trigger change per aggiornare anteprima
+  ckb.dispatchEvent(new Event('change'));
   await dropAdminSave();
 }
 
