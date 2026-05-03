@@ -1,0 +1,948 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RareBlock — Marketplace</title>
+<meta name="description" content="Browse fractional ownership listings of premium collectibles on RareBlock marketplace.">
+
+<meta property="og:title"       content="RareBlock — Marketplace">
+<meta property="og:description" content="Acquire fractional shares of premium collectibles, anchored on the blockchain.">
+<meta property="og:type"        content="website">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Figtree:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#0d1117; --bg-elev:#161b22; --bg-elev-2:#1c2128; --bg-elev-3:#22272e;
+  --border:#21262d; --border-soft:#1f242b;
+  --text:#e6edf3; --text-muted:#8b949e; --text-dim:#6e7681;
+  --gold:#c9a961; --gold-deep:#a8893f; --gold-soft:rgba(201,169,97,.10);
+  --green:#3fb950; --red:#f85149; --amber:#d29922;
+  --serif:'Fraunces','Times New Roman',Georgia,serif;
+  --sans:'Figtree',-apple-system,system-ui,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  --maxw:1280px;
+  --radius:8px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+         font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:inherit;text-decoration:none}
+::selection{background:var(--gold);color:var(--bg)}
+button{font-family:inherit}
+
+.page{max-width:var(--maxw);margin:0 auto;padding:32px 28px 96px}
+@media (max-width:640px){.page{padding:24px 16px 64px}}
+
+.rule{height:1px;background:var(--border);margin:24px 0}
+.rule-gold{height:1px;background:linear-gradient(90deg,transparent,var(--gold) 30%,var(--gold) 70%,transparent);margin:32px 0}
+
+/* ─── Topbar ─── */
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;
+        padding-bottom:24px;border-bottom:1px solid var(--border)}
+.brand{font-weight:700;font-size:13px;letter-spacing:.32em;color:var(--text)}
+.brand-sub{font-size:9px;letter-spacing:.22em;color:var(--text-muted);margin-top:2px}
+.topbar-right{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--text-muted)}
+.user-pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px 6px 6px;
+           background:var(--bg-elev);border:1px solid var(--border);border-radius:999px}
+.user-pill .avatar{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--gold) 0%,var(--gold-deep) 100%);
+                   display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--bg)}
+.user-pill .uname{font-family:var(--mono);font-size:11px;color:var(--text)}
+.btn-link{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:6px 10px}
+.btn-link:hover{color:var(--gold)}
+.signin-link{font-size:12px;letter-spacing:.04em;padding:7px 14px;border:1px solid var(--border);border-radius:999px;color:var(--text-muted);transition:all .15s}
+.signin-link:hover{border-color:var(--gold);color:var(--gold)}
+
+/* ─── Hero ─── */
+.hero{padding:24px 0 32px}
+.hero-eyebrow{font-size:10px;letter-spacing:.32em;color:var(--gold);text-transform:uppercase;margin-bottom:10px}
+.hero h1{font-family:var(--serif);font-style:italic;font-weight:300;font-size:46px;line-height:1.05;margin:0 0 10px;letter-spacing:-.012em}
+.hero p{color:var(--text-muted);max-width:620px;margin:0;font-size:15px}
+@media (max-width:640px){.hero h1{font-size:32px}}
+
+/* ─── Two-column layout (filters + grid) ─── */
+.shell{display:grid;grid-template-columns:240px 1fr;gap:28px;align-items:start}
+@media (max-width:880px){.shell{grid-template-columns:1fr;gap:20px}}
+
+/* ─── Filters (sticky on desktop) ─── */
+.filters{position:sticky;top:20px;background:var(--bg-elev);border:1px solid var(--border);
+         border-radius:var(--radius);padding:20px}
+@media (max-width:880px){.filters{position:static}}
+.filters h3{font-size:9px;letter-spacing:.3em;color:var(--gold);text-transform:uppercase;font-weight:600;margin:0 0 12px}
+.filters .group{margin-bottom:18px}
+.filters .group:last-child{margin-bottom:0}
+.filter-chips{display:flex;flex-direction:column;gap:6px}
+.filter-chip{padding:8px 12px;font-size:13px;color:var(--text-muted);border:1px solid transparent;border-radius:6px;cursor:pointer;
+             display:flex;align-items:center;justify-content:space-between;transition:all .15s}
+.filter-chip:hover{border-color:var(--border);color:var(--text);background:var(--bg-elev-2)}
+.filter-chip.active{border-color:var(--gold);color:var(--gold);background:var(--gold-soft)}
+.filter-chip .count{font-size:11px;font-family:var(--mono);color:var(--text-dim);background:var(--bg);padding:2px 7px;border-radius:999px}
+.filter-chip.active .count{color:var(--gold);background:rgba(201,169,97,.15)}
+
+.range-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.range-input{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--mono);font-size:12px;outline:none;width:100%}
+.range-input:focus{border-color:var(--gold)}
+.range-prefix{position:relative}
+.range-prefix .pfx{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-dim);font-size:11px;pointer-events:none}
+.range-prefix .range-input{padding-left:20px}
+
+.btn-clear{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:11px;padding:0;margin-top:6px}
+.btn-clear:hover{color:var(--gold)}
+
+/* ─── Grid header (search + sort) ─── */
+.grid-head{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.search-input{flex:1;min-width:200px;background:var(--bg-elev);border:1px solid var(--border);color:var(--text);
+              padding:10px 14px;border-radius:8px;font-family:var(--sans);font-size:13px;outline:none}
+.search-input:focus{border-color:var(--gold)}
+.sort-select{background:var(--bg-elev);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:8px;
+             font-family:var(--sans);font-size:13px;outline:none;cursor:pointer}
+.sort-select:focus{border-color:var(--gold)}
+.results-count{font-size:12px;color:var(--text-muted);font-family:var(--mono)}
+
+/* ─── Listing grid ─── */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
+.listing-card{background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);
+              overflow:hidden;cursor:pointer;transition:all .2s ease;display:flex;flex-direction:column}
+.listing-card:hover{border-color:var(--gold);box-shadow:0 4px 24px rgba(201,169,97,.08);transform:translateY(-1px)}
+
+.listing-img{aspect-ratio:5/7;background:var(--bg-elev-2);position:relative;overflow:hidden}
+.listing-img img{width:100%;height:100%;object-fit:cover}
+.listing-img .placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+                          font-family:var(--serif);font-style:italic;color:var(--text-dim);font-size:11px}
+.listing-img .badge{position:absolute;top:10px;left:10px;background:rgba(13,17,23,.85);backdrop-filter:blur(8px);
+                    padding:4px 10px;border-radius:999px;font-size:10px;letter-spacing:.1em;color:var(--gold);font-weight:600;
+                    border:1px solid rgba(201,169,97,.3)}
+
+.listing-body{padding:16px;display:flex;flex-direction:column;flex:1}
+.listing-name{font-family:var(--serif);font-style:italic;font-weight:300;font-size:20px;line-height:1.15;margin:0 0 6px;color:var(--text)}
+.listing-meta{font-size:12px;color:var(--text-muted);margin-bottom:14px;display:flex;flex-wrap:wrap;gap:6px}
+.listing-meta .dot{color:var(--text-dim)}
+.listing-price{margin-top:auto;padding-top:14px;border-top:1px solid var(--border-soft);display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.listing-price .lab{font-size:9px;letter-spacing:.18em;color:var(--text-muted);text-transform:uppercase}
+.listing-price .val{font-family:var(--serif);font-style:italic;font-weight:400;font-size:22px;color:var(--text)}
+.listing-price .qty{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
+
+/* ─── Loading / empty ─── */
+.state{text-align:center;padding:80px 20px;grid-column:1/-1}
+.state-icon{font-size:36px;margin-bottom:18px;color:var(--gold);opacity:.7}
+.state h2{font-family:var(--serif);font-style:italic;font-weight:300;font-size:28px;margin:0 0 10px}
+.state p{color:var(--text-muted);max-width:480px;margin:0 auto 20px}
+.spinner{width:32px;height:32px;border:2px solid var(--border);border-top-color:var(--gold);
+         border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ─── Pagination ─── */
+.pager{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:32px;font-family:var(--mono);font-size:12px}
+.pager button{background:var(--bg-elev);border:1px solid var(--border);color:var(--text);padding:7px 14px;border-radius:6px;cursor:pointer;font-family:var(--mono);font-size:12px}
+.pager button:hover:not(:disabled){border-color:var(--gold);color:var(--gold)}
+.pager button:disabled{opacity:.4;cursor:not-allowed}
+.pager .info{color:var(--text-muted)}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DETAIL VIEW
+   ═══════════════════════════════════════════════════════════════════ */
+.detail-back{display:inline-flex;align-items:center;gap:6px;color:var(--text-muted);font-size:12px;margin-bottom:18px;cursor:pointer}
+.detail-back:hover{color:var(--gold)}
+
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start}
+@media (max-width:840px){.detail-grid{grid-template-columns:1fr;gap:24px}}
+
+.detail-img-wrap{background:var(--bg-elev);border:1px solid var(--gold);border-radius:var(--radius);overflow:hidden;
+                 aspect-ratio:5/7;max-width:480px;margin:0 auto;position:relative}
+.detail-img-wrap img{width:100%;height:100%;object-fit:cover;display:block}
+.detail-img-wrap .placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+                              font-family:var(--serif);font-style:italic;color:var(--text-dim)}
+
+.detail-info{display:flex;flex-direction:column}
+.detail-eyebrow{font-size:10px;letter-spacing:.3em;color:var(--gold);text-transform:uppercase;margin-bottom:10px}
+.detail-name{font-family:var(--serif);font-style:italic;font-weight:300;font-size:38px;line-height:1.1;margin:0 0 8px;letter-spacing:-.01em}
+.detail-meta{color:var(--text-muted);font-size:14px;margin-bottom:16px}
+.detail-serial{font-family:var(--mono);font-size:12px;color:var(--gold);margin-bottom:24px}
+
+.detail-price-card{background:var(--bg-elev);border:1px solid var(--gold);border-radius:var(--radius);padding:24px;margin-bottom:20px}
+.detail-price-card .lab{font-size:9px;letter-spacing:.22em;color:var(--gold);text-transform:uppercase;margin-bottom:6px}
+.detail-price-card .price{font-family:var(--serif);font-style:italic;font-weight:400;font-size:42px;line-height:1.1;margin:0 0 4px}
+.detail-price-card .price-sub{font-size:13px;color:var(--text-muted)}
+.detail-price-card .total-line{margin-top:12px;padding-top:12px;border-top:1px solid var(--border-soft);font-size:13px;color:var(--text)}
+.detail-price-card .total-line .num{font-family:var(--mono);font-weight:500}
+
+.qty-row{display:flex;align-items:center;gap:14px;margin:16px 0 10px}
+.qty-row label{font-size:11px;letter-spacing:.18em;color:var(--text-muted);text-transform:uppercase}
+.qty-input{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-family:var(--mono);font-size:14px;width:80px;outline:none;text-align:center}
+.qty-input:focus{border-color:var(--gold)}
+
+.fee-table{width:100%;border-collapse:collapse;margin-top:8px}
+.fee-table th{text-align:left;font-size:9px;letter-spacing:.18em;color:var(--text-muted);text-transform:uppercase;font-weight:500;padding:8px 0;border-bottom:1px solid var(--border)}
+.fee-table th.num{text-align:right}
+.fee-table td{padding:10px 0;border-bottom:1px solid var(--border-soft);font-size:13px}
+.fee-table td.num{text-align:right;font-family:var(--mono);font-size:12px}
+.fee-table tr:last-child td{border-bottom:none}
+.fee-method{font-weight:500}
+.fee-method .small{display:block;font-size:11px;color:var(--text-muted);font-family:var(--sans);font-weight:400}
+
+.actions{display:flex;gap:10px;margin-top:24px}
+.btn{flex:1;background:var(--gold);color:var(--bg);border:none;padding:14px 22px;border-radius:6px;font-weight:600;font-size:13px;letter-spacing:.04em;cursor:pointer;transition:background .15s ease;font-family:var(--sans);text-align:center;display:inline-block;text-decoration:none}
+.btn:hover{background:var(--gold-deep)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-ghost:hover{background:var(--bg-elev-2);border-color:var(--gold)}
+
+.kv{display:grid;grid-template-columns:1fr 2fr;gap:14px 20px;align-items:baseline;margin-top:18px;padding-top:18px;border-top:1px solid var(--border-soft)}
+@media (max-width:640px){.kv{grid-template-columns:1fr;gap:4px 0}.kv .lab{padding-top:14px}}
+.kv .lab{font-size:10px;letter-spacing:.18em;color:var(--text-muted);text-transform:uppercase;font-weight:500}
+.kv .val{font-family:var(--serif);font-style:italic;font-size:15px;color:var(--text);word-break:break-word}
+.kv .val-mono{font-family:var(--mono);font-size:12px;font-style:normal;word-break:break-all}
+.kv .val a{color:var(--gold)}
+.kv .val a:hover{text-decoration:underline;text-underline-offset:3px}
+
+.detail-section{margin-top:28px}
+.detail-section h3{font-family:var(--serif);font-style:italic;font-weight:400;font-size:18px;margin:0 0 10px}
+.detail-section p{color:var(--text-muted);font-size:14px;line-height:1.6;margin:0}
+
+.alert{padding:12px 14px;border-radius:6px;font-size:13px;margin-bottom:14px}
+.alert-info{background:var(--bg-elev-2);border:1px solid var(--border);color:var(--text-muted)}
+
+/* Footer */
+.foot{text-align:center;color:var(--text-dim);font-size:11px;margin-top:64px}
+.foot a{color:var(--text-muted);border-bottom:1px solid transparent}
+.foot a:hover{border-color:var(--gold);color:var(--gold)}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ════════════════════ TOPBAR ════════════════════ -->
+<header class="topbar">
+  <div>
+    <div class="brand">RARE BLOCK</div>
+    <div class="brand-sub">MARKETPLACE · FRACTIONAL OWNERSHIP</div>
+  </div>
+  <div class="topbar-right" id="topbar-right">
+    <a class="signin-link" href="./rareblock-chain-portfolio.html">Sign in</a>
+  </div>
+</header>
+
+<!-- ════════════════════ BROWSE STATE ════════════════════ -->
+<section id="state-browse" hidden>
+  <section class="hero">
+    <div class="hero-eyebrow">Marketplace</div>
+    <h1>Premium collectibles, fractionalized.</h1>
+    <p>Browse listings of certified shares of physical collectibles held in custody. Every piece is blockchain-anchored and independently verifiable.</p>
+  </section>
+
+  <div class="shell">
+    <!-- Sidebar filters -->
+    <aside class="filters">
+      <div class="group">
+        <h3>Status</h3>
+        <div class="filter-chips" id="status-chips">
+          <div class="filter-chip active" data-status="all">All <span class="count" id="count-all">—</span></div>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>Price range</h3>
+        <div class="range-row">
+          <div class="range-prefix">
+            <span class="pfx">€</span>
+            <input type="number" id="price-min" class="range-input" placeholder="Min" min="0" step="100" />
+          </div>
+          <div class="range-prefix">
+            <span class="pfx">€</span>
+            <input type="number" id="price-max" class="range-input" placeholder="Max" min="0" step="100" />
+          </div>
+        </div>
+        <button class="btn-clear" id="clear-price" type="button">Clear range</button>
+      </div>
+
+      <div class="group">
+        <h3>Network</h3>
+        <div class="filter-chips" id="chain-chips">
+          <div class="filter-chip active" data-chain="all">All networks</div>
+        </div>
+      </div>
+
+      <div class="group">
+        <button class="btn-clear" id="clear-all" type="button" style="font-size:12px;color:var(--gold)">Reset all filters</button>
+      </div>
+    </aside>
+
+    <!-- Main column -->
+    <main>
+      <div class="grid-head">
+        <input type="text" id="search-input" class="search-input" placeholder="Search by asset name or serial…" autocomplete="off" />
+        <select id="sort-select" class="sort-select">
+          <option value="recent">Newest first</option>
+          <option value="price_asc">Price: low to high</option>
+          <option value="price_desc">Price: high to low</option>
+          <option value="qty_desc">Most shares</option>
+        </select>
+        <div class="results-count" id="results-count">—</div>
+      </div>
+
+      <div id="grid" class="grid">
+        <div class="state">
+          <div class="spinner"></div>
+          <h2>Loading marketplace…</h2>
+        </div>
+      </div>
+
+      <div class="pager" id="pager" hidden>
+        <button id="pg-prev">‹ Prev</button>
+        <span class="info" id="pg-info">Page —</span>
+        <button id="pg-next">Next ›</button>
+      </div>
+    </main>
+  </div>
+</section>
+
+<!-- ════════════════════ DETAIL STATE ════════════════════ -->
+<section id="state-detail" hidden>
+  <header class="topbar">
+    <div>
+      <div class="brand">RARE BLOCK</div>
+      <div class="brand-sub">MARKETPLACE · LISTING DETAIL</div>
+    </div>
+    <div class="topbar-right" id="topbar-right-detail">
+      <a class="signin-link" href="./rareblock-chain-portfolio.html">Sign in</a>
+    </div>
+  </header>
+
+  <a class="detail-back" id="detail-back-link" href="?">← Back to marketplace</a>
+
+  <div class="detail-grid">
+    <!-- LEFT: image + extras -->
+    <div>
+      <div class="detail-img-wrap" id="detail-img"></div>
+
+      <div class="detail-section" id="d-description-section" hidden>
+        <h3>About this listing</h3>
+        <p id="d-description"></p>
+      </div>
+
+      <div class="kv">
+        <div class="lab">Certificate</div>
+        <div class="val val-mono" id="d-serial"></div>
+        <div class="lab">Token ID</div>
+        <div class="val val-mono" id="d-token-id"></div>
+        <div class="lab">Network</div>
+        <div class="val" id="d-chain"></div>
+        <div class="lab">Verify</div>
+        <div class="val"><a id="d-verify-link" target="_blank" rel="noopener">Open public verification ↗</a></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: price + buy -->
+    <div class="detail-info">
+      <div class="detail-eyebrow" id="d-eyebrow">For sale</div>
+      <h1 class="detail-name" id="d-name">—</h1>
+      <div class="detail-meta" id="d-meta">—</div>
+
+      <div class="detail-price-card">
+        <div class="lab">Price per share</div>
+        <div class="price" id="d-price">—</div>
+        <div class="price-sub" id="d-shares-info">— shares available</div>
+
+        <div class="qty-row">
+          <label for="d-qty">Buy</label>
+          <input type="number" id="d-qty" class="qty-input" min="1" value="1" />
+          <span style="color:var(--text-muted);font-size:12px" id="d-qty-suffix">shares</span>
+        </div>
+
+        <div class="total-line">
+          Subtotal <span class="num" id="d-subtotal" style="float:right">—</span>
+        </div>
+      </div>
+
+      <div class="detail-eyebrow">Choose how you'll pay</div>
+      <table class="fee-table">
+        <thead>
+          <tr>
+            <th>Payment method</th>
+            <th class="num">Total</th>
+            <th class="num">Premium</th>
+          </tr>
+        </thead>
+        <tbody id="d-fee-tbody"></tbody>
+      </table>
+
+      <div class="actions">
+        <button class="btn" id="d-buy-btn" type="button">Buy now</button>
+      </div>
+
+      <div class="alert alert-info" style="margin-top:12px" id="d-info-msg">
+        Continuing to checkout will reserve these shares for 15 minutes while you complete the payment.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════ NOT-FOUND STATE ════════════════════ -->
+<section id="state-notfound" class="state" hidden>
+  <div class="state-icon">∅</div>
+  <h2>Listing not found</h2>
+  <p>This listing may have been sold, cancelled, or expired.</p>
+  <a class="btn" href="?" style="display:inline-block;flex:none;padding:12px 28px;text-decoration:none">Back to marketplace</a>
+</section>
+
+<!-- ════════════════════ ERROR STATE ════════════════════ -->
+<section id="state-error" class="state" hidden>
+  <div class="state-icon" style="color:var(--red)">!</div>
+  <h2>Could not load marketplace</h2>
+  <p id="err-msg">Please retry in a moment.</p>
+  <button class="btn" style="display:inline-block;flex:none;padding:11px 24px" onclick="location.reload()">Retry</button>
+</section>
+
+<footer class="foot">
+  <div class="rule-gold"></div>
+  <p>© RareBlock S.r.l. — <a href="https://www.rareblock.eu/legal/terms">Terms</a> ·
+     <a href="https://www.rareblock.eu/legal/privacy">Privacy</a></p>
+</footer>
+
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   CONFIG
+   ═══════════════════════════════════════════════════════════════════ */
+const SUPA_URL  = 'https://rbjaaeyjeeqfpbzyavag.supabase.co';
+const SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
+const RB_SESSION_KEY = 'rb_auth_session';
+
+const PAGE_SIZE = 24;
+
+const CHAIN_CFG = {
+  8453:  { name:'Base',         explorer:'https://basescan.org' },
+  84532: { name:'Base Sepolia', explorer:'https://sepolia.basescan.org' },
+  31337: { name:'Local',        explorer:null },
+};
+
+const PAYMENT_METHOD_LABELS = {
+  bank_transfer: { name: 'Bank transfer', sub: 'SEPA · 1–3 business days' },
+  stripe_card:   { name: 'Credit / debit card', sub: 'Visa / Mastercard · instant' },
+  paypal:        { name: 'PayPal', sub: 'PayPal balance / linked card · instant' },
+};
+
+const VERIFY_PAGE   = './rareblock-chain-verify.html';
+const CHECKOUT_PAGE = './rareblock-chain-marketplace-checkout.html';
+
+/* ═══════════════════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════════════════ */
+var _session   = null;       // null if anon
+var _listings  = [];         // current page of listings
+var _totalCount= 0;
+var _feeConfig = [];
+var _filters   = { search:'', priceMin:null, priceMax:null, chainId:'all', sort:'recent', page:1 };
+
+/* ═══════════════════════════════════════════════════════════════════
+   HELPERS
+   ═══════════════════════════════════════════════════════════════════ */
+const $ = id => document.getElementById(id);
+const show = (id, on=true) => { const e=$(id); if(e) e.hidden = !on; };
+const setText = (id, t) => { const e=$(id); if(e) e.textContent = t; };
+const escHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const debounce = (fn, ms=250) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+
+const fmtEUR = (cents) => {
+  if (cents == null || isNaN(cents)) return '€ —';
+  return new Intl.NumberFormat('it-IT', { style:'currency', currency:'EUR', maximumFractionDigits: 2 }).format(cents/100);
+};
+const fmtDate = (iso) => {
+  if (!iso) return '—';
+  const d = new Date(iso); if (isNaN(d)) return iso;
+  return d.toLocaleDateString('en-US', { day:'2-digit', month:'short', year:'numeric' });
+};
+const ipfsToHttp = (uri) => uri && uri.startsWith('ipfs://') ? `https://ipfs.io/ipfs/${uri.slice(7)}` : uri;
+const avatar = (email) => (email || '?').slice(0,1).toUpperCase();
+
+function loadSession(){ try{ const r = localStorage.getItem(RB_SESSION_KEY); return r ? JSON.parse(r) : null; }catch(e){ return null; }}
+function saveSession(s){ try{ localStorage.setItem(RB_SESSION_KEY, JSON.stringify(s)); }catch(e){} }
+function clearSession(){ try{ localStorage.removeItem(RB_SESSION_KEY); }catch(e){} }
+
+function authHeaders(){
+  const token = (_session && _session.access_token) || SUPA_ANON;
+  return { 'Content-Type':'application/json', 'apikey':SUPA_ANON, 'Authorization':'Bearer '+token };
+}
+
+async function refreshToken(refresh_token) {
+  const r = await fetch(SUPA_URL + '/auth/v1/token?grant_type=refresh_token', {
+    method:'POST', headers:{ 'Content-Type':'application/json', 'apikey':SUPA_ANON },
+    body: JSON.stringify({ refresh_token }),
+  });
+  if (!r.ok) throw new Error('refresh failed');
+  return await r.json();
+}
+
+async function restoreSession() {
+  const s = loadSession();
+  if (!s || !s.access_token || !s.refresh_token) return null;
+  const now = Math.floor(Date.now() / 1000);
+  if (s.expires_at && s.expires_at <= now + 30) {
+    try { const fresh = await refreshToken(s.refresh_token); _session = fresh; saveSession(fresh); return fresh.user; }
+    catch(e){ clearSession(); return null; }
+  }
+  _session = s;
+  return s.user;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   URL ROUTING
+   ═══════════════════════════════════════════════════════════════════ */
+function parseQuery() {
+  const u = new URL(location.href);
+  const listing = u.searchParams.get('listing');
+  return { listing };
+}
+
+function navigateBrowse() {
+  // Build a URL that preserves filter state (so refresh keeps filters)
+  const u = new URL(location.href);
+  u.searchParams.delete('listing');
+  if (_filters.search) u.searchParams.set('q', _filters.search); else u.searchParams.delete('q');
+  if (_filters.sort && _filters.sort !== 'recent') u.searchParams.set('sort', _filters.sort); else u.searchParams.delete('sort');
+  if (_filters.chainId !== 'all') u.searchParams.set('chain', _filters.chainId); else u.searchParams.delete('chain');
+  if (_filters.page > 1) u.searchParams.set('page', _filters.page); else u.searchParams.delete('page');
+  history.replaceState({}, '', u.toString());
+}
+
+function navigateDetail(listingId) {
+  const u = new URL(location.href);
+  u.searchParams.set('listing', listingId);
+  history.pushState({}, '', u.toString());
+}
+
+window.addEventListener('popstate', () => router());
+
+/* ═══════════════════════════════════════════════════════════════════
+   DATA — view v_marketplace_active_listings (RLS-public)
+   ═══════════════════════════════════════════════════════════════════ */
+
+/**
+ * Build PostgREST query string for the listings page.
+ * Server-side filtering (price range + chain) and ordering via PostgREST.
+ * Search and exact pagination are kept simple here (offset+limit with Prefer count).
+ */
+function buildListingsUrl({ search, priceMin, priceMax, chainId, sort, offset, limit }) {
+  const params = new URLSearchParams();
+  // Sort
+  let order;
+  switch (sort) {
+    case 'price_asc':   order = 'price_per_share_cents.asc';  break;
+    case 'price_desc':  order = 'price_per_share_cents.desc'; break;
+    case 'qty_desc':    order = 'qty_listed.desc';            break;
+    case 'recent':
+    default:            order = 'listed_at.desc';
+  }
+  params.set('order', order);
+  // Price range
+  if (priceMin != null) params.append('price_per_share_cents', `gte.${Math.round(priceMin*100)}`);
+  if (priceMax != null) params.append('price_per_share_cents', `lte.${Math.round(priceMax*100)}`);
+  // Chain
+  if (chainId !== 'all') params.append('chain_id', `eq.${chainId}`);
+  // Search by name (server-side via ilike)
+  if (search) params.append('product_name', `ilike.*${search.replace(/[*%]/g,'')}*`);
+  // Pagination
+  params.set('offset', String(offset));
+  params.set('limit',  String(limit));
+  return `${SUPA_URL}/rest/v1/v_marketplace_active_listings?${params.toString()}`;
+}
+
+async function fetchListings() {
+  const { search, priceMin, priceMax, chainId, sort, page } = _filters;
+  const offset = (page - 1) * PAGE_SIZE;
+  const url = buildListingsUrl({ search, priceMin, priceMax, chainId, sort, offset, limit: PAGE_SIZE });
+  const r = await fetch(url, { headers: { ...authHeaders(), 'Prefer': 'count=exact' } });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const cr = r.headers.get('content-range') || '';
+  // content-range: "0-23/100"
+  const m = cr.match(/\/(\d+)$/);
+  _totalCount = m ? parseInt(m[1], 10) : 0;
+  return await r.json();
+}
+
+async function fetchListingDetail(listingId) {
+  const url = `${SUPA_URL}/rest/v1/v_marketplace_active_listings?listing_id=eq.${encodeURIComponent(listingId)}&limit=1`;
+  const r = await fetch(url, { headers: authHeaders() });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const arr = await r.json();
+  return arr[0] || null;
+}
+
+async function fetchFeeConfig() {
+  const url = `${SUPA_URL}/rest/v1/marketplace_fee_config?is_active=eq.true&order=buyer_fee_bps.asc`;
+  const r = await fetch(url, { headers: authHeaders() });
+  if (!r.ok) return [];
+  return await r.json();
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RENDER — BROWSE
+   ═══════════════════════════════════════════════════════════════════ */
+
+function renderTopbarRight(user) {
+  const slot = $('topbar-right');
+  if (user) {
+    slot.innerHTML = `
+      <div class="user-pill">
+        <div class="avatar">${escHtml(avatar(user.email))}</div>
+        <div class="uname">${escHtml(user.email)}</div>
+      </div>
+      <a class="btn-link" href="./rareblock-chain-portfolio.html">My portfolio</a>`;
+  }
+  // Same for detail topbar
+  const slot2 = $('topbar-right-detail');
+  if (slot2 && user) {
+    slot2.innerHTML = slot.innerHTML;
+  }
+}
+
+function renderListingCard(l) {
+  const chainCfg = CHAIN_CFG[l.chain_id] || { name: 'Chain '+l.chain_id };
+  const product = {
+    name: l.product_name,
+    image_url: l.product_image_url,
+    set: l.product_set,
+    year: l.product_year,
+    edition: l.product_edition,
+    grading: l.product_grading_label,
+  };
+  const setYear = [product.set, product.year].filter(Boolean).join(' · ');
+  const metaParts = [setYear, product.grading].filter(Boolean);
+
+  let imgHtml = '<div class="placeholder">No image</div>';
+  if (product.image_url) {
+    const src = ipfsToHttp(product.image_url);
+    imgHtml = `<img src="${escHtml(src)}" alt="" loading="lazy" onerror="this.outerHTML='<div class=&quot;placeholder&quot;>Image unavailable</div>'">`;
+  }
+
+  return `
+  <article class="listing-card" data-id="${escHtml(l.listing_id)}">
+    <div class="listing-img">
+      ${imgHtml}
+      <div class="badge">${escHtml(chainCfg.name)}</div>
+    </div>
+    <div class="listing-body">
+      <h3 class="listing-name">${escHtml(product.name || '—')}</h3>
+      <div class="listing-meta">${metaParts.map((p,i) => (i>0?'<span class="dot">·</span>':'')+escHtml(p)).join(' ')}</div>
+      <div class="listing-price">
+        <div>
+          <div class="lab">From</div>
+          <div class="val">${escHtml(fmtEUR(l.price_per_share_cents))}</div>
+        </div>
+        <div class="qty">${l.qty_listed} share${l.qty_listed>1?'s':''}</div>
+      </div>
+    </div>
+  </article>`;
+}
+
+function renderGrid() {
+  const grid = $('grid');
+  if (_listings.length === 0) {
+    grid.innerHTML = `
+      <div class="state">
+        <div class="state-icon">◇</div>
+        <h2>No listings found</h2>
+        <p>Try adjusting filters or search.</p>
+      </div>`;
+    show('pager', false);
+    setText('results-count', '0 listings');
+    return;
+  }
+  grid.innerHTML = _listings.map(renderListingCard).join('');
+  // Wire click handlers
+  grid.querySelectorAll('.listing-card').forEach(card => {
+    card.addEventListener('click', () => openDetail(card.dataset.id));
+  });
+  // Pagination
+  setText('results-count', `${_totalCount} listing${_totalCount===1?'':'s'}`);
+  const totalPages = Math.max(1, Math.ceil(_totalCount / PAGE_SIZE));
+  if (totalPages > 1) {
+    show('pager', true);
+    setText('pg-info', `Page ${_filters.page} of ${totalPages}`);
+    $('pg-prev').disabled = _filters.page <= 1;
+    $('pg-next').disabled = _filters.page >= totalPages;
+  } else {
+    show('pager', false);
+  }
+}
+
+function renderChainChips() {
+  // Distinct chains in current results — for now just show the configured ones
+  const chips = $('chain-chips');
+  chips.innerHTML = `<div class="filter-chip ${_filters.chainId==='all'?'active':''}" data-chain="all">All networks</div>`
+    + Object.entries(CHAIN_CFG)
+        .filter(([id]) => id !== '31337')   // hide local
+        .map(([id, cfg]) => `<div class="filter-chip ${String(_filters.chainId)===id?'active':''}" data-chain="${id}">${escHtml(cfg.name)}</div>`)
+        .join('');
+  chips.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      _filters.chainId = chip.dataset.chain;
+      _filters.page = 1;
+      renderChainChips();
+      navigateBrowse();
+      reloadListings();
+    });
+  });
+}
+
+async function reloadListings() {
+  const grid = $('grid');
+  grid.innerHTML = `<div class="state"><div class="spinner"></div><h2>Loading…</h2></div>`;
+  try {
+    _listings = await fetchListings();
+    renderGrid();
+  } catch (e) {
+    show('state-browse', false);
+    show('state-error', true);
+    setText('err-msg', `Failed to load listings: ${e.message}`);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RENDER — DETAIL
+   ═══════════════════════════════════════════════════════════════════ */
+
+function renderDetail(l) {
+  const chainCfg = CHAIN_CFG[l.chain_id] || { name: 'Chain '+l.chain_id, explorer: null };
+  const setYear = [l.product_set, l.product_year].filter(Boolean).join(' · ');
+  const meta = [setYear, l.product_grading_label, l.product_edition].filter(Boolean).join(' · ');
+
+  // Image
+  const imgEl = $('detail-img');
+  if (l.product_image_url) {
+    const src = ipfsToHttp(l.product_image_url);
+    imgEl.innerHTML = `<img src="${escHtml(src)}" alt="" onerror="this.parentNode.innerHTML='<div class=&quot;placeholder&quot;>Image unavailable</div>'">`;
+  } else {
+    imgEl.innerHTML = '<div class="placeholder">No image</div>';
+  }
+
+  setText('d-name', l.product_name || '—');
+  setText('d-meta', meta);
+  setText('d-eyebrow', l.title || 'For sale');
+  setText('d-serial', l.certificate_serial);
+  setText('d-token-id', l.token_id);
+  setText('d-chain', `${chainCfg.name} (chainId ${l.chain_id})`);
+
+  // Description (optional)
+  if (l.description) {
+    setText('d-description', l.description);
+    show('d-description-section', true);
+  } else {
+    show('d-description-section', false);
+  }
+
+  // Verify link
+  $('d-verify-link').href = `${VERIFY_PAGE}?serial=${encodeURIComponent(l.certificate_serial)}`;
+
+  // Price card
+  setText('d-price', fmtEUR(l.price_per_share_cents));
+  setText('d-shares-info', `${l.qty_listed} share${l.qty_listed>1?'s':''} available`);
+
+  // Qty input
+  const qtyInput = $('d-qty');
+  qtyInput.value = 1;
+  qtyInput.max = l.qty_listed;
+  qtyInput.min = 1;
+
+  // Initial fee table
+  recomputeDetailFees(l);
+
+  // Wire qty input
+  qtyInput.removeEventListener('input', qtyInput._handler || (() => {}));
+  qtyInput._handler = () => recomputeDetailFees(l);
+  qtyInput.addEventListener('input', qtyInput._handler);
+
+  // Wire buy button
+  $('d-buy-btn').onclick = () => onBuyClick(l);
+}
+
+function recomputeDetailFees(l) {
+  const qty = Math.max(1, Math.min(parseInt($('d-qty').value, 10) || 1, l.qty_listed));
+  $('d-qty').value = qty;
+  const subtotal = qty * l.price_per_share_cents;
+  setText('d-subtotal', fmtEUR(subtotal));
+
+  const tbody = $('d-fee-tbody');
+  if (_feeConfig.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="3" style="color:var(--text-dim);text-align:center;padding:14px 0">Fee config unavailable.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = _feeConfig.map(f => {
+    const lab = PAYMENT_METHOD_LABELS[f.payment_method] || { name: f.payment_method, sub: '' };
+    const fee = Math.round(subtotal * f.buyer_fee_bps / 10000);
+    const tot = subtotal + fee;
+    const pct = (f.buyer_fee_bps / 100).toFixed(f.buyer_fee_bps % 100 === 0 ? 0 : 1);
+    return `<tr>
+      <td class="fee-method">${escHtml(lab.name)}<span class="small">${escHtml(lab.sub)}</span></td>
+      <td class="num">${escHtml(fmtEUR(tot))}</td>
+      <td class="num" style="color:var(--text-muted)">${pct}%</td>
+    </tr>`;
+  }).join('');
+}
+
+function onBuyClick(l) {
+  if (!_session) {
+    // Anon → redirect to login passing return URL
+    const returnTo = encodeURIComponent(`./rareblock-chain-marketplace.html?listing=${l.listing_id}`);
+    location.href = `./rareblock-chain-portfolio.html?return=${returnTo}`;
+    return;
+  }
+  const qty = Math.max(1, Math.min(parseInt($('d-qty').value, 10) || 1, l.qty_listed));
+  // 4.3 will implement this page
+  location.href = `${CHECKOUT_PAGE}?listing=${encodeURIComponent(l.listing_id)}&qty=${qty}`;
+}
+
+async function openDetail(listingId) {
+  navigateDetail(listingId);
+  show('state-browse', false);
+  show('state-detail', false);
+  show('state-notfound', false);
+  show('state-detail', true);
+  // Show loading inline within detail
+  $('detail-img').innerHTML = `<div class="placeholder"><div class="spinner"></div></div>`;
+  setText('d-name', 'Loading…');
+
+  try {
+    const l = await fetchListingDetail(listingId);
+    if (!l) {
+      show('state-detail', false);
+      show('state-notfound', true);
+      return;
+    }
+    renderDetail(l);
+  } catch (e) {
+    show('state-detail', false);
+    show('state-error', true);
+    setText('err-msg', `Failed to load listing: ${e.message}`);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   FILTER WIRING
+   ═══════════════════════════════════════════════════════════════════ */
+function wireFilters() {
+  // Status chips (currently only "all")
+  // Price range
+  $('price-min').addEventListener('input', debounce(() => {
+    const v = parseFloat($('price-min').value);
+    _filters.priceMin = isFinite(v) && v >= 0 ? v : null;
+    _filters.page = 1;
+    navigateBrowse(); reloadListings();
+  }, 350));
+  $('price-max').addEventListener('input', debounce(() => {
+    const v = parseFloat($('price-max').value);
+    _filters.priceMax = isFinite(v) && v >= 0 ? v : null;
+    _filters.page = 1;
+    navigateBrowse(); reloadListings();
+  }, 350));
+  $('clear-price').addEventListener('click', () => {
+    $('price-min').value = ''; $('price-max').value = '';
+    _filters.priceMin = null; _filters.priceMax = null;
+    _filters.page = 1;
+    navigateBrowse(); reloadListings();
+  });
+  $('clear-all').addEventListener('click', () => {
+    _filters = { search:'', priceMin:null, priceMax:null, chainId:'all', sort:'recent', page:1 };
+    $('price-min').value = ''; $('price-max').value = '';
+    $('search-input').value = '';
+    $('sort-select').value = 'recent';
+    renderChainChips();
+    navigateBrowse(); reloadListings();
+  });
+
+  // Search
+  $('search-input').addEventListener('input', debounce((e) => {
+    _filters.search = e.target.value.trim();
+    _filters.page = 1;
+    navigateBrowse(); reloadListings();
+  }, 350));
+
+  // Sort
+  $('sort-select').addEventListener('change', (e) => {
+    _filters.sort = e.target.value;
+    _filters.page = 1;
+    navigateBrowse(); reloadListings();
+  });
+
+  // Pager
+  $('pg-prev').addEventListener('click', () => {
+    if (_filters.page > 1) { _filters.page--; navigateBrowse(); reloadListings(); window.scrollTo({top:0, behavior:'smooth'}); }
+  });
+  $('pg-next').addEventListener('click', () => {
+    const totalPages = Math.max(1, Math.ceil(_totalCount / PAGE_SIZE));
+    if (_filters.page < totalPages) { _filters.page++; navigateBrowse(); reloadListings(); window.scrollTo({top:0, behavior:'smooth'}); }
+  });
+
+  // Detail back link → preserve filter state
+  $('detail-back-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    const u = new URL(location.href);
+    u.searchParams.delete('listing');
+    history.pushState({}, '', u.toString());
+    show('state-detail', false);
+    show('state-browse', true);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ROUTER
+   ═══════════════════════════════════════════════════════════════════ */
+async function router() {
+  const { listing } = parseQuery();
+  if (listing) {
+    show('state-browse', false);
+    show('state-notfound', false);
+    show('state-error', false);
+    await openDetail(listing);
+  } else {
+    show('state-detail', false);
+    show('state-notfound', false);
+    show('state-error', false);
+    show('state-browse', true);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ENTRY POINT
+   ═══════════════════════════════════════════════════════════════════ */
+function readFiltersFromUrl() {
+  const u = new URL(location.href);
+  _filters.search  = u.searchParams.get('q') || '';
+  _filters.sort    = u.searchParams.get('sort') || 'recent';
+  _filters.chainId = u.searchParams.get('chain') || 'all';
+  _filters.page    = parseInt(u.searchParams.get('page'), 10) || 1;
+  if (_filters.page < 1) _filters.page = 1;
+  // Apply to UI
+  if ($('search-input')) $('search-input').value = _filters.search;
+  if ($('sort-select'))  $('sort-select').value  = _filters.sort;
+}
+
+async function init() {
+  readFiltersFromUrl();
+  // Try restore session (anon fine too)
+  const user = await restoreSession();
+  if (user) renderTopbarRight(user);
+
+  // Load fee config in parallel with the listings
+  fetchFeeConfig().then(cfg => { _feeConfig = cfg; });
+
+  renderChainChips();
+  wireFilters();
+
+  // Route to detail or browse
+  await router();
+
+  // First listings load (only if browse state is what we should be on)
+  if (!parseQuery().listing) {
+    await reloadListings();
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
