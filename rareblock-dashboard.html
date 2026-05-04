@@ -5112,6 +5112,194 @@ textarea{resize:vertical;min-height:60px}
   .ctr-pdf-frame{height:380px}
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   PR8 — ADMIN CONTRATTI + KYC REVIEW
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Stats cards — riga di metriche in cima */
+.admctr-stats{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  gap:10px;margin-bottom:18px;
+}
+.admctr-stat{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:14px 16px;
+}
+.admctr-stat-label{
+  font-size:9.5px;font-family:var(--mono);text-transform:uppercase;
+  letter-spacing:.10em;color:var(--text-muted);font-weight:500;
+}
+.admctr-stat-value{
+  font-size:22px;font-weight:600;color:var(--text);
+  font-family:var(--display);margin-top:6px;letter-spacing:.01em;line-height:1;
+}
+.admctr-stat-value.gold{color:var(--gold,#c9a84c)}
+.admctr-stat-value.warn{color:var(--warning,#d29922)}
+.admctr-stat-value.ok{color:var(--success,#3fb950)}
+.admctr-stat-sub{font-size:11px;color:var(--text-muted);margin-top:4px}
+
+/* Toolbar (filtri + search + export) */
+.admctr-toolbar{
+  display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  margin-bottom:14px;padding:12px 14px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);
+}
+.admctr-search{
+  flex:1;min-width:200px;
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--r);padding:7px 11px;font-size:12.5px;
+  color:var(--text);font-family:var(--font);outline:none;height:32px;
+}
+.admctr-search:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.admctr-select{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--r);padding:6px 28px 6px 11px;font-size:12px;
+  color:var(--text);font-family:var(--font);height:32px;cursor:pointer;
+}
+
+/* Tabella contratti (admin) */
+.admctr-table{
+  width:100%;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);border-collapse:separate;border-spacing:0;
+  font-size:12px;
+}
+.admctr-table thead th{
+  font-size:9.5px;font-family:var(--mono);text-transform:uppercase;
+  letter-spacing:.10em;color:var(--text-muted);font-weight:600;
+  padding:10px 12px;text-align:left;background:var(--surface2);
+  border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1;
+}
+.admctr-table tbody td{
+  padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle;
+}
+.admctr-table tbody tr:last-child td{border-bottom:none}
+.admctr-table tbody tr:hover{background:var(--surface2)}
+.admctr-table .mono{font-family:var(--mono);font-size:11px;color:var(--text)}
+.admctr-table .muted{color:var(--text-muted)}
+.admctr-table .num{text-align:right}
+.admctr-row-id{
+  font-family:var(--mono);font-size:10.5px;color:var(--text-muted);
+  cursor:pointer;text-decoration:underline dotted;
+}
+.admctr-row-id:hover{color:var(--accent)}
+
+.admctr-row-actions{
+  display:flex;gap:6px;justify-content:flex-end;
+}
+.admctr-icon-btn{
+  width:26px;height:26px;border-radius:var(--r);
+  background:transparent;border:1px solid var(--border);
+  color:var(--text-muted);cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+  transition:all var(--t-fast);font-size:11px;
+}
+.admctr-icon-btn:hover{color:var(--text);border-color:var(--text);background:var(--surface2)}
+
+/* Empty state riusa lo stile .ctr-empty */
+
+/* Pagination */
+.admctr-pager{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:12px 4px;font-size:11.5px;color:var(--text-muted);
+}
+.admctr-pager-btns{display:flex;gap:6px}
+
+/* Drill-down modal: dettaglio contratto + audit trail */
+.admctr-drill-bg{
+  position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(6px);
+  display:none;align-items:center;justify-content:center;z-index:920;padding:20px;
+}
+.admctr-drill-bg.show{display:flex}
+.admctr-drill{
+  background:var(--bg);border:1px solid var(--border-strong);border-radius:var(--r-lg);
+  width:100%;max-width:920px;max-height:92vh;
+  display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,.7);
+  overflow:hidden;
+}
+.admctr-drill-head{
+  padding:18px 24px;border-bottom:1px solid var(--border);
+  background:var(--surface);
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+}
+.admctr-drill-eyebrow{
+  font-size:9.5px;font-family:var(--mono);text-transform:uppercase;
+  letter-spacing:.14em;color:var(--gold,#c9a84c);font-weight:600;
+}
+.admctr-drill-title{
+  font-family:var(--serif);font-style:italic;font-weight:400;
+  font-size:18px;color:var(--text);
+}
+.admctr-drill-body{flex:1;overflow:auto;padding:22px 26px}
+
+/* Sezioni dentro drill */
+.admctr-drill-h{
+  font-size:9.5px;font-family:var(--mono);text-transform:uppercase;
+  letter-spacing:.10em;color:var(--text-muted);font-weight:600;
+  margin:18px 0 10px;
+}
+.admctr-drill-h:first-child{margin-top:0}
+.admctr-kv-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:14px 24px;margin-bottom:18px;
+}
+.admctr-kv-label{font-size:10.5px;font-family:var(--mono);color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase}
+.admctr-kv-value{font-size:13px;color:var(--text);margin-top:3px;overflow-wrap:break-word}
+.admctr-kv-value.mono{font-family:var(--mono);font-size:11.5px}
+
+/* Audit timeline */
+.admctr-timeline{
+  display:flex;flex-direction:column;gap:0;
+  border-left:2px solid var(--border);padding-left:18px;margin-left:6px;
+}
+.admctr-timeline-item{
+  position:relative;padding-bottom:14px;
+}
+.admctr-timeline-item::before{
+  content:'';position:absolute;left:-24px;top:5px;
+  width:10px;height:10px;border-radius:50%;
+  background:var(--surface3);border:2px solid var(--bg);
+}
+.admctr-timeline-item.event-prepared::before{background:var(--accent)}
+.admctr-timeline-item.event-consents_accepted::before{background:var(--accent)}
+.admctr-timeline-item.event-otp_verified::before{background:var(--gold,#c9a84c)}
+.admctr-timeline-item.event-pdf_signed::before{background:var(--success,#3fb950)}
+.admctr-timeline-item.event-notarized::before{background:var(--success,#3fb950)}
+.admctr-timeline-item.event-revoked::before{background:var(--danger,#f85149)}
+.admctr-timeline-evt{
+  font-size:12px;font-weight:600;color:var(--text);
+}
+.admctr-timeline-time{
+  font-size:10.5px;font-family:var(--mono);color:var(--text-muted);margin-top:2px;
+}
+.admctr-timeline-data{
+  font-size:11px;font-family:var(--mono);color:var(--text-muted);
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:8px 10px;margin-top:6px;overflow-wrap:break-word;
+  white-space:pre-wrap;line-height:1.5;
+}
+
+.admctr-drill-foot{
+  padding:14px 24px;border-top:1px solid var(--border);
+  background:var(--surface);
+  display:flex;justify-content:flex-end;gap:8px;
+}
+
+/* KYC Review */
+.admkyc-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:16px 18px;margin-bottom:10px;
+  display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;
+}
+.admkyc-card.review{border-left:3px solid var(--warning,#d29922)}
+.admkyc-card.approved{border-left:3px solid var(--success,#3fb950)}
+.admkyc-card.rejected{border-left:3px solid var(--danger,#f85149)}
+.admkyc-name{font-size:14px;font-weight:600;color:var(--text);margin-bottom:3px}
+.admkyc-email{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
+.admkyc-meta{font-size:11.5px;color:var(--text-muted);margin-top:6px;display:flex;gap:14px;flex-wrap:wrap}
+.admkyc-meta strong{color:var(--text);font-weight:500}
+.admkyc-actions{display:flex;gap:6px}
+
 /* Wizard steps */
 .prof-stepper{display:flex;gap:0;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
 .prof-step{flex:1;padding:14px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:all var(--t-fast);border-right:1px solid var(--border);position:relative;min-width:0}
@@ -5831,6 +6019,53 @@ select.prof-input{cursor:pointer}
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     MODAL DRILL-DOWN: dettaglio contratto + audit trail (admin) — PR8
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="admctr-drill-bg" id="admctrDrillBg" onclick="if(event.target===this)admCtrDrillClose()">
+  <div class="admctr-drill">
+    <div class="admctr-drill-head">
+      <div>
+        <div class="admctr-drill-eyebrow">CONTRATTO · DETTAGLIO ADMIN</div>
+        <div class="admctr-drill-title" id="admctrDrillTitle">—</div>
+      </div>
+      <button class="ctr-wiz-close" onclick="admCtrDrillClose()" title="Chiudi">×</button>
+    </div>
+    <div class="admctr-drill-body" id="admctrDrillBody">
+      <!-- popolato da JS -->
+    </div>
+    <div class="admctr-drill-foot">
+      <button class="btn sm" id="admctrDrillRetryNotar" onclick="admCtrRetryNotarize()" style="display:none">Re-notarizza</button>
+      <button class="btn sm" id="admctrDrillExport"     onclick="admCtrExportAuditPack()">Export audit pack</button>
+      <button class="btn sm" id="admctrDrillOpenPdf"    onclick="admCtrOpenPdf()">Apri PDF firmato</button>
+      <button class="btn sm" onclick="admCtrDrillClose()">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     MODAL KYC REVIEW: drill-down profilo + documenti + Approve/Reject — PR8
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="admctr-drill-bg" id="admkycDrillBg" onclick="if(event.target===this)admKycDrillClose()">
+  <div class="admctr-drill">
+    <div class="admctr-drill-head">
+      <div>
+        <div class="admctr-drill-eyebrow">KYC · DOCUMENTI</div>
+        <div class="admctr-drill-title" id="admkycDrillTitle">—</div>
+      </div>
+      <button class="ctr-wiz-close" onclick="admKycDrillClose()" title="Chiudi">×</button>
+    </div>
+    <div class="admctr-drill-body" id="admkycDrillBody">
+      <!-- popolato da JS -->
+    </div>
+    <div class="admctr-drill-foot">
+      <button class="btn sm danger"  id="admkycRejectBtn"  onclick="admKycReject()">Rifiuta</button>
+      <button class="btn sm primary" id="admkycApproveBtn" onclick="admKycApprove()">Approva</button>
+      <button class="btn sm"          onclick="admKycDrillClose()">Chiudi</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ TAB: VENDOR — solo per utenti censiti come venditori ═══ -->
 <div class="tab" id="tab-vendor" style="display:none;flex:1;overflow:auto;padding:20px 24px">
   <div style="max-width:1200px;margin:0 auto">
@@ -5894,6 +6129,8 @@ select.prof-input{cursor:pointer}
       <button class="admin-side-btn" onclick="adminSection('drop')"><span class="rb-i rb-i-clock"></span> Drop Countdown</button>
       <button class="admin-side-btn" onclick="adminSection('submissions')"><span class="rb-i rb-i-package"></span> Richieste</button>
       <button class="admin-side-btn" onclick="adminSection('users')"><span class="rb-i rb-i-user"></span> Utenti</button>
+      <button class="admin-side-btn" onclick="adminSection('contracts')"><span class="rb-i rb-i-file"></span> Contratti <span id="adminSideContractsCount" class="admin-side-badge" style="display:none">0</span></button>
+      <button class="admin-side-btn" onclick="adminSection('kyc')"><span class="rb-i rb-i-shield"></span> KYC Review <span id="adminSideKycCount" class="admin-side-badge" style="display:none">0</span></button>
       <button class="admin-side-btn" onclick="adminSection('settings')"><span class="rb-i rb-i-gear"></span> Settings</button>
     </div>
     <div class="admin-main">
@@ -6435,6 +6672,88 @@ select.prof-input{cursor:pointer}
         <iframe id="adminSettingsIframe"
                 src="about:blank"
                 title="Settings"></iframe>
+      </div>
+
+      <!-- ══════════════ CONTRATTI — admin global view (PR8) ══════════════ -->
+      <div class="admin-section" id="admin-contracts">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:14px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:15px;font-weight:600;letter-spacing:.005em;display:inline-flex;align-items:center;gap:8px"><span class="rb-i rb-i-file" style="color:var(--accent)"></span> Contratti — vista globale</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Tutti i contratti del sistema con audit trail e azioni amministrative.</div>
+          </div>
+          <button class="btn sm" onclick="admCtrLoad()"><span class="rb-i rb-i-refresh"></span> Aggiorna</button>
+        </div>
+
+        <!-- Stats cards -->
+        <div class="admctr-stats" id="admctrStats">
+          <!-- popolate da JS -->
+        </div>
+
+        <!-- Toolbar: filtri, search, export -->
+        <div class="admctr-toolbar">
+          <input class="admctr-search" id="admctrSearch" placeholder="Cerca per numero, email, oggetto..." autocomplete="off"/>
+          <select class="admctr-select" id="admctrFilterStatus" onchange="admCtrApplyFilters()">
+            <option value="">Tutti gli stati</option>
+            <option value="pending_signature">Da firmare</option>
+            <option value="signed">Firmati</option>
+            <option value="revoked">Revocati</option>
+            <option value="expired">Scaduti</option>
+            <option value="rejected">Rifiutati</option>
+          </select>
+          <select class="admctr-select" id="admctrFilterType" onchange="admCtrApplyFilters()">
+            <option value="">Tutte le tipologie</option>
+            <option value="vendor_mandate">Mandato vendor</option>
+            <option value="buyer_purchase_custody">Compravendita</option>
+            <option value="buyer_fractional">Fractional</option>
+          </select>
+        </div>
+
+        <!-- Tabella -->
+        <div style="overflow-x:auto">
+          <table class="admctr-table" id="admctrTable">
+            <thead>
+              <tr>
+                <th style="width:140px">Numero</th>
+                <th>Firmatario</th>
+                <th>Tipologia</th>
+                <th>Oggetto</th>
+                <th class="num">Importo</th>
+                <th>Stato</th>
+                <th>Data</th>
+                <th style="width:90px"></th>
+              </tr>
+            </thead>
+            <tbody id="admctrTbody">
+              <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px">Caricamento...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="admctr-pager" id="admctrPager"></div>
+      </div>
+
+      <!-- ══════════════ KYC REVIEW (PR8) ══════════════ -->
+      <div class="admin-section" id="admin-kyc">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:14px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:15px;font-weight:600;letter-spacing:.005em;display:inline-flex;align-items:center;gap:8px"><span class="rb-i rb-i-shield" style="color:var(--accent)"></span> KYC Review</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Profili in attesa di verifica documenti L2. Approva o rifiuta dopo aver visionato i documenti caricati.</div>
+          </div>
+          <button class="btn sm" onclick="admKycLoad()"><span class="rb-i rb-i-refresh"></span> Aggiorna</button>
+        </div>
+
+        <div class="admctr-toolbar">
+          <select class="admctr-select" id="admkycFilterStatus" onchange="admKycApplyFilter()">
+            <option value="review">In revisione</option>
+            <option value="approved">Approvati</option>
+            <option value="rejected">Rifiutati</option>
+            <option value="">Tutti</option>
+          </select>
+        </div>
+
+        <div id="admkycList">
+          <div class="ctr-empty"><div class="ctr-empty-title">Caricamento...</div></div>
+        </div>
       </div>
 
     </div><!-- /admin-main -->
@@ -11966,8 +12285,681 @@ document.addEventListener('keydown', function(e){
 
 // ─── helpers ───────────────────────────────────────────────────────
 function escAttr(s){ return escHtml(s).replace(/'/g,'&#39;'); }
-function escHtml(s){ return esc(s); }   // alias di esc() già definito altrove
+function escHtml(s){ return esc(s); }
 function setText(id, val){ var el = document.getElementById(id); if(el) el.textContent = (val == null) ? '' : String(val); }
+
+
+// ═══════════════════════════════════════════════════════════
+//  ADMIN CONTRATTI (PR8) — vista globale + drill audit + retry notarize
+// ═══════════════════════════════════════════════════════════
+//
+// State management:
+//   _admCtrList   — array di tutti i contratti (admin RLS bypass via view)
+//   _admCtrFilter — { search, status, type } per filtri toolbar
+//   _admCtrDrill  — { contract, audit[] } stato modal drill-down corrente
+//
+// Permessi:
+//   La view v_admin_contracts ha SECURITY DEFINER e check is_admin().
+//   Solo gli admin la possono interrogare; gli investor get 0 righe.
+// ═══════════════════════════════════════════════════════════
+
+var _admCtrList   = [];
+var _admCtrFilter = { search:'', status:'', type:'' };
+var _admCtrDrill  = null;
+
+async function admCtrLoad(){
+  var tbody = document.getElementById('admctrTbody');
+  if(!tbody) return;
+  if(!_isAdmin){
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px">Accesso negato</td></tr>';
+    return;
+  }
+  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px">Caricamento...</td></tr>';
+  try{
+    // v_admin_contracts: view definita in PR6 schema con join su profiles per email/nome
+    var rows = await supa('GET', 'v_admin_contracts?select=*&order=created_at.desc&limit=500');
+    _admCtrList = Array.isArray(rows) ? rows : [];
+    admCtrRenderStats();
+    admCtrAttachSearchHandler();
+    admCtrApplyFilters();
+    admCtrUpdateSidebarBadge();
+  }catch(e){
+    // Fallback graceful: se v_admin_contracts non esiste ancora (es. migration
+    // non applicata), prova lettura diretta su contracts. Funzionerà solo se
+    // l'utente è admin (RLS gestita dalla policy admin di contracts).
+    try{
+      var rows2 = await supa('GET', 'contracts?select=*&order=created_at.desc&limit=500');
+      _admCtrList = Array.isArray(rows2) ? rows2 : [];
+      admCtrRenderStats();
+      admCtrAttachSearchHandler();
+      admCtrApplyFilters();
+      admCtrUpdateSidebarBadge();
+      console.warn('admCtrLoad: v_admin_contracts non disponibile, uso lettura diretta');
+    }catch(e2){
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--danger);padding:24px">Errore: '+escHtml(e.message||String(e))+'</td></tr>';
+    }
+  }
+}
+
+function admCtrRenderStats(){
+  var container = document.getElementById('admctrStats');
+  if(!container) return;
+
+  var stats = {
+    total: _admCtrList.length,
+    pending: 0,
+    signed: 0,
+    archived: 0,
+    notarized: 0,
+    custodyEur: 0,
+  };
+  _admCtrList.forEach(function(c){
+    if(c.status === 'pending_signature') stats.pending++;
+    else if(c.status === 'signed') stats.signed++;
+    else stats.archived++;
+    // Conta on-chain solo se c'è notarization_id valorizzato sulla riga
+    if(c.notarization_id) stats.notarized++;
+    // Custodia attiva = somma amount_eur dei signed (compravendita)
+    if(c.status === 'signed' && c.subject_data && c.subject_data.amount_eur){
+      var v = parseFloat(c.subject_data.amount_eur);
+      if(isFinite(v)) stats.custodyEur += v;
+    }
+  });
+
+  var fmtEur = function(n){
+    return n.toLocaleString('it-IT', { minimumFractionDigits:0, maximumFractionDigits:0 }) + ' €';
+  };
+
+  container.innerHTML = ''
+    + admCtrStatCard('Totale contratti', stats.total, null, 'gold')
+    + admCtrStatCard('Da firmare',       stats.pending, null, 'warn')
+    + admCtrStatCard('Firmati',          stats.signed, null, 'ok')
+    + admCtrStatCard('Custodia attiva',  fmtEur(stats.custodyEur), 'somma compravendite firmate', '')
+    + admCtrStatCard('Notarizzati',      stats.notarized, 'on-chain Base', '');
+}
+
+function admCtrStatCard(label, value, sub, valueClass){
+  return '<div class="admctr-stat">'
+    + '<div class="admctr-stat-label">'+escHtml(label)+'</div>'
+    + '<div class="admctr-stat-value'+(valueClass?' '+valueClass:'')+'">'+escHtml(String(value))+'</div>'
+    + (sub ? '<div class="admctr-stat-sub">'+escHtml(sub)+'</div>' : '')
+    + '</div>';
+}
+
+function admCtrAttachSearchHandler(){
+  var s = document.getElementById('admctrSearch');
+  if(!s || s._handlerAttached) return;
+  s._handlerAttached = true;
+  var debounce = null;
+  s.addEventListener('input', function(){
+    clearTimeout(debounce);
+    debounce = setTimeout(function(){ admCtrApplyFilters(); }, 250);
+  });
+}
+
+function admCtrApplyFilters(){
+  _admCtrFilter.search = (document.getElementById('admctrSearch')||{}).value || '';
+  _admCtrFilter.status = (document.getElementById('admctrFilterStatus')||{}).value || '';
+  _admCtrFilter.type   = (document.getElementById('admctrFilterType')||{}).value || '';
+
+  var q = _admCtrFilter.search.toLowerCase().trim();
+  var filtered = _admCtrList.filter(function(c){
+    if(_admCtrFilter.status && c.status !== _admCtrFilter.status) return false;
+    if(_admCtrFilter.type && c.subject_type !== _admCtrFilter.type) return false;
+    if(q){
+      var hay = [
+        c.contract_number || '',
+        c.party_email || '',
+        c.party_full_name || '',
+        c.subject_label || '',
+        (c.subject_data && c.subject_data.product_name) || '',
+      ].join(' ').toLowerCase();
+      if(hay.indexOf(q) === -1) return false;
+    }
+    return true;
+  });
+  admCtrRenderTable(filtered);
+}
+
+function admCtrRenderTable(rows){
+  var tbody = document.getElementById('admctrTbody');
+  if(!tbody) return;
+  if(rows.length === 0){
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:34px">Nessun contratto corrisponde ai filtri.</td></tr>';
+    document.getElementById('admctrPager').textContent = '';
+    return;
+  }
+  tbody.innerHTML = rows.map(admCtrRowHtml).join('');
+  document.getElementById('admctrPager').textContent = rows.length + ' contratti';
+}
+
+function admCtrRowHtml(c){
+  var typeLabel = c.subject_type === 'vendor_mandate' ? 'Mandato'
+                 : c.subject_type === 'buyer_purchase_custody' ? 'Compravendita'
+                 : c.subject_type === 'buyer_fractional' ? 'Fractional'
+                 : (c.subject_type || '—');
+  var amountEur = (c.subject_data && c.subject_data.amount_eur) || (c.subject_data && c.subject_data.price_eur) || null;
+  var amountStr = amountEur ? parseFloat(amountEur).toLocaleString('it-IT', { minimumFractionDigits:2, maximumFractionDigits:2 }) + ' €' : '—';
+  var statusLabel = c.status === 'pending_signature' ? 'Da firmare'
+                  : c.status === 'signed'              ? 'Firmato'
+                  : c.status === 'revoked'             ? 'Revocato'
+                  : c.status === 'expired'             ? 'Scaduto'
+                  : c.status === 'rejected'            ? 'Rifiutato'
+                  : c.status === 'draft'               ? 'Bozza'
+                  :                                       (c.status || '—');
+  var dateRef = c.signed_at || c.created_at;
+  var party = c.party_email || (c.party_user_id ? c.party_user_id.slice(0,8)+'…' : '—');
+  var partyName = c.party_full_name || '';
+  var subjectLabel = c.subject_label || (c.subject_data && c.subject_data.product_name) || '—';
+
+  return '<tr>'
+    + '<td class="mono"><span class="admctr-row-id" onclick="admCtrOpenDrill(\''+escAttr(c.id)+'\')">'+escHtml(c.contract_number || '—')+'</span></td>'
+    + '<td>'
+    +   '<div style="font-size:12.5px;color:var(--text)">'+escHtml(partyName || party)+'</div>'
+    +   (partyName ? '<div class="muted mono" style="font-size:10.5px">'+escHtml(party)+'</div>' : '')
+    + '</td>'
+    + '<td>'+escHtml(typeLabel)+'</td>'
+    + '<td>'+escHtml(subjectLabel.length > 50 ? subjectLabel.slice(0,50)+'…' : subjectLabel)+'</td>'
+    + '<td class="num mono">'+escHtml(amountStr)+'</td>'
+    + '<td><span class="ctr-badge '+(c.status||'')+'">'+escHtml(statusLabel)+'</span></td>'
+    + '<td class="muted">'+(dateRef ? fmtDateIt(dateRef) : '—')+'</td>'
+    + '<td><div class="admctr-row-actions">'
+    +   '<button class="admctr-icon-btn" title="Dettagli" onclick="admCtrOpenDrill(\''+escAttr(c.id)+'\')"><span class="rb-i rb-i-arrow-up-right"></span></button>'
+    + '</div></td>'
+    + '</tr>';
+}
+
+// ─── Drill-down dettaglio contratto ──────────────────────────────────
+
+async function admCtrOpenDrill(contractId){
+  var bg = document.getElementById('admctrDrillBg');
+  var body = document.getElementById('admctrDrillBody');
+  if(!bg || !body) return;
+  bg.classList.add('show');
+  body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">Caricamento dettagli...</div>';
+  setText('admctrDrillTitle', 'Caricamento...');
+  document.getElementById('admctrDrillRetryNotar').style.display = 'none';
+
+  try{
+    // 1. Contratto completo
+    var rows = await supa('GET', 'contracts?id=eq.'+contractId+'&select=*');
+    var c = rows && rows[0];
+    if(!c) throw new Error('Contratto non trovato');
+
+    // 2. Audit trail completo
+    var audit = await supa('GET', 'contract_signature_audit?contract_id=eq.'+contractId+'&select=*&order=created_at.asc');
+    audit = Array.isArray(audit) ? audit : [];
+
+    // 3. Notarization (se esiste)
+    var notar = null;
+    if(c.notarization_id){
+      try{
+        var nRows = await supa('GET', 'contract_notarizations?id=eq.'+c.notarization_id+'&select=*');
+        notar = nRows && nRows[0];
+      }catch(e){ console.warn('notar fetch:', e); }
+    }
+
+    _admCtrDrill = { contract: c, audit: audit, notarization: notar };
+
+    // Render
+    var typeLabel = c.subject_type === 'vendor_mandate' ? 'Mandato a vendere'
+                    : c.subject_type === 'buyer_purchase_custody' ? 'Compravendita con custodia'
+                    : c.subject_type === 'buyer_fractional' ? 'Fractional'
+                    : 'Contratto';
+    setText('admctrDrillTitle', typeLabel + ' · ' + c.contract_number);
+
+    body.innerHTML = admCtrDrillHtml(c, audit, notar);
+
+    // Mostra "Re-notarizza" solo se firmato e non già notarizzato
+    document.getElementById('admctrDrillRetryNotar').style.display =
+      (c.status === 'signed' && !c.notarization_id) ? '' : 'none';
+  }catch(e){
+    body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--danger)">Errore: '+escHtml(e.message||String(e))+'</div>';
+  }
+}
+
+function admCtrDrillHtml(c, audit, notar){
+  var party = c.party_snapshot || {};
+  var counterparty = c.counterparty_snapshot || {};
+  var subj = c.subject_data || {};
+
+  function kv(label, value, mono){
+    if(value == null || value === '') value = '—';
+    return '<div><div class="admctr-kv-label">'+escHtml(label)+'</div><div class="admctr-kv-value'+(mono?' mono':'')+'">'+escHtml(String(value))+'</div></div>';
+  }
+
+  var partyAddress = '';
+  if(party.address && typeof party.address === 'object'){
+    var a = party.address;
+    partyAddress = [
+      [a.street, a.civic].filter(Boolean).join(' '),
+      [a.zip, a.city].filter(Boolean).join(' '),
+      a.province ? '('+a.province+')' : ''
+    ].filter(Boolean).join(', ');
+  }
+
+  var html = '';
+
+  // Sezione Parti
+  html += '<div class="admctr-drill-h">Firmatario</div>';
+  html += '<div class="admctr-kv-grid">';
+  html += kv('Nome', (party.first_name||'') + ' ' + (party.last_name||party.full_name||''));
+  html += kv('Email', party.email);
+  html += kv('Codice fiscale', party.tax_code, true);
+  html += kv('Cellulare', party.phone, true);
+  html += kv('Indirizzo', partyAddress);
+  html += kv('Documento', (party.id_doc_type || '') + ' ' + (party.id_doc_number || ''), true);
+  html += '</div>';
+
+  html += '<div class="admctr-drill-h">Controparte</div>';
+  html += '<div class="admctr-kv-grid">';
+  html += kv('Ragione sociale', counterparty.company_legal_name);
+  html += kv('P. IVA', counterparty.vat_number, true);
+  html += kv('Codice fiscale', counterparty.company_tax_code, true);
+  html += kv('Email', counterparty.company_email);
+  html += '</div>';
+
+  // Sezione Oggetto
+  html += '<div class="admctr-drill-h">Oggetto del contratto</div>';
+  html += '<div class="admctr-kv-grid">';
+  html += kv('Descrizione', c.subject_label);
+  if(subj.product_name)     html += kv('Prodotto', subj.product_name);
+  if(subj.amount_eur)       html += kv('Prezzo', parseFloat(subj.amount_eur).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €');
+  if(subj.custody_fee_eur)  html += kv('Fee custodia annua', parseFloat(subj.custody_fee_eur).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €');
+  if(subj.custody_tier_name)html += kv('Fascia custodia', subj.custody_tier_name);
+  if(subj.qty != null)      html += kv('Quantità', subj.qty);
+  html += '</div>';
+
+  // Sezione PDF + hash
+  html += '<div class="admctr-drill-h">Documento PDF</div>';
+  html += '<div class="admctr-kv-grid">';
+  html += kv('Stato', (c.status||'—').toUpperCase());
+  html += kv('Creato il', c.created_at ? new Date(c.created_at).toLocaleString('it-IT') : '—');
+  if(c.signed_at)   html += kv('Firmato il', new Date(c.signed_at).toLocaleString('it-IT'));
+  if(c.expires_at)  html += kv('Scade il', new Date(c.expires_at).toLocaleString('it-IT'));
+  if(c.pdf_unsigned_sha256) html += kv('SHA-256 bozza', c.pdf_unsigned_sha256, true);
+  if(c.pdf_signed_sha256)   html += kv('SHA-256 firmato', c.pdf_signed_sha256, true);
+  html += '</div>';
+
+  // Notarizzazione
+  html += '<div class="admctr-drill-h">Notarizzazione on-chain</div>';
+  if(notar){
+    html += '<div class="admctr-kv-grid">';
+    html += kv('Stato', (notar.status||'—').toUpperCase());
+    html += kv('Chain ID', notar.chain_id);
+    html += kv('Tx hash', notar.tx_hash, true);
+    html += kv('Block number', notar.block_number);
+    html += kv('Timestamp blocco', notar.block_timestamp ? new Date(notar.block_timestamp).toLocaleString('it-IT') : '—');
+    html += kv('Notarizzato il', notar.notarized_at ? new Date(notar.notarized_at).toLocaleString('it-IT') : '—');
+    html += '</div>';
+    if(notar.tx_hash){
+      var explorerUrl = (notar.chain_id == 8453 || notar.chain_id == '8453')
+        ? 'https://basescan.org/tx/' + notar.tx_hash
+        : 'https://sepolia.basescan.org/tx/' + notar.tx_hash;
+      html += '<div style="margin-top:10px"><a href="'+escAttr(explorerUrl)+'" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;font-size:12px">→ Visualizza su BaseScan</a></div>';
+    }
+  } else {
+    html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Non ancora notarizzato. La firma resta valida ai sensi di eIDAS art. 26 + CAD art. 20. Se il wallet operator è configurato, puoi rifare la notarizzazione dal pulsante in basso.</div>';
+  }
+
+  // Audit timeline
+  html += '<div class="admctr-drill-h">Audit trail ('+audit.length+' eventi)</div>';
+  if(audit.length === 0){
+    html += '<div style="font-size:12px;color:var(--text-muted)">Nessun evento registrato.</div>';
+  } else {
+    html += '<div class="admctr-timeline">';
+    audit.forEach(function(ev){
+      var evtLabel = ev.event_type === 'prepared'           ? 'Contratto preparato'
+                   : ev.event_type === 'consents_accepted'  ? 'Consensi accettati'
+                   : ev.event_type === 'otp_verified'       ? 'OTP verificato'
+                   : ev.event_type === 'pdf_signed'         ? 'PDF firmato'
+                   : ev.event_type === 'notarized'          ? 'Notarizzato on-chain'
+                   : ev.event_type === 'revoked'            ? 'Revocato'
+                   :                                          ev.event_type;
+      var dataStr = ev.event_data ? JSON.stringify(ev.event_data, null, 2) : '';
+      html += '<div class="admctr-timeline-item event-'+escAttr(ev.event_type||'')+'">'
+        + '<div class="admctr-timeline-evt">'+escHtml(evtLabel)+'</div>'
+        + '<div class="admctr-timeline-time">'+escHtml(ev.created_at ? new Date(ev.created_at).toLocaleString('it-IT') : '')+'</div>'
+        + (dataStr && dataStr !== '{}' ? '<div class="admctr-timeline-data">'+escHtml(dataStr)+'</div>' : '')
+        + '</div>';
+    });
+    html += '</div>';
+  }
+
+  return html;
+}
+
+function admCtrDrillClose(){
+  var bg = document.getElementById('admctrDrillBg');
+  if(bg) bg.classList.remove('show');
+  _admCtrDrill = null;
+}
+
+async function admCtrOpenPdf(){
+  if(!_admCtrDrill || !_admCtrDrill.contract) return;
+  var c = _admCtrDrill.contract;
+  // Prefer signed se esiste, altrimenti unsigned
+  var bucket = c.pdf_signed_path ? 'contracts-signed' : (c.pdf_unsigned_path ? 'contracts-unsigned' : null);
+  var path = c.pdf_signed_path || c.pdf_unsigned_path;
+  if(!bucket || !path){ showToast('PDF non disponibile', 'err'); return; }
+  try{
+    var url = await ctrSignedUrl(bucket, path, 3600);
+    if(url) window.open(url, '_blank');
+    else showToast('Errore creazione URL', 'err');
+  }catch(e){ showToast('Errore: '+(e.message||e), 'err'); }
+}
+
+async function admCtrRetryNotarize(){
+  if(!_admCtrDrill || !_admCtrDrill.contract) return;
+  var c = _admCtrDrill.contract;
+  if(c.status !== 'signed' || c.notarization_id){
+    showToast('Contratto non eleggibile per re-notarizzazione', 'err');
+    return;
+  }
+  if(!confirm('Re-eseguire la notarizzazione on-chain del contratto ' + c.contract_number + '? Verrà tentata una nuova transazione su Base mainnet.')) return;
+
+  var btn = document.getElementById('admctrDrillRetryNotar');
+  btn.disabled = true;
+  btn.textContent = 'Notarizzazione in corso...';
+
+  try{
+    var r = await fetch(SUPA_URL+'/functions/v1/contract-notarize', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'apikey':SUPA_KEY, 'Authorization':'Bearer '+_session.access_token },
+      body: JSON.stringify({
+        contract_id: c.id,
+        contract_serial: c.contract_number,
+        pdf_sha256: c.pdf_signed_sha256,
+        user_id: c.party_user_id
+      })
+    });
+    var data = await r.json().catch(function(){ return {}; });
+    if(r.status === 200 && data.ok){
+      showToast('Notarizzazione completata. Tx: ' + (data.tx_hash || '').slice(0,12) + '...', 'ok');
+      // Ricarica drill
+      admCtrOpenDrill(c.id);
+    } else {
+      var msg = data.error === 'operator_not_configured'
+        ? 'Wallet operator non configurato. Configura NOTARIZE_OPERATOR_PRIVATE_KEY nelle Edge Function secrets.'
+        : (data.error || 'Errore sconosciuto') + (data.detail ? ' — ' + data.detail : '');
+      showToast('Notarizzazione fallita: ' + msg, 'err');
+    }
+  }catch(e){
+    showToast('Errore di rete: ' + (e.message||e), 'err');
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Re-notarizza';
+  }
+}
+
+// Export pacchetto audit (PDF firmato + JSON snapshot + audit trail).
+// Implementazione semplice: scarica i 2 file separatamente. Una versione
+// futura potrà fare un vero ZIP via JSZip (CDN) se il volume cresce.
+async function admCtrExportAuditPack(){
+  if(!_admCtrDrill || !_admCtrDrill.contract){
+    showToast('Apri prima un contratto', 'err');
+    return;
+  }
+  var c = _admCtrDrill.contract;
+
+  // 1. JSON audit pack
+  var pack = {
+    exported_at: new Date().toISOString(),
+    exported_by: (_session && _session.user && _session.user.email) || 'admin',
+    contract: c,
+    audit_trail: _admCtrDrill.audit,
+    notarization: _admCtrDrill.notarization,
+  };
+  var jsonStr = JSON.stringify(pack, null, 2);
+  var blob = new Blob([jsonStr], { type: 'application/json' });
+  var jsonUrl = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = jsonUrl;
+  a.download = 'audit-pack-' + c.contract_number + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(jsonUrl); }, 1000);
+
+  // 2. PDF firmato (apre in nuova tab — l'admin può salvarlo da lì)
+  if(c.pdf_signed_path){
+    var pdfUrl = await ctrSignedUrl('contracts-signed', c.pdf_signed_path, 600);
+    if(pdfUrl) window.open(pdfUrl, '_blank');
+  }
+
+  showToast('Audit pack scaricato. Il PDF firmato si è aperto in una nuova scheda.', 'ok');
+}
+
+function admCtrUpdateSidebarBadge(){
+  var b = document.getElementById('adminSideContractsCount');
+  if(!b) return;
+  var pending = _admCtrList.filter(function(c){ return c.status === 'pending_signature'; }).length;
+  if(pending > 0){
+    b.textContent = pending;
+    b.style.display = '';
+  } else {
+    b.style.display = 'none';
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  ADMIN KYC REVIEW (PR8) — approvazione documenti L2
+// ═══════════════════════════════════════════════════════════
+
+var _admKycList = [];
+var _admKycFilter = 'review';
+var _admKycDrill = null;
+
+async function admKycLoad(){
+  var list = document.getElementById('admkycList');
+  if(!list) return;
+  if(!_isAdmin){
+    list.innerHTML = '<div class="ctr-empty"><div class="ctr-empty-title">Accesso negato</div></div>';
+    return;
+  }
+  list.innerHTML = '<div class="ctr-empty"><div class="ctr-empty-title">Caricamento...</div></div>';
+  try{
+    _admKycFilter = (document.getElementById('admkycFilterStatus')||{}).value || 'review';
+    var query = 'profiles?select=id,email,full_name,first_name,last_name,kyc_status,kyc_level,kyc_completed_at,id_doc_type,id_doc_number,id_doc_front_path,id_doc_back_path,phone,tax_code,birth_date,birth_place,city,province,zip,street,civic,country&order=kyc_completed_at.desc.nullslast&limit=200';
+    if(_admKycFilter) query += '&kyc_status=eq.'+_admKycFilter;
+    var rows = await supa('GET', query);
+    _admKycList = Array.isArray(rows) ? rows : [];
+    admKycRender();
+    admKycUpdateSidebarBadge();
+  }catch(e){
+    list.innerHTML = '<div class="ctr-empty"><div class="ctr-empty-title">Errore</div><div class="ctr-empty-sub">'+escHtml(e.message||String(e))+'</div></div>';
+  }
+}
+
+function admKycApplyFilter(){ admKycLoad(); }
+
+function admKycRender(){
+  var list = document.getElementById('admkycList');
+  if(!list) return;
+  if(_admKycList.length === 0){
+    var msg = _admKycFilter === 'review'   ? 'Nessun profilo in attesa di revisione.'
+            : _admKycFilter === 'approved' ? 'Nessun profilo approvato.'
+            : _admKycFilter === 'rejected' ? 'Nessun profilo rifiutato.'
+            :                                'Nessun profilo.';
+    list.innerHTML = '<div class="ctr-empty"><div class="ctr-empty-title">'+escHtml(msg)+'</div></div>';
+    return;
+  }
+  list.innerHTML = _admKycList.map(admKycCardHtml).join('');
+}
+
+function admKycCardHtml(p){
+  var name = (p.first_name||'') + ' ' + (p.last_name||'');
+  if(!name.trim()) name = p.full_name || '(senza nome)';
+  var statusLabel = p.kyc_status === 'review' ? 'In revisione'
+                   : p.kyc_status === 'approved' ? 'Approvato'
+                   : p.kyc_status === 'rejected' ? 'Rifiutato'
+                   :                                (p.kyc_status || '—');
+  var docInfo = p.id_doc_type ? (p.id_doc_type.toUpperCase() + ' · ' + (p.id_doc_number||'—')) : 'Documento non caricato';
+  return '<div class="admkyc-card '+(p.kyc_status||'')+'">'
+    + '<div>'
+    +   '<div class="admkyc-name">'+escHtml(name.trim())+'</div>'
+    +   '<div class="admkyc-email">'+escHtml(p.email||'')+'</div>'
+    +   '<div class="admkyc-meta">'
+    +     '<span><strong>Stato:</strong> '+escHtml(statusLabel)+'</span>'
+    +     '<span><strong>Livello KYC:</strong> L'+(p.kyc_level||'?')+'</span>'
+    +     '<span><strong>CF:</strong> <span class="mono">'+escHtml(p.tax_code||'—')+'</span></span>'
+    +     '<span><strong>Documento:</strong> '+escHtml(docInfo)+'</span>'
+    +     (p.kyc_completed_at ? '<span><strong>Sottomesso:</strong> '+fmtDateIt(p.kyc_completed_at)+'</span>' : '')
+    +   '</div>'
+    + '</div>'
+    + '<div class="admkyc-actions">'
+    +   '<button class="btn sm" onclick="admKycOpenDrill(\''+escAttr(p.id)+'\')">Esamina</button>'
+    + '</div>'
+    + '</div>';
+}
+
+async function admKycOpenDrill(userId){
+  var bg = document.getElementById('admkycDrillBg');
+  var body = document.getElementById('admkycDrillBody');
+  if(!bg || !body) return;
+  bg.classList.add('show');
+  body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">Caricamento documenti...</div>';
+  setText('admkycDrillTitle', 'Caricamento...');
+
+  try{
+    var p = _admKycList.find(function(x){ return x.id === userId; });
+    if(!p) throw new Error('Profilo non in lista');
+    _admKycDrill = { profile: p };
+
+    var name = ((p.first_name||'') + ' ' + (p.last_name||p.full_name||'')).trim();
+    setText('admkycDrillTitle', name);
+
+    // Signed URLs per i documenti
+    var frontUrl = null, backUrl = null;
+    if(p.id_doc_front_path){
+      try{ frontUrl = await ctrSignedUrl('kyc-documents', p.id_doc_front_path, 1200); }catch(e){ console.warn('front', e); }
+    }
+    if(p.id_doc_back_path){
+      try{ backUrl = await ctrSignedUrl('kyc-documents', p.id_doc_back_path, 1200); }catch(e){ console.warn('back', e); }
+    }
+
+    function kv(label, value, mono){
+      if(value == null || value === '') value = '—';
+      return '<div><div class="admctr-kv-label">'+escHtml(label)+'</div><div class="admctr-kv-value'+(mono?' mono':'')+'">'+escHtml(String(value))+'</div></div>';
+    }
+
+    var html = '';
+    html += '<div class="admctr-drill-h">Anagrafica</div>';
+    html += '<div class="admctr-kv-grid">';
+    html += kv('Nome completo', name);
+    html += kv('Email', p.email);
+    html += kv('Codice fiscale', p.tax_code, true);
+    html += kv('Data di nascita', p.birth_date ? fmtDateIt(p.birth_date) : '—');
+    html += kv('Luogo di nascita', p.birth_place);
+    html += kv('Cellulare', p.phone, true);
+    html += '</div>';
+
+    var addr = [
+      [p.street, p.civic].filter(Boolean).join(' '),
+      [p.zip, p.city].filter(Boolean).join(' '),
+      p.province ? '('+p.province+')' : '',
+      p.country && p.country !== 'IT' ? p.country : ''
+    ].filter(Boolean).join(', ');
+    html += '<div class="admctr-drill-h">Indirizzo</div>';
+    html += '<div class="admctr-kv-grid">' + kv('Residenza', addr) + '</div>';
+
+    html += '<div class="admctr-drill-h">Documento di identità</div>';
+    html += '<div class="admctr-kv-grid">';
+    html += kv('Tipo', p.id_doc_type ? p.id_doc_type.toUpperCase() : '—');
+    html += kv('Numero', p.id_doc_number, true);
+    html += '</div>';
+
+    if(frontUrl || backUrl){
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px">';
+      if(frontUrl){
+        html += '<div><div class="admctr-kv-label" style="margin-bottom:6px">Fronte</div>'
+              + '<a href="'+escAttr(frontUrl)+'" target="_blank" rel="noopener">'
+              + '<img src="'+escAttr(frontUrl)+'" style="width:100%;height:auto;border:1px solid var(--border);border-radius:var(--r);background:var(--surface)" alt="Fronte documento"/></a></div>';
+      }
+      if(backUrl){
+        html += '<div><div class="admctr-kv-label" style="margin-bottom:6px">Retro</div>'
+              + '<a href="'+escAttr(backUrl)+'" target="_blank" rel="noopener">'
+              + '<img src="'+escAttr(backUrl)+'" style="width:100%;height:auto;border:1px solid var(--border);border-radius:var(--r);background:var(--surface)" alt="Retro documento"/></a></div>';
+      }
+      html += '</div>';
+    } else {
+      html += '<div style="font-size:12px;color:var(--text-muted)">Documenti non caricati o non accessibili.</div>';
+    }
+
+    body.innerHTML = html;
+  }catch(e){
+    body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--danger)">Errore: '+escHtml(e.message||String(e))+'</div>';
+  }
+}
+
+function admKycDrillClose(){
+  var bg = document.getElementById('admkycDrillBg');
+  if(bg) bg.classList.remove('show');
+  _admKycDrill = null;
+}
+
+async function admKycApprove(){
+  if(!_admKycDrill || !_admKycDrill.profile) return;
+  var p = _admKycDrill.profile;
+  if(!confirm('Approvare KYC per ' + (p.email||p.id) + '?')) return;
+  var notes = prompt('Note di revisione (opzionale):', '');
+  try{
+    await supa('PATCH', 'profiles?id=eq.'+p.id, {
+      kyc_status: 'approved',
+      kyc_reviewer_id: (_session && _session.user && _session.user.id) || null,
+      kyc_review_notes: notes || null,
+      kyc_reviewed_at: new Date().toISOString()
+    });
+    showToast('KYC approvato', 'ok');
+    admKycDrillClose();
+    admKycLoad();
+  }catch(e){
+    showToast('Errore: '+(e.message||e), 'err');
+  }
+}
+
+async function admKycReject(){
+  if(!_admKycDrill || !_admKycDrill.profile) return;
+  var p = _admKycDrill.profile;
+  var reason = prompt('Motivo del rifiuto (obbligatorio, sarà visibile all\'utente):', '');
+  if(!reason || !reason.trim()){
+    showToast('Devi indicare un motivo per rifiutare', 'err');
+    return;
+  }
+  if(!confirm('Rifiutare KYC per ' + (p.email||p.id) + '?\nMotivo: ' + reason)) return;
+  try{
+    await supa('PATCH', 'profiles?id=eq.'+p.id, {
+      kyc_status: 'rejected',
+      kyc_reviewer_id: (_session && _session.user && _session.user.id) || null,
+      kyc_review_notes: reason,
+      kyc_reviewed_at: new Date().toISOString()
+    });
+    showToast('KYC rifiutato', 'ok');
+    admKycDrillClose();
+    admKycLoad();
+  }catch(e){
+    showToast('Errore: '+(e.message||e), 'err');
+  }
+}
+
+function admKycUpdateSidebarBadge(){
+  var b = document.getElementById('adminSideKycCount');
+  if(!b) return;
+  // Conta solo i 'review' anche se la lista contiene altri stati
+  var n = _admKycList.filter(function(p){ return p.kyc_status === 'review'; }).length;
+  // Se siamo in filtro != review, faccio un secondo fetch leggero per il badge
+  if(_admKycFilter !== 'review' && _isAdmin){
+    supa('GET','profiles?select=id&kyc_status=eq.review&limit=1000').then(function(r){
+      var nn = Array.isArray(r) ? r.length : 0;
+      if(nn > 0){ b.textContent = nn; b.style.display = ''; }
+      else b.style.display = 'none';
+    }).catch(function(){ b.style.display = 'none'; });
+  } else {
+    if(n > 0){ b.textContent = n; b.style.display = ''; }
+    else b.style.display = 'none';
+  }
+}
 
 
 // ═══════════════════════════════════════════════════════════
@@ -12493,6 +13485,8 @@ function adminSection(s){
   if(s==='users')       adminLoadUsers();
   if(s==='settings')    adminLoadSettings();
   if(s==='vendor-payouts') adminLoadVendorPayouts();
+  if(s==='contracts')   admCtrLoad();
+  if(s==='kyc')         admKycLoad();
 }
 
 // Lazy-load dell'iframe Utenti: lo carichiamo solo al primo accesso al tab,
@@ -12527,6 +13521,9 @@ async function adminLoad(){
   try { adminLoadPayments(); } catch(e){}
   // Carica payout vendor in background per il badge "Payout Vendor"
   try { adminLoadVendorPayouts(); } catch(e){}
+  // PR8 — Carica contratti + KYC review in background per popolare i badge
+  try { admCtrLoad(); } catch(e){}
+  try { admKycLoad(); } catch(e){}
   // Populate product selectors for accrual and liq modals
   var opts = _mktProducts.map(function(p){ return '<option value="'+p.id+'">'+esc(p.name)+'</option>'; }).join('');
   var ap = document.getElementById('accrualProduct');
