@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>RareBlock — Accedi</title>
+<meta name="robots" content="noindex,nofollow"/>
+<!--
+  Bridge file. La pagina di login del sistema è ora pokemon-db.html
+  (entry point unico Investor + Collector). Questo file esiste solo
+  per compatibilità con link esistenti (home page, email, segnalibri,
+  pannelli admin precedenti) che ancora puntano a 'rareblock-login.html'.
+
+  Comportamento:
+    - Preserva il parametro ?return=... se presente
+    - Redirect istantaneo via meta refresh + JS
+    - Fallback HTML visivo se JS è disabilitato (con link manuale)
+-->
+<meta http-equiv="refresh" content="0; url=pokemon-db.html"/>
+<script>
+(function(){
+  try{
+    var u = new URL(location.href);
+    var ret = u.searchParams.get('return');
+    var target = 'pokemon-db.html';
+    if (ret) target += '?return=' + encodeURIComponent(ret);
+    location.replace(target);
+  } catch(e) {
+    location.replace('pokemon-db.html');
+  }
+})();
+</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  background:#0d1117;color:#e6edf3;
+  font-family:'IBM Plex Sans',system-ui,sans-serif;
+  display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:20px;padding:40px;text-align:center;
+}
+.logo{
+  font-family:'Montserrat',system-ui,sans-serif;font-size:18px;font-weight:300;
+  letter-spacing:.18em;text-transform:uppercase;
+}
+.logo .b{color:#c9a84c}
+.spinner{
+  width:18px;height:18px;border:2px solid #30363d;border-top-color:#c9a84c;
+  border-radius:50%;animation:spin .8s linear infinite;display:inline-block;
+  vertical-align:middle;margin-right:8px;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.msg{color:#7d8590;font-size:13px}
+.fallback{
+  margin-top:20px;color:#58a6ff;text-decoration:none;
+  font-size:12px;font-family:'IBM Plex Mono',monospace;
+}
+.fallback:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+  <div class="logo"><span>Rare</span><span class="b">Block</span></div>
+  <div class="msg"><span class="spinner"></span>Reindirizzamento al login&hellip;</div>
+  <a class="fallback" href="pokemon-db.html">Continua manualmente &rsaquo;</a>
+</body>
+</html>
