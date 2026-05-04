@@ -7525,6 +7525,53 @@ select.prof-input{cursor:pointer}
         </div>
       </div>
 
+      <!-- ── 04bis. CONFIGURAZIONE MODALITÀ B (PR9d) ─────────────── -->
+      <!-- Visibile solo se type='fractional'. Configura i parametri del
+           trigger di vendita ibrido (target price OR exit window) e il
+           rinvio in caso di voto contrario. Tutti i campi sono immutabili
+           dopo il lancio del prodotto (status=open). -->
+      <div class="pm-section" id="pmFractionalSection" style="display:none">
+        <div class="pm-section-head">
+          <span class="pm-section-num">04</span>
+          <span class="pm-section-label">Modalità B · Comproprietà (solo Fractional)</span>
+        </div>
+        <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:14px;line-height:1.5;padding:10px 12px;background:rgba(201,168,76,.05);border-left:3px solid var(--gold,#c9a84c);border-radius:0 var(--r) var(--r) 0">
+          La <strong style="color:var(--text)">Modalità B fractional</strong> configura un bene determinato in regime di comproprietà ex art. 1100 c.c., con vendita scattata al verificarsi di uno dei due trigger (target price <em>OR</em> exit window). I campi sotto sono <strong style="color:var(--text)">immutabili al lancio</strong> del prodotto: una volta che lo status passa a "open" e la prima quota è venduta, possono essere modificati esclusivamente con voto qualificato 2/3 dei comproprietari.
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Target Price · vendita auto (€) *</label>
+            <input type="number" id="pmFractTargetPrice" placeholder="180000.00" step="100" min="0"/>
+            <div class="pm-hint">Prezzo lordo a cui il bene viene venduto automaticamente se ricevuta un'offerta di mercato (Trigger A continuo, Art. 8.2).</div>
+          </div>
+          <div class="field">
+            <label>Exit Window (anni) *</label>
+            <input type="number" id="pmFractExitYears" placeholder="7" step="1" min="1" max="50"/>
+            <div class="pm-hint">Anni dal lancio del prodotto alla prima finestra di voto exit (Trigger B, Art. 8.3).</div>
+          </div>
+          <div class="field">
+            <label>Rinvio (anni)</label>
+            <input type="number" id="pmFractExtensionYears" placeholder="2" step="1" min="1" max="20" value="2"/>
+            <div class="pm-hint">Anni di rinvio se al voto vince "non vendere". La prossima finestra si aprirà tra questi anni (default 2).</div>
+          </div>
+          <div class="field">
+            <label>Data lancio</label>
+            <input type="datetime-local" id="pmFractLaunchedAt" disabled style="opacity:.55"/>
+            <div class="pm-hint">Si valorizza automaticamente al primo passaggio in status "open".</div>
+          </div>
+        </div>
+
+        <!-- Azioni admin sul voto (solo prodotti già lanciati) -->
+        <div id="pmFractVoteActions" style="display:none;margin-top:18px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r)">
+          <div style="font-size:11px;font-weight:600;color:var(--gold,#c9a84c);text-transform:uppercase;letter-spacing:.6px;font-family:var(--mono);margin-bottom:10px">Azioni voto · Admin</div>
+          <div id="pmFractVoteState" style="font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:10px">—</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn sm" id="pmFractOpenVoteBtn" onclick="pmFractAdminOpenVote()">Apri finestra voto</button>
+            <button class="btn sm" id="pmFractCloseVoteBtn" onclick="pmFractAdminCloseVote()" style="display:none">Chiudi voto (force)</button>
+          </div>
+        </div>
+      </div>
+
       <!-- ── 5. CONTENUTI &amp; ASSEGNAZIONE ──────────────────────── -->
       <div class="pm-section">
         <div class="pm-section-head">
@@ -15405,6 +15452,11 @@ function openProductModal(pid){
     var pmCat=document.getElementById('pmCategory'); if(pmCat) pmCat.value='';
     document.getElementById('pmStatus').value='draft';
     var pmVend = document.getElementById('pmVendor'); if(pmVend) pmVend.value='';
+    // Reset campi Modalità B (PR9d)
+    var fTp = document.getElementById('pmFractTargetPrice');     if(fTp) fTp.value = '';
+    var fEy = document.getElementById('pmFractExitYears');        if(fEy) fEy.value = '';
+    var fXy = document.getElementById('pmFractExtensionYears');   if(fXy) fXy.value = '2';
+    var fLa = document.getElementById('pmFractLaunchedAt');       if(fLa) fLa.value = '';
     pmToggleFields();
   } else {
     var p=_mktProducts.find(function(x){return x.id===pid;});
@@ -15430,6 +15482,20 @@ function openProductModal(pid){
         document.getElementById('pmGradingHouse').value=p.grading_house||'PSA';
         document.getElementById('pmGradingCertNum').value=p.grading_cert_number||'';
         document.getElementById('pmGradingCost').value=p.grading_cost_estimated||'';
+      }
+      // Popolamento campi Modalità B (PR9d) — solo se type='fractional'
+      if(p.type==='fractional'){
+        var fTp2 = document.getElementById('pmFractTargetPrice');
+        if(fTp2) fTp2.value = p.fractional_target_price_eur != null ? p.fractional_target_price_eur : '';
+        var fEy2 = document.getElementById('pmFractExitYears');
+        if(fEy2) fEy2.value = p.fractional_exit_window_years != null ? p.fractional_exit_window_years : '';
+        var fXy2 = document.getElementById('pmFractExtensionYears');
+        if(fXy2) fXy2.value = p.fractional_extension_years != null ? p.fractional_extension_years : '2';
+        var fLa2 = document.getElementById('pmFractLaunchedAt');
+        if(fLa2 && p.fractional_launched_at) {
+          // Convert ISO to datetime-local format (YYYY-MM-DDTHH:MM)
+          fLa2.value = String(p.fractional_launched_at).slice(0, 16);
+        }
       }
       pmToggleFields();
     }
@@ -15465,9 +15531,12 @@ function pmToggleFields(){
   document.getElementById('pmGradingRow').style.display    = isGrade?'':'none';
   document.getElementById('pmGradingCertRow').style.display= isGrade?'':'none';
   document.getElementById('pmGradingCostRow').style.display= isGrade?'':'none';
+  // Sezione Modalità B fractional (PR9d)
+  var fractSection = document.getElementById('pmFractionalSection');
+  if(fractSection) fractSection.style.display = isFractional ? '' : 'none';
   // Rinumera la sezione "Contenuti" (era 04 se sezione gradazione visibile, altrimenti la sezione gradazione è hidden quindi torna 04)
   var s5num = document.getElementById('pmSection5Num');
-  if(s5num) s5num.textContent = isGrade ? '05' : '04';
+  if(s5num) s5num.textContent = (isGrade || isFractional) ? '05' : '04';
 
   // Full Ownership: blocca quote a 1 (sempre 1 unità per definizione)
   var qEl = document.getElementById('pmTotalQuotes');
@@ -15495,6 +15564,126 @@ function pmToggleFields(){
   if(discSec){
     discSec.classList.toggle('disabled', !isFractional);
     if(note) note.style.display = isFractional ? 'none' : '';
+  }
+
+  // PR9d — Azioni admin voto fractional: visibili solo in edit di prodotto
+  // fractional GIÀ lanciato (status='open' + launched_at popolato).
+  pmFractRefreshVoteActions();
+}
+
+// ─── PR9d: ADMIN VOTE ACTIONS in modal prodotto ───────────────────
+
+async function pmFractRefreshVoteActions(){
+  var actions = document.getElementById('pmFractVoteActions');
+  if(!actions) return;
+  var typeVal = document.getElementById('pmType').value;
+  if(typeVal !== 'fractional' || !_editProductId){
+    actions.style.display = 'none';
+    return;
+  }
+  // Carico stato fresco del prodotto (dal DB) per essere sicuri della verità corrente
+  try{
+    var rows = await supa('GET', 'inv_products?id=eq.'+_editProductId+'&select=status,fractional_launched_at,fractional_exit_window_status,fractional_exit_window_opens_at,fractional_exit_window_closes_at');
+    var p = rows && rows[0];
+    if(!p || p.status !== 'open' || !p.fractional_launched_at){
+      actions.style.display = 'none';
+      return;
+    }
+    actions.style.display = '';
+    var stEl = document.getElementById('pmFractVoteState');
+    var openBtn = document.getElementById('pmFractOpenVoteBtn');
+    var closeBtn = document.getElementById('pmFractCloseVoteBtn');
+    var status = p.fractional_exit_window_status || 'not_due';
+    if(status === 'open'){
+      var closesIso = p.fractional_exit_window_closes_at;
+      var closesStr = closesIso ? new Date(closesIso).toLocaleString('it-IT') : '—';
+      stEl.innerHTML = '<strong style="color:var(--warning,#d29922)">Voto in corso</strong> · finestra aperta fino al ' + escHtml(closesStr) + '. Solo l\'admin può chiudere anticipatamente.';
+      openBtn.style.display = 'none';
+      closeBtn.style.display = '';
+    } else if(status === 'closed_sell'){
+      stEl.innerHTML = '<strong style="color:var(--success,#3fb950)">Voto chiuso · esito Vendi</strong>. Procedere con la liquidazione fisica del bene off-chain.';
+      openBtn.style.display = 'none';
+      closeBtn.style.display = 'none';
+    } else if(status === 'closed_postpone'){
+      var nextIso = p.fractional_exit_window_opens_at;
+      var nextStr = nextIso ? new Date(nextIso).toLocaleDateString('it-IT') : '—';
+      stEl.innerHTML = 'Voto chiuso · esito Rinvia. Prossima finestra programmata per <strong>' + escHtml(nextStr) + '</strong>. Apri ora una finestra straordinaria solo se necessario.';
+      openBtn.style.display = '';
+      openBtn.textContent = 'Apri voto straordinario';
+      closeBtn.style.display = 'none';
+    } else if(status === 'closed_target_hit' || status === 'closed_sold'){
+      stEl.innerHTML = 'Bene venduto (' + status + '). Nessuna ulteriore azione voto.';
+      openBtn.style.display = 'none';
+      closeBtn.style.display = 'none';
+    } else {
+      // not_due (mai aperto un voto, o pre-lancio)
+      stEl.innerHTML = 'Nessun voto aperto. Puoi aprire la prima finestra ora (admin override) o lasciare il sistema procedere automaticamente al raggiungimento dell\'exit window programmata.';
+      openBtn.style.display = '';
+      openBtn.textContent = 'Apri finestra voto';
+      closeBtn.style.display = 'none';
+    }
+  }catch(e){
+    actions.style.display = 'none';
+    console.warn('pmFractRefreshVoteActions:', e && e.message);
+  }
+}
+
+async function pmFractAdminOpenVote(){
+  if(!_editProductId) return;
+  if(!confirm('Aprire una finestra di voto exit window di 60 giorni per questo prodotto?\n\nTutti i comproprietari saranno notificati e potranno votare.')) return;
+
+  var btn = document.getElementById('pmFractOpenVoteBtn');
+  btn.disabled = true; btn.textContent = 'Apertura in corso...';
+  try{
+    var r = await fetch(SUPA_URL + '/functions/v1/fractional-vote-open', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'apikey':SUPA_KEY, 'Authorization':'Bearer '+_session.access_token },
+      body: JSON.stringify({ product_id: _editProductId, duration_days: 60 })
+    });
+    var data = await r.json().catch(function(){ return {}; });
+    if(r.status === 200 && data.ok){
+      showToast('Finestra voto aperta · Round ' + data.round_number + ' · ' + data.total_eligible_quotes + ' quote eligible', 'ok');
+      pmFractRefreshVoteActions();
+    } else {
+      var em = data.error === 'vote_already_open' ? 'Esiste già un voto aperto per questo prodotto'
+             : data.error === 'no_eligible_quotes' ? 'Nessun comproprietario rilevato'
+             : data.error === 'forbidden_admin_only' ? 'Permessi insufficienti'
+             : (data.error || 'errore_sconosciuto') + (data.detail ? ' — ' + data.detail : '');
+      showToast('Errore: ' + em, 'err');
+      btn.disabled = false; btn.textContent = 'Apri finestra voto';
+    }
+  }catch(e){
+    showToast('Errore di rete: ' + (e.message||e), 'err');
+    btn.disabled = false; btn.textContent = 'Apri finestra voto';
+  }
+}
+
+async function pmFractAdminCloseVote(){
+  if(!_editProductId) return;
+  if(!confirm('Chiudere il voto in corso adesso?\n\nL\'esito sarà calcolato sui voti finora espressi. La maggioranza qualificata 2/3 si applica sul totale delle quote eligible (le astensioni e le quote non votate equivalgono a "no").\n\nL\'azione è IRREVERSIBILE.')) return;
+
+  var btn = document.getElementById('pmFractCloseVoteBtn');
+  btn.disabled = true; btn.textContent = 'Chiusura in corso...';
+  try{
+    var r = await fetch(SUPA_URL + '/functions/v1/fractional-vote-close', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'apikey':SUPA_KEY, 'Authorization':'Bearer '+_session.access_token },
+      body: JSON.stringify({ product_id: _editProductId, force: true })
+    });
+    var data = await r.json().catch(function(){ return {}; });
+    if(r.status === 200 && data.ok){
+      var resultLabel = data.result === 'sell' ? 'VENDI' : data.result === 'postpone' ? 'Rinvia' : 'No quorum';
+      var sellPct = data.votes_summary ? data.votes_summary.sell_pct : 0;
+      showToast('Voto chiuso · esito ' + resultLabel + ' (' + sellPct + '% favorevoli)', 'ok');
+      pmFractRefreshVoteActions();
+    } else {
+      var em = (data.error || 'errore_sconosciuto') + (data.detail ? ' — ' + data.detail : '');
+      showToast('Errore: ' + em, 'err');
+      btn.disabled = false; btn.textContent = 'Chiudi voto (force)';
+    }
+  }catch(e){
+    showToast('Errore di rete: ' + (e.message||e), 'err');
+    btn.disabled = false; btn.textContent = 'Chiudi voto (force)';
   }
 }
 
@@ -15559,6 +15748,31 @@ async function pmSave(){
     body.grading_house            = document.getElementById('pmGradingHouse').value;
     body.grading_cert_number      = document.getElementById('pmGradingCertNum').value.trim()||null;
     body.grading_cost_estimated   = parseFloat(document.getElementById('pmGradingCost').value)||null;
+  }
+  // Campi Modalità B fractional (PR9d)
+  if(type==='fractional'){
+    var fTpVal = parseFloat(document.getElementById('pmFractTargetPrice').value);
+    var fEyVal = parseInt(document.getElementById('pmFractExitYears').value);
+    var fXyVal = parseInt(document.getElementById('pmFractExtensionYears').value);
+    if(!isFinite(fTpVal) || fTpVal <= 0){ setSt('pmSt','Inserisci un Target Price valido per la Modalità B','err'); return; }
+    if(!isFinite(fEyVal) || fEyVal < 1){ setSt('pmSt','Inserisci una Exit Window valida (≥ 1 anno)','err'); return; }
+    if(!isFinite(fXyVal) || fXyVal < 1){ fXyVal = 2; }
+    body.fractional_target_price_eur  = fTpVal;
+    body.fractional_exit_window_years = fEyVal;
+    body.fractional_extension_years   = fXyVal;
+    // Auto-set launched_at SOLO al primo passaggio in 'open' (MAI sovrascrivere se già valorizzato)
+    if(_editProductId){
+      var existingProd = _mktProducts.find(function(x){ return x.id === _editProductId; });
+      var wasOpen = existingProd && existingProd.status === 'open';
+      var willBeOpen = body.status === 'open';
+      var hadLaunch = existingProd && existingProd.fractional_launched_at;
+      if(willBeOpen && !wasOpen && !hadLaunch){
+        body.fractional_launched_at = new Date().toISOString();
+      }
+    } else {
+      // Nuovo prodotto creato direttamente in 'open' → set launched_at adesso
+      if(body.status === 'open') body.fractional_launched_at = new Date().toISOString();
+    }
   }
   try {
     if(_editProductId){
