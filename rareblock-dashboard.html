@@ -11475,9 +11475,42 @@ async function ctrSignedUrl(bucket, path, expiresIn){
     headers: { 'Content-Type':'application/json', 'apikey':SUPA_KEY, 'Authorization':'Bearer '+_session.access_token },
     body: JSON.stringify({ expiresIn: expiresIn || 3600 })
   });
-  if(!r.ok) return null;
+  if(!r.ok){
+    var errText = await r.text().catch(function(){ return ''; });
+    console.error('ctrSignedUrl HTTP', r.status, errText);
+    return null;
+  }
   var data = await r.json();
-  return SUPA_URL + data.signedURL;
+  // Supabase ritorna data.signedURL come '/object/sign/<bucket>/<path>?token=...'
+  // (path RELATIVO senza '/storage/v1'). Va prefisso con '/storage/v1' per
+  // ottenere URL assoluto valido.
+  var url = data.signedURL || data.signedUrl || '';
+  if(!url) return null;
+  if(url.indexOf('http') === 0) return url;                  // già assoluto
+  if(url.indexOf('/storage/v1') === 0) return SUPA_URL + url; // già con /storage/v1
+  if(url.indexOf('/') === 0)            return SUPA_URL + '/storage/v1' + url;
+  return SUPA_URL + '/storage/v1/' + url;
+}
+
+// Scarica un PDF da bucket privato come Blob (no X-Frame restrictions
+// quando usato come src di iframe via URL.createObjectURL). Ritorna
+// { blobUrl, sizeBytes } oppure null se fallisce.
+async function ctrDownloadPdfAsBlobUrl(bucket, path){
+  try{
+    var r = await fetch(SUPA_URL+'/storage/v1/object/authenticated/'+bucket+'/'+path, {
+      method: 'GET',
+      headers: { 'apikey':SUPA_KEY, 'Authorization':'Bearer '+_session.access_token }
+    });
+    if(!r.ok){
+      console.error('ctrDownloadPdfAsBlobUrl HTTP', r.status);
+      return null;
+    }
+    var blob = await r.blob();
+    return { blobUrl: URL.createObjectURL(blob), sizeBytes: blob.size };
+  }catch(e){
+    console.error('ctrDownloadPdfAsBlobUrl error', e);
+    return null;
+  }
 }
 
 // ─── Wizard ────────────────────────────────────────────────────────
@@ -11542,11 +11575,21 @@ async function ctrOpenWizard(contractId){
     setText('ctrInfoSha',     ctrShortSha(_ctrWiz.pdfSha));
 
     if(_ctrWiz.pdfPath){
-      var url = await ctrSignedUrl('contracts-unsigned', _ctrWiz.pdfPath, 1800);
-      if(url){
-        document.getElementById('ctrPdfFrame').src = url + '#toolbar=1&navpanes=0';
+      // Embed via blob URL: bypass X-Frame-Options=sameorigin di Supabase Storage.
+      // L'iframe carica un object URL del browser (origin same), non l'URL
+      // remoto Supabase, quindi il browser non blocca.
+      var dl = await ctrDownloadPdfAsBlobUrl('contracts-unsigned', _ctrWiz.pdfPath);
+      if(dl && dl.blobUrl){
+        _ctrWiz.blobUrl = dl.blobUrl;
+        document.getElementById('ctrPdfFrame').src = dl.blobUrl + '#toolbar=1&navpanes=0';
       } else {
-        document.getElementById('ctrPdfFrame').srcdoc = '<div style="padding:40px;text-align:center;font-family:sans-serif;color:#999">Anteprima non disponibile. Procedi pure con la firma — il documento sarà accessibile dopo la sottoscrizione.</div>';
+        // Fallback: signed URL diretto (richiederà di scaricarlo a parte)
+        var url = await ctrSignedUrl('contracts-unsigned', _ctrWiz.pdfPath, 1800);
+        if(url){
+          document.getElementById('ctrPdfFrame').srcdoc = '<div style="padding:40px;text-align:center;font-family:sans-serif;color:#999;background:#161b22;color:#e6edf3;height:100%">L\'anteprima inline non è disponibile per limiti di sicurezza del browser.<br><br><a href="'+url+'" target="_blank" style="color:#c9a84c">Apri il PDF in una nuova scheda →</a></div>';
+        } else {
+          document.getElementById('ctrPdfFrame').srcdoc = '<div style="padding:40px;text-align:center;font-family:sans-serif;color:#999">Anteprima non disponibile. Procedi pure con la firma — il documento sarà accessibile dopo la sottoscrizione.</div>';
+        }
       }
     }
   }catch(e){
@@ -11575,6 +11618,10 @@ function ctrWizMaybeClose(){
 
 function ctrWizClose(){
   document.getElementById('ctrWizBg').classList.remove('show');
+  // Cleanup blob URL del PDF (se creato) per liberare memoria
+  if(_ctrWiz && _ctrWiz.blobUrl){
+    try{ URL.revokeObjectURL(_ctrWiz.blobUrl); }catch(e){}
+  }
   document.getElementById('ctrPdfFrame').src = 'about:blank';
   if(_ctrOtpTimer){ clearInterval(_ctrOtpTimer); _ctrOtpTimer = null; }
   if(_ctrOtpResendTimer){ clearInterval(_ctrOtpResendTimer); _ctrOtpResendTimer = null; }
