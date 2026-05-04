@@ -27,7 +27,33 @@
 // =============================================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { PDFDocument, StandardFonts, rgb } from 'https://esm.sh/pdf-lib@1.17.1';
+import { PDFDocument, rgb } from 'https://esm.sh/pdf-lib@1.17.1';
+import fontkit from 'https://esm.sh/@pdf-lib/fontkit@1.1.1';
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Font UTF-8 (NotoSans) — necessari per testi italiani con caratteri smart
+//   (em-dash —, virgolette tipografiche " ", vocali accentate à è é ò ù).
+// I font Standard di pdf-lib (Times/Helvetica) usano codifica WinAnsi che NON
+// supporta U+27E8/9 ⟨⟩, U+2022 •, U+2014 —, etc.
+// Cache in memoria fra le chiamate (Deno mantiene module-level state per lifetime
+// dell'edge isolate).
+// ═════════════════════════════════════════════════════════════════════════════
+const FONT_URLS = {
+  regular: 'https://cdn.jsdelivr.net/fontsource/fonts/noto-sans@latest/latin-400-normal.ttf',
+  bold:    'https://cdn.jsdelivr.net/fontsource/fonts/noto-sans@latest/latin-700-normal.ttf',
+  italic:  'https://cdn.jsdelivr.net/fontsource/fonts/noto-sans@latest/latin-400-italic.ttf',
+  // Per i titoli usiamo NotoSerif (più editorial/classy)
+  serifBold: 'https://cdn.jsdelivr.net/fontsource/fonts/noto-serif@latest/latin-700-normal.ttf',
+};
+const _fontCache: Record<string, ArrayBuffer> = {};
+async function loadFontBytes(key: keyof typeof FONT_URLS): Promise<ArrayBuffer> {
+  if (_fontCache[key]) return _fontCache[key];
+  const r = await fetch(FONT_URLS[key]);
+  if (!r.ok) throw new Error('font_fetch_failed: ' + key + ' status=' + r.status);
+  _fontCache[key] = await r.arrayBuffer();
+  return _fontCache[key];
+}
 
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -123,16 +149,24 @@ async function renderPdf(opts: {
   attachments?:   { title: string; bodyMd: string }[];
 }): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
+  pdf.registerFontkit(fontkit);
   pdf.setTitle(opts.title);
-  pdf.setSubject('RareBlock — Contratto');
+  pdf.setSubject('RareBlock - Contratto');
   pdf.setProducer('RareBlock Contracts Engine');
   pdf.setCreator('RareBlock');
   pdf.setCreationDate(new Date());
 
-  const fontBody     = await pdf.embedFont(StandardFonts.TimesRoman);
-  const fontBodyBold = await pdf.embedFont(StandardFonts.TimesRomanBold);
-  const fontBodyIt   = await pdf.embedFont(StandardFonts.TimesRomanItalic);
-  const fontTitle    = await pdf.embedFont(StandardFonts.HelveticaBold);
+  // Embed font UTF-8 (con subset: true per ridurre dimensione PDF a soli glifi usati)
+  const [regBytes, boldBytes, italBytes, serifBoldBytes] = await Promise.all([
+    loadFontBytes('regular'),
+    loadFontBytes('bold'),
+    loadFontBytes('italic'),
+    loadFontBytes('serifBold'),
+  ]);
+  const fontBody     = await pdf.embedFont(regBytes,       { subset: true });
+  const fontBodyBold = await pdf.embedFont(boldBytes,      { subset: true });
+  const fontBodyIt   = await pdf.embedFont(italBytes,      { subset: true });
+  const fontTitle    = await pdf.embedFont(serifBoldBytes, { subset: true });
 
   const ctx: RenderContext = {
     pdf,
@@ -370,7 +404,7 @@ function renderParagraph(ctx: RenderContext, text: string, maxW: number) {
 
 function stripFormat(s: string): string {
   // Per il wrap calcoliamo larghezza sul testo "naked" (senza marker md)
-  return s.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1').replace(/\[\[MISSING:([^\]]+)\]\]/g, '⟨$1⟩');
+  return s.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1').replace(/\[\[MISSING:([^\]]+)\]\]/g, '«$1»');
 }
 
 /**
@@ -388,7 +422,7 @@ function drawInlineFormatted(ctx: RenderContext, text: string, x: number, y: num
     if (m.index > last) tokens.push({ txt: text.slice(last, m.index), style: 'n' });
     if (m[2]) tokens.push({ txt: m[2], style: 'b' });
     else if (m[3]) tokens.push({ txt: m[3], style: 'i' });
-    else if (m[4]) tokens.push({ txt: '⟨' + m[4] + '⟩', style: 'm' });
+    else if (m[4]) tokens.push({ txt: '«' + m[4] + '»', style: 'm' });
     last = re.lastIndex;
   }
   if (last < text.length) tokens.push({ txt: text.slice(last), style: 'n' });

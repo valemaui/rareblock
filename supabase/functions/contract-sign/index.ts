@@ -36,7 +36,27 @@
 // =============================================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { PDFDocument, StandardFonts, rgb } from 'https://esm.sh/pdf-lib@1.17.1';
+import { PDFDocument, rgb } from 'https://esm.sh/pdf-lib@1.17.1';
+import fontkit from 'https://esm.sh/@pdf-lib/fontkit@1.1.1';
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Font UTF-8 (vedi commento in contract-prepare)
+// ═════════════════════════════════════════════════════════════════════════════
+const FONT_URLS = {
+  regular:   'https://cdn.jsdelivr.net/fontsource/fonts/noto-sans@latest/latin-400-normal.ttf',
+  bold:      'https://cdn.jsdelivr.net/fontsource/fonts/noto-sans@latest/latin-700-normal.ttf',
+  mono:      'https://cdn.jsdelivr.net/fontsource/fonts/jetbrains-mono@latest/latin-500-normal.ttf',
+  serifBold: 'https://cdn.jsdelivr.net/fontsource/fonts/noto-serif@latest/latin-700-normal.ttf',
+};
+const _fontCache: Record<string, ArrayBuffer> = {};
+async function loadFontBytes(key: keyof typeof FONT_URLS): Promise<ArrayBuffer> {
+  if (_fontCache[key]) return _fontCache[key];
+  const r = await fetch(FONT_URLS[key]);
+  if (!r.ok) throw new Error('font_fetch_failed: ' + key + ' status=' + r.status);
+  _fontCache[key] = await r.arrayBuffer();
+  return _fontCache[key];
+}
 
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -112,11 +132,19 @@ interface SignaturePageData {
 
 async function appendSignaturePage(pdfBytes: Uint8Array, data: SignaturePageData): Promise<Uint8Array> {
   const pdf = await PDFDocument.load(pdfBytes);
+  pdf.registerFontkit(fontkit);
   const page = pdf.addPage([PAGE_W, PAGE_H]);
-  const fontBody  = await pdf.embedFont(StandardFonts.TimesRoman);
-  const fontBold  = await pdf.embedFont(StandardFonts.TimesRomanBold);
-  const fontMono  = await pdf.embedFont(StandardFonts.Courier);
-  const fontTitle = await pdf.embedFont(StandardFonts.HelveticaBold);
+
+  const [regBytes, boldBytes, monoBytes, serifBoldBytes] = await Promise.all([
+    loadFontBytes('regular'),
+    loadFontBytes('bold'),
+    loadFontBytes('mono'),
+    loadFontBytes('serifBold'),
+  ]);
+  const fontBody  = await pdf.embedFont(regBytes,       { subset: true });
+  const fontBold  = await pdf.embedFont(boldBytes,      { subset: true });
+  const fontMono  = await pdf.embedFont(monoBytes,      { subset: true });
+  const fontTitle = await pdf.embedFont(serifBoldBytes, { subset: true });
 
   const gold = rgb(0.78, 0.66, 0.30);
   const dark = rgb(0.15, 0.15, 0.15);
