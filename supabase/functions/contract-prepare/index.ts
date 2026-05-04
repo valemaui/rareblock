@@ -110,6 +110,23 @@ function fmtInt(v: any): string {
 const AUTO_MONEY_RE = /(amount_eur|price_eur|fee_eur|insurance_max_per_item|insurance_max_aggregate|insurance_deductible|company_capital)$/i;
 const AUTO_INT_RE   = /(_days|_years|grace_days|qty)$/i;
 
+// Default per chiavi che non vengono trovate in `data` — usati prima di
+// segnalare un placeholder come MISSING. Questi sono valori "ragionevoli"
+// che la maggioranza delle piattaforme tengono come default. Non sostituiscono
+// la configurazione esplicita via platform_settings, ma evitano che i template
+// risultino non firmabili per omissioni residuali.
+const TEMPLATE_DEFAULTS: Record<string, string> = {
+  // Numeri di giorni standard del mondo legale italiano
+  'counterparty.custody_payment_grace_days': '30',
+  'counterparty.contract_offer_validity_days': '7',
+  'counterparty.payment_due_days_vendor': '15',
+  'counterparty.physical_delivery_days': '15',
+  'counterparty.consumer_recess_days': '14',
+  // Legge applicabile + foro: defaults se non configurati
+  'counterparty.legge_applicabile': 'legge italiana',
+  'counterparty.foro_competente': 'Tribunale di Messina',
+};
+
 function autoFormat(keyPath: string, val: any): string {
   if (val == null || val === '') return '';
   const last = keyPath.split('.').pop() || keyPath;
@@ -128,10 +145,15 @@ function renderTemplate(md: string, data: Record<string, unknown>): {
   const result = md.replace(
     /\{\{\s*([a-zA-Z][a-zA-Z0-9_.]*)\s*(?:\|\s*([a-zA-Z]+)\s*)?\}\}/g,
     (_full, key, filter) => {
-      const val = getDeep(data, key);
+      let val = getDeep(data, key);
+      // Se non troviamo il valore, prova i defaults built-in
       if (val === undefined || val === null || val === '') {
-        missing.push(key);
-        return `[[MISSING:${key}]]`;
+        if (Object.prototype.hasOwnProperty.call(TEMPLATE_DEFAULTS, key)) {
+          val = TEMPLATE_DEFAULTS[key];
+        } else {
+          missing.push(key);
+          return `[[MISSING:${key}]]`;
+        }
       }
       // Filter esplicito ha priorità
       if (filter === 'money') return fmtMoney(val);
@@ -694,17 +716,27 @@ Deno.serve(async (req) => {
 
     const { rendered, missing: renderMissing } = renderTemplate(tpl.body_md, tdata);
 
+    // ── Costruzione Allegato A: scheda tecnica del bene ──
+    // Statico per ora — in PR successive prenderà dati da inv_products
+    // (foto, certificate id, edizione, condizione gradata).
+    const allegatoA_md = buildSchedaTecnicaMd(subjectData, body.template_code);
+
+    // Lista ordinata degli allegati con lettere dinamiche A/B/C/D
+    const attachmentList: { title: string; bodyMd: string }[] = [];
+    let letter = 0;
+    const nextLetter = () => String.fromCharCode(65 + letter++);  // A, B, C, D...
+    if (allegatoA_md)        attachmentList.push({ title: 'Allegato ' + nextLetter() + ' — Scheda tecnica del bene', bodyMd: allegatoA_md });
+    if (tpl.privacy_doc_md)  attachmentList.push({ title: 'Allegato ' + nextLetter() + ' — Informativa Privacy',     bodyMd: renderTemplate(tpl.privacy_doc_md, tdata).rendered });
+    if (tpl.fea_doc_md)      attachmentList.push({ title: 'Allegato ' + nextLetter() + ' — Informativa Firma Elettronica', bodyMd: renderTemplate(tpl.fea_doc_md, tdata).rendered });
+    if (tpl.recess_form_md)  attachmentList.push({ title: 'Allegato ' + nextLetter() + ' — Modulo recesso (consumatore)',  bodyMd: renderTemplate(tpl.recess_form_md, tdata).rendered });
+
     // ── Genera PDF ──
     const pdfBytes = await renderPdf({
       title:          titleSubject,
       contractNumber: contractNumber,
       companyName:    counterpartySnapshot.company_legal_name || 'RareBlock',
       bodyMd:         rendered,
-      attachments: [
-        ...(tpl.privacy_doc_md  ? [{ title: 'Allegato — Informativa Privacy',                bodyMd: renderTemplate(tpl.privacy_doc_md,  tdata).rendered }] : []),
-        ...(tpl.fea_doc_md      ? [{ title: 'Allegato — Informativa Firma Elettronica',    bodyMd: renderTemplate(tpl.fea_doc_md,      tdata).rendered }] : []),
-        ...(tpl.recess_form_md  ? [{ title: 'Allegato — Modulo recesso (consumatore)',     bodyMd: renderTemplate(tpl.recess_form_md,  tdata).rendered }] : []),
-      ],
+      attachments:    attachmentList,
     });
 
     const pdfSha = await sha256OfBytes(pdfBytes);
@@ -798,4 +830,82 @@ function addressJoin(addr: any): string {
     addr.country && addr.country !== 'IT' ? addr.country : '',
   ].filter(Boolean);
   return parts.join(', ');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Scheda tecnica del bene (Allegato A) — generata dinamicamente dal subject_data.
+// In PR successive verrà arricchita con dati da inv_products (foto, certificato
+// di grading, edizione, condizione, hash certificato digitale).
+// ═════════════════════════════════════════════════════════════════════════════
+function buildSchedaTecnicaMd(s: any, templateCode: string): string {
+  if (!s || typeof s !== 'object') return '';
+  const lines: string[] = [];
+
+  if (templateCode === 'BUYER_PURCHASE_CUSTODY' || templateCode === 'BUYER_FRACTIONAL') {
+    lines.push('# Scheda tecnica del bene');
+    lines.push('');
+    lines.push('Il presente allegato descrive in dettaglio il bene oggetto del contratto.');
+    lines.push('');
+    lines.push('## Identificazione');
+    lines.push('');
+    if (s.product_name)     lines.push(`- **Denominazione**: ${s.product_name}`);
+    if (s.product_id)       lines.push(`- **Codice prodotto RareBlock**: ${s.product_id}`);
+    if (s.set_name)         lines.push(`- **Set**: ${s.set_name}`);
+    if (s.card_number)      lines.push(`- **Numero**: ${s.card_number}`);
+    if (s.edition)          lines.push(`- **Edizione**: ${s.edition}`);
+    if (s.language)         lines.push(`- **Lingua**: ${s.language}`);
+    lines.push('');
+    lines.push('## Condizione e autenticazione');
+    lines.push('');
+    if (s.grading_company)  lines.push(`- **Ente di grading**: ${s.grading_company}`);
+    if (s.grade)            lines.push(`- **Grado**: ${s.grade}`);
+    if (s.grading_cert)     lines.push(`- **Numero certificato**: ${s.grading_cert}`);
+    if (!s.grading_company && !s.grade) {
+      lines.push('- **Stato**: condizione documentata mediante audit interno RareBlock con report fotografico ad alta risoluzione, archiviato presso il caveau e disponibile su richiesta.');
+    }
+    lines.push('');
+    lines.push('## Termini economici');
+    lines.push('');
+    if (s.amount_eur)        lines.push(`- **Prezzo di acquisto**: ${fmtMoney(s.amount_eur)} EUR`);
+    if (s.qty != null)       lines.push(`- **Quantità**: ${fmtInt(s.qty)}`);
+    if (s.custody_fee_eur != null) lines.push(`- **Fee di custodia annua**: ${fmtMoney(s.custody_fee_eur)} EUR`);
+    if (s.custody_tier_name) lines.push(`- **Fascia di custodia**: ${s.custody_tier_name}`);
+    lines.push('');
+    lines.push('## Certificato Digitale');
+    lines.push('');
+    if (s.nft_chain_id && s.nft_contract && s.nft_token_id) {
+      lines.push(`- **Blockchain**: chain id ${s.nft_chain_id}`);
+      lines.push(`- **Smart contract**: ${s.nft_contract}`);
+      lines.push(`- **Token ID**: ${s.nft_token_id}`);
+    } else {
+      lines.push('Il Certificato Digitale viene emesso a favore dell\'Acquirente al momento del trasferimento di proprietà ed è verificabile pubblicamente sulla blockchain Base.');
+    }
+  }
+  else if (templateCode === 'VENDOR_MANDATE') {
+    lines.push('# Lista dei beni conferiti in mandato');
+    lines.push('');
+    lines.push('Elenco dei beni oggetto del presente mandato a vendere.');
+    lines.push('');
+    if (s.commission_pct != null) {
+      lines.push(`**Commissione applicata**: ${fmtMoney(s.commission_pct)}% sul prezzo lordo di vendita`);
+      lines.push('');
+    }
+    if (Array.isArray(s.products) && s.products.length) {
+      let i = 1;
+      for (const p of s.products) {
+        lines.push(`### Bene ${i}: ${p.name || p.product_name || 'Da specificare'}`);
+        lines.push('');
+        if (p.set_name)        lines.push(`- **Set**: ${p.set_name}`);
+        if (p.card_number)     lines.push(`- **Numero**: ${p.card_number}`);
+        if (p.condition)       lines.push(`- **Condizione**: ${p.condition}`);
+        if (p.grading_company) lines.push(`- **Grading**: ${p.grading_company} ${p.grade || ''}`);
+        if (p.reserve_price)   lines.push(`- **Prezzo di riserva**: ${fmtMoney(p.reserve_price)} EUR`);
+        lines.push('');
+        i++;
+      }
+    } else {
+      lines.push('*Lista beni da compilare in fase di stipula.*');
+    }
+  }
+  return lines.join('\n');
 }
