@@ -4719,26 +4719,116 @@ textarea{resize:vertical;min-height:60px}
 <style>
 .prof-wrap{flex:1;overflow:auto;padding:24px 28px}
 .prof-inner{max-width:980px;margin:0 auto}
-.prof-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:20px;flex-wrap:wrap}
-.prof-title{font-family:var(--serif);font-size:26px;font-weight:300;font-style:italic;letter-spacing:-.01em;line-height:1.15}
-.prof-sub{font-size:12.5px;color:var(--text-muted);margin-top:4px;line-height:1.6;max-width:580px}
 
-/* KYC progress strip */
-.kyc-strip{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;margin-bottom:20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
-.kyc-level{display:flex;flex-direction:column;gap:4px;flex-shrink:0}
-.kyc-level-label{font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);font-weight:500}
-.kyc-level-value{font-size:18px;font-weight:600;color:var(--gold,#c9a84c);font-family:var(--display);letter-spacing:.02em}
-.kyc-bar-wrap{flex:1;min-width:200px}
-.kyc-bar-track{position:relative;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden}
+/* ── HEADER COMPATTO: titolo + KYC + actions su singola card ──
+   Sostituisce il vecchio .prof-head + .kyc-strip + .prof-saveall-bar.
+   Tutto in una sola riga visiva, niente layout shift quando appare
+   il "Salva tutto": i pulsanti sono sempre presenti (disabilitati
+   se niente da salvare). */
+.prof-hero{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:16px 20px;margin-bottom:20px;
+  display:grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  grid-template-rows: auto auto;
+  gap:14px 20px;
+  align-items:center;
+}
+.prof-hero-left{
+  display:flex;align-items:center;gap:14px;min-width:0;
+  grid-column:1;grid-row:1;
+}
+.prof-hero-title{
+  font-family:var(--serif);font-style:italic;font-weight:300;
+  font-size:18px;letter-spacing:-.01em;line-height:1;
+  color:var(--text);white-space:nowrap;
+}
+.prof-hero-info-btn{
+  width:18px;height:18px;border-radius:50%;background:var(--surface3);
+  border:none;color:var(--text-muted);font-size:11px;font-weight:600;
+  cursor:help;display:inline-flex;align-items:center;justify-content:center;
+  font-family:var(--font);transition:all var(--t-fast);
+  position:relative;flex-shrink:0;
+}
+.prof-hero-info-btn:hover{background:var(--gold,#c9a84c);color:var(--bg)}
+.prof-hero-info-btn::before{content:'i';font-style:italic;font-family:var(--serif)}
+.prof-hero-info-btn:hover .prof-hero-tip{display:block}
+.prof-hero-tip{
+  display:none;position:absolute;top:24px;left:0;
+  width:340px;padding:12px 14px;
+  background:var(--bg);border:1px solid var(--border-strong);
+  border-radius:var(--r);box-shadow:0 12px 28px rgba(0,0,0,.6);
+  font-family:var(--font);font-style:normal;font-size:11.5px;
+  color:var(--text-muted);line-height:1.55;font-weight:400;
+  letter-spacing:0;text-transform:none;cursor:auto;text-align:left;
+  z-index:20;
+}
+.prof-hero-tip strong{color:var(--text);font-weight:600}
+
+.prof-hero-actions{
+  display:flex;gap:6px;align-items:center;flex-shrink:0;
+  grid-column:2;grid-row:1;
+}
+.prof-hero-icon-btn{
+  width:30px;height:30px;border-radius:var(--r);
+  background:transparent;border:1px solid var(--border);
+  color:var(--text-muted);cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+  transition:all var(--t-fast);
+}
+.prof-hero-icon-btn:hover{color:var(--text);border-color:var(--border-strong);background:var(--surface2)}
+.prof-hero-icon-btn .rb-i{font-size:13px}
+.prof-hero-savebtn{
+  padding:6px 14px;font-size:12px;font-weight:600;
+  border-radius:var(--r);border:1px solid var(--border);
+  background:var(--surface2);color:var(--text-muted);
+  cursor:pointer;font-family:var(--font);
+  transition:all var(--t-fast);height:30px;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.prof-hero-savebtn:hover:not(:disabled){background:var(--surface3);color:var(--text);border-color:var(--border-strong)}
+.prof-hero-savebtn.has-changes{
+  background:var(--gold,#c9a84c);color:var(--bg);
+  border-color:var(--gold,#c9a84c);font-weight:700;
+}
+.prof-hero-savebtn.has-changes:hover{background:#d4b561;border-color:#d4b561}
+.prof-hero-savebtn:disabled{opacity:.4;cursor:not-allowed}
+.prof-hero-changecount{
+  display:none;background:rgba(0,0,0,.25);
+  font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:10px;
+  font-family:var(--mono);
+}
+.prof-hero-savebtn.has-changes .prof-hero-changecount{display:inline-flex}
+
+/* KYC strip (riga 2 della hero card) */
+.prof-hero-kyc{
+  grid-column:1 / -1;grid-row:2;
+  display:flex;gap:18px;align-items:center;flex-wrap:wrap;
+  border-top:1px solid var(--border);padding-top:14px;
+}
+.kyc-level{display:flex;flex-direction:column;gap:2px;flex-shrink:0}
+.kyc-level-label{font-size:9.5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.10em;color:var(--text-muted);font-weight:500}
+.kyc-level-value{font-size:16px;font-weight:600;color:var(--gold,#c9a84c);font-family:var(--display);letter-spacing:.02em;line-height:1}
+.kyc-bar-wrap{flex:1;min-width:180px}
+.kyc-bar-track{position:relative;height:5px;background:var(--surface3);border-radius:3px;overflow:hidden}
 .kyc-bar-fill{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,var(--accent),var(--gold,#c9a84c));border-radius:3px;transition:width .4s ease}
-.kyc-bar-steps{display:flex;justify-content:space-between;margin-top:8px;font-size:10px;font-family:var(--mono);color:var(--text-muted);letter-spacing:.04em}
-.kyc-bar-step{flex:1;text-align:center;position:relative;padding-top:2px}
+.kyc-bar-steps{display:flex;justify-content:space-between;margin-top:6px;font-size:9.5px;font-family:var(--mono);color:var(--text-muted);letter-spacing:.04em}
+.kyc-bar-step{flex:1;text-align:center;position:relative;padding-top:1px}
 .kyc-bar-step.done{color:var(--gold,#c9a84c);font-weight:600}
 .kyc-bar-step.current{color:var(--accent);font-weight:600}
-.kyc-status-badge{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-family:var(--mono);font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:5px 11px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted)}
+.kyc-status-badge{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-family:var(--mono);font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);flex-shrink:0}
 .kyc-status-badge.review{color:var(--warning,#d29922);border-color:rgba(210,153,34,.4);background:rgba(210,153,34,.08)}
 .kyc-status-badge.approved{color:var(--success,#3fb950);border-color:rgba(63,185,80,.4);background:rgba(63,185,80,.08)}
 .kyc-status-badge.rejected{color:var(--danger,#f85149);border-color:rgba(248,81,73,.4);background:rgba(248,81,73,.08)}
+
+/* Mobile: comprime header */
+@media (max-width:680px){
+  .prof-hero{grid-template-columns:1fr;gap:12px}
+  .prof-hero-left{grid-column:1;grid-row:1}
+  .prof-hero-actions{grid-column:1;grid-row:2;justify-content:flex-end}
+  .prof-hero-kyc{grid-column:1;grid-row:3}
+  .prof-hero-tip{left:auto;right:0;width:280px}
+}
 
 /* Wizard steps */
 .prof-stepper{display:flex;gap:0;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
@@ -4814,18 +4904,6 @@ textarea{resize:vertical;min-height:60px}
 }
 .prof-field{position:relative}
 
-/* Top bar 'Salva tutto' — sticky in cima */
-.prof-saveall-bar{
-  display:flex;justify-content:space-between;align-items:center;
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-  padding:14px 18px;margin-bottom:18px;gap:14px;flex-wrap:wrap;
-}
-.prof-saveall-info{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
-.prof-saveall-title{font-size:13px;font-weight:600;color:var(--text)}
-.prof-saveall-sub{font-size:11.5px;color:var(--text-muted);line-height:1.5}
-.prof-saveall-sub strong{color:var(--gold,#c9a84c)}
-.prof-saveall-actions{display:flex;gap:8px;align-items:center}
-
 /* Confirm modal (per sostituire confirm() del browser) */
 .prof-confirm-bg{
   position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);
@@ -4899,42 +4977,52 @@ select.prof-input{cursor:pointer}
   <div class="prof-wrap">
     <div class="prof-inner">
 
-      <div class="prof-head">
-        <div>
-          <div class="prof-title">Profilo &amp; KYC</div>
-          <div class="prof-sub">Completa il tuo profilo per poter firmare i contratti RareBlock. I dati anagrafici e il documento d'identità sono richiesti dalla normativa antiriciclaggio (D.Lgs. 231/2007) e per l'apposizione della Firma Elettronica Avanzata ai contratti.</div>
+      <!-- HERO COMPATTA: titolo + KYC + actions su unica card.
+           Niente layout shift: i pulsanti sono sempre presenti
+           (disabilitati se nessuna modifica da salvare). -->
+      <div class="prof-hero">
+        <div class="prof-hero-left">
+          <span class="prof-hero-title">Profilo</span>
+          <button class="prof-hero-info-btn" type="button" tabindex="-1" aria-label="Informazioni">
+            <span class="prof-hero-tip">
+              Completa il tuo profilo per poter firmare i contratti RareBlock.
+              I dati anagrafici e il documento d'identità sono richiesti dalla
+              normativa antiriciclaggio (<strong>D.Lgs. 231/2007</strong>) e
+              per l'apposizione della <strong>Firma Elettronica Avanzata</strong>
+              (eIDAS, art. 26 Reg. UE 910/2014) ai contratti.
+            </span>
+          </button>
         </div>
-        <button class="btn sm" onclick="profileLoad()" title="Aggiorna"><span class="rb-i rb-i-refresh"></span> Aggiorna</button>
-      </div>
+        <div class="prof-hero-actions">
+          <button class="prof-hero-icon-btn" id="profDiscardBtn" onclick="profDiscardAll()" title="Annulla modifiche non salvate" disabled>
+            <span class="rb-i rb-i-redo" style="transform:scaleX(-1)"></span>
+          </button>
+          <button class="prof-hero-icon-btn" onclick="profileLoad()" title="Ricarica dal server">
+            <span class="rb-i rb-i-refresh"></span>
+          </button>
+          <button class="prof-hero-savebtn" id="profSaveAllBtn" onclick="profSaveAll()" disabled>
+            <span class="rb-i rb-i-save"></span>
+            <span>Salva</span>
+            <span class="prof-hero-changecount" id="profSaveAllCount">0</span>
+          </button>
+        </div>
 
-      <!-- Save-all bar — salva tutti gli step in un colpo solo -->
-      <div class="prof-saveall-bar" id="profSaveAllBar" style="display:none">
-        <div class="prof-saveall-info">
-          <div class="prof-saveall-title">Modifiche in sospeso</div>
-          <div class="prof-saveall-sub" id="profSaveAllSub">Hai modifiche non salvate in <strong id="profSaveAllSections">—</strong>. Puoi salvarle tutte insieme oppure passare per ciascuno step.</div>
-        </div>
-        <div class="prof-saveall-actions">
-          <button class="btn sm" onclick="profDiscardAll()">Annulla tutto</button>
-          <button class="btn sm primary" onclick="profSaveAll()" id="profSaveAllBtn">Salva tutto</button>
-        </div>
-      </div>
-
-      <!-- KYC progress strip -->
-      <div class="kyc-strip">
-        <div class="kyc-level">
-          <div class="kyc-level-label">Livello KYC</div>
-          <div class="kyc-level-value" id="kycLevelValue">L0</div>
-        </div>
-        <div class="kyc-bar-wrap">
-          <div class="kyc-bar-track"><div class="kyc-bar-fill" id="kycBarFill" style="width:0%"></div></div>
-          <div class="kyc-bar-steps">
-            <div class="kyc-bar-step" id="kycStepL0">L0 · Account</div>
-            <div class="kyc-bar-step" id="kycStepL1">L1 · Telefono</div>
-            <div class="kyc-bar-step" id="kycStepL2">L2 · Anagrafica completa</div>
-            <div class="kyc-bar-step" id="kycStepL3">L3 · Compliance</div>
+        <div class="prof-hero-kyc">
+          <div class="kyc-level">
+            <div class="kyc-level-label">Livello KYC</div>
+            <div class="kyc-level-value" id="kycLevelValue">L0</div>
           </div>
+          <div class="kyc-bar-wrap">
+            <div class="kyc-bar-track"><div class="kyc-bar-fill" id="kycBarFill" style="width:0%"></div></div>
+            <div class="kyc-bar-steps">
+              <div class="kyc-bar-step" id="kycStepL0">L0 · Account</div>
+              <div class="kyc-bar-step" id="kycStepL1">L1 · Telefono</div>
+              <div class="kyc-bar-step" id="kycStepL2">L2 · Anagrafica completa</div>
+              <div class="kyc-bar-step" id="kycStepL3">L3 · Compliance</div>
+            </div>
+          </div>
+          <div id="kycStatusBadgeWrap"></div>
         </div>
-        <div id="kycStatusBadgeWrap"></div>
       </div>
 
       <!-- Stepper -->
@@ -7580,19 +7668,34 @@ function profDirtySections(){
 }
 
 function profUpdateSaveAllBar(){
-  var bar = document.getElementById('profSaveAllBar');
-  if(!bar) return;
+  var saveBtn    = document.getElementById('profSaveAllBtn');
+  var discardBtn = document.getElementById('profDiscardBtn');
+  var countEl    = document.getElementById('profSaveAllCount');
+  if(!saveBtn) return;
   var sections = profDirtySections();
-  if(sections.size === 0){
-    bar.style.display = 'none';
-    return;
+  var n = sections.size;
+  // Save button: enabled solo se ci sono modifiche
+  if(n > 0){
+    saveBtn.disabled = false;
+    saveBtn.classList.add('has-changes');
+    if(countEl) countEl.textContent = String(n);
+    var labels = { anagrafica:'Anagrafica', indirizzo:'Residenza',
+                   documento:'Documento', consensi:'Consensi' };
+    var titles = Array.from(sections).map(function(s){ return labels[s]||s; });
+    saveBtn.title = 'Salva ' + n + ' sezione' + (n>1?'i':'') + ': ' + titles.join(', ');
+  } else {
+    saveBtn.disabled = true;
+    saveBtn.classList.remove('has-changes');
+    if(countEl) countEl.textContent = '0';
+    saveBtn.title = 'Nessuna modifica da salvare';
   }
-  bar.style.display = '';
-  var labels = { anagrafica:'Anagrafica', indirizzo:'Residenza',
-                 documento:'Documento', consensi:'Consensi' };
-  var arr = Array.from(sections).map(function(s){ return labels[s]||s; });
-  var sub = document.getElementById('profSaveAllSections');
-  if(sub) sub.textContent = arr.join(', ');
+  // Discard button: stesso enable/disable
+  if(discardBtn){
+    discardBtn.disabled = (n === 0);
+    discardBtn.title = (n === 0)
+      ? 'Nessuna modifica da annullare'
+      : 'Annulla ' + n + ' modifiche non salvate';
+  }
 }
 
 // Listener globale per dirty tracking dei campi profilo
