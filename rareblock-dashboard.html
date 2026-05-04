@@ -6218,8 +6218,8 @@ select.prof-input{cursor:pointer}
               </th>
               <th>
                 <select class="ap-cell-select" id="apFilterStatus" onchange="apApplyFilters()">
-                  <option value="active" selected>Attivi</option>
-                  <option value="">Tutti</option>
+                  <option value="" selected>Tutti</option>
+                  <option value="active">Attivi (open + closing soon)</option>
                   <option value="draft">Bozze</option>
                   <option value="open">Aperti</option>
                   <option value="closing_soon">In chiusura</option>
@@ -13616,7 +13616,7 @@ function apApplyFilters(){
     el.classList.toggle('ap-active', !isDefault);
   }
   setActive('apFilterSearch',   q==='');
-  setActive('apFilterStatus',   statusF==='active');  // active è il default
+  setActive('apFilterStatus',   statusF==='');  // '' (Tutti) è il default per admin
   setActive('apFilterType',     typeF==='');
   setActive('apFilterPrice',    priceF==='');
   setActive('apFilterDate',     dateF==='');
@@ -13687,12 +13687,12 @@ function apApplyFilters(){
   apRenderProducts(rows);
 }
 
-// Reset filtri ai default (Stato='active' = solo aperti+in chiusura).
+// Reset filtri admin ai default (Stato='Tutti' per non nascondere prodotti
+// che attendono review/grading/etc. al primo accesso).
 function apResetFilters(){
-  ['apFilterSearch','apFilterType','apFilterCategory','apFilterVendor','apFilterPrice','apFilterDate'].forEach(function(id){
+  ['apFilterSearch','apFilterType','apFilterCategory','apFilterVendor','apFilterPrice','apFilterDate','apFilterStatus'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.value = '';
   });
-  var s = document.getElementById('apFilterStatus'); if(s) s.value = 'active';
   var sort = document.getElementById('apFilterSort'); if(sort) sort.value = 'newest';
   apApplyFilters();
 }
