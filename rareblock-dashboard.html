@@ -4615,6 +4615,22 @@ textarea{resize:vertical;min-height:60px}
         <button class="btn primary sm" onclick="showTab('mkt')" style="margin-top:14px"><span class="rb-i rb-i-store"></span> Vai al Marketplace</button>
       </div>
     </div>
+
+    <!-- ═══ Sezione Comproprietà Modalità B (PR9c) ═══ -->
+    <div id="fracHoldingsSection" style="margin-top:24px;display:none">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+        <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--gold,#c9a84c);text-transform:uppercase;letter-spacing:.6px;font-family:var(--mono)">Comproprietà · Modalità B</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:3px">Quote di beni in comproprietà ex art. 1100 c.c. — vendita su trigger ibrido (target price OR exit window).</div>
+          </div>
+          <button class="btn sm" onclick="fracPortLoad()" title="Aggiorna"><span class="rb-i rb-i-refresh"></span></button>
+        </div>
+        <div id="fracHoldingsList">
+          <!-- Render JS -->
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -5372,6 +5388,66 @@ textarea{resize:vertical;min-height:60px}
 .frack-foot-btns{display:flex;gap:8px;align-items:center}
 @media (max-width:780px){
   .frack-modal{max-height:96vh}
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PR9c — HOLDINGS FRACTIONAL CARDS + VOTING UI
+   ═══════════════════════════════════════════════════════════════════ */
+.frac-card{
+  display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;
+  padding:16px 18px;border-bottom:1px solid var(--border);
+  transition:background var(--t-fast);
+}
+.frac-card:last-child{border-bottom:none}
+.frac-card:hover{background:var(--surface2)}
+.frac-card-body{min-width:0;display:flex;flex-direction:column;gap:6px}
+.frac-card-title{font-size:14px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.frac-card-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--text-muted)}
+.frac-card-meta strong{color:var(--text);font-weight:500}
+.frac-card-meta .mono{font-family:var(--mono);font-size:11px}
+.frac-card-actions{display:flex;gap:6px;align-items:center;flex-shrink:0}
+
+/* Stato exit window */
+.frac-status{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 9px;border-radius:20px;font-size:10px;
+  font-family:var(--mono);font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);
+}
+.frac-status.not_due           {color:var(--text-muted);background:var(--surface3)}
+.frac-status.open              {color:var(--warning,#d29922);border-color:rgba(210,153,34,.4);background:rgba(210,153,34,.08)}
+.frac-status.closed_sell       {color:var(--success,#3fb950);border-color:rgba(63,185,80,.4);background:rgba(63,185,80,.08)}
+.frac-status.closed_postpone   {color:var(--text-muted);background:var(--surface3)}
+.frac-status.closed_target_hit {color:var(--success,#3fb950);border-color:rgba(63,185,80,.4);background:rgba(63,185,80,.08)}
+.frac-status.closed_sold       {color:var(--gold,#c9a84c);border-color:rgba(201,168,76,.4);background:rgba(201,168,76,.08)}
+
+.frac-vote-banner{
+  margin:8px 18px;padding:10px 14px;
+  background:rgba(210,153,34,.08);border-left:3px solid var(--warning,#d29922);
+  border-radius:0 var(--r) var(--r) 0;
+  font-size:12px;color:var(--text);line-height:1.5;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+}
+.frac-vote-banner-left{flex:1;min-width:200px}
+.frac-vote-banner-cta{flex-shrink:0}
+
+.frac-empty{padding:40px 22px;text-align:center;color:var(--text-muted)}
+.frac-empty-title{font-family:var(--serif);font-style:italic;font-size:15px;color:var(--text);margin-bottom:6px}
+.frac-empty-sub{font-size:12px;line-height:1.5;max-width:380px;margin:0 auto}
+
+/* Mini bar progresso voto */
+.frac-vote-bar{
+  width:100%;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden;
+  margin-top:8px;
+}
+.frac-vote-bar-fill{
+  height:100%;background:linear-gradient(90deg, var(--gold,#c9a84c) 0%, var(--success,#3fb950) 100%);
+  transition:width .4s ease;
+}
+
+@media (max-width:780px){
+  .frac-card{grid-template-columns:1fr;gap:10px}
+  .frac-card-actions{justify-content:flex-end}
 }
 
 /* Wizard steps */
@@ -6205,6 +6281,97 @@ select.prof-input{cursor:pointer}
       <div class="frack-foot-btns">
         <button class="btn sm" onclick="frackClose()">Annulla</button>
         <button class="btn sm primary" id="frackConfirmBtn" onclick="frackConfirm()" disabled>Confermo e procedo</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     MODAL: voto exit window per Comproprietario (PR9c)
+     L'utente vede i dati del prodotto, il quesito di voto, il countdown,
+     e sceglie tra sell / postpone / abstain. Il voto è immutabile.
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="frack-bg" id="fvoteBg" onclick="if(event.target===this)fvoteClose()">
+  <div class="frack-modal">
+    <div class="frack-head">
+      <div class="frack-eyebrow">VOTO ASSEMBLEA · COMPROPRIETÀ</div>
+      <div class="frack-title" id="fvoteTitle">—</div>
+      <div class="frack-sub" id="fvoteSub">—</div>
+    </div>
+    <div class="frack-body">
+      <!-- Dati di contesto -->
+      <div id="fvoteContext" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r)">
+        <div>
+          <div class="admctr-kv-label">Prodotto</div>
+          <div class="admctr-kv-value" id="fvoteProductName">—</div>
+        </div>
+        <div>
+          <div class="admctr-kv-label">Round di voto</div>
+          <div class="admctr-kv-value" id="fvoteRound">—</div>
+        </div>
+        <div>
+          <div class="admctr-kv-label">Le tue quote</div>
+          <div class="admctr-kv-value" id="fvoteMyQuotes">—</div>
+        </div>
+        <div>
+          <div class="admctr-kv-label">Quote totali del bene</div>
+          <div class="admctr-kv-value" id="fvoteTotalQuotes">—</div>
+        </div>
+        <div>
+          <div class="admctr-kv-label">Soglia per "vendi"</div>
+          <div class="admctr-kv-value" id="fvoteThreshold">66,67% delle quote totali</div>
+        </div>
+        <div>
+          <div class="admctr-kv-label">Chiude il</div>
+          <div class="admctr-kv-value" id="fvoteClosesAt">—</div>
+        </div>
+      </div>
+
+      <!-- Stato live aggregato -->
+      <div id="fvoteLiveStats" style="margin-bottom:18px;padding:14px 16px;background:rgba(201,168,76,.04);border:1px solid rgba(201,168,76,.3);border-radius:var(--r);font-size:12px;color:var(--text-muted);line-height:1.6">
+        <div style="font-weight:600;color:var(--text);margin-bottom:6px">Stato del voto</div>
+        <div id="fvoteLiveContent">Caricamento...</div>
+      </div>
+
+      <!-- Quesito -->
+      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:14px">
+        <strong>Quesito:</strong> approvare la vendita del bene fisico, con conseguente liquidazione di tutti i Comproprietari pro-quota?
+      </div>
+
+      <!-- Le tre opzioni -->
+      <div class="frack-acks" style="margin-bottom:14px">
+        <div class="frack-ack" id="fvoteOpSell" onclick="fvoteSelectBallot('sell')">
+          <div class="frack-ack-checkbox"></div>
+          <div class="frack-ack-text">
+            <div class="frack-ack-title"><span class="frack-ack-icon" style="color:var(--success,#3fb950)">✓</span> Vendi</div>
+            <div class="frack-ack-sub">Voto a favore della vendita immediata del bene. Il ricavato sarà distribuito pro-quota a tutti i Comproprietari.</div>
+          </div>
+        </div>
+        <div class="frack-ack" id="fvoteOpPostpone" onclick="fvoteSelectBallot('postpone')">
+          <div class="frack-ack-checkbox"></div>
+          <div class="frack-ack-text">
+            <div class="frack-ack-title"><span class="frack-ack-icon">⏸</span> Rinvia (non vendere ora)</div>
+            <div class="frack-ack-sub">Voto contrario. Se la vendita non raggiunge il 66,67% di quote a favore, viene rinviata e si aprirà una nuova finestra di voto tra qualche anno.</div>
+          </div>
+        </div>
+        <div class="frack-ack" id="fvoteOpAbstain" onclick="fvoteSelectBallot('abstain')">
+          <div class="frack-ack-checkbox"></div>
+          <div class="frack-ack-text">
+            <div class="frack-ack-title"><span class="frack-ack-icon" style="color:var(--text-muted)">○</span> Astieniti</div>
+            <div class="frack-ack-sub">Non esprimi una preferenza. <strong>Attenzione</strong>: ai fini del calcolo della maggioranza qualificata 2/3, le astensioni equivalgono a un voto contrario alla vendita (Art. 8.3 del contratto).</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size:11.5px;color:var(--text-muted);font-style:italic;line-height:1.5">
+        Il voto è immutabile una volta espresso. Il peso del tuo voto è proporzionale al numero di quote che possiedi.
+      </div>
+    </div>
+    <div class="frack-foot">
+      <div class="frack-foot-msg" id="fvoteMsg"></div>
+      <div class="frack-foot-btns">
+        <button class="btn sm" onclick="fvoteClose()">Annulla</button>
+        <button class="btn sm primary" id="fvoteConfirmBtn" onclick="fvoteConfirm()" disabled>Esprimi voto</button>
       </div>
     </div>
   </div>
@@ -11652,6 +11819,8 @@ async function portLoad(){
     } catch(eS){ /* migration 027 non applicata: niente slot info */ }
   } catch(e){ console.warn('portLoad:', e.message); _portHoldings=[]; }
   portRender();
+  // PR9c — carica anche la sezione fractional in parallelo
+  try { fracPortLoad(); } catch(e){ console.warn('fracPortLoad:', e && e.message); }
 }
 
 function portRender(){
@@ -13266,6 +13435,306 @@ async function frackConfirm(){
     }
     setText('frackMsg', 'Errore salvataggio: ' + detail);
     document.getElementById('frackMsg').classList.add('err');
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  PR9c — PORTFOLIO FRACTIONAL HOLDINGS + VOTING
+// ═══════════════════════════════════════════════════════════
+//
+// Sezione "Comproprietà · Modalità B" all'interno della tab Portfolio.
+// Mostra:
+//   - lista dei prodotti fractional di cui l'utente possiede quote
+//   - per ogni prodotto: stato exit window, target price, mio % di voto
+//   - banner azione "Vota ora" se voto attivo + utente non ha ancora votato
+//   - modal di voto con 3 opzioni (sell/postpone/abstain) + stato live
+//
+// Source: view v_my_fractional_holdings (RLS della tabella sottostante
+// inv_holdings filtra a self).
+// ═══════════════════════════════════════════════════════════
+
+var _fracHoldings = [];
+var _fvoteState   = null;   // { vote_id, product_id, my_quotes, ballot, …, callback }
+
+async function fracPortLoad(){
+  if(!_session) return;
+  var uid = _session.user && _session.user.id;
+  if(!uid) return;
+  var sec = document.getElementById('fracHoldingsSection');
+  var list = document.getElementById('fracHoldingsList');
+  if(!sec || !list) return;
+
+  list.innerHTML = '<div class="frac-empty"><div class="frac-empty-title">Caricamento...</div></div>';
+
+  try{
+    var rows = await supa('GET', 'v_my_fractional_holdings?order=acquired_at.desc');
+    _fracHoldings = Array.isArray(rows) ? rows : [];
+  }catch(e){
+    console.warn('fracPortLoad:', e && e.message);
+    // Fallback graceful: se la view non c'è (migration 045 non eseguita),
+    // mostriamo niente invece di un errore confondente per l'utente
+    _fracHoldings = [];
+    sec.style.display = 'none';
+    return;
+  }
+
+  // Aggrega per prodotto (un utente può avere più holdings sullo stesso prodotto
+  // da acquisti separati). Sommiamo le quotes_held.
+  var byProduct = {};
+  _fracHoldings.forEach(function(h){
+    if(!byProduct[h.product_id]){
+      byProduct[h.product_id] = {
+        product_id: h.product_id,
+        product_name: h.product_name,
+        product_status: h.product_status,
+        target_price_eur: h.fractional_target_price_eur,
+        exit_window_status: h.fractional_exit_window_status,
+        active_vote_id: h.active_vote_id,
+        active_vote_closes_at: h.active_vote_closes_at,
+        my_ballot: h.my_ballot,
+        total_quotes_held: 0,
+        first_acquired: h.acquired_at,
+      };
+    }
+    byProduct[h.product_id].total_quotes_held += Number(h.quotes_held) || 0;
+    // my_ballot dovrebbe essere lo stesso per tutte le righe; teniamo il primo
+    if(!byProduct[h.product_id].my_ballot && h.my_ballot) byProduct[h.product_id].my_ballot = h.my_ballot;
+  });
+  var products = Object.values(byProduct);
+
+  if(products.length === 0){
+    sec.style.display = 'none';
+    return;
+  }
+  sec.style.display = '';
+  list.innerHTML = products.map(fracHoldingCardHtml).join('');
+}
+
+function fracHoldingCardHtml(p){
+  var statusLabel = p.exit_window_status === 'open'              ? 'Voto in corso'
+                  : p.exit_window_status === 'closed_sell'       ? 'In vendita'
+                  : p.exit_window_status === 'closed_target_hit' ? 'Target raggiunto'
+                  : p.exit_window_status === 'closed_sold'       ? 'Venduto'
+                  : p.exit_window_status === 'closed_postpone'   ? 'Rinviato'
+                  :                                                'In comproprietà';
+  var targetStr = p.target_price_eur != null
+    ? parseFloat(p.target_price_eur).toLocaleString('it-IT', { minimumFractionDigits:0, maximumFractionDigits:0 }) + ' €'
+    : '—';
+
+  var actionsHtml = '';
+  // Banner di voto se finestra aperta E utente non ha ancora votato
+  var voteBanner = '';
+  if(p.exit_window_status === 'open' && p.active_vote_id){
+    if(p.my_ballot){
+      voteBanner = '<div class="frac-vote-banner">'
+        + '<div class="frac-vote-banner-left">Hai già votato <strong>' + escHtml(p.my_ballot === 'sell' ? '✓ Vendi' : p.my_ballot === 'postpone' ? '⏸ Rinvia' : '○ Astensione') + '</strong> in questo round.</div>'
+        + '<div class="frac-vote-banner-cta"><button class="btn sm" onclick="fvoteOpenForProduct(\'' + escAttr(p.product_id) + '\', true)">Vedi stato</button></div>'
+        + '</div>';
+    } else {
+      var closesIn = p.active_vote_closes_at ? fmtRelativeTime(p.active_vote_closes_at) : '';
+      voteBanner = '<div class="frac-vote-banner">'
+        + '<div class="frac-vote-banner-left"><strong>È aperto un voto exit window.</strong> Esprimi la tua posizione entro la chiusura' + (closesIn ? ' (' + closesIn + ')' : '') + '.</div>'
+        + '<div class="frac-vote-banner-cta"><button class="btn primary sm" onclick="fvoteOpenForProduct(\'' + escAttr(p.product_id) + '\')">Vota ora</button></div>'
+        + '</div>';
+    }
+  }
+
+  return '<div class="frac-card">'
+    + '<div class="frac-card-body">'
+    +   '<div class="frac-card-title">' + escHtml(p.product_name || '—')
+    +     ' <span class="frac-status ' + (p.exit_window_status || 'not_due') + '">' + escHtml(statusLabel) + '</span>'
+    +   '</div>'
+    +   '<div class="frac-card-meta">'
+    +     '<span><strong>Le mie quote:</strong> <span class="mono">' + p.total_quotes_held + '</span></span>'
+    +     '<span><strong>Target price:</strong> ' + targetStr + '</span>'
+    +     '<span><strong>Acquisita il:</strong> ' + fmtDateIt(p.first_acquired) + '</span>'
+    +   '</div>'
+    + '</div>'
+    + '<div class="frac-card-actions">'
+    +   '<button class="btn sm" onclick="fracOpenProductDetail(\'' + escAttr(p.product_id) + '\')" title="Vedi dettagli">Dettagli</button>'
+    + '</div>'
+    + '</div>'
+    + voteBanner;
+}
+
+function fmtRelativeTime(iso){
+  try{
+    var diff = new Date(iso).getTime() - Date.now();
+    if(diff <= 0) return 'scaduto';
+    var days  = Math.floor(diff / (24*60*60*1000));
+    var hours = Math.floor((diff % (24*60*60*1000)) / (60*60*1000));
+    if(days > 0) return 'tra ' + days + ' giorn' + (days===1?'o':'i');
+    if(hours > 0) return 'tra ' + hours + ' or' + (hours===1?'a':'e');
+    var mins = Math.floor((diff % (60*60*1000)) / (60*1000));
+    return 'tra ' + mins + ' minuti';
+  }catch(e){ return ''; }
+}
+
+function fracOpenProductDetail(productId){
+  // Per ora reindirizziamo al marketplace dove il prodotto è già renderizzato
+  // con la sua scheda completa. In una PR successiva potrebbe esserci una
+  // pagina dedicata "fractional product detail" con storico voti completo.
+  showTab('mkt');
+  setTimeout(function(){
+    if(typeof openProductDetail === 'function'){
+      try { openProductDetail(productId); } catch(e){}
+    }
+  }, 150);
+}
+
+// ─── MODAL DI VOTO ────────────────────────────────────────────────
+
+async function fvoteOpenForProduct(productId, readOnly){
+  var holding = _fracHoldings.find(function(h){ return h.product_id === productId && h.active_vote_id; });
+  if(!holding){
+    showToast('Voto non disponibile per questo prodotto', 'err');
+    return;
+  }
+  return fvoteOpen(holding.active_vote_id, productId, readOnly === true);
+}
+
+async function fvoteOpen(voteId, productId, readOnly){
+  var bg = document.getElementById('fvoteBg');
+  if(!bg) return;
+  bg.classList.add('show');
+
+  // Reset
+  ['Sell','Postpone','Abstain'].forEach(function(k){
+    var el = document.getElementById('fvoteOp'+k);
+    if(el){ el.classList.remove('checked'); el.style.opacity = readOnly ? '0.6' : '1'; el.style.cursor = readOnly ? 'default' : 'pointer'; }
+  });
+  setText('fvoteMsg', '');
+  document.getElementById('fvoteConfirmBtn').disabled = true;
+  document.getElementById('fvoteConfirmBtn').style.display = readOnly ? 'none' : '';
+
+  _fvoteState = {
+    vote_id: voteId,
+    product_id: productId,
+    ballot: null,
+    readOnly: readOnly === true,
+  };
+
+  try{
+    // Fetch il vote completo
+    var vRows = await supa('GET', 'inv_fractional_votes?id=eq.'+voteId+'&select=*');
+    var vote = vRows && vRows[0];
+    if(!vote){ ctrFvoteShowErr('Voto non trovato'); return; }
+
+    // Fetch il prodotto per total_quotes + name
+    var pRows = await supa('GET', 'inv_products?id=eq.'+productId+'&select=name,total_quotes,fractional_target_price_eur');
+    var product = pRows && pRows[0];
+
+    // Le mie quote
+    var holding = _fracHoldings.find(function(h){ return h.product_id === productId; });
+    var myQuotes = holding ? holding.quotes_held : 0;
+
+    // Popola UI
+    setText('fvoteTitle', 'Voto exit window · ' + (product ? product.name : 'Prodotto'));
+    setText('fvoteSub', 'Sei chiamato a esprimere la tua posizione sulla vendita del bene. Il tuo voto pesa in proporzione alle quote possedute.');
+    setText('fvoteProductName', product ? product.name : '—');
+    setText('fvoteRound', 'Round ' + (vote.round_number || 1));
+    setText('fvoteMyQuotes', myQuotes);
+    setText('fvoteTotalQuotes', vote.total_eligible_quotes || (product && product.total_quotes) || '—');
+    var closesIso = vote.closes_at;
+    if(closesIso){
+      var d = new Date(closesIso);
+      setText('fvoteClosesAt', d.toLocaleString('it-IT', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) + ' (' + fmtRelativeTime(closesIso) + ')');
+    }
+
+    // Live stats
+    fvoteRenderLiveStats(vote);
+
+    // Se l'utente ha già votato, evidenzia
+    if(holding && holding.my_ballot){
+      var idMap = { 'sell':'fvoteOpSell', 'postpone':'fvoteOpPostpone', 'abstain':'fvoteOpAbstain' };
+      var el = document.getElementById(idMap[holding.my_ballot]);
+      if(el) el.classList.add('checked');
+    }
+  }catch(e){
+    setText('fvoteMsg', 'Errore caricamento: ' + (e.message||e));
+    document.getElementById('fvoteMsg').classList.add('err');
+  }
+}
+
+function fvoteRenderLiveStats(vote){
+  var el = document.getElementById('fvoteLiveContent');
+  if(!el || !vote) return;
+  var total = Number(vote.total_eligible_quotes) || 0;
+  var qSell = Number(vote.votes_sell_quotes) || 0;
+  var qPost = Number(vote.votes_no_quotes) || 0;
+  var qAbst = Number(vote.votes_abstain_quotes) || 0;
+  var cast  = qSell + qPost + qAbst;
+  var sellPct = total > 0 ? (qSell / total) * 100 : 0;
+  var thresholdQuotes = Math.ceil(total * 0.6667);
+  el.innerHTML = ''
+    + 'Voti espressi: <span class="mono" style="color:var(--text)">' + cast + ' / ' + total + '</span> quote totali'
+    + ' &middot; <span class="mono" style="color:var(--success,#3fb950)">' + qSell + ' favorevoli alla vendita</span>'
+    + ' (' + sellPct.toFixed(2).replace('.', ',') + '% · soglia: ' + thresholdQuotes + ' quote = 66,67%)'
+    + '<div class="frac-vote-bar"><div class="frac-vote-bar-fill" style="width:' + Math.min(100, (qSell / Math.max(thresholdQuotes,1)) * 100).toFixed(1) + '%"></div></div>';
+}
+
+function fvoteSelectBallot(ballot){
+  if(!_fvoteState || _fvoteState.readOnly) return;
+  if(['sell','postpone','abstain'].indexOf(ballot) === -1) return;
+  _fvoteState.ballot = ballot;
+  var idMap = { 'sell':'fvoteOpSell', 'postpone':'fvoteOpPostpone', 'abstain':'fvoteOpAbstain' };
+  Object.keys(idMap).forEach(function(k){
+    var el = document.getElementById(idMap[k]);
+    if(el) el.classList.toggle('checked', k === ballot);
+  });
+  document.getElementById('fvoteConfirmBtn').disabled = false;
+  setText('fvoteMsg', '');
+}
+
+function fvoteClose(){
+  var bg = document.getElementById('fvoteBg');
+  if(bg) bg.classList.remove('show');
+  _fvoteState = null;
+}
+
+async function fvoteConfirm(){
+  if(!_fvoteState || _fvoteState.readOnly) return;
+  if(!_fvoteState.ballot){
+    setText('fvoteMsg', 'Seleziona un\'opzione di voto.');
+    document.getElementById('fvoteMsg').classList.add('err');
+    return;
+  }
+
+  if(!confirm('Confermi il tuo voto "' + (_fvoteState.ballot === 'sell' ? 'Vendi' : _fvoteState.ballot === 'postpone' ? 'Rinvia' : 'Astensione') + '"?\n\nIl voto è IMMUTABILE una volta espresso.')) return;
+
+  var btn = document.getElementById('fvoteConfirmBtn');
+  btn.disabled = true; btn.textContent = 'Invio voto...';
+
+  try{
+    var r = await fetch(SUPA_URL+'/functions/v1/fractional-vote-cast', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'apikey':SUPA_KEY, 'Authorization':'Bearer '+_session.access_token },
+      body: JSON.stringify({
+        vote_id: _fvoteState.vote_id,
+        ballot:  _fvoteState.ballot,
+      })
+    });
+    var data = await r.json().catch(function(){ return {}; });
+    if(r.status === 200 && data.ok){
+      showToast('Voto registrato. Le tue ' + data.quotes_held + ' quote sono state pesate.', 'ok');
+      fvoteClose();
+      // Refresh list per aggiornare il banner e my_ballot
+      fracPortLoad();
+    } else {
+      var em = data.error === 'already_voted' ? ('Hai già votato in questo round (' + data.existing_ballot + ')')
+             : data.error === 'vote_window_expired' ? 'La finestra di voto è scaduta'
+             : data.error === 'vote_already_closed' ? 'Il voto è stato chiuso'
+             : data.error === 'not_eligible' ? 'Non possiedi quote di questo prodotto'
+             : (data.error || 'errore_sconosciuto') + (data.detail ? ' — ' + data.detail : '');
+      setText('fvoteMsg', 'Errore: ' + em);
+      document.getElementById('fvoteMsg').classList.add('err');
+      btn.disabled = false; btn.textContent = 'Esprimi voto';
+    }
+  }catch(e){
+    setText('fvoteMsg', 'Errore di rete: ' + (e.message||e));
+    document.getElementById('fvoteMsg').classList.add('err');
+    btn.disabled = false; btn.textContent = 'Esprimi voto';
   }
 }
 
