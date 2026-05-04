@@ -1,9 +1,19 @@
 # RareBlock — Progettazione Contratti & Firma OTP
 
-**Versione:** 0.3 (decisioni 0-16 recepite eccetto B1-B5)
+**Versione:** 0.4 (Modalità B chiusa salvo dettaglio B4 e B6)
 **Autore:** Claude (assistente sviluppo)
 **Data:** 04 maggio 2026
-**Stato:** ⏳ aperte solo le sub-decisioni B1-B5 sulla Modalità B (contratto quote)
+**Stato:** ⏳ aperti solo: chiarimento B4.a vs B4.b + conferma questionario consapevolezza B6
+
+## Cambiamenti v0.3 → v0.4
+- ✅ B1: comunicazione marketing = **co-titolarità di un bene da collezione** (no linguaggio "investimento con rendimento")
+- ✅ B2: **nessuna promessa di rendimento** — solo dichiarazione di volatilità
+- ✅ B3: liquidazione decisa dai **comproprietari a maggioranza qualificata** (RareBlock = solo amministratore)
+- ⏳ B4: presumo **B4.a (preemption right)** in linea con prassi club privati — da confermare
+- ✅ B5: **club privato chiuso a numero chiuso** (criteri di ammissione gestiti da admin)
+- ⏳ B6: proposto **questionario light di consapevolezza** (3 spunte: co-titolarità, volatilità, illiquidità) — da confermare
+
+**Risultato giuridico**: Modalità B configurata come comproprietà ex art. 1100 c.c. + mandato di amministrazione e custodia ex artt. 1105-1106 c.c. → **fuori dal perimetro CONSOB/TUF**, scrivibile come contratto privato senza autorizzazioni.
 
 ## Cambiamenti v0.2 → v0.3
 - ✅ Q5: mandato vendor **esclusivo**
@@ -518,12 +528,70 @@ Questo permette di scrivere un contratto pulito di **comproprietà di bene da co
 
 Se anche solo uno tra B2.b/c, B3.b/c, B4.c viene scelto, **mi fermo e ti dico chiaramente che il contratto B non lo posso scrivere senza un parere legale di un avvocato regolamentare CONSOB** — non è competenza tecnica di un assistente di sviluppo, è materia da Studio Legale specializzato.
 
-### Documenti aggiuntivi richiesti per B5.a (investitori qualificati)
+### Configurazione ADOTTATA
 
-Se confermi B5.a, va aggiunto al flusso KYC un **questionario di profilazione MiFID-like** anche se non siamo MiFID, per documentare la qualifica di "investitore qualificato" autodichiarato:
-- Patrimonio finanziario > €500.000
-- Esperienza di investimento ≥ 2 anni
-- Comprensione dei rischi di illiquidità
+L'utente ha selezionato la **configurazione safe completa**:
+
+| Sub-decisione | Scelta | Effetto giuridico |
+|---|---|---|
+| **B1.a** | Co-titolarità di un bene da collezione | No qualificazione "investimento" |
+| **B2.a** | Nessuna promessa di rendimento | Manca condizione (4) per OICR |
+| **B3.a** | Liquidazione = maggioranza qualificata comproprietari | Manca condizione (2) "in autonomia da essi" |
+| **B4.a** | Preemption right (presunto, in conferma) | Comproprietà ex art. 1100, exit ordinata |
+| **B5.c** | Club privato a numero chiuso | Esenzione obbligo prospetto art. 100 TUF |
+| **B6** | Questionario light 3 spunte (in conferma) | Documenta consapevolezza del quotista |
+
+Il contratto B `BUYER_FRACTIONAL_CUSTODY_V1` può quindi essere scritto come:
+
+> **"Compravendita di quota indivisa di bene da collezione ex art. 1100 c.c. + mandato di amministrazione e custodia alla società RareBlock ex artt. 1105-1106 c.c."**
+
+Senza richiedere autorizzazioni CONSOB, registrazione AIF, gestore autorizzato, o prospetto. La **revisione legale** del testo finale resta comunque obbligatoria prima del go-live.
+
+### Clausole specifiche del contratto B (in aggiunta allo skeleton §3.3)
+
+```
+ART. 4ter — PATTO DI COMUNIONE
+  4ter.1 Maggioranza qualificata per atti di straordinaria amministrazione
+         e per la vendita del Bene intero: 75% del valore complessivo
+         delle quote (non delle teste — riferimento ex art. 1108 c.c.)
+  4ter.2 Atti di ordinaria amministrazione (custodia, assicurazione,
+         manutenzione): delegati a RareBlock come amministratore
+  4ter.3 Convocazione assemblea dei comproprietari: via piattaforma
+         con preavviso 15 giorni, possibilità di voto digitale
+  4ter.4 RareBlock NON ha diritto di voto, agisce solo come gestore esecutore
+         delle delibere della comunione
+
+ART. 6ter — DIRITTO DI PRELAZIONE E RITIRO FISICO (B4.a)
+  6ter.1 Diritto di prelazione: ogni comproprietario ha diritto
+         di prelazione sull'acquisto delle quote messe in vendita
+         da altri comproprietari, in proporzione alle quote possedute
+  6ter.2 Esercizio della prelazione: 30 giorni dalla notifica
+         della messa in vendita su marketplace
+  6ter.3 Ritiro fisico del Bene: consentito solo al comproprietario
+         che acquisisce il 100% delle quote (consolidamento totale).
+         A consolidamento avvenuto, applica art. 6 contratto Modalità A
+  6ter.4 Scioglimento volontario della comunione: ammesso solo con
+         delibera al 75% delle quote (art. 4ter.1)
+
+ART. 5ter — KYC AGGRAVATO PER QUOTE (B6)
+  5ter.1 L'Acquirente di quote deve sottoscrivere autocertificazione
+         di consapevolezza con tre dichiarazioni espresse:
+         (a) "Comprendo che acquisto una co-titolarità di un bene
+              da collezione, non un prodotto finanziario"
+         (b) "Accetto la volatilità del valore di mercato del Bene"
+         (c) "Accetto l'illiquidità della mia quota, esigibile solo
+              tramite marketplace P2P o consolidamento totale"
+  5ter.2 La sottoscrizione è registrata nel `kyc_quote_acknowledgments`
+         con timestamp e legata al contratto B specifico
+
+ART. 12ter — AMMISSIONE AL CLUB (B5.c)
+  12ter.1 L'accesso alla Modalità B è riservato ai membri del Club RareBlock
+  12ter.2 Criteri di ammissione: definiti unilateralmente da RareBlock,
+          basati su patrimonio dichiarato e/o invito di membro esistente
+  12ter.3 RareBlock può rifiutare l'ammissione senza motivazione
+  12ter.4 Numero chiuso: limite massimo membri attivi definito
+          nei platform_settings (`club_max_members`)
+```
 
 ---
 
@@ -1020,6 +1088,71 @@ LEFT JOIN inv_vendors v ON v.id = p.vendor_id
 LEFT JOIN custody_fee_tiers t ON t.code = p.custody_tier_code;
 
 GRANT SELECT ON v_product_pricing TO authenticated;
+
+-- Migration 037_club_and_quote_kyc.sql (per Modalità B)
+-- Membership al club privato chiuso (B5.c)
+CREATE TABLE IF NOT EXISTS club_membership (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID UNIQUE NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending','active','suspended','revoked')),
+  invited_by UUID REFERENCES auth.users(id),
+  admission_notes TEXT,                     -- note admin sui criteri di ammissione
+  net_worth_band TEXT,                      -- '<500k' | '500k-1M' | '1M-5M' | '5M+'
+  admitted_at TIMESTAMPTZ,
+  admitted_by UUID REFERENCES auth.users(id),
+  revoked_at TIMESTAMPTZ,
+  revoke_reason TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX ON club_membership (status);
+
+ALTER TABLE club_membership ENABLE ROW LEVEL SECURITY;
+CREATE POLICY club_self_read ON club_membership FOR SELECT TO authenticated
+  USING (user_id = auth.uid());
+CREATE POLICY club_admin_all ON club_membership FOR ALL TO authenticated
+  USING (EXISTS (SELECT 1 FROM profiles WHERE id=auth.uid() AND role='admin'))
+  WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE id=auth.uid() AND role='admin'));
+
+-- Setting per cap massimo membri (modificabile da admin)
+INSERT INTO platform_settings (key, value, description, category) VALUES
+  ('club_max_members', '100', 'Numero massimo membri attivi del Club RareBlock', 'commercial')
+ON CONFLICT (key) DO NOTHING;
+
+-- Helper: posti disponibili
+CREATE OR REPLACE FUNCTION club_seats_available()
+RETURNS INT LANGUAGE sql STABLE AS $$
+  SELECT GREATEST(0,
+    (SELECT (value::TEXT)::INT FROM platform_settings WHERE key='club_max_members')
+    - (SELECT COUNT(*) FROM club_membership WHERE status='active')
+  );
+$$;
+
+-- KYC acknowledgments per quote (B6 — 3 spunte obbligatorie)
+CREATE TABLE IF NOT EXISTS kyc_quote_acknowledgments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  contract_id UUID REFERENCES contracts(id),  -- legato al contratto B specifico
+  ack_co_titolarita BOOLEAN NOT NULL,
+  ack_volatilita BOOLEAN NOT NULL,
+  ack_illiquidita BOOLEAN NOT NULL,
+  ack_text_version INT NOT NULL,              -- versione del testo dichiarazione
+  signed_at TIMESTAMPTZ DEFAULT now(),
+  ip INET,
+  user_agent TEXT,
+  CONSTRAINT all_three_required
+    CHECK (ack_co_titolarita AND ack_volatilita AND ack_illiquidita)
+);
+
+CREATE INDEX ON kyc_quote_acknowledgments (user_id, signed_at DESC);
+
+ALTER TABLE kyc_quote_acknowledgments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY ack_self ON kyc_quote_acknowledgments FOR SELECT TO authenticated
+  USING (user_id = auth.uid());
+CREATE POLICY ack_admin ON kyc_quote_acknowledgments FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM profiles WHERE id=auth.uid() AND role='admin'));
+-- Insert solo via Edge Function autenticata, no UPDATE/DELETE per integrità
 ```
 
 ### 6.2 Edge Functions Supabase (Deno)
@@ -1090,45 +1223,33 @@ In `rareblock-admin-users.html` (esistente) aggiungere tab:
 
 ## 8. Decisioni — stato attuale
 
-### 8.1 Decisioni CHIUSE (recepite in v0.3)
+### 8.1 Decisioni CHIUSE (recepite in v0.4)
+
+**Decisioni di prodotto (Q0-Q16):** tutte chiuse — vedi v0.3.
+
+**Sub-decisioni Modalità B (B1-B5):**
 
 | # | Decisione | Risposta | Impatto |
 |---|---|---|---|
-| Q0 | File hosting | Nuovo file `rareblock-contracts.html` + tab admin | UI utente isolata, admin integrato |
-| Q1 | Modalità A+B al go-live | Sì — ma B richiede sub-decisioni B1-B5 | Critico — vedi §4 |
-| Q2 | Spese grading | A carico RareBlock | Art. 4 contratto vendor |
-| Q3 | Commissione vendor | Default + override vendor + override Bene | Migration 036, view `v_product_pricing` |
-| Q4 | Custodia | Tariffario per fascia + override | Migration 036, `custody_fee_tiers` |
-| Q5 | Esclusività vendor | Esclusiva | Art. 5.3 contratto vendor |
-| Q6 | Campi anagrafica | Confermati §1.1 e §1.2 | Migration 033 |
-| Q7 | Documenti d'identità | CI / Patente / Passaporto tutti accettati | Enum `id_doc_type` |
-| Q8 | Soglia KYC L3 | €15.000/12m (default 231) | Trigger automatico per upgrade KYC |
-| Q9 | Provider messaggistica | Twilio + WhatsApp Business via Meta + fallback SMS | Vedi §5.4 |
-| Q10 | Notarizzazione on-chain | Inclusa al go-live | Vedi §5.5, smart contract Base |
-| Q11 | Dati societari | In `platform_settings`, modificabili da admin con audit | Migration 036, tab admin |
-| Q12 | Foro competente | Tribunale di Messina (con riserva consumatore) | Art. 16 + 14 |
-| Q13 | Avvocato | Via libera dato all'impianto | Vedi §10 validazione |
-| Q14 | Privacy/Cookie/FEA | Da redigere ex novo come allegati standard | Modulo template, fase F3 |
-| Q15 | Polizza | In `platform_settings`, modificabile da admin | Migration 036, placeholder dinamici |
-| Q16 | Liability cap | Massimale assicurativo + limite ex art. 1229 c.c. | Art. 11 buyer / Art. 8 vendor |
+| B1 | Comunicazione marketing | Co-titolarità di un bene da collezione | Linguaggio del contratto e del marketing |
+| B2 | Promessa di rendimento | Nessuna | Manca condizione (4) per OICR |
+| B3 | Liquidazione bene intero | Comproprietari a maggioranza qualificata 75% | Manca condizione (2) "in autonomia" |
+| B5 | Pubblico target | Club privato a numero chiuso | Esenzione prospetto + tabella `club_membership` |
 
-### 8.2 Decisioni APERTE — Modalità B (BLOCCANTI per contratto B)
+### 8.2 Decisioni APERTE (micro-conferme finali)
 
-Le ho dettagliate in §4. Ricapitolo qui per comodità:
+- [ ] **B4.** Diritto di ritiro fisico del quotista:
+  - **B4.a** Preemption right (acquisto totalitario obbligato per ritiro) — *proposto come default*
+  - B4.b Scioglimento ex art. 1111 c.c. unilaterale
+  Conferma B4.a oppure dimmi B4.b.
 
-- [ ] **B1.** Comunicazione marketing del prodotto quote → a (co-titolarità) / b (asset class) / c (rendimento)
-- [ ] **B2.** Promessa di rendimento → a (no) / b (target non garantito) / c (garantito)
-- [ ] **B3.** Chi decide la liquidazione del bene intero → a (comproprietari) / b (RareBlock) / c (scadenza forzata)
-- [ ] **B4.** Diritto di ritiro fisico per il quotista → a (con preemption) / b (scioglimento ex 1111) / c (escluso)
-- [ ] **B5.** Pubblico target → a (qualificati) / b (pubblico generale) / c (club privato)
-- [ ] **B6.** Se B5.a: vuoi inserire questionario MiFID-like in KYC?
+- [ ] **B6.** Questionario consapevolezza per quotisti (3 spunte obbligatorie):
+  - "Comprendo che si tratta di co-titolarità, non investimento finanziario"
+  - "Accetto la volatilità del valore di mercato"
+  - "Accetto l'illiquidità della quota"
+  Conferma sì/no.
 
-**Configurazione "safe" raccomandata per restare fuori dal perimetro CONSOB:**
-B1.a + B2.a + B3.a + B4.a (o B4.b) + B5.a (o B5.c)
-
-Ogni deviazione dalla configurazione safe richiede **parere di avvocato regolamentare CONSOB specifico** prima della scrittura del contratto.
-
----
+Nessun'altra decisione di prodotto rimane aperta. La revisione legale del Markdown finale dei contratti resta come step PRE-PRODUZIONE (vedi §9).
 
 ## 9. Validazione legale
 
@@ -1183,6 +1304,8 @@ Prima di andare in produzione con le firme: PR6 produce template DRAFT non attiv
 
 ---
 
-**Fine documento — in attesa di:**
-- Decisioni B1-B5 sulla Modalità B
+**Fine documento — design CHIUSO al netto di:**
+- Conferma B4 (preemption vs scioglimento) e B6 (questionario consapevolezza) — micro
 - Approvazione di partenza con PR1
+
+Il design è considerato sufficientemente stabile per iniziare l'implementazione di PR1, PR2 e PR3 (che non dipendono dai dettagli B4/B6).
