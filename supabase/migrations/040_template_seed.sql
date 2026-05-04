@@ -480,7 +480,7 @@ c) **Titolarità piena** del diritto di vendere, libero da pegni o privative.
 
 ## ART. 10 — RIVENDITA SUL MARKETPLACE
 
-10.1 L'Acquirente può rivendere il Bene sul Marketplace di RareBlock, accettando i termini di servizio dello stesso (link {{counterparty.company_email}}/marketplace-tos).
+10.1 L'Acquirente può rivendere il Bene sul Marketplace di RareBlock, accettando i termini di servizio del Marketplace pubblicati sul sito ufficiale di RareBlock e disponibili anche su richiesta a {{counterparty.company_email}}.
 
 10.2 Le fee di marketplace (buyer's premium e seller's commission) sono trasparenti al momento della messa in vendita.
 

@@ -84,25 +84,63 @@ async function sha256OfBytes(bytes: Uint8Array): Promise<string> {
 
 
 // ═════════════════════════════════════════════════════════════════════════════
-// Template engine: sostituisce {{key}} con il valore corrispondente
+// Template engine: sostituisce {{key}} con il valore corrispondente.
+// Supporta modificatori inline:
+//   {{key | money}}  → 50000 → "50.000,00"
+//   {{key | int}}    → 50000 → "50.000"
+//   {{key | upper}}  → "abc" → "ABC"
+//
+// Inoltre, alcune chiavi vengono auto-formattate quando matchano pattern noti
+// (insurance_*, *_eur, amount_*, *_max_* etc) → nessuna necessità di toccare
+// i template MD per ottenere formattazione decente fuori dal box.
 // ═════════════════════════════════════════════════════════════════════════════
+
+function fmtMoney(v: any): string {
+  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.'));
+  if (!isFinite(n)) return String(v);
+  return n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtInt(v: any): string {
+  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.-]/g, ''));
+  if (!isFinite(n)) return String(v);
+  return Math.round(n).toLocaleString('it-IT');
+}
+
+// Pattern di chiavi che riceveranno auto-formattazione monetaria
+const AUTO_MONEY_RE = /(amount_eur|price_eur|fee_eur|insurance_max_per_item|insurance_max_aggregate|insurance_deductible|company_capital)$/i;
+const AUTO_INT_RE   = /(_days|_years|grace_days|qty)$/i;
+
+function autoFormat(keyPath: string, val: any): string {
+  if (val == null || val === '') return '';
+  const last = keyPath.split('.').pop() || keyPath;
+  if (AUTO_MONEY_RE.test(last)) return fmtMoney(val);
+  if (AUTO_INT_RE.test(last))   return fmtInt(val);
+  return String(val);
+}
+
 function renderTemplate(md: string, data: Record<string, unknown>): {
   rendered: string;
   missing: string[];
 } {
   const missing: string[] = [];
-  const seen = new Set<string>();
 
-  // Match {{key.path}} (alphanum + dots/underscores)
-  const result = md.replace(/\{\{\s*([a-zA-Z][a-zA-Z0-9_.]*)\s*\}\}/g, (_full, key) => {
-    seen.add(key);
-    const val = getDeep(data, key);
-    if (val === undefined || val === null || val === '') {
-      missing.push(key);
-      return `[[MISSING:${key}]]`;
+  // Match {{key.path}} oppure {{key.path | filter}}
+  const result = md.replace(
+    /\{\{\s*([a-zA-Z][a-zA-Z0-9_.]*)\s*(?:\|\s*([a-zA-Z]+)\s*)?\}\}/g,
+    (_full, key, filter) => {
+      const val = getDeep(data, key);
+      if (val === undefined || val === null || val === '') {
+        missing.push(key);
+        return `[[MISSING:${key}]]`;
+      }
+      // Filter esplicito ha priorità
+      if (filter === 'money') return fmtMoney(val);
+      if (filter === 'int')   return fmtInt(val);
+      if (filter === 'upper') return String(val).toUpperCase();
+      // Auto-format basato sul nome della chiave
+      return autoFormat(key, val);
     }
-    return String(val);
-  });
+  );
 
   return { rendered: result, missing: [...new Set(missing)] };
 }
@@ -137,9 +175,9 @@ const MARGIN_TOP = 64;
 const MARGIN_BOTTOM = 64;
 const LINE_H = 14;
 const FONT_BODY  = 10.5;
-const FONT_H1    = 18;
-const FONT_H2    = 14;
-const FONT_H3    = 12;
+const FONT_H1    = 15;   // Era 18 — con NotoSerif Bold + uppercase rischia overflow
+const FONT_H2    = 13;
+const FONT_H3    = 11.5;
 
 async function renderPdf(opts: {
   title:          string;
@@ -267,15 +305,21 @@ function applyFooters(ctx: RenderContext) {
 }
 
 function drawTitle(ctx: RenderContext, title: string, size = FONT_H1) {
-  ensureSpace(ctx, size + 16);
-  ctx.page.drawText(title, {
-    x: MARGIN_X,
-    y: ctx.y - size,
-    size,
-    font: ctx.fonts.title,
-    color: rgb(0.15, 0.15, 0.15),
-  });
-  ctx.y -= size + 14;
+  const maxW = PAGE_W - 2 * MARGIN_X;
+  const wrapped = wrapText(title, ctx.fonts.title, size, maxW);
+  ensureSpace(ctx, wrapped.length * (size + 4) + 16);
+  for (const line of wrapped) {
+    ensureSpace(ctx, size + 4);
+    ctx.page.drawText(line, {
+      x: MARGIN_X,
+      y: ctx.y - size,
+      size,
+      font: ctx.fonts.title,
+      color: rgb(0.15, 0.15, 0.15),
+    });
+    ctx.y -= size + 4;
+  }
+  ctx.y -= 10;
 }
 
 function newPage(ctx: RenderContext) {
@@ -360,16 +404,24 @@ function renderMd(ctx: RenderContext, md: string) {
 }
 
 function renderHeading(ctx: RenderContext, text: string, size: number) {
-  ensureSpace(ctx, size + 12);
+  const maxW = PAGE_W - 2 * MARGIN_X;
+  // Word-wrap dei titoli: serif bold a 16pt+ può facilmente sforare margine.
+  const wrapped = wrapText(stripFormat(text), ctx.fonts.title, size, maxW);
+  const totalH = wrapped.length * (size + 4) + 12;
+  ensureSpace(ctx, totalH);
   ctx.y -= 6;  // top spacing
-  ctx.page.drawText(stripFormat(text), {
-    x: MARGIN_X,
-    y: ctx.y - size,
-    size,
-    font: ctx.fonts.title,
-    color: rgb(0.15, 0.15, 0.15),
-  });
-  ctx.y -= size + 8;
+  for (const line of wrapped) {
+    ensureSpace(ctx, size + 4);
+    ctx.page.drawText(line, {
+      x: MARGIN_X,
+      y: ctx.y - size,
+      size,
+      font: ctx.fonts.title,
+      color: rgb(0.15, 0.15, 0.15),
+    });
+    ctx.y -= size + 4;
+  }
+  ctx.y -= 6;  // bottom spacing
 }
 
 function renderListItem(ctx: RenderContext, bullet: string, text: string, maxW: number) {
