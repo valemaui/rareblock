@@ -1046,7 +1046,16 @@ async function saveSection(section){
   if(btn) btn.disabled = false;
 
   if(errors.length>0){
-    toast('Salvataggio parziale: '+ok+' ok, '+errors.length+' errori. '+errors[0], 'err');
+    var firstErr = errors[0];
+    // Estrae il messaggio Postgres se presente
+    var pgMsg = '';
+    try{
+      var m = firstErr.match(/\{.*\}/);
+      if(m){ var j = JSON.parse(m[0]); pgMsg = j.message || ''; }
+    }catch(e){}
+    toast('Salvataggio parziale: '+ok+' ok, '+errors.length+' errori. '+(pgMsg||firstErr).slice(0,140), 'err');
+    var status = document.getElementById(section+'Status');
+    if(status){ status.classList.remove('saved'); status.classList.add('dirty'); status.textContent = ok+' salvati, '+errors.length+' errori'; }
   } else if(ok>0){
     toast('Salvate '+ok+' modifiche', 'ok');
     var status = document.getElementById(section+'Status');
