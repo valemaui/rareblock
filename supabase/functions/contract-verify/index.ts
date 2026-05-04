@@ -77,9 +77,15 @@ Deno.serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
     const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
     // Usa l'anon client: le funzioni notarize_lookup_* sono GRANT EXECUTE TO anon.
     const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // Service-role usato SOLO per il fallback "contratto firmato ma non
+    // notarizzato": serve per bypassare RLS su `contracts`. La response
+    // espone solo dati pseudonimizzati (numero contratto, status, hash, data),
+    // mai PII delle parti — coerente con il principio di verifica pubblica.
+    const sbAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     let serial: string | null = null;
     let sha256: string | null = null;
@@ -134,6 +140,32 @@ Deno.serve(async (req) => {
     }
 
     if (!row) {
+      // Caso intermedio: il serial è in input ma non c'è notarizzazione.
+      // Controlliamo se almeno il CONTRATTO esiste ed è firmato — in quel
+      // caso la firma FEA è valida (eIDAS art. 26) ma manca solo l'ancoraggio
+      // on-chain. È diverso dal serial completamente sconosciuto.
+      if (serial) {
+        const { data: contractRow } = await sbAdmin
+          .from('contracts')
+          .select('contract_number, status, signed_at, pdf_signed_sha256')
+          .eq('contract_number', serial)
+          .in('status', ['signed','revoked'])
+          .maybeSingle();
+        if (contractRow) {
+          return json({
+            ok:               true,
+            found:            false,
+            signed_but_not_notarized: true,
+            contract_serial:  contractRow.contract_number,
+            status:           contractRow.status,
+            signed_at:        contractRow.signed_at,
+            pdf_sha256:       contractRow.pdf_signed_sha256,
+            message:          contractRow.status === 'revoked'
+              ? 'Il contratto esiste ma è stato revocato.'
+              : 'Il contratto è firmato e valido come Firma Elettronica Avanzata (eIDAS art. 26 + CAD art. 20). L\'ancoraggio on-chain non è stato eseguito o non è ancora pervenuto: la firma resta legalmente valida.',
+          }, 200);
+        }
+      }
       return json({
         ok: false,
         found: false,

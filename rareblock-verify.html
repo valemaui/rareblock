@@ -162,6 +162,7 @@ main{flex:1;padding:48px 24px;max-width:880px;width:100%;margin:0 auto}
 .res-banner.ok{background:var(--success-soft);border:1px solid rgba(63,185,80,.4)}
 .res-banner.err{background:var(--danger-soft);border:1px solid rgba(248,81,73,.4)}
 .res-banner.warn{background:var(--warning-soft);border:1px solid rgba(210,153,34,.4)}
+.res-banner.info{background:rgba(88,166,255,.08);border:1px solid rgba(88,166,255,.4)}
 .res-icon{
   font-size:24px;width:42px;height:42px;
   border-radius:50%;display:flex;align-items:center;justify-content:center;
@@ -170,6 +171,7 @@ main{flex:1;padding:48px 24px;max-width:880px;width:100%;margin:0 auto}
 .res-banner.ok .res-icon{background:var(--success);color:var(--bg)}
 .res-banner.err .res-icon{background:var(--danger);color:var(--bg)}
 .res-banner.warn .res-icon{background:var(--warning);color:var(--bg)}
+.res-banner.info .res-icon{background:#58a6ff;color:var(--bg)}
 .res-text{flex:1;min-width:0}
 .res-title{font-size:15px;font-weight:600;margin-bottom:3px}
 .res-sub{font-size:12.5px;color:var(--text-muted)}
@@ -456,6 +458,36 @@ function renderResult(body){
     renderError(body && body.error ? body.error : 'Risposta non valida');
     return;
   }
+
+  // Caso intermedio: contratto firmato ma non notarizzato on-chain.
+  // FEA valida (eIDAS art. 26 + CAD art. 20), ma manca solo l'ancoraggio
+  // immutabile sulla blockchain. Distinguibile da contratto inesistente.
+  if (body.signed_but_not_notarized) {
+    const isRevoked = body.status === 'revoked';
+    const signedAt = body.signed_at ? new Date(body.signed_at).toLocaleString('it-IT', {
+      day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit',
+    }) : '—';
+    const sha = body.pdf_sha256 || '—';
+    const shaShort = sha.length > 22 ? sha.slice(0,12)+'...'+sha.slice(-8) : sha;
+    el.innerHTML = `
+      <div class="res-banner ${isRevoked ? 'err' : 'info'}">
+        <div class="res-icon">${isRevoked ? '✕' : 'i'}</div>
+        <div class="res-text">
+          <div class="res-title">${isRevoked ? 'Contratto revocato' : 'Firmato — non ancora notarizzato on-chain'}</div>
+          <div class="res-sub">${esc(body.message || '')}</div>
+        </div>
+      </div>
+      <div class="res-table" style="margin-top:14px">
+        <div class="res-row"><div class="res-label">Numero contratto</div><div class="res-value">${esc(body.contract_serial)}</div></div>
+        <div class="res-row"><div class="res-label">Stato</div><div class="res-value">${esc(body.status)}</div></div>
+        <div class="res-row"><div class="res-label">Firmato il</div><div class="res-value">${esc(signedAt)}</div></div>
+        <div class="res-row"><div class="res-label">SHA-256 documento</div><div class="res-value mono" title="${esc(sha)}">${esc(shaShort)}<button class="copy" onclick="copy('${esc(sha)}')">Copia</button></div></div>
+      </div>
+    `;
+    el.classList.add('show');
+    return;
+  }
+
   if(!body.found){
     let extra = '';
     if(body._uploaded_filename){

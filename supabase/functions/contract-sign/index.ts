@@ -543,7 +543,14 @@ Deno.serve(async (req) => {
           user_id:         user.id,
         }),
       });
-      notarizationResult = await notarRes.json().catch(() => ({}));
+      const notarText = await notarRes.text();
+      try {
+        notarizationResult = JSON.parse(notarText);
+      } catch {
+        notarizationResult = { error: 'notarize_unparseable_response', detail: notarText.slice(0, 200), http_status: notarRes.status };
+      }
+      // Aggiungi status HTTP per debug
+      if (!notarizationResult.http_status) notarizationResult.http_status = notarRes.status;
 
       if (notarizationResult?.ok && notarizationResult.notarization_id) {
         // Aggiorna contracts con notarization_id
@@ -592,7 +599,16 @@ Deno.serve(async (req) => {
             basescan_url: notarizationResult.basescan_url,
             status:       notarizationResult.status,
           }
-        : { ok: false, error: notarizationResult?.error || 'unknown', detail: notarizationResult?.detail || '' },
+        : {
+            ok:          false,
+            error:       notarizationResult?.error || 'unknown',
+            detail:      notarizationResult?.detail || '',
+            http_status: notarizationResult?.http_status,
+            // Messaggio user-friendly localizzato
+            user_message: (notarizationResult?.error === 'operator_not_configured')
+              ? 'Notarizzazione on-chain non eseguita: il wallet operator non è ancora configurato sul backend. Il contratto è comunque firmato e legalmente valido (FEA eIDAS art. 26 + CAD art. 20).'
+              : 'Notarizzazione on-chain non riuscita. Il contratto è comunque firmato e legalmente valido (FEA). Sarà possibile rifare la notarizzazione manualmente dal pannello admin.',
+          },
     });
 
   } catch (e: any) {
