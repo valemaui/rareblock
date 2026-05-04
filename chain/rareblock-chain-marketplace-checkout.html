@@ -1,0 +1,727 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RareBlock — Checkout</title>
+<meta name="description" content="Complete your RareBlock marketplace purchase.">
+<meta name="robots" content="noindex">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Figtree:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#0d1117; --bg-elev:#161b22; --bg-elev-2:#1c2128; --bg-elev-3:#22272e;
+  --border:#21262d; --border-soft:#1f242b;
+  --text:#e6edf3; --text-muted:#8b949e; --text-dim:#6e7681;
+  --gold:#c9a961; --gold-deep:#a8893f; --gold-soft:rgba(201,169,97,.10);
+  --green:#3fb950; --red:#f85149; --amber:#d29922;
+  --serif:'Fraunces','Times New Roman',Georgia,serif;
+  --sans:'Figtree',-apple-system,system-ui,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  --maxw:1100px;
+  --radius:8px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+         font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+::selection{background:var(--gold);color:var(--bg)}
+button{font-family:inherit}
+
+.page{max-width:var(--maxw);margin:0 auto;padding:32px 28px 96px}
+@media (max-width:640px){.page{padding:24px 16px 64px}}
+
+.rule{height:1px;background:var(--border);margin:24px 0}
+.rule-gold{height:1px;background:linear-gradient(90deg,transparent,var(--gold) 30%,var(--gold) 70%,transparent);margin:32px 0}
+
+/* ─── Topbar ─── */
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;
+        padding-bottom:24px;border-bottom:1px solid var(--border)}
+.brand{font-weight:700;font-size:13px;letter-spacing:.32em;color:var(--text)}
+.brand-sub{font-size:9px;letter-spacing:.22em;color:var(--text-muted);margin-top:2px}
+.back-link{font-size:12px;color:var(--text-muted)}
+.back-link:hover{color:var(--gold)}
+
+/* ─── Hero ─── */
+.hero{padding:24px 0 32px}
+.hero-eyebrow{font-size:10px;letter-spacing:.32em;color:var(--gold);text-transform:uppercase;margin-bottom:10px}
+.hero h1{font-family:var(--serif);font-style:italic;font-weight:300;font-size:42px;line-height:1.05;margin:0 0 8px;letter-spacing:-.012em}
+.hero p{color:var(--text-muted);max-width:560px;margin:0;font-size:15px}
+@media (max-width:640px){.hero h1{font-size:32px}}
+
+/* ─── Two-column layout ─── */
+.cols{display:grid;grid-template-columns:1.4fr 1fr;gap:28px;align-items:start}
+@media (max-width:840px){.cols{grid-template-columns:1fr}}
+
+.card{background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);padding:28px}
+.card h2{font-family:var(--serif);font-style:italic;font-weight:400;font-size:22px;margin:0 0 16px;letter-spacing:-.01em}
+.card .eyebrow{font-size:9px;letter-spacing:.3em;color:var(--gold);text-transform:uppercase;margin-bottom:6px}
+
+/* ─── Method tabs ─── */
+.methods{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
+.method-tab{padding:14px 16px;border:1px solid var(--border);border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:12px;background:var(--bg-elev-2);transition:all .15s}
+.method-tab:hover{border-color:var(--gold-deep)}
+.method-tab.active{border-color:var(--gold);background:var(--gold-soft)}
+.method-tab .radio{width:16px;height:16px;border:2px solid var(--text-dim);border-radius:50%;flex-shrink:0;position:relative}
+.method-tab.active .radio{border-color:var(--gold)}
+.method-tab.active .radio::after{content:"";position:absolute;inset:3px;background:var(--gold);border-radius:50%}
+.method-tab .info{flex:1}
+.method-tab .name{font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px}
+.method-tab .sub{font-size:12px;color:var(--text-muted)}
+.method-tab .total{text-align:right;font-family:var(--mono);font-size:13px;color:var(--text)}
+.method-tab .total .pct{font-size:10px;color:var(--text-muted);display:block;margin-top:2px}
+
+/* ─── Method body (varia per metodo) ─── */
+.method-body{margin-top:14px}
+
+.bank-instr{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:18px;font-family:var(--sans);font-size:13px;line-height:1.65;color:var(--text)}
+.bank-instr .row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border-soft)}
+.bank-instr .row:last-child{border-bottom:none}
+.bank-instr .lab{font-size:10px;letter-spacing:.18em;color:var(--text-muted);text-transform:uppercase}
+.bank-instr .val{font-family:var(--mono);font-size:13px;color:var(--text);text-align:right}
+.bank-instr .copy-btn{background:none;border:1px solid var(--border);color:var(--text-muted);padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer;margin-left:8px;font-family:var(--sans);letter-spacing:.06em;transition:all .15s}
+.bank-instr .copy-btn:hover{border-color:var(--gold);color:var(--gold)}
+.bank-instr .copy-btn.copied{border-color:var(--green);color:var(--green)}
+
+.stripe-wrap{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:16px;min-height:240px}
+.stripe-wrap.loading{display:flex;align-items:center;justify-content:center}
+
+.paypal-wrap{padding:16px;background:var(--bg);border:1px solid var(--border);border-radius:6px;text-align:center}
+.paypal-wrap .info{font-size:13px;color:var(--text-muted);margin-bottom:12px}
+
+/* ─── Order summary (right column) ─── */
+.summary{position:sticky;top:20px}
+.cert-row{display:grid;grid-template-columns:80px 1fr;gap:14px;align-items:start;margin-bottom:14px}
+.cert-thumb{aspect-ratio:5/7;background:var(--bg-elev-2);border:1px solid var(--gold);border-radius:4px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.cert-thumb img{width:100%;height:100%;object-fit:cover}
+.cert-thumb .placeholder{font-family:var(--serif);font-style:italic;font-size:9px;color:var(--text-dim);text-align:center;padding:4px}
+.cert-row .name{font-family:var(--serif);font-style:italic;font-weight:300;font-size:20px;line-height:1.15;margin:0 0 4px}
+.cert-row .meta{font-size:12px;color:var(--text-muted)}
+.cert-row .serial{font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:.04em;margin-top:6px}
+
+.kv{margin-top:18px;padding-top:18px;border-top:1px solid var(--border-soft)}
+.kv .row{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0}
+.kv .lab{font-size:13px;color:var(--text-muted)}
+.kv .val{font-family:var(--mono);font-size:13px;color:var(--text)}
+.kv .row.total{padding-top:14px;margin-top:6px;border-top:1px solid var(--border-soft)}
+.kv .row.total .lab{font-weight:600;color:var(--text)}
+.kv .row.total .val{font-family:var(--serif);font-style:italic;font-size:24px;font-weight:400;color:var(--gold)}
+
+.actions{display:flex;gap:10px;margin-top:24px}
+.btn{flex:1;background:var(--gold);color:var(--bg);border:none;padding:14px 22px;border-radius:6px;font-weight:600;font-size:13px;letter-spacing:.04em;cursor:pointer;transition:background .15s ease;font-family:var(--sans);text-align:center;display:inline-block;text-decoration:none}
+.btn:hover{background:var(--gold-deep)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-ghost:hover{background:var(--bg-elev-2);border-color:var(--gold)}
+
+/* ─── States ─── */
+.state{text-align:center;padding:80px 20px}
+.state-icon{font-size:36px;margin-bottom:18px;color:var(--gold);opacity:.7}
+.state h2{font-family:var(--serif);font-style:italic;font-weight:300;font-size:28px;margin:0 0 10px}
+.state p{color:var(--text-muted);max-width:480px;margin:0 auto 20px}
+.spinner{width:32px;height:32px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.alert{padding:12px 14px;border-radius:6px;font-size:13px;margin-bottom:14px}
+.alert-info{background:var(--bg-elev-2);border:1px solid var(--border);color:var(--text-muted)}
+.alert-error{background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.3);color:var(--red)}
+.alert-success{background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.3);color:var(--green)}
+
+.foot{text-align:center;color:var(--text-dim);font-size:11px;margin-top:64px}
+.foot a{color:var(--text-muted);border-bottom:1px solid transparent}
+.foot a:hover{border-color:var(--gold);color:var(--gold)}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ─── LOADING ─── -->
+  <section id="state-loading" class="state" hidden>
+    <div class="spinner"></div>
+    <h2>Loading checkout…</h2>
+  </section>
+
+  <!-- ─── AUTH REQUIRED ─── -->
+  <section id="state-auth" class="state" hidden>
+    <div class="state-icon">⚿</div>
+    <h2>Sign in required</h2>
+    <p>You need to sign in to complete a marketplace purchase.</p>
+    <a id="auth-back-link" href="#" class="btn" style="display:inline-block;flex:none;padding:12px 28px">Sign in</a>
+  </section>
+
+  <!-- ─── NO LISTING ─── -->
+  <section id="state-nolisting" class="state" hidden>
+    <div class="state-icon">∅</div>
+    <h2>Listing not available</h2>
+    <p>This listing may have been sold, cancelled, or expired.</p>
+    <a href="./rareblock-chain-marketplace.html" class="btn-ghost btn" style="display:inline-block;flex:none;padding:12px 24px">Back to marketplace</a>
+  </section>
+
+  <!-- ─── DONE / SUCCESS PENDING ─── -->
+  <section id="state-done" hidden>
+    <header class="topbar">
+      <div><div class="brand">RARE BLOCK</div><div class="brand-sub">CHECKOUT · ORDER PLACED</div></div>
+    </header>
+    <div class="state" style="padding:60px 20px">
+      <div class="state-icon" style="color:var(--green)">✓</div>
+      <h2 id="done-title">Order placed</h2>
+      <p id="done-desc"></p>
+      <div id="done-bank" hidden style="text-align:left;max-width:560px;margin:24px auto"></div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:8px">
+        <a class="btn" href="./rareblock-chain-portfolio.html" style="display:inline-block;flex:none;padding:12px 24px;text-decoration:none">My portfolio</a>
+        <a class="btn btn-ghost" href="./rareblock-chain-marketplace.html" style="display:inline-block;flex:none;padding:12px 24px;text-decoration:none">Continue browsing</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── MAIN ─── -->
+  <section id="state-main" hidden>
+
+    <header class="topbar">
+      <div><div class="brand">RARE BLOCK</div><div class="brand-sub">MARKETPLACE · CHECKOUT</div></div>
+      <a class="back-link" id="back-link" href="#">← Back to listing</a>
+    </header>
+
+    <section class="hero">
+      <div class="hero-eyebrow">Step 2 of 2</div>
+      <h1>Complete your purchase.</h1>
+      <p>Choose your payment method. Your shares will be reserved for 15 minutes while you complete the payment.</p>
+    </section>
+
+    <div id="form-error" class="alert alert-error" hidden></div>
+
+    <div class="cols">
+      <!-- LEFT: Method selection -->
+      <div class="card">
+        <div class="eyebrow">Payment method</div>
+        <h2>How would you like to pay?</h2>
+
+        <div class="methods" id="methods"></div>
+
+        <div class="method-body" id="method-body"></div>
+      </div>
+
+      <!-- RIGHT: Order summary -->
+      <div class="card summary">
+        <div class="eyebrow">Order summary</div>
+        <h2 id="summary-title">—</h2>
+
+        <div class="cert-row" id="cert-row"></div>
+
+        <div class="kv">
+          <div class="row"><div class="lab">Shares</div><div class="val" id="s-qty">—</div></div>
+          <div class="row"><div class="lab">Price per share</div><div class="val" id="s-pps">—</div></div>
+          <div class="row"><div class="lab">Subtotal</div><div class="val" id="s-subtotal">—</div></div>
+          <div class="row"><div class="lab" id="s-fee-lab">Buyer's premium</div><div class="val" id="s-fee">—</div></div>
+          <div class="row total"><div class="lab">Total to pay</div><div class="val" id="s-total">—</div></div>
+        </div>
+
+        <p style="font-size:11px;color:var(--text-dim);line-height:1.5;margin-top:14px">
+          Your shares will be reserved for 15 minutes while you complete the payment.
+          Settlement on-chain occurs after payment confirmation.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <div class="rule-gold"></div>
+    <p>© RareBlock S.r.l. — <a href="https://www.rareblock.eu/legal/terms">Terms</a> ·
+       <a href="https://www.rareblock.eu/legal/privacy">Privacy</a></p>
+  </footer>
+
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   CONFIG
+   ═══════════════════════════════════════════════════════════════════ */
+const SUPA_URL  = 'https://rbjaaeyjeeqfpbzyavag.supabase.co';
+const SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
+const RB_SESSION_KEY = 'rb_auth_session';
+const CHAIN_CHECKOUT_FN = SUPA_URL + '/functions/v1/chain-checkout';
+
+const PAYMENT_METHOD_LABELS = {
+  bank_transfer: { name: 'Bank transfer', sub: 'SEPA · 1–3 business days' },
+  stripe_card:   { name: 'Credit / debit card', sub: 'Visa / Mastercard · instant' },
+  paypal:        { name: 'PayPal', sub: 'PayPal balance / linked card · instant' },
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════════════════ */
+var _session = null;
+var _listing = null;
+var _qty = 1;
+var _feeConfig = [];
+var _selectedMethod = 'bank_transfer';
+var _checkoutSession = null;       // backend response
+var _stripe = null;                // Stripe.js singleton
+var _stripeElements = null;
+
+/* ═══════════════════════════════════════════════════════════════════
+   HELPERS
+   ═══════════════════════════════════════════════════════════════════ */
+const $ = id => document.getElementById(id);
+const show = (id, on=true) => { const e=$(id); if(e) e.hidden = !on; };
+const setText = (id, t) => { const e=$(id); if(e) e.textContent = t; };
+const escHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtEUR = (cents) => {
+  if (cents == null || isNaN(cents)) return '€ —';
+  return new Intl.NumberFormat('it-IT', { style:'currency', currency:'EUR', maximumFractionDigits: 2 }).format(cents/100);
+};
+const ipfsToHttp = (uri) => uri && uri.startsWith('ipfs://') ? `https://ipfs.io/ipfs/${uri.slice(7)}` : uri;
+
+function loadSession(){ try{ const r = localStorage.getItem(RB_SESSION_KEY); return r ? JSON.parse(r) : null; }catch(e){ return null; }}
+function saveSession(s){ try{ localStorage.setItem(RB_SESSION_KEY, JSON.stringify(s)); }catch(e){} }
+function clearSession(){ try{ localStorage.removeItem(RB_SESSION_KEY); }catch(e){} }
+
+function authHeaders(){
+  const token = (_session && _session.access_token) || SUPA_ANON;
+  return { 'Content-Type':'application/json', 'apikey':SUPA_ANON, 'Authorization':'Bearer '+token };
+}
+
+async function refreshToken(refresh_token) {
+  const r = await fetch(SUPA_URL + '/auth/v1/token?grant_type=refresh_token', {
+    method:'POST', headers:{ 'Content-Type':'application/json', 'apikey':SUPA_ANON },
+    body: JSON.stringify({ refresh_token }),
+  });
+  if (!r.ok) throw new Error('refresh failed');
+  return await r.json();
+}
+
+async function restoreSession() {
+  const s = loadSession();
+  if (!s || !s.access_token || !s.refresh_token) return null;
+  const now = Math.floor(Date.now() / 1000);
+  if (s.expires_at && s.expires_at <= now + 30) {
+    try { const fresh = await refreshToken(s.refresh_token); _session = fresh; saveSession(fresh); return fresh.user; }
+    catch(e){ clearSession(); return null; }
+  }
+  _session = s;
+  return s.user;
+}
+
+/* Lazy-load external SDK (Stripe.js / PayPal) */
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) return resolve();
+    const s = document.createElement('script');
+    s.src = src; s.onload = resolve; s.onerror = () => reject(new Error('load: '+src));
+    document.head.appendChild(s);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DATA
+   ═══════════════════════════════════════════════════════════════════ */
+async function fetchListing(listingId) {
+  const url = `${SUPA_URL}/rest/v1/v_marketplace_active_listings?listing_id=eq.${encodeURIComponent(listingId)}&limit=1`;
+  const r = await fetch(url, { headers: authHeaders() });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const arr = await r.json();
+  return arr[0] || null;
+}
+
+async function fetchFeeConfig() {
+  const url = `${SUPA_URL}/rest/v1/marketplace_fee_config?is_active=eq.true&order=buyer_fee_bps.asc`;
+  const r = await fetch(url, { headers: authHeaders() });
+  if (!r.ok) return [];
+  return await r.json();
+}
+
+async function callCheckoutFn(payload) {
+  const r = await fetch(CHAIN_CHECKOUT_FN, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const err = new Error(data.error || `HTTP ${r.status}`);
+    err.code = data.code;
+    err.status = r.status;
+    throw err;
+  }
+  return data;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RENDER
+   ═══════════════════════════════════════════════════════════════════ */
+function renderSummary() {
+  const product = {
+    name: _listing.product_name,
+    image_url: _listing.product_image_url,
+    set: _listing.product_set,
+    year: _listing.product_year,
+    grading: _listing.product_grading_label,
+  };
+  const setYear = [product.set, product.year].filter(Boolean).join(' · ');
+  const meta = [setYear, product.grading].filter(Boolean).join(' · ');
+
+  let imgHtml = '<div class="placeholder">No image</div>';
+  if (product.image_url) {
+    const src = ipfsToHttp(product.image_url);
+    imgHtml = `<img src="${escHtml(src)}" alt="" loading="lazy" onerror="this.outerHTML='<div class=&quot;placeholder&quot;>Image unavailable</div>'">`;
+  }
+
+  setText('summary-title', _listing.product_name || '—');
+  $('cert-row').innerHTML = `
+    <div class="cert-thumb">${imgHtml}</div>
+    <div>
+      <div class="name">${escHtml(product.name || '—')}</div>
+      <div class="meta">${escHtml(meta || '—')}</div>
+      <div class="serial">${escHtml(_listing.certificate_serial)}</div>
+    </div>`;
+
+  // Recompute fees for current selection
+  recomputeSummaryAmounts();
+}
+
+function feeForMethod(method) {
+  return _feeConfig.find(f => f.payment_method === method) || _feeConfig[0];
+}
+
+function recomputeSummaryAmounts() {
+  const fee = feeForMethod(_selectedMethod);
+  const subtotal = _qty * _listing.price_per_share_cents;
+  const buyerFee = fee ? Math.round(subtotal * fee.buyer_fee_bps / 10000) : 0;
+  const total    = subtotal + buyerFee;
+  setText('s-qty', `${_qty}`);
+  setText('s-pps', fmtEUR(_listing.price_per_share_cents));
+  setText('s-subtotal', fmtEUR(subtotal));
+  const pct = fee ? (fee.buyer_fee_bps / 100).toFixed(fee.buyer_fee_bps % 100 === 0 ? 0 : 1) : '—';
+  setText('s-fee-lab', `Buyer's premium (${pct}%)`);
+  setText('s-fee', fmtEUR(buyerFee));
+  setText('s-total', fmtEUR(total));
+}
+
+function renderMethods() {
+  const subtotal = _qty * _listing.price_per_share_cents;
+  $('methods').innerHTML = _feeConfig.map(f => {
+    const lab = PAYMENT_METHOD_LABELS[f.payment_method] || { name: f.payment_method, sub: '' };
+    const buyerFee = Math.round(subtotal * f.buyer_fee_bps / 10000);
+    const total = subtotal + buyerFee;
+    const pct = (f.buyer_fee_bps / 100).toFixed(f.buyer_fee_bps % 100 === 0 ? 0 : 1);
+    const active = f.payment_method === _selectedMethod ? 'active' : '';
+    return `
+      <div class="method-tab ${active}" data-method="${f.payment_method}">
+        <div class="radio"></div>
+        <div class="info">
+          <div class="name">${escHtml(lab.name)}</div>
+          <div class="sub">${escHtml(lab.sub)}</div>
+        </div>
+        <div class="total">${escHtml(fmtEUR(total))}<span class="pct">+${pct}%</span></div>
+      </div>`;
+  }).join('');
+  document.querySelectorAll('.method-tab').forEach(t => {
+    t.addEventListener('click', () => onMethodSelect(t.dataset.method));
+  });
+  renderMethodBody();
+}
+
+function onMethodSelect(method) {
+  _selectedMethod = method;
+  document.querySelectorAll('.method-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.method === method);
+  });
+  recomputeSummaryAmounts();
+  // Reset checkout session — must re-create when method changes
+  _checkoutSession = null;
+  renderMethodBody();
+}
+
+function renderMethodBody() {
+  const body = $('method-body');
+  if (_selectedMethod === 'bank_transfer') {
+    body.innerHTML = `
+      <p style="color:var(--text-muted);font-size:13px;margin-bottom:14px">
+        Click "Reserve & get bank details" to receive the IBAN and the unique reference for your transfer.
+      </p>
+      <div class="actions">
+        <button class="btn" id="bank-go" type="button">Reserve & get bank details</button>
+      </div>`;
+    $('bank-go').addEventListener('click', onBankGo);
+  }
+  else if (_selectedMethod === 'stripe_card') {
+    body.innerHTML = `
+      <p style="color:var(--text-muted);font-size:13px;margin-bottom:14px">
+        Enter your card details below. Payment is processed securely by Stripe.
+      </p>
+      <div class="stripe-wrap loading" id="stripe-wrap"><div class="spinner"></div></div>
+      <div class="actions">
+        <button class="btn" id="stripe-pay" type="button" disabled>Pay now</button>
+      </div>`;
+    initStripe();
+  }
+  else if (_selectedMethod === 'paypal') {
+    body.innerHTML = `
+      <p style="color:var(--text-muted);font-size:13px;margin-bottom:14px">
+        Click "Continue with PayPal" to sign in to your PayPal account and complete the payment.
+      </p>
+      <div class="actions">
+        <button class="btn" id="paypal-go" type="button">Continue with PayPal</button>
+      </div>`;
+    $('paypal-go').addEventListener('click', onPaypalGo);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   BANK FLOW
+   ═══════════════════════════════════════════════════════════════════ */
+async function onBankGo() {
+  const btn = $('bank-go');
+  btn.disabled = true; btn.textContent = 'Reserving…';
+  hideError();
+  try {
+    const res = await callCheckoutFn({
+      listing_id: _listing.listing_id,
+      qty: _qty,
+      payment_method: 'bank_transfer',
+    });
+    showBankSuccess(res);
+  } catch (e) {
+    showError(formatError(e));
+    btn.disabled = false; btn.textContent = 'Reserve & get bank details';
+  }
+}
+
+function showBankSuccess(res) {
+  const p = res.payment;
+  show('state-main', false);
+  show('state-done', true);
+  setText('done-title', 'Order placed — please complete the bank transfer');
+  setText('done-desc', `Your shares are reserved. Once we receive your bank transfer (1–3 business days), we'll finalize the on-chain transfer and update your portfolio.`);
+  $('done-bank').hidden = false;
+  $('done-bank').innerHTML = `
+    <div class="bank-instr">
+      <div class="row">
+        <div class="lab">Amount</div>
+        <div class="val">${escHtml(fmtEUR(p.amount_cents))}</div>
+      </div>
+      <div class="row">
+        <div class="lab">IBAN</div>
+        <div class="val">
+          <span id="bank-iban">${escHtml(p.iban)}</span>
+          <button class="copy-btn" data-copy="${escHtml(p.iban)}">Copy</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="lab">Beneficiary</div>
+        <div class="val">${escHtml(p.account_holder)}</div>
+      </div>
+      ${p.bic ? `<div class="row">
+        <div class="lab">BIC / SWIFT</div>
+        <div class="val">${escHtml(p.bic)}</div>
+      </div>` : ''}
+      <div class="row">
+        <div class="lab">Reference (causale)</div>
+        <div class="val">
+          <span id="bank-ref">${escHtml(p.reference)}</span>
+          <button class="copy-btn" data-copy="${escHtml(p.reference)}">Copy</button>
+        </div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--text-dim);margin-top:12px">
+      Use the exact amount and reference above so we can match your transfer automatically.
+    </p>`;
+  // Wire copy buttons
+  document.querySelectorAll('.copy-btn').forEach(b => {
+    b.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(b.dataset.copy);
+        b.textContent = 'Copied'; b.classList.add('copied');
+        setTimeout(() => { b.textContent = 'Copy'; b.classList.remove('copied'); }, 1500);
+      } catch (e) { /* ignore */ }
+    });
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   STRIPE FLOW
+   ═══════════════════════════════════════════════════════════════════ */
+async function initStripe() {
+  hideError();
+  // First call our backend to create the order + PaymentIntent
+  try {
+    if (!_checkoutSession || _checkoutSession.payment.kind !== 'stripe_card') {
+      _checkoutSession = await callCheckoutFn({
+        listing_id: _listing.listing_id,
+        qty: _qty,
+        payment_method: 'stripe_card',
+      });
+    }
+  } catch (e) {
+    showError(formatError(e));
+    return;
+  }
+
+  // Lazy-load Stripe.js
+  try {
+    await loadScript('https://js.stripe.com/v3/');
+  } catch (e) {
+    showError('Could not load Stripe payment library.');
+    return;
+  }
+  // @ts-ignore
+  if (!window.Stripe) { showError('Stripe library failed to initialize.'); return; }
+  // @ts-ignore
+  _stripe = window.Stripe(_checkoutSession.payment.publishable_key);
+  _stripeElements = _stripe.elements({
+    clientSecret: _checkoutSession.payment.client_secret,
+    appearance: {
+      theme: 'night',
+      variables: {
+        colorPrimary:    '#c9a961',
+        colorBackground: '#0d1117',
+        colorText:       '#e6edf3',
+        colorDanger:     '#f85149',
+        fontFamily:      "'Figtree', system-ui, sans-serif",
+        borderRadius:    '6px',
+      },
+    },
+  });
+  const wrap = $('stripe-wrap');
+  wrap.classList.remove('loading');
+  wrap.innerHTML = '<div id="stripe-element-mount"></div>';
+  const paymentEl = _stripeElements.create('payment', { layout: 'tabs' });
+  paymentEl.mount('#stripe-element-mount');
+  paymentEl.on('ready', () => { $('stripe-pay').disabled = false; });
+  $('stripe-pay').onclick = onStripePay;
+}
+
+async function onStripePay() {
+  const btn = $('stripe-pay');
+  btn.disabled = true; btn.textContent = 'Processing…';
+  hideError();
+  try {
+    const result = await _stripe.confirmPayment({
+      elements: _stripeElements,
+      confirmParams: {
+        return_url: _checkoutSession.payment.return_url,
+      },
+      redirect: 'if_required',
+    });
+    if (result.error) throw new Error(result.error.message || 'Card error');
+    // If we got here, the PaymentIntent is in 'succeeded' (no 3DS needed)
+    showStripeSuccess();
+  } catch (e) {
+    showError(e.message || 'Payment failed.');
+    btn.disabled = false; btn.textContent = 'Pay now';
+  }
+}
+
+function showStripeSuccess() {
+  show('state-main', false);
+  show('state-done', true);
+  setText('done-title', 'Payment received — settlement on the way');
+  setText('done-desc', `We've confirmed your card payment. The on-chain transfer of your shares is being executed; you'll see the certificate in your portfolio shortly.`);
+  $('done-bank').hidden = true;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PAYPAL FLOW
+   ═══════════════════════════════════════════════════════════════════ */
+async function onPaypalGo() {
+  const btn = $('paypal-go');
+  btn.disabled = true; btn.textContent = 'Connecting to PayPal…';
+  hideError();
+  try {
+    if (!_checkoutSession || _checkoutSession.payment.kind !== 'paypal') {
+      _checkoutSession = await callCheckoutFn({
+        listing_id: _listing.listing_id,
+        qty: _qty,
+        payment_method: 'paypal',
+      });
+    }
+    // Redirect to PayPal approve URL
+    location.href = _checkoutSession.payment.approve_url;
+  } catch (e) {
+    showError(formatError(e));
+    btn.disabled = false; btn.textContent = 'Continue with PayPal';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ERROR HELPERS
+   ═══════════════════════════════════════════════════════════════════ */
+function formatError(e) {
+  const c = e.code;
+  if (c === 'LISTING_NOT_FOUND')   return 'This listing no longer exists.';
+  if (c === 'LISTING_NOT_ACTIVE')  return 'This listing is no longer available — someone may have just bought it.';
+  if (c === 'CANNOT_BUY_OWN')      return 'You cannot buy your own listing.';
+  if (c === 'INVALID_INPUT')       return 'Invalid input: ' + (e.message || '');
+  if (c === 'UNAUTHORIZED')        return 'Please sign in again.';
+  if (c === 'STRIPE_FAILED')       return 'Card payment service unavailable. Please try again or use a different method.';
+  if (c === 'PAYPAL_FAILED')       return 'PayPal service unavailable. Please try again or use a different method.';
+  return e.message || 'Something went wrong.';
+}
+function showError(msg) {
+  $('form-error').textContent = msg;
+  $('form-error').hidden = false;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function hideError() { $('form-error').hidden = true; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   ENTRY POINT
+   ═══════════════════════════════════════════════════════════════════ */
+async function init() {
+  const url = new URL(location.href);
+  const listingId = url.searchParams.get('listing');
+  const qtyParam  = parseInt(url.searchParams.get('qty'), 10);
+  if (!listingId) { show('state-nolisting', true); return; }
+
+  show('state-loading', true);
+
+  // Auth required
+  const user = await restoreSession();
+  if (!user) {
+    show('state-loading', false);
+    show('state-auth', true);
+    const ret = encodeURIComponent(location.href);
+    $('auth-back-link').href = `./rareblock-chain-portfolio.html?return=${ret}`;
+    return;
+  }
+
+  // Load listing
+  let listing;
+  try {
+    listing = await fetchListing(listingId);
+  } catch (e) {
+    show('state-loading', false);
+    show('state-nolisting', true);
+    return;
+  }
+  if (!listing) {
+    show('state-loading', false);
+    show('state-nolisting', true);
+    return;
+  }
+  _listing = listing;
+  _qty = Math.max(1, Math.min(qtyParam || 1, listing.qty_listed));
+
+  // Load fee config
+  _feeConfig = await fetchFeeConfig();
+  if (_feeConfig.length === 0) {
+    show('state-loading', false);
+    show('state-nolisting', true);
+    return;
+  }
+  _selectedMethod = _feeConfig[0].payment_method; // 'bank_transfer' (cheapest)
+
+  show('state-loading', false);
+  show('state-main', true);
+  $('back-link').href = `./rareblock-chain-marketplace.html?listing=${encodeURIComponent(listingId)}`;
+  renderSummary();
+  renderMethods();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
