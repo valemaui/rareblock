@@ -109,6 +109,13 @@ $$;
 -- BACKFILL retroattivo: il prodotto di test 8a22a329-... ha vote_id valido
 -- ma exit_window_status=null per il bug pre-fix. Riallineiamo lo stato
 -- guardando se ha un voto attualmente aperto (closed_at IS NULL).
+--
+-- NOTA: disabilitiamo temporaneamente il trigger perché il SQL Editor di
+-- Supabase gira come postgres role senza JWT claim, e il nuovo trigger
+-- (anche se più permissivo) non riconosce postgres come service_role.
+-- DISABLE TRIGGER è transazionale → riabilitato a fine transazione.
+ALTER TABLE public.inv_products DISABLE TRIGGER trg_protect_vendor_product_fields;
+
 UPDATE public.inv_products p
 SET
   fractional_exit_window_status   = 'open',
@@ -119,6 +126,8 @@ WHERE v.product_id = p.id
   AND v.closed_at IS NULL
   AND p.type = 'fractional'
   AND p.fractional_exit_window_status IS NULL;
+
+ALTER TABLE public.inv_products ENABLE TRIGGER trg_protect_vendor_product_fields;
 
 DO $$
 DECLARE n_fixed INT;
