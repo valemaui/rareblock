@@ -1,0 +1,48 @@
+name: Deploy contracts module Edge Functions to Supabase
+
+# Triggera al push su main quando cambia una delle Edge Function del modulo
+# contratti, oppure manualmente dall'UI GitHub Actions ("Run workflow").
+#
+# Le function da deployare sono dichiarate nella matrice `function` del job.
+# La CLI Supabase include automaticamente la directory `supabase/functions/_shared/`
+# quando le sorgenti contengono import relative (`../_shared/...`), quindi non
+# serve configurazione aggiuntiva.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'supabase/functions/sms-otp-send/**'
+      - 'supabase/functions/sms-otp-verify/**'
+      - 'supabase/functions/_shared/**'
+      - '.github/workflows/deploy-contracts-edge.yml'
+  workflow_dispatch: {}   # consente deploy manuale dall'UI di GitHub
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        function:
+          - sms-otp-send
+          - sms-otp-verify
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy ${{ matrix.function }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: rbjaaeyjeeqfpbzyavag
+        run: |
+          supabase functions deploy "${{ matrix.function }}" \
+            --project-ref "$SUPABASE_PROJECT_REF"
