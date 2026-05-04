@@ -871,6 +871,27 @@ function buildSchedaTecnicaMd(s: any, templateCode: string): string {
     if (s.custody_fee_eur != null) lines.push(`- **Fee di custodia annua**: ${fmtMoney(s.custody_fee_eur)} EUR`);
     if (s.custody_tier_name) lines.push(`- **Fascia di custodia**: ${s.custody_tier_name}`);
     lines.push('');
+
+    // Sezione SOLO per fractional: regime di comproprietà + trigger di vendita.
+    if (templateCode === 'BUYER_FRACTIONAL') {
+      lines.push('## Regime di comproprietà');
+      lines.push('');
+      if (s.total_quotes != null)      lines.push(`- **Quote totali del Bene**: ${fmtInt(s.total_quotes)}`);
+      if (s.qty != null && s.total_quotes != null) {
+        const pct = (Number(s.qty) / Number(s.total_quotes)) * 100;
+        if (isFinite(pct)) lines.push(`- **Percentuale di proprietà acquistata**: ${pct.toFixed(2).replace('.', ',')}%`);
+      }
+      lines.push('');
+      lines.push('## Trigger di vendita del Bene');
+      lines.push('');
+      if (s.target_price_eur != null)  lines.push(`- **Target Price (Trigger A — OR continuo)**: ${fmtMoney(s.target_price_eur)} EUR`);
+      if (s.exit_window_years != null) lines.push(`- **Exit Window (Trigger B)**: ${fmtInt(s.exit_window_years)} anni dal lancio del Bene sulla piattaforma`);
+      if (s.extension_years != null)   lines.push(`- **Rinvio in caso di voto contrario**: ${fmtInt(s.extension_years)} anni`);
+      lines.push('');
+      lines.push('Una volta raggiunto uno dei due trigger, il Bene viene venduto e il ricavato netto distribuito ai Comproprietari pro-quota.');
+      lines.push('');
+    }
+
     lines.push('## Certificato Digitale');
     lines.push('');
     if (s.nft_chain_id && s.nft_contract && s.nft_token_id) {

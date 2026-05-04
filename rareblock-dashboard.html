@@ -5300,6 +5300,80 @@ textarea{resize:vertical;min-height:60px}
 .admkyc-meta strong{color:var(--text);font-weight:500}
 .admkyc-actions{display:flex;gap:6px}
 
+/* ═══════════════════════════════════════════════════════════════════
+   PR9b — KYC ACKNOWLEDGMENTS MODALITÀ B FRACTIONAL
+   Modal con 3 spunte di consapevolezza obbligatorie prima dell'acquisto
+   di quote di prodotti fractional (illiquidità + no-buyback + capital loss).
+   Stile coerente con .ctr-wiz-* di PR7 ma più verticale e con palette
+   "warning" rinforzata per dare il senso del peso giuridico.
+   ═══════════════════════════════════════════════════════════════════ */
+.frack-bg{
+  position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(6px);
+  display:none;align-items:center;justify-content:center;z-index:925;padding:20px;
+}
+.frack-bg.show{display:flex}
+.frack-modal{
+  background:var(--bg);border:1px solid var(--border-strong);border-radius:var(--r-lg);
+  width:100%;max-width:640px;max-height:92vh;
+  display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,.7);
+  overflow:hidden;
+}
+.frack-head{
+  padding:22px 26px;border-bottom:1px solid var(--border);
+  background:linear-gradient(180deg, rgba(201,168,76,.06) 0%, transparent 100%);
+}
+.frack-eyebrow{
+  font-size:9.5px;font-family:var(--mono);text-transform:uppercase;
+  letter-spacing:.16em;color:var(--gold,#c9a84c);font-weight:600;margin-bottom:6px;
+}
+.frack-title{
+  font-family:var(--serif);font-style:italic;font-weight:400;
+  font-size:22px;color:var(--text);margin-bottom:6px;line-height:1.2;
+}
+.frack-sub{font-size:12.5px;color:var(--text-muted);line-height:1.5}
+.frack-body{flex:1;overflow:auto;padding:20px 26px}
+.frack-intro{
+  font-size:13px;color:var(--text);line-height:1.6;margin-bottom:18px;
+  padding:14px 16px;background:rgba(210,153,34,.07);
+  border-left:3px solid var(--warning,#d29922);border-radius:0 var(--r) var(--r) 0;
+}
+.frack-acks{display:flex;flex-direction:column;gap:14px;margin-bottom:14px}
+.frack-ack{
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--r);padding:18px 20px;cursor:pointer;
+  display:flex;gap:14px;align-items:flex-start;transition:all var(--t-fast);
+}
+.frack-ack:hover{border-color:var(--border-strong)}
+.frack-ack.checked{border-color:var(--gold,#c9a84c);background:rgba(201,168,76,.05)}
+.frack-ack-checkbox{
+  width:22px;height:22px;border-radius:5px;border:2px solid var(--border-strong);
+  flex-shrink:0;margin-top:1px;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  font-size:0;transition:all var(--t-fast);color:var(--bg);
+}
+.frack-ack.checked .frack-ack-checkbox{
+  background:var(--gold,#c9a84c);border-color:var(--gold,#c9a84c);
+  font-size:14px;font-weight:700;
+}
+.frack-ack.checked .frack-ack-checkbox::before{content:'✓'}
+.frack-ack-text{flex:1;min-width:0}
+.frack-ack-title{font-size:13.5px;font-weight:600;color:var(--text);margin-bottom:5px;display:flex;align-items:center;gap:8px}
+.frack-ack-icon{
+  width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;
+  flex-shrink:0;color:var(--warning,#d29922);
+}
+.frack-ack-sub{font-size:12px;color:var(--text-muted);line-height:1.55}
+.frack-foot{
+  padding:14px 26px;border-top:1px solid var(--border);background:var(--surface);
+  display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+}
+.frack-foot-msg{font-size:11.5px;color:var(--text-muted);min-height:16px;flex:1;line-height:1.5}
+.frack-foot-msg.err{color:var(--danger,#f85149)}
+.frack-foot-btns{display:flex;gap:8px;align-items:center}
+@media (max-width:780px){
+  .frack-modal{max-height:96vh}
+}
+
 /* Wizard steps */
 .prof-stepper{display:flex;gap:0;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
 .prof-step{flex:1;padding:14px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:all var(--t-fast);border-right:1px solid var(--border);position:relative;min-width:0}
@@ -6062,6 +6136,76 @@ select.prof-input{cursor:pointer}
       <button class="btn sm danger"  id="admkycRejectBtn"  onclick="admKycReject()">Rifiuta</button>
       <button class="btn sm primary" id="admkycApproveBtn" onclick="admKycApprove()">Approva</button>
       <button class="btn sm"          onclick="admKycDrillClose()">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     MODAL: KYC Acknowledgments Modalità B Fractional (PR9b)
+     Gate obbligatorio prima dell'acquisto di quote di prodotti fractional.
+     L'utente deve esplicitamente acknowledgere 3 punti: illiquidità,
+     no-buyback, capital loss. Una volta firmate, vengono salvate in
+     kyc_quote_acknowledgments e l'utente è "eligible_for_fractional".
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="frack-bg" id="frackBg" onclick="if(event.target===this)frackClose()">
+  <div class="frack-modal">
+    <div class="frack-head">
+      <div class="frack-eyebrow">CONSAPEVOLEZZA INVESTIMENTO · MODALITÀ B FRACTIONAL</div>
+      <div class="frack-title">Comproprietà di un bene fisico</div>
+      <div class="frack-sub">Stai per acquistare quote di un bene da collezione in regime di comproprietà ex art. 1100 c.c. Prima di procedere, ti chiediamo di confermare la tua consapevolezza su tre punti chiave.</div>
+    </div>
+    <div class="frack-body">
+      <div class="frack-intro">
+        <strong>Perché ti chiediamo questo:</strong> la Modalità B fractional non è un investimento finanziario tradizionale. È l'acquisto di una quota indivisa di un bene fisico, con caratteristiche di illiquidità e rischio sostanzialmente diversi da fondi, azioni o obbligazioni. Vogliamo essere certi che tu abbia compreso pienamente in cosa stai entrando.
+      </div>
+
+      <div class="frack-acks">
+        <div class="frack-ack" id="frackAckIlliquidity" onclick="frackToggleAck('illiquidity')">
+          <div class="frack-ack-checkbox"></div>
+          <div class="frack-ack-text">
+            <div class="frack-ack-title">
+              <span class="frack-ack-icon">⏳</span>
+              Capisco che la mia quota è illiquida
+            </div>
+            <div class="frack-ack-sub">
+              La quota che acquisto può rimanere invenduta sul mercato secondario per periodi prolungati o per tutta la durata residua dell'investimento. RareBlock fornisce un marketplace di compravendita ma <strong>non garantisce alcun acquirente</strong>. Se voglio uscire e nessuno compra la mia quota al prezzo richiesto, dovrò aspettare o abbassare il prezzo.
+            </div>
+          </div>
+        </div>
+
+        <div class="frack-ack" id="frackAckNoBuyback" onclick="frackToggleAck('no_buyback')">
+          <div class="frack-ack-checkbox"></div>
+          <div class="frack-ack-text">
+            <div class="frack-ack-title">
+              <span class="frack-ack-icon">🚫</span>
+              Capisco che RareBlock non è obbligata a riacquistare la mia quota
+            </div>
+            <div class="frack-ack-sub">
+              RareBlock <strong>non garantisce alcun buyback</strong> della mia quota. Non opera come market maker né come controparte di ultima istanza. Non posso rivolgermi a RareBlock per chiedere il rimborso della quota: posso solo vendere sul mercato secondario tra altri investitori, oppure attendere il trigger di vendita del bene fisico (target price o exit window).
+            </div>
+          </div>
+        </div>
+
+        <div class="frack-ack" id="frackAckCapitalLoss" onclick="frackToggleAck('capital_loss')">
+          <div class="frack-ack-checkbox"></div>
+          <div class="frack-ack-text">
+            <div class="frack-ack-title">
+              <span class="frack-ack-icon">⚠️</span>
+              Capisco che posso perdere parte o tutto il capitale investito
+            </div>
+            <div class="frack-ack-sub">
+              Il valore della quota può scendere significativamente o azzerarsi. <strong>Non c'è capitale garantito</strong>. Il mercato dei beni da collezione è soggetto a oscillazioni imprevedibili che possono dipendere da: condizioni del bene, evoluzione del mercato di settore, autenticità contestata, eventi straordinari. Sto investendo solo capitale che posso permettermi di perdere integralmente.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="frack-foot">
+      <div class="frack-foot-msg" id="frackMsg"></div>
+      <div class="frack-foot-btns">
+        <button class="btn sm" onclick="frackClose()">Annulla</button>
+        <button class="btn sm primary" id="frackConfirmBtn" onclick="frackConfirm()" disabled>Confermo e procedo</button>
+      </div>
     </div>
   </div>
 </div>
@@ -12958,6 +13102,170 @@ function admKycUpdateSidebarBadge(){
   } else {
     if(n > 0){ b.textContent = n; b.style.display = ''; }
     else b.style.display = 'none';
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  PR9b — KYC ACKNOWLEDGMENTS MODALITÀ B FRACTIONAL
+// ═══════════════════════════════════════════════════════════
+//
+// Gate obbligatorio prima dell'acquisto di quote di prodotti fractional.
+// L'utente firma 3 acknowledgements (illiquidità, no-buyback, capital loss)
+// che vengono persistiti nella tabella kyc_quote_acknowledgments.
+//
+// Versionamento: ack_text_version=1 corrisponde al wording attuale.
+// Se il legale aggiorna il wording, bumpiamo a 2 e gli ack vecchi decadono
+// → l'utente dovrà ri-firmare prima del prossimo acquisto.
+//
+// Flow:
+//   1. Caller invoca frackEnsureEligible(onSuccess, onCancel)
+//   2. Se l'utente è già eligible (3 ack alla versione corrente) →
+//      onSuccess immediato, nessun modal mostrato
+//   3. Altrimenti il modal si apre, l'utente spunta le 3 caselle
+//   4. Click su "Confermo e procedo" → INSERT in kyc_quote_acknowledgments
+//   5. onSuccess invocato (e modal si chiude)
+// ═══════════════════════════════════════════════════════════
+
+var FRACK_ACK_VERSION = 1;   // bumpare se cambia il wording
+var _frackState = null;      // { acks:{illiquidity,no_buyback,capital_loss}, onSuccess, onCancel }
+
+// Verifica eligibilità via RPC. Ritorna boolean.
+async function frackIsEligible(){
+  if(!_session || !_session.user) return false;
+  try{
+    var rows = await supa('POST', 'rpc/is_eligible_for_fractional', {
+      p_user_id: _session.user.id,
+      p_version: FRACK_ACK_VERSION
+    });
+    // L'RPC ritorna [{is_eligible_for_fractional:true|false}] oppure boolean nudo
+    if(Array.isArray(rows) && rows.length){
+      var v = rows[0];
+      if(typeof v === 'boolean') return v;
+      if(v && typeof v.is_eligible_for_fractional === 'boolean') return v.is_eligible_for_fractional;
+    }
+    return rows === true;
+  }catch(e){
+    console.warn('frackIsEligible:', e && e.message);
+    return false;
+  }
+}
+
+// Chiamata dai flow di acquisto fractional. Se l'utente è già eligible,
+// onSuccess è chiamata immediatamente. Altrimenti apre il modal.
+async function frackEnsureEligible(onSuccess, onCancel){
+  var eligible = await frackIsEligible();
+  if(eligible){ if(typeof onSuccess === 'function') onSuccess(); return; }
+  frackOpen(onSuccess, onCancel);
+}
+
+function frackOpen(onSuccess, onCancel){
+  _frackState = {
+    acks: { illiquidity:false, no_buyback:false, capital_loss:false },
+    onSuccess: onSuccess || null,
+    onCancel:  onCancel  || null,
+  };
+  var bg = document.getElementById('frackBg');
+  if(!bg) return;
+  bg.classList.add('show');
+
+  // Reset stato visivo
+  ['Illiquidity','NoBuyback','CapitalLoss'].forEach(function(k){
+    var el = document.getElementById('frackAck'+k);
+    if(el) el.classList.remove('checked');
+  });
+  document.getElementById('frackConfirmBtn').disabled = true;
+  setText('frackMsg', '');
+}
+
+function frackClose(){
+  var bg = document.getElementById('frackBg');
+  if(bg) bg.classList.remove('show');
+  if(_frackState && typeof _frackState.onCancel === 'function'){
+    try { _frackState.onCancel(); } catch(e){}
+  }
+  _frackState = null;
+}
+
+function frackToggleAck(key){
+  if(!_frackState) return;
+  var validKeys = ['illiquidity','no_buyback','capital_loss'];
+  if(validKeys.indexOf(key) === -1) return;
+
+  _frackState.acks[key] = !_frackState.acks[key];
+
+  var idMap = {
+    'illiquidity': 'frackAckIlliquidity',
+    'no_buyback':  'frackAckNoBuyback',
+    'capital_loss':'frackAckCapitalLoss',
+  };
+  var el = document.getElementById(idMap[key]);
+  if(el) el.classList.toggle('checked', _frackState.acks[key]);
+
+  // Abilita "Confermo" solo se tutte e 3 sono spuntate
+  var allChecked = _frackState.acks.illiquidity && _frackState.acks.no_buyback && _frackState.acks.capital_loss;
+  document.getElementById('frackConfirmBtn').disabled = !allChecked;
+
+  // Messaggio supportivo
+  if(allChecked){
+    setText('frackMsg', '');
+    var msg = document.getElementById('frackMsg');
+    msg.classList.remove('err');
+    msg.textContent = 'Hai confermato tutte le acknowledgments. Sei pronto a procedere.';
+  } else {
+    var n = (_frackState.acks.illiquidity?1:0) + (_frackState.acks.no_buyback?1:0) + (_frackState.acks.capital_loss?1:0);
+    var msg2 = document.getElementById('frackMsg');
+    msg2.classList.remove('err');
+    msg2.textContent = n + ' su 3 confermate · seleziona le restanti per procedere';
+  }
+}
+
+async function frackConfirm(){
+  if(!_frackState) return;
+  if(!(_frackState.acks.illiquidity && _frackState.acks.no_buyback && _frackState.acks.capital_loss)){
+    setText('frackMsg', 'Seleziona tutte e tre le acknowledgments.');
+    document.getElementById('frackMsg').classList.add('err');
+    return;
+  }
+
+  var btn = document.getElementById('frackConfirmBtn');
+  btn.disabled = true;
+  btn.textContent = 'Salvataggio...';
+
+  try{
+    await supa('POST', 'kyc_quote_acknowledgments', {
+      user_id: _session.user.id,
+      ack_illiquidity: true,
+      ack_no_buyback:  true,
+      ack_capital_loss:true,
+      ack_text_version: FRACK_ACK_VERSION,
+      ip_address: null,    // ricaviamo lato server da X-Forwarded-For se serve audit forte
+      user_agent: (navigator && navigator.userAgent) ? navigator.userAgent.slice(0, 500) : null
+    });
+
+    showToast('Acknowledgments salvate. Ora puoi procedere all\'acquisto.', 'ok');
+
+    // Triggera il callback di successo del caller
+    var cb = _frackState.onSuccess;
+    _frackState = null;
+    document.getElementById('frackBg').classList.remove('show');
+    if(typeof cb === 'function') cb();
+  }catch(e){
+    btn.disabled = false;
+    btn.textContent = 'Confermo e procedo';
+    var detail = (e && e.message) ? e.message : String(e);
+    // Se la POST fallisce per UNIQUE constraint (utente che riusa la pagina) →
+    // probabilmente è già eligibile, trattiamo come success
+    if(detail.indexOf('duplicate key') !== -1 || detail.indexOf('unique') !== -1){
+      showToast('Acknowledgments già salvate.', 'ok');
+      var cb2 = _frackState.onSuccess;
+      _frackState = null;
+      document.getElementById('frackBg').classList.remove('show');
+      if(typeof cb2 === 'function') cb2();
+      return;
+    }
+    setText('frackMsg', 'Errore salvataggio: ' + detail);
+    document.getElementById('frackMsg').classList.add('err');
   }
 }
 
