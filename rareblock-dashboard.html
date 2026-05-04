@@ -4788,6 +4788,58 @@ textarea{resize:vertical;min-height:60px}
 .prof-input.dirty{border-color:var(--gold,#c9a84c);box-shadow:0 0 0 3px rgba(201,168,76,.10)}
 .prof-input.error{border-color:var(--danger,#f85149);box-shadow:0 0 0 3px rgba(248,81,73,.10)}
 .prof-input.locked{opacity:.7;cursor:not-allowed;background:var(--surface)}
+/* Stato 'saved' — il campo è stato committato sul DB */
+.prof-input.saved{
+  background:var(--surface);
+  border-color:var(--border);
+  color:var(--text-muted);
+}
+.prof-input.saved:focus{
+  background:var(--surface2);
+  color:var(--text);
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft);
+}
+/* Edit pencil overlay sui campi saved */
+.prof-field.field-saved::after{
+  content:'';
+  position:absolute;top:34px;right:8px;width:14px;height:14px;
+  pointer-events:none;
+  background-color:var(--success,#3fb950);opacity:.55;
+  -webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>');
+          mask-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>');
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-position:center;mask-position:center;
+  -webkit-mask-size:contain;mask-size:contain;
+}
+.prof-field{position:relative}
+
+/* Top bar 'Salva tutto' — sticky in cima */
+.prof-saveall-bar{
+  display:flex;justify-content:space-between;align-items:center;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:14px 18px;margin-bottom:18px;gap:14px;flex-wrap:wrap;
+}
+.prof-saveall-info{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.prof-saveall-title{font-size:13px;font-weight:600;color:var(--text)}
+.prof-saveall-sub{font-size:11.5px;color:var(--text-muted);line-height:1.5}
+.prof-saveall-sub strong{color:var(--gold,#c9a84c)}
+.prof-saveall-actions{display:flex;gap:8px;align-items:center}
+
+/* Confirm modal (per sostituire confirm() del browser) */
+.prof-confirm-bg{
+  position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);
+  display:none;align-items:center;justify-content:center;z-index:950;padding:20px;
+}
+.prof-confirm-bg.show{display:flex}
+.prof-confirm-modal{
+  background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);
+  width:100%;max-width:420px;box-shadow:0 30px 80px rgba(0,0,0,.7);
+}
+.prof-confirm-head{padding:18px 22px;border-bottom:1px solid var(--border)}
+.prof-confirm-title{font-family:var(--serif);font-style:italic;font-size:18px;font-weight:400;color:var(--gold,#c9a84c)}
+.prof-confirm-body{padding:20px 22px;font-size:13px;color:var(--text);line-height:1.6}
+.prof-confirm-foot{padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
 .prof-input::placeholder{color:var(--text-subtle)}
 select.prof-input{cursor:pointer}
 .prof-input.mono{font-family:var(--mono);font-size:12.5px}
@@ -4853,6 +4905,18 @@ select.prof-input{cursor:pointer}
           <div class="prof-sub">Completa il tuo profilo per poter firmare i contratti RareBlock. I dati anagrafici e il documento d'identità sono richiesti dalla normativa antiriciclaggio (D.Lgs. 231/2007) e per l'apposizione della Firma Elettronica Avanzata ai contratti.</div>
         </div>
         <button class="btn sm" onclick="profileLoad()" title="Aggiorna"><span class="rb-i rb-i-refresh"></span> Aggiorna</button>
+      </div>
+
+      <!-- Save-all bar — salva tutti gli step in un colpo solo -->
+      <div class="prof-saveall-bar" id="profSaveAllBar" style="display:none">
+        <div class="prof-saveall-info">
+          <div class="prof-saveall-title">Modifiche in sospeso</div>
+          <div class="prof-saveall-sub" id="profSaveAllSub">Hai modifiche non salvate in <strong id="profSaveAllSections">—</strong>. Puoi salvarle tutte insieme oppure passare per ciascuno step.</div>
+        </div>
+        <div class="prof-saveall-actions">
+          <button class="btn sm" onclick="profDiscardAll()">Annulla tutto</button>
+          <button class="btn sm primary" onclick="profSaveAll()" id="profSaveAllBtn">Salva tutto</button>
+        </div>
       </div>
 
       <!-- KYC progress strip -->
@@ -5187,6 +5251,20 @@ select.prof-input{cursor:pointer}
         <button class="btn sm" onclick="profOtpClose()">Annulla</button>
         <button class="btn sm primary" id="profOtpSubmit" onclick="profOtpSubmit()">Verifica</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm dialog (sostituisce confirm() nativo del browser) -->
+<div class="prof-confirm-bg" id="profConfirmBg" onclick="if(event.target===this)profConfirmCancel()">
+  <div class="prof-confirm-modal">
+    <div class="prof-confirm-head">
+      <div class="prof-confirm-title" id="profConfirmTitle">Conferma</div>
+    </div>
+    <div class="prof-confirm-body" id="profConfirmBody">—</div>
+    <div class="prof-confirm-foot">
+      <button class="btn sm" onclick="profConfirmCancel()" id="profConfirmCancelBtn">Annulla</button>
+      <button class="btn sm primary" onclick="profConfirmOk()" id="profConfirmOkBtn">Conferma</button>
     </div>
   </div>
 </div>
@@ -7134,36 +7212,36 @@ async function profileLoad(){
 function profHydrate(){
   var p = _prof.data || {};
   // Anagrafica
-  setProfVal('pfFirstName', p.first_name);
-  setProfVal('pfLastName',  p.last_name);
-  setProfVal('pfBirthDate', p.birth_date);
-  setProfVal('pfBirthPlace',p.birth_place);
-  setProfVal('pfBirthCountry', p.birth_country || 'IT');
-  setProfVal('pfNationality',  p.nationality  || 'IT');
-  setProfVal('pfFiscalCode', p.fiscal_code);
+  setProfVal('pfFirstName', p.first_name, !!p.first_name);
+  setProfVal('pfLastName',  p.last_name,  !!p.last_name);
+  setProfVal('pfBirthDate', p.birth_date, !!p.birth_date);
+  setProfVal('pfBirthPlace',p.birth_place,!!p.birth_place);
+  setProfVal('pfBirthCountry', p.birth_country || 'IT', !!p.birth_country);
+  setProfVal('pfNationality',  p.nationality  || 'IT', !!p.nationality);
+  setProfVal('pfFiscalCode', p.fiscal_code, !!p.fiscal_code);
   // Indirizzo
-  setProfVal('pfResAddress',  p.res_address);
-  setProfVal('pfResCivic',    p.res_civic);
-  setProfVal('pfResZip',      p.res_zip);
-  setProfVal('pfResCity',     p.res_city);
-  setProfVal('pfResProvince', p.res_province);
-  setProfVal('pfResCountry',  p.res_country  || 'IT');
+  setProfVal('pfResAddress',  p.res_address,  !!p.res_address);
+  setProfVal('pfResCivic',    p.res_civic,    !!p.res_civic);
+  setProfVal('pfResZip',      p.res_zip,      !!p.res_zip);
+  setProfVal('pfResCity',     p.res_city,     !!p.res_city);
+  setProfVal('pfResProvince', p.res_province, !!p.res_province);
+  setProfVal('pfResCountry',  p.res_country  || 'IT', !!p.res_country);
   // Telefono
-  setProfVal('pfPhoneCC',  p.phone_country_code || '+39');
+  setProfVal('pfPhoneCC',  p.phone_country_code || '+39', !!p.phone_country_code);
   // Estrai numero senza prefisso da phone_e164
   var num = '';
   if(p.phone_e164){
     var cc = p.phone_country_code || '+39';
     num = p.phone_e164.indexOf(cc)===0 ? p.phone_e164.slice(cc.length) : p.phone_e164.replace(/^\+/, '');
   }
-  setProfVal('pfPhoneNum', num);
+  setProfVal('pfPhoneNum', num, !!p.phone_verified_at);
   profRenderPhoneStatus();
   // Documento
-  setProfVal('pfDocType',       p.id_doc_type);
-  setProfVal('pfDocNumber',     p.id_doc_number);
-  setProfVal('pfDocIssuer',     p.id_doc_issuer);
-  setProfVal('pfDocIssueDate',  p.id_doc_issue_date);
-  setProfVal('pfDocExpiryDate', p.id_doc_expiry_date);
+  setProfVal('pfDocType',       p.id_doc_type,       !!p.id_doc_type);
+  setProfVal('pfDocNumber',     p.id_doc_number,     !!p.id_doc_number);
+  setProfVal('pfDocIssuer',     p.id_doc_issuer,     !!p.id_doc_issuer);
+  setProfVal('pfDocIssueDate',  p.id_doc_issue_date, !!p.id_doc_issue_date);
+  setProfVal('pfDocExpiryDate', p.id_doc_expiry_date,!!p.id_doc_expiry_date);
   profRenderDocPreview('front', p.id_doc_front_path);
   profRenderDocPreview('back',  p.id_doc_back_path);
   profDocBackVisibility();
@@ -7172,13 +7250,24 @@ function profHydrate(){
   setProfChecked('pfGdprTos',       !!p.gdpr_tos_accepted_at);
   setProfChecked('pfGdprMarketing', !!p.gdpr_marketing_accepted);
   setProfChecked('pfGdprProfiling', !!p.gdpr_profiling_accepted);
+
+  // Aggiorna stato Save-all bar (nessuna modifica pendente subito dopo hydrate)
+  profUpdateSaveAllBar();
 }
 
-function setProfVal(id, v){
+function setProfVal(id, v, isSaved){
   var el = document.getElementById(id);
   if(!el) return;
   if(v == null) el.value = el.dataset.default || el.value || '';
   else          el.value = v;
+  // Aggiorna stato visivo: saved (DB) / dirty (modificato) / vuoto
+  el.classList.remove('dirty','saved','error');
+  var fld = el.closest('.prof-field');
+  if(fld) fld.classList.remove('field-saved');
+  if(isSaved && el.value){
+    el.classList.add('saved');
+    if(fld) fld.classList.add('field-saved');
+  }
 }
 function setProfChecked(id, b){
   var el = document.getElementById(id);
@@ -7359,8 +7448,8 @@ function profValidateDocumento(){
 }
 
 // ───── Save ─────
-async function profSave(section){
-  if(!_session) return;
+async function profSave(section, silent){
+  if(!_session) return false;
   var btn = document.querySelector('#profSec-'+section+' .btn.primary');
   if(btn) btn.disabled = true;
 
@@ -7371,7 +7460,7 @@ async function profSave(section){
     var statusErr = function(msg){ if(sectionStatusEl){ sectionStatusEl.classList.remove('saved'); sectionStatusEl.classList.add('dirty'); sectionStatusEl.textContent = msg||'Errore'; } };
 
     if(section === 'anagrafica'){
-      if(!profValidateAnagrafica()){ statusErr('Compila correttamente i campi obbligatori'); return; }
+      if(!profValidateAnagrafica()){ statusErr('Compila correttamente i campi obbligatori'); return false; }
       payload = {
         first_name:    getProfVal('pfFirstName'),
         last_name:     getProfVal('pfLastName'),
@@ -7384,7 +7473,7 @@ async function profSave(section){
       };
     }
     else if(section === 'indirizzo'){
-      if(!profValidateIndirizzo()){ statusErr('Compila tutti i campi'); return; }
+      if(!profValidateIndirizzo()){ statusErr('Compila tutti i campi'); return false; }
       payload = {
         res_address:  getProfVal('pfResAddress'),
         res_civic:    getProfVal('pfResCivic'),
@@ -7395,7 +7484,7 @@ async function profSave(section){
       };
     }
     else if(section === 'documento'){
-      if(!profValidateDocumento()){ statusErr('Documento: compila i campi obbligatori (rilascio, scadenza, fronte)'); return; }
+      if(!profValidateDocumento()){ statusErr('Documento: compila i campi obbligatori (rilascio, scadenza, fronte)'); return false; }
       payload = {
         id_doc_type:        getProfVal('pfDocType'),
         id_doc_number:      getProfVal('pfDocNumber'),
@@ -7409,7 +7498,7 @@ async function profSave(section){
       var tos       = document.getElementById('pfGdprTos').checked;
       var marketing = document.getElementById('pfGdprMarketing').checked;
       var profiling = document.getElementById('pfGdprProfiling').checked;
-      if(!privacy || !tos){ statusErr('I consensi Privacy e Termini sono obbligatori'); return; }
+      if(!privacy || !tos){ statusErr('I consensi Privacy e Termini sono obbligatori'); return false; }
       var nowIso = new Date().toISOString();
       payload = {
         gdpr_privacy_accepted_at:   privacy ? (_prof.data?.gdpr_privacy_accepted_at || nowIso) : null,
@@ -7425,13 +7514,21 @@ async function profSave(section){
 
     // Ricalcolo kyc_level lato server: ricarica + aggiorna kyc_level se passa la soglia
     await profRecomputeKycLevel();
-    await profileLoad();
-    statusOk('✓ Salvato');
-    showToast('Modifiche salvate', 'ok');
+    if(!silent){
+      await profileLoad();
+      statusOk('✓ Salvato');
+      showToast('Modifiche salvate', 'ok');
+    } else {
+      // In modalità silent (chiamata da profSaveAll), non ricarichiamo qui
+      // — sarà profSaveAll a fare il reload finale per evitare race
+      statusOk('✓ Salvato');
+    }
+    return true;
   }catch(e){
-    showToast('Errore salvataggio: '+(e.message||e), 'err');
+    if(!silent) showToast('Errore salvataggio: '+(e.message||e), 'err');
     var s = document.getElementById(section+'Status');
     if(s){ s.classList.remove('saved'); s.classList.add('dirty'); s.textContent='Errore'; }
+    return false;
   }finally{
     if(btn) btn.disabled = false;
   }
@@ -7455,6 +7552,140 @@ async function profRecomputeKycLevel(){
       await supa('PATCH','profiles?id=eq.'+_session.user.id, { kyc_level: newLevel, kyc_status: newStatus });
     }
   }catch(e){ /* best-effort */ }
+}
+
+// ───── Save-all / Discard-all / Confirm modal ─────
+
+// Mappa quale section di un campo (per dirty tracking)
+var PROF_FIELD_SECTION = {
+  pfFirstName:'anagrafica', pfLastName:'anagrafica', pfBirthDate:'anagrafica',
+  pfBirthPlace:'anagrafica', pfBirthCountry:'anagrafica', pfNationality:'anagrafica',
+  pfFiscalCode:'anagrafica',
+  pfResAddress:'indirizzo', pfResCivic:'indirizzo', pfResZip:'indirizzo',
+  pfResCity:'indirizzo', pfResProvince:'indirizzo', pfResCountry:'indirizzo',
+  pfDocType:'documento', pfDocNumber:'documento', pfDocIssuer:'documento',
+  pfDocIssueDate:'documento', pfDocExpiryDate:'documento',
+  pfGdprPrivacy:'consensi', pfGdprTos:'consensi',
+  pfGdprMarketing:'consensi', pfGdprProfiling:'consensi',
+};
+
+// Set delle sezioni con modifiche pendenti
+function profDirtySections(){
+  var s = new Set();
+  Object.keys(PROF_FIELD_SECTION).forEach(function(id){
+    var el = document.getElementById(id);
+    if(el && el.classList.contains('dirty')) s.add(PROF_FIELD_SECTION[id]);
+  });
+  return s;
+}
+
+function profUpdateSaveAllBar(){
+  var bar = document.getElementById('profSaveAllBar');
+  if(!bar) return;
+  var sections = profDirtySections();
+  if(sections.size === 0){
+    bar.style.display = 'none';
+    return;
+  }
+  bar.style.display = '';
+  var labels = { anagrafica:'Anagrafica', indirizzo:'Residenza',
+                 documento:'Documento', consensi:'Consensi' };
+  var arr = Array.from(sections).map(function(s){ return labels[s]||s; });
+  var sub = document.getElementById('profSaveAllSections');
+  if(sub) sub.textContent = arr.join(', ');
+}
+
+// Listener globale per dirty tracking dei campi profilo
+document.addEventListener('input', function(e){
+  if(e.target && e.target.id && PROF_FIELD_SECTION[e.target.id]){
+    var el = e.target;
+    el.classList.remove('saved','error');
+    var fld = el.closest('.prof-field');
+    if(fld) fld.classList.remove('field-saved');
+    if(el.value !== '' && el.value !== el.dataset.savedValue){
+      el.classList.add('dirty');
+    } else {
+      el.classList.remove('dirty');
+    }
+    profUpdateSaveAllBar();
+  }
+});
+document.addEventListener('change', function(e){
+  if(e.target && e.target.id && PROF_FIELD_SECTION[e.target.id]
+     && (e.target.type === 'checkbox' || e.target.tagName === 'SELECT')){
+    var el = e.target;
+    el.classList.remove('saved','error');
+    el.classList.add('dirty');
+    profUpdateSaveAllBar();
+  }
+});
+
+// Salva tutti gli step con modifiche pendenti
+async function profSaveAll(){
+  var sections = profDirtySections();
+  if(sections.size === 0){
+    showToast('Nessuna modifica da salvare', 'info');
+    return;
+  }
+  var btn = document.getElementById('profSaveAllBtn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Salvataggio in corso...'; }
+  var ok = 0, fail = 0;
+  var order = ['anagrafica','indirizzo','documento','consensi'];
+  for(var i=0; i<order.length; i++){
+    var s = order[i];
+    if(!sections.has(s)) continue;
+    try{
+      var success = await profSave(s, /*silent*/ true);
+      if(success) ok++; else fail++;
+    }catch(e){ fail++; }
+  }
+  if(btn){ btn.disabled = false; btn.textContent = 'Salva tutto'; }
+  if(fail === 0){
+    showToast('Tutte le modifiche salvate ('+ok+' sezioni)', 'ok');
+  } else {
+    showToast('Salvate '+ok+' sezioni, '+fail+' errori. Controlla i campi obbligatori.', 'err');
+  }
+  await profileLoad();
+}
+
+// Annulla tutte le modifiche pendenti — chiede conferma
+function profDiscardAll(){
+  var sections = profDirtySections();
+  if(sections.size === 0) return;
+  profConfirm({
+    title: 'Annullare le modifiche?',
+    body:  'Le modifiche non salvate verranno perse e i campi torneranno ai valori salvati. Continuare?',
+    okLabel: 'Annulla modifiche',
+    okClass: 'btn-danger',
+    onOk: function(){
+      // Ripristina dal DB
+      profHydrate();
+      profUpdateSaveAllBar();
+      showToast('Modifiche annullate', 'info');
+    }
+  });
+}
+
+// Confirm modal (sostituto di window.confirm)
+var _profConfirmCb = null;
+function profConfirm(opts){
+  document.getElementById('profConfirmTitle').textContent = opts.title || 'Conferma';
+  document.getElementById('profConfirmBody').innerHTML = opts.body || '';
+  var okBtn = document.getElementById('profConfirmOkBtn');
+  okBtn.textContent = opts.okLabel || 'Conferma';
+  okBtn.className = 'btn sm ' + (opts.okClass || 'primary');
+  document.getElementById('profConfirmCancelBtn').textContent = opts.cancelLabel || 'Annulla';
+  _profConfirmCb = opts.onOk || null;
+  document.getElementById('profConfirmBg').classList.add('show');
+}
+function profConfirmOk(){
+  document.getElementById('profConfirmBg').classList.remove('show');
+  var cb = _profConfirmCb; _profConfirmCb = null;
+  if(typeof cb === 'function') cb();
+}
+function profConfirmCancel(){
+  document.getElementById('profConfirmBg').classList.remove('show');
+  _profConfirmCb = null;
 }
 
 // ───── Telefono / OTP ─────
