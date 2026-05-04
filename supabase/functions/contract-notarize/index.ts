@@ -390,6 +390,29 @@ Deno.serve(async (req) => {
       // Non return errore: la notarizzazione è in corso, non fallita.
     }
 
+    // ── 13. Collega la notarizzazione al contratto (FK su contracts) ──
+    // Questa write è il "ponte" mancante tra contract_notarizations e
+    // contracts. Senza, la UI continua a mostrare 'Non ancora notarizzato'
+    // anche dopo una tx confermata su blockchain. La facciamo SEMPRE qui
+    // (caller-agnostic): contract-sign nel flow normale e admin retry da
+    // PR8 sono entrambi serviti correttamente.
+    //
+    // Idempotente: se l'UPDATE non fa match (contract_id non passato, o
+    // contratto già revoked) non genera errore.
+    if (body.contract_id) {
+      try {
+        await adminClient
+          .from('contracts')
+          .update({ notarization_id: notarId })
+          .eq('id', body.contract_id)
+          .is('notarization_id', null);  // safety: non sovrascrivere FK già valorizzata
+      } catch (e: any) {
+        // Log silenzioso: la notarizzazione on-chain è valida comunque,
+        // la FK può essere ricostruita successivamente con uno script.
+        console.warn('contracts.notarization_id link failed:', e?.message || e);
+      }
+    }
+
     return json({
       ok:               true,
       notarization_id:  notarId,
