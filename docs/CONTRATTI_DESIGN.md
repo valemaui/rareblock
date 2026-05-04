@@ -1,9 +1,16 @@
 # RareBlock — Progettazione Contratti & Firma OTP
 
-**Versione:** 0.4 (Modalità B chiusa salvo dettaglio B4 e B6)
+**Versione:** 0.5 (PR1 consegnata)
 **Autore:** Claude (assistente sviluppo)
 **Data:** 04 maggio 2026
-**Stato:** ⏳ aperti solo: chiarimento B4.a vs B4.b + conferma questionario consapevolezza B6
+**Stato:** ✅ PR1 in main — pronto per PR2 (Edge Functions OTP via Twilio+WA)
+
+## Cambiamenti v0.4 → v0.5
+- ✅ **PR1 consegnata** in commit successivi alla baseline `fcc30ec`
+- 📌 Migration 037 originale **splittata** in:
+  - `037_club_membership.sql` (in PR1) — solo club, indipendente da contracts
+  - `038_kyc_quote_acknowledgments.sql` (in PR9 con 035) — dipende da `contracts.id` per FK
+- ⏳ Restano da confermare: B4 (preemption vs scioglimento) e B6 (questionario consapevolezza), entrambi non bloccanti per le PR successive di infrastruttura
 
 ## Cambiamenti v0.3 → v0.4
 - ✅ B1: comunicazione marketing = **co-titolarità di un bene da collezione** (no linguaggio "investimento con rendimento")
