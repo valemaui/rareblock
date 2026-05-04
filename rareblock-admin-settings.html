@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RareBlock — Admin · Settings</title>
+<meta name="robots" content="noindex,nofollow"/>
+<!-- v1.0.0 — Settings: dati societari, polizza, tariffario custodia, storico modifiche -->
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Montserrat:wght@200;300&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#0d1117;
+  --surface:#161b22;
+  --surface2:#21262d;
+  --surface3:#2d333b;
+  --border:#30363d;
+  --border-strong:#3d444d;
+  --border-focus:#58a6ff;
+  --text:#e6edf3;
+  --text-muted:#7d8590;
+  --text-subtle:#484f58;
+  --accent:#58a6ff;
+  --accent-hover:#388bfd;
+  --accent-soft:rgba(88,166,255,.10);
+  --accent-border:rgba(88,166,255,.28);
+  --danger:#f85149;
+  --danger-soft:rgba(248,81,73,.10);
+  --success:#3fb950;
+  --success-soft:rgba(63,185,80,.10);
+  --warning:#d29922;
+  --warning-soft:rgba(210,153,34,.10);
+  --gold:#c9a84c;
+  --gold-soft:rgba(201,168,76,.10);
+  --gold-border:rgba(201,168,76,.35);
+  --font:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",monospace;
+  --display:"Montserrat",system-ui,sans-serif;
+  --serif:"Fraunces",Georgia,serif;
+  --r:6px;
+  --r-lg:8px;
+  --t-fast:.12s;
+}
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;line-height:1.5;display:flex;flex-direction:column;min-height:100vh}
+
+/* HEADER (visibile solo standalone) */
+.header{height:52px;flex-shrink:0;display:flex;align-items:center;padding:0 20px;border-bottom:1px solid var(--border);gap:20px;background:var(--surface)}
+.logo{font-family:var(--display);font-size:14px;font-weight:300;letter-spacing:.18em;text-transform:uppercase;color:var(--text);text-decoration:none;display:flex;align-items:center;gap:8px}
+.logo .b{color:var(--gold)}
+.logo-divider{font-size:11px;font-family:var(--mono);color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase;border-left:1px solid var(--border);padding-left:14px;margin-left:6px}
+.logo-divider .danger-pill{background:rgba(201,168,76,.1);color:var(--gold);border:1px solid rgba(201,168,76,.35);padding:2px 8px;border-radius:20px;font-weight:600;letter-spacing:.08em}
+.crumbs{flex:1;display:flex;align-items:center;gap:14px;font-size:11.5px;font-family:var(--mono);color:var(--text-muted);letter-spacing:.04em}
+.crumbs a{color:var(--text-muted);text-decoration:none;transition:color var(--t-fast)}
+.crumbs a:hover{color:var(--gold)}
+.crumbs .sep{color:var(--text-subtle)}
+.user-badge{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.user-email{font-size:11px;font-family:var(--mono);color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-logout{font-size:11px;font-family:var(--mono);color:var(--text-muted);background:none;border:1px solid var(--border);border-radius:var(--r);padding:3px 8px;cursor:pointer;transition:all var(--t-fast)}
+.user-logout:hover{color:var(--danger);border-color:var(--danger)}
+
+/* MAIN */
+main{flex:1;padding:28px 32px;max-width:1280px;width:100%;margin:0 auto}
+.page-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:20px;gap:20px;flex-wrap:wrap}
+.page-title{font-family:var(--serif);font-size:26px;font-weight:300;font-style:italic;letter-spacing:-.01em;line-height:1.15}
+.page-sub{font-size:12.5px;color:var(--text-muted);margin-top:4px;line-height:1.6;max-width:680px}
+
+/* SUB-TABS */
+.subtabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:20px;flex-wrap:wrap}
+.subtab{padding:10px 18px;border:none;background:none;color:var(--text-muted);font-family:var(--font);font-size:13px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all var(--t-fast);display:inline-flex;align-items:center;gap:7px}
+.subtab:hover{color:var(--text)}
+.subtab.active{color:var(--gold);border-bottom-color:var(--gold)}
+.subtab-count{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;font-size:10px;font-family:var(--mono);font-weight:600;border-radius:10px;background:var(--surface2);color:var(--text-muted)}
+.subtab.active .subtab-count{background:var(--gold-soft);color:var(--gold)}
+
+.section{display:none}
+.section.active{display:block}
+
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:18px}
+.card-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);background:var(--surface)}
+.card-title{font-size:13px;font-weight:600;color:var(--text);display:inline-flex;align-items:center;gap:8px}
+.card-title-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px rgba(201,168,76,.5)}
+.card-title-dot.accent{background:var(--accent);box-shadow:0 0 8px rgba(88,166,255,.5)}
+.card-title-dot.danger{background:var(--danger);box-shadow:0 0 8px rgba(248,81,73,.5)}
+.card-sub{font-size:11.5px;color:var(--text-muted);margin-top:2px}
+.card-body{padding:18px}
+
+/* FORM GRID */
+.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px 16px}
+.form-grid.full{grid-template-columns:1fr}
+.form-grid.three{grid-template-columns:repeat(3,1fr)}
+@media (max-width:720px){.form-grid,.form-grid.three{grid-template-columns:1fr}}
+
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field.span2{grid-column:span 2}
+@media (max-width:720px){.field.span2{grid-column:auto}}
+.field-label{font-size:10.5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:500;display:flex;align-items:center;gap:6px}
+.field-label .req{color:var(--danger);margin-left:2px}
+.field-label .hint{font-family:var(--font);text-transform:none;letter-spacing:0;color:var(--text-subtle);font-weight:400;font-size:10.5px}
+
+.input,textarea.input,select.input{
+  background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);
+  color:var(--text);font-family:var(--font);font-size:13px;padding:8px 11px;
+  outline:none;transition:border-color var(--t-fast),box-shadow var(--t-fast);
+  width:100%;
+}
+.input:focus,textarea.input:focus,select.input:focus{
+  border-color:var(--border-focus);box-shadow:0 0 0 3px var(--accent-soft);
+}
+.input.dirty{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-soft)}
+.input.todo{border-color:var(--warning);background:rgba(210,153,34,.04)}
+.input::placeholder{color:var(--text-subtle)}
+textarea.input{resize:vertical;min-height:60px;font-family:var(--font);line-height:1.5}
+.input.mono{font-family:var(--mono);font-size:12.5px}
+
+/* BUTTONS */
+.btn{padding:8px 16px;border-radius:var(--r);font-size:12.5px;font-family:var(--font);cursor:pointer;font-weight:500;transition:all var(--t-fast);border:1px solid var(--border);background:var(--surface2);color:var(--text);white-space:nowrap;display:inline-flex;align-items:center;gap:7px}
+.btn:hover:not(:disabled){background:var(--surface3);border-color:var(--border-strong)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-primary{background:var(--gold);color:var(--bg);border-color:var(--gold);font-weight:600}
+.btn-primary:hover:not(:disabled){background:#d4b561;border-color:#d4b561}
+.btn-accent{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600}
+.btn-accent:hover:not(:disabled){background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn-ghost{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:5px 9px;border-radius:var(--r)}
+.btn-ghost:hover{color:var(--text);background:var(--surface2)}
+.btn-danger{color:var(--danger);border-color:rgba(248,81,73,.4)}
+.btn-danger:hover:not(:disabled){background:var(--danger-soft);border-color:var(--danger)}
+.btn-sm{padding:5px 10px;font-size:11.5px}
+
+/* SAVE BAR (sticky) */
+.savebar{position:sticky;bottom:0;background:linear-gradient(to top,var(--bg) 60%,rgba(13,17,23,0));padding:14px 0 6px;margin-top:18px;display:flex;justify-content:flex-end;gap:8px;align-items:center;z-index:5}
+.savebar-status{font-size:11.5px;color:var(--text-muted);margin-right:10px}
+.savebar-status.dirty{color:var(--gold)}
+.savebar-status.saved{color:var(--success)}
+
+/* TABLE (custody tiers, history) */
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+table.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl thead th{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;font-family:var(--mono);padding:10px 14px;border-bottom:1px solid var(--border);text-align:left;background:var(--surface);white-space:nowrap}
+.tbl tbody td{padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+.tbl tbody tr:last-child td{border-bottom:none}
+.tbl tbody tr:hover td{background:rgba(255,255,255,.02)}
+.tbl td.mono{font-family:var(--mono);font-size:12px}
+.tbl td.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.tbl td.center{text-align:center}
+
+/* HISTORY DIFF */
+.diff{font-family:var(--mono);font-size:11.5px;line-height:1.6;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;color:var(--text-muted);max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.diff .from{color:var(--danger);text-decoration:line-through;opacity:.85}
+.diff .arrow{color:var(--text-subtle);margin:0 8px}
+.diff .to{color:var(--success)}
+
+/* BADGES */
+.badge{display:inline-flex;align-items:center;font-size:10px;font-family:var(--mono);font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted)}
+.badge.ok{color:var(--success);border-color:rgba(63,185,80,.4);background:var(--success-soft)}
+.badge.todo{color:var(--warning);border-color:rgba(210,153,34,.4);background:var(--warning-soft)}
+.badge.sensitive{color:var(--danger);border-color:rgba(248,81,73,.35);background:var(--danger-soft)}
+.badge.gold{color:var(--gold);border-color:var(--gold-border);background:var(--gold-soft)}
+
+/* TOGGLE */
+.toggle{position:relative;display:inline-block;width:38px;height:20px;cursor:pointer;flex-shrink:0;vertical-align:middle}
+.toggle input{opacity:0;width:0;height:0;position:absolute}
+.toggle-slider{position:absolute;inset:0;background:var(--surface3);border:1px solid var(--border);border-radius:20px;transition:all var(--t-fast)}
+.toggle-slider::before{content:'';position:absolute;height:14px;width:14px;left:2px;top:50%;transform:translateY(-50%);background:var(--text-muted);border-radius:50%;transition:all var(--t-fast)}
+.toggle input:checked + .toggle-slider{background:var(--gold-soft);border-color:var(--gold)}
+.toggle input:checked + .toggle-slider::before{transform:translate(18px,-50%);background:var(--gold)}
+
+/* TOAST */
+#toast{position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:12px 16px;font-size:12.5px;color:var(--text);z-index:1000;box-shadow:0 10px 30px rgba(0,0,0,.5);transform:translateY(120%);transition:transform .2s;max-width:380px}
+#toast.show{transform:translateY(0)}
+#toast.ok{border-left:3px solid var(--success)}
+#toast.err{border-left:3px solid var(--danger)}
+#toast.info{border-left:3px solid var(--accent)}
+
+/* DENIED / LOADING */
+#deniedScreen{display:none;flex:1;align-items:center;justify-content:center;padding:40px;text-align:center;flex-direction:column;gap:12px}
+.empty{padding:40px 24px;text-align:center;color:var(--text-muted);font-size:13px}
+.loading-shimmer{display:block;text-align:center;padding:40px;color:var(--text-subtle);font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;animation:shimmer 1.4s ease-in-out infinite}
+@keyframes shimmer{0%,100%{opacity:.4}50%{opacity:.9}}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:900;padding:20px}
+.modal-bg.show{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);width:100%;max-width:520px;max-height:90vh;overflow:auto;box-shadow:0 30px 80px rgba(0,0,0,.7)}
+.modal-head{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)}
+.modal-title{font-family:var(--serif);font-style:italic;font-size:18px;font-weight:400;color:var(--gold)}
+.modal-close{background:none;border:none;color:var(--text-muted);font-size:22px;cursor:pointer;line-height:1}
+.modal-close:hover{color:var(--text)}
+.modal-body{padding:20px}
+.modal-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+
+/* ── EMBED MODE ────────────────────────────────────── */
+body.embed-mode{ background:transparent }
+body.embed-mode .header{ display:none !important }
+body.embed-mode #deniedScreen{ background:transparent }
+body.embed-mode main{
+  padding: 20px 24px !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+body.embed-mode .page-head{
+  padding-top: 0;
+  margin-bottom: 16px;
+  align-items: flex-start;
+}
+body.embed-mode .page-title{
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 600;
+  font-style: normal;
+  letter-spacing: .005em;
+  line-height: 1.3;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+body.embed-mode .page-title::before{
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  background-color: var(--gold);
+  -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 0 1 0 2.8 2 2 0 0 1-2.8 0l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 0 1-2.8 0 2 2 0 0 1 0-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 0 1 0-2.8 2 2 0 0 1 2.8 0l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 0 1 2.8 0 2 2 0 0 1 0 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>');
+          mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 0 1 0 2.8 2 2 0 0 1-2.8 0l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 0 1-2.8 0 2 2 0 0 1 0-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 0 1 0-2.8 2 2 0 0 1 2.8 0l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 0 1 2.8 0 2 2 0 0 1 0 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>');
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-position:center;mask-position:center;
+  -webkit-mask-size:contain;mask-size:contain;
+}
+body.embed-mode .page-sub{
+  font-size: 12px;
+  margin-top: 3px;
+  max-width: none;
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a href="pokemon-db.html" class="logo">
+    <span>Rare</span><span class="b">Block</span>
+  </a>
+  <span class="logo-divider"><span class="danger-pill">Admin</span></span>
+  <div class="crumbs">
+    <a href="pokemon-db.html">Collector</a>
+    <span class="sep">/</span>
+    <a href="rareblock-dashboard.html">Investor</a>
+    <span class="sep">/</span>
+    <a href="rareblock-dashboard.html#admin">Admin</a>
+    <span class="sep">/</span>
+    <span style="color:var(--text)">Settings</span>
+  </div>
+  <div class="user-badge">
+    <span class="user-email" id="adminEmail">—</span>
+    <button class="user-logout" onclick="doLogout()">Esci</button>
+  </div>
+</header>
+
+<main>
+  <div class="page-head">
+    <div>
+      <div class="page-title">Settings</div>
+      <div class="page-sub">Parametri di piattaforma utilizzati nei contratti generati: dati societari, polizza assicurativa caveau, tariffario di custodia. Le modifiche vengono congelate nei singoli contratti al momento della firma — i contratti già firmati restano coerenti con i valori in vigore alla loro data.</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" onclick="reloadAll()" id="reloadBtn">Aggiorna</button>
+    </div>
+  </div>
+
+  <div class="subtabs">
+    <button class="subtab active" data-tab="company"  onclick="showSection('company')">Società</button>
+    <button class="subtab"        data-tab="legal"    onclick="showSection('legal')">Parametri legali</button>
+    <button class="subtab"        data-tab="commerce" onclick="showSection('commerce')">Commerciali</button>
+    <button class="subtab"        data-tab="club"     onclick="showSection('club')">Club privato</button>
+    <button class="subtab"        data-tab="insurance"onclick="showSection('insurance')">Polizza <span class="subtab-count">sensitive</span></button>
+    <button class="subtab"        data-tab="custody"  onclick="showSection('custody')">Custodia</button>
+    <button class="subtab"        data-tab="history"  onclick="showSection('history')">Storico modifiche</button>
+  </div>
+
+  <!-- ════════════════════════ SOCIETÀ ════════════════════════ -->
+  <div class="section active" id="section-company">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title"><span class="card-title-dot"></span> Anagrafica RareBlock</div>
+          <div class="card-sub">Dati che compaiono nelle premesse di tutti i contratti generati dalla piattaforma.</div>
+        </div>
+        <span class="badge gold" id="companyTodoBadge" style="display:none">Da completare</span>
+      </div>
+      <div class="card-body">
+        <div class="form-grid">
+          <div class="field span2">
+            <label class="field-label">Ragione sociale completa <span class="req">*</span></label>
+            <input class="input" data-key="company_legal_name" type="text" placeholder="Es. RareBlock S.r.l."/>
+          </div>
+          <div class="field">
+            <label class="field-label">Forma giuridica <span class="req">*</span></label>
+            <select class="input" data-key="company_legal_form">
+              <option value="">— seleziona —</option>
+              <option>S.r.l.</option>
+              <option>S.r.l.s.</option>
+              <option>S.p.A.</option>
+              <option>S.a.p.A.</option>
+              <option>S.n.c.</option>
+              <option>S.a.s.</option>
+              <option>Ditta individuale</option>
+              <option>Altro</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">Capitale sociale i.v. <span class="hint">— es. €10.000,00</span></label>
+            <input class="input" data-key="company_capital" type="text" placeholder="€ ..."/>
+          </div>
+          <div class="field">
+            <label class="field-label">Partita IVA <span class="req">*</span></label>
+            <input class="input mono" data-key="company_vat" type="text" placeholder="IT01234567890"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Codice Fiscale società</label>
+            <input class="input mono" data-key="company_fiscal_code" type="text" placeholder="01234567890"/>
+          </div>
+          <div class="field">
+            <label class="field-label">REA</label>
+            <input class="input mono" data-key="company_rea" type="text" placeholder="ME-123456"/>
+          </div>
+          <div class="field">
+            <label class="field-label">CCIAA di iscrizione</label>
+            <input class="input" data-key="company_chamber" type="text" placeholder="Es. CCIAA di Messina"/>
+          </div>
+          <div class="field span2">
+            <label class="field-label">PEC <span class="req">*</span></label>
+            <input class="input mono" data-key="company_pec" type="email" placeholder="rareblock@pec.it"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Email contatti</label>
+            <input class="input mono" data-key="company_email" type="email" placeholder="info@rareblock.eu"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Telefono</label>
+            <input class="input mono" data-key="company_phone" type="text" placeholder="+39 ..."/>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title"><span class="card-title-dot"></span> Sede legale</div>
+          <div class="card-sub">Domicilio comunicato nelle clausole "premesse" e per il foro competente.</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="form-grid">
+          <div class="field span2">
+            <label class="field-label">Via / piazza <span class="req">*</span></label>
+            <input class="input" id="addr_street" type="text" placeholder="Via ..."/>
+          </div>
+          <div class="field">
+            <label class="field-label">Civico</label>
+            <input class="input" id="addr_civic" type="text" placeholder="N°"/>
+          </div>
+          <div class="field">
+            <label class="field-label">CAP <span class="req">*</span></label>
+            <input class="input mono" id="addr_zip" type="text" placeholder="98100"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Città <span class="req">*</span></label>
+            <input class="input" id="addr_city" type="text" placeholder="Es. Messina"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Provincia <span class="hint">— sigla 2 lettere</span></label>
+            <input class="input mono" id="addr_province" type="text" placeholder="ME" maxlength="2"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Paese <span class="hint">— ISO2</span></label>
+            <input class="input mono" id="addr_country" type="text" placeholder="IT" maxlength="2" value="IT"/>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title"><span class="card-title-dot accent"></span> Legale rappresentante</div>
+          <div class="card-sub">Sottoscrive in nome e per conto di RareBlock — il nome compare in tutte le firme di contratti.</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="form-grid">
+          <div class="field span2">
+            <label class="field-label">Nome e cognome <span class="req">*</span></label>
+            <input class="input" data-key="legal_rep_name" type="text" placeholder="Mario Rossi"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Codice Fiscale</label>
+            <input class="input mono" data-key="legal_rep_fiscal_code" type="text" placeholder="RSSMRA80A01F205X"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Ruolo <span class="req">*</span></label>
+            <select class="input" data-key="legal_rep_role">
+              <option>Amministratore Unico</option>
+              <option>Presidente del CdA</option>
+              <option>Amministratore Delegato</option>
+              <option>Legale Rappresentante</option>
+              <option>Procuratore Speciale</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="savebar">
+      <span class="savebar-status" id="companyStatus">—</span>
+      <button class="btn" onclick="resetSection('company')" id="companyResetBtn">Annulla</button>
+      <button class="btn-primary btn" onclick="saveSection('company')" id="companySaveBtn">Salva modifiche</button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════ LEGAL ════════════════════════ -->
+  <div class="section" id="section-legal">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title"><span class="card-title-dot"></span> Parametri legali</div>
+          <div class="card-sub">Foro competente e legge applicabile usati nelle clausole finali dei contratti. Per i contratti con consumatori si applica comunque il foro inderogabile di residenza ex art. 33 c. cons.</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="form-grid">
+          <div class="field">
+            <label class="field-label">Foro competente <span class="hint">— B2B, eccezione consumatore</span></label>
+            <input class="input" data-key="foro_competente" type="text" placeholder="Tribunale di Messina"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Legge applicabile</label>
+            <input class="input" data-key="legge_applicabile" type="text" placeholder="Legge italiana"/>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="savebar">
+      <span class="savebar-status" id="legalStatus">—</span>
+      <button class="btn" onclick="resetSection('legal')">Annulla</button>
+      <button class="btn-primary btn" onclick="saveSection('legal')">Salva modifiche</button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════ COMMERCIALI ════════════════════════ -->
+  <div class="section" id="section-commerce">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title"><span class="card-title-dot"></span> Parametri commerciali</div>
+          <div class="card-sub">Default applicati ai contratti vendor e ai workflow di custodia. Singoli vendor o singoli prodotti possono avere override puntuali.</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="form-grid">
+          <div class="field">
+            <label class="field-label">Commissione vendor default <span class="hint">— %</span></label>
+            <input class="input" data-key="default_vendor_commission_pct" data-type="number" type="number" step="0.1" min="0" max="50" placeholder="15.0"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Validità bozza contratto <span class="hint">— giorni</span></label>
+            <input class="input" data-key="contract_offer_validity_days" data-type="number" type="number" step="1" min="1" max="90" placeholder="7"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Tolleranza insoluto custodia <span class="hint">— giorni</span></label>
+            <input class="input" data-key="custody_payment_grace_days" data-type="number" type="number" step="1" min="1" max="365" placeholder="60"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Retention contratti firmati <span class="hint">— anni (AML)</span></label>
+            <input class="input" data-key="contract_signed_retention_years" data-type="number" type="number" step="1" min="5" max="30" placeholder="10"/>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="savebar">
+      <span class="savebar-status" id="commerceStatus">—</span>
+      <button class="btn" onclick="resetSection('commerce')">Annulla</button>
+      <button class="btn-primary btn" onclick="saveSection('commerce')">Salva modifiche</button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════ CLUB PRIVATO ════════════════════════ -->
+  <div class="section" id="section-club">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title"><span class="card-title-dot"></span> Club privato</div>
+          <div class="card-sub">Parametri del club a numero chiuso (Modalità B — quote di comproprietà). Posti residui calcolati a runtime sulla tabella club_membership.</div>
+        </div>
+        <span class="badge gold" id="clubSeats">— posti</span>
+      </div>
+      <div class="card-body">
+        <div class="form-grid">
+          <div class="field">
+            <label class="field-label">Numero massimo membri attivi</label>
+            <input class="input" data-key="club_max_members" data-type="number" type="number" step="1" min="1" max="10000" placeholder="100"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Modalità di ammissione</label>
+            <select class="input" data-key="club_admission_mode">
+              <option value="invite_only">Solo su invito</option>
+              <option value="application">Self-application</option>
+              <option value="hybrid">Ibrido</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">Versione testo consapevolezza quotisti <span class="hint">— int</span></label>
+            <input class="input" data-key="club_quote_kyc_text_version" data-type="number" type="number" step="1" min="1" placeholder="1"/>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="savebar">
+      <span class="savebar-status" id="clubStatus">—</span>
+      <button class="btn" onclick="resetSection('club')">Annulla</button>
+      <button class="btn-primary btn" onclick="saveSection('club')">Salva modifiche</button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════ POLIZZA ════════════════════════ -->
+  <div class="section" id="section-insurance">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title"><span class="card-title-dot danger"></span> Polizza assicurativa caveau</div>
+          <div class="card-sub">Estremi contrattuali della copertura sui beni custoditi. Vengono richiamati nelle clausole 7 (acquirente) e 8 (vendor) dei contratti, con i valori congelati al momento della firma.</div>
+        </div>
+        <span class="badge sensitive">SENSITIVE</span>
+      </div>
+      <div class="card-body">
+        <div class="form-grid">
+          <div class="field span2">
+            <label class="field-label">Compagnia assicuratrice <span class="req">*</span></label>
+            <input class="input" data-key="insurance_company" type="text" placeholder="Es. Lloyd's of London / AIG / ..."/>
+          </div>
+          <div class="field">
+            <label class="field-label">Numero di polizza <span class="req">*</span></label>
+            <input class="input mono" data-key="insurance_policy_number" type="text" placeholder="POL-2026-XXXXX"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Tipologia polizza</label>
+            <input class="input" data-key="insurance_policy_type" type="text" placeholder="All Risks da collezione"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Massimale per oggetto <span class="hint">— EUR</span></label>
+            <input class="input" data-key="insurance_max_per_item" type="text" placeholder="50000"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Massimale aggregato <span class="hint">— EUR/anno</span></label>
+            <input class="input" data-key="insurance_max_aggregate" type="text" placeholder="2000000"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Franchigia</label>
+            <input class="input" data-key="insurance_deductible" type="text" placeholder="Es. €500 / 5%"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Decorrenza</label>
+            <input class="input" data-key="insurance_coverage_start" type="text" placeholder="01/01/2026"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Scadenza</label>
+            <input class="input" data-key="insurance_coverage_end" type="text" placeholder="31/12/2026"/>
+          </div>
+          <div class="field span2">
+            <label class="field-label">Esclusioni di polizza</label>
+            <textarea class="input" data-key="insurance_exclusions" rows="3" placeholder="Forza maggiore non assicurabili, atti di guerra, terrorismo, eventi nucleari..."></textarea>
+          </div>
+          <div class="field span2">
+            <label class="field-label">Indirizzo del caveau</label>
+            <input class="input" data-key="insurance_caveau_address" type="text" placeholder="Via ..., Città"/>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="savebar">
+      <span class="savebar-status" id="insuranceStatus">—</span>
+      <button class="btn" onclick="resetSection('insurance')">Annulla</button>
+      <button class="btn-primary btn" onclick="saveSection('insurance')">Salva modifiche</button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════ CUSTODIA ════════════════════════ -->
+  <div class="section" id="section-custody">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title"><span class="card-title-dot"></span> Tariffario di custodia</div>
+          <div class="card-sub">Fasce dimensionali con tariffa annua e massimale assicurato per oggetto. I prodotti vengono assegnati a un tier (con possibilità di override per oggetto raro o accordi promozionali).</div>
+        </div>
+        <button class="btn btn-sm" onclick="openTierModal()"><span style="font-size:14px;line-height:1">+</span> Nuova fascia</button>
+      </div>
+      <div class="card-body" style="padding:0">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Codice</th>
+              <th>Nome</th>
+              <th>Categoria</th>
+              <th>Dim. max</th>
+              <th class="num">Tariffa annua</th>
+              <th class="num">Massimale</th>
+              <th class="center">Attiva</th>
+              <th style="width:60px"></th>
+            </tr>
+          </thead>
+          <tbody id="tiersBody">
+            <tr><td colspan="8" class="loading-shimmer">Caricamento tariffario</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════ HISTORY ════════════════════════ -->
+  <div class="section" id="section-history">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title"><span class="card-title-dot"></span> Storico modifiche</div>
+          <div class="card-sub">Audit trail di tutte le modifiche ai parametri di piattaforma. Le ultime 100 voci, dalle più recenti.</div>
+        </div>
+        <button class="btn btn-sm" onclick="loadHistory()">Aggiorna</button>
+      </div>
+      <div class="card-body" style="padding:0">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Quando</th>
+              <th>Parametro</th>
+              <th>Variazione</th>
+              <th>Autore</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody">
+            <tr><td colspan="4" class="loading-shimmer">Caricamento storico</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<div id="toast"></div>
+
+<!-- MODAL: edit/create tier -->
+<div class="modal-bg" id="tierModalBg" onclick="if(event.target===this)closeTierModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="tierModalTitle">Nuova fascia di custodia</div>
+      <button class="modal-close" onclick="closeTierModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field">
+          <label class="field-label">Codice <span class="req">*</span> <span class="hint">— univoco, snake_case</span></label>
+          <input class="input mono" id="tierCode" type="text" placeholder="es. card_premium"/>
+        </div>
+        <div class="field">
+          <label class="field-label">Categoria <span class="req">*</span></label>
+          <select class="input" id="tierSize">
+            <option value="card">card</option>
+            <option value="sealed">sealed</option>
+            <option value="display">display</option>
+            <option value="custom">custom</option>
+          </select>
+        </div>
+        <div class="field span2">
+          <label class="field-label">Nome visibile <span class="req">*</span></label>
+          <input class="input" id="tierName" type="text" placeholder="Es. Carta gradata premium"/>
+        </div>
+        <div class="field span2">
+          <label class="field-label">Descrizione</label>
+          <textarea class="input" id="tierDesc" rows="2"></textarea>
+        </div>
+        <div class="field">
+          <label class="field-label">Dimensioni max <span class="hint">— info</span></label>
+          <input class="input mono" id="tierDim" type="text" placeholder="12x8x1.5"/>
+        </div>
+        <div class="field">
+          <label class="field-label">Ordine <span class="hint">— int</span></label>
+          <input class="input" id="tierOrder" type="number" step="1" min="0" max="999" value="100"/>
+        </div>
+        <div class="field">
+          <label class="field-label">Tariffa annua <span class="req">*</span> <span class="hint">— EUR</span></label>
+          <input class="input mono" id="tierFee" type="number" step="0.01" min="0" placeholder="12.00"/>
+        </div>
+        <div class="field">
+          <label class="field-label">Massimale assicurato <span class="hint">— EUR</span></label>
+          <input class="input mono" id="tierIns" type="number" step="1" min="0" placeholder="5000"/>
+        </div>
+        <div class="field span2">
+          <label class="field-label" style="display:flex;align-items:center;gap:10px">
+            <span class="toggle"><input type="checkbox" id="tierActive" checked/><span class="toggle-slider"></span></span>
+            <span>Fascia attiva (selezionabile sui prodotti)</span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-danger" id="tierDeleteBtn" onclick="deleteTier()" style="margin-right:auto;display:none">Elimina</button>
+      <button class="btn" onclick="closeTierModal()">Annulla</button>
+      <button class="btn-primary btn" onclick="saveTier()">Salva</button>
+    </div>
+  </div>
+</div>
+
+<div id="deniedScreen">
+  <div style="font-family:var(--serif);font-style:italic;font-size:24px;color:var(--gold)">Accesso negato</div>
+  <div style="color:var(--text-muted);font-size:12.5px">Questa area è riservata agli amministratori RareBlock.</div>
+  <a href="rareblock-dashboard.html" class="btn btn-sm" style="margin-top:12px">Torna alla Dashboard</a>
+</div>
+
+<script>
+// =============================================================================
+//  Configurazione
+// =============================================================================
+const SUPA_URL='https://rbjaaeyjeeqfpbzyavag.supabase.co';
+const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
+const RB_SESSION_KEY='rb_auth_session';
+const ADMIN_EMAILS=['admin@rareblock.eu','valemaui@gmail.com','v.castiglia@serifast.it'];
+
+// Embed mode
+var IS_EMBED = (function(){
+  try {
+    if(/[?&]embed=1\b/.test(window.location.search)) return true;
+    if(window.parent && window.parent !== window) return true;
+  } catch(e){}
+  return false;
+})();
+if(IS_EMBED){
+  if(document.body) document.body.classList.add('embed-mode');
+  else document.addEventListener('DOMContentLoaded', function(){ document.body.classList.add('embed-mode'); });
+}
+
+// =============================================================================
+//  Stato
+// =============================================================================
+var _session = null;
+var _settings = {};        // map: key → row { value, category, is_sensitive, ... }
+var _settingsOriginal = {};// snapshot per rilevare il "dirty" e per Annulla
+var _tiers = [];           // custody_fee_tiers
+var _editingTierId = null; // null=nuovo, uuid=edit
+var _userMap = {};         // user_id → email (lazy populated for history)
+
+// =============================================================================
+//  HTTP helpers (riusa il pattern di rareblock-admin-users.html)
+// =============================================================================
+function getHDR(prefer){
+  var token=(_session&&_session.access_token)||SUPA_KEY;
+  return{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+token,'Prefer':prefer||'return=representation'};
+}
+async function supa(method,path,body){
+  var prefer=(method==='PATCH'||method==='DELETE'||method==='POST')?'return=representation':'return=representation';
+  var r=await fetch(SUPA_URL+'/rest/v1/'+path,{method,headers:getHDR(prefer),body:body?JSON.stringify(body):undefined});
+  if(!r.ok){ var e=await r.text(); throw new Error(e); }
+  var t=await r.text();
+  return t?JSON.parse(t):null;
+}
+
+function loadSession(){
+  // Tenta prima la session della dashboard custom (rb_auth_session)
+  try{ var raw=localStorage.getItem(RB_SESSION_KEY); if(raw) return JSON.parse(raw); }catch(e){}
+  // Poi la session standard di Supabase JS (sb-<ref>-auth-token)
+  try{
+    for(var k of Object.keys(localStorage)){
+      if(k.startsWith('sb-') && k.includes('auth-token')){
+        var v = JSON.parse(localStorage.getItem(k));
+        var tok = v?.access_token || v?.currentSession?.access_token || v?.[0];
+        if(tok){
+          var u = v?.user || v?.currentSession?.user || null;
+          return { access_token: tok, user: u, email: u?.email };
+        }
+      }
+    }
+  }catch(e){}
+  return null;
+}
+function clearSession(){
+  try{ localStorage.removeItem(RB_SESSION_KEY); localStorage.removeItem('rbJWT'); }catch(e){}
+}
+function doLogout(){
+  clearSession();
+  if(IS_EMBED){
+    try{ window.parent.location.href='rareblock-login.html'; }catch(e){ location.href='rareblock-login.html'; }
+  } else {
+    location.href='rareblock-login.html';
+  }
+}
+
+// =============================================================================
+//  Utility
+// =============================================================================
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtDateTime(d){ if(!d)return '—'; try{ return new Date(d).toLocaleString('it-IT',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){ return '—'; } }
+function fmtEUR(cents){
+  if(cents==null) return '—';
+  return new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR'}).format(cents/100);
+}
+function eurToCents(s){
+  if(s==null||s==='') return 0;
+  var n = Number(String(s).replace(',','.'));
+  if(!isFinite(n)) return 0;
+  return Math.round(n*100);
+}
+
+function toast(msg, kind){
+  var t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className=(kind||'ok')+' show';
+  clearTimeout(window._toastT);
+  window._toastT=setTimeout(function(){ t.classList.remove('show'); }, 3000);
+}
+
+// =============================================================================
+//  Auth bootstrap
+// =============================================================================
+async function bootstrap(){
+  _session = loadSession();
+  if(!_session){
+    showDenied('Devi prima fare login.');
+    return;
+  }
+
+  // Risolvi email + admin check
+  var email = _session.email || _session.user?.email;
+  document.getElementById('adminEmail').textContent = email || '—';
+
+  // Verifica admin via DB (non solo whitelist client)
+  try{
+    var profileRows = await supa('GET','profiles?select=id,role,email&id=eq.'+(_session.user?.id||''));
+    var profile = profileRows && profileRows[0];
+    var isAdmin = profile?.role === 'admin' || (email && ADMIN_EMAILS.indexOf(email.toLowerCase())>-1);
+    if(!isAdmin){
+      showDenied('Accesso riservato agli amministratori.');
+      return;
+    }
+  }catch(e){
+    // Fallback solo client-side
+    if(!email || ADMIN_EMAILS.indexOf(email.toLowerCase())<0){
+      showDenied('Accesso riservato agli amministratori.');
+      return;
+    }
+  }
+
+  await reloadAll();
+}
+
+function showDenied(msg){
+  document.querySelector('main').style.display='none';
+  var d = document.getElementById('deniedScreen');
+  d.style.display='flex';
+  if(msg){
+    var sub = d.querySelector('div:nth-child(2)');
+    if(sub) sub.textContent = msg;
+  }
+}
+
+// =============================================================================
+//  Sub-tab navigation
+// =============================================================================
+function showSection(name){
+  document.querySelectorAll('.subtab').forEach(function(b){ b.classList.toggle('active', b.dataset.tab===name); });
+  document.querySelectorAll('.section').forEach(function(s){ s.classList.toggle('active', s.id==='section-'+name); });
+
+  // Lazy load tab dati
+  if(name==='custody' && _tiers.length===0) loadTiers();
+  if(name==='history') loadHistory();
+}
+
+// =============================================================================
+//  Settings: load + render + save
+// =============================================================================
+async function loadSettings(){
+  var rows = await supa('GET','platform_settings?select=*');
+  _settings = {};
+  _settingsOriginal = {};
+  rows.forEach(function(r){
+    _settings[r.key] = r;
+    _settingsOriginal[r.key] = JSON.stringify(r.value); // snapshot per dirty check
+  });
+
+  // Hydrate inputs
+  document.querySelectorAll('[data-key]').forEach(function(el){
+    var k = el.dataset.key;
+    var row = _settings[k];
+    if(!row) return;
+    var v = row.value;
+    // value è JSONB → può essere stringa, numero, oggetto
+    if(typeof v === 'object' && v !== null){
+      // skip — gestito a parte (es. company_office_address)
+      return;
+    }
+    var s = String(v);
+    if(s === 'DA COMPILARE') s = '';
+    el.value = s;
+    el.classList.toggle('todo', String(row.value)==='DA COMPILARE');
+  });
+
+  // Sede legale (oggetto strutturato)
+  var addr = _settings.company_office_address?.value || {};
+  if(typeof addr === 'object'){
+    setVal('addr_street', addr.street||'');
+    setVal('addr_civic',  addr.civic||'');
+    setVal('addr_zip',    addr.zip||'');
+    setVal('addr_city',   addr.city||'');
+    setVal('addr_province', addr.province||'');
+    setVal('addr_country',  addr.country||'IT');
+  }
+
+  // Badge "Da completare" su Società
+  var todos = ['company_legal_name','company_legal_form','company_vat','company_pec','legal_rep_name'].filter(function(k){
+    return !_settings[k] || _settings[k].value==='DA COMPILARE';
+  });
+  var badge = document.getElementById('companyTodoBadge');
+  if(badge){
+    badge.style.display = todos.length>0 ? '' : 'none';
+    badge.textContent = todos.length>0 ? (todos.length+' da completare') : '';
+  }
+
+  // Club seats
+  try{
+    var seats = await supa('POST','rpc/club_seats_available',{});
+    document.getElementById('clubSeats').textContent = (seats||0)+' posti residui';
+  }catch(e){
+    document.getElementById('clubSeats').textContent = '—';
+  }
+
+  refreshDirtyAll();
+}
+function setVal(id,v){ var el=document.getElementById(id); if(el) el.value=v; }
+function getVal(id){ var el=document.getElementById(id); return el?el.value:''; }
+
+// Mappa sezione → lista di key da salvare
+const SECTION_KEYS = {
+  company:   ['company_legal_name','company_legal_form','company_capital','company_vat','company_fiscal_code','company_rea','company_chamber','company_pec','company_email','company_phone','legal_rep_name','legal_rep_fiscal_code','legal_rep_role','company_office_address'],
+  legal:     ['foro_competente','legge_applicabile'],
+  commerce:  ['default_vendor_commission_pct','contract_offer_validity_days','custody_payment_grace_days','contract_signed_retention_years'],
+  club:      ['club_max_members','club_admission_mode','club_quote_kyc_text_version'],
+  insurance: ['insurance_company','insurance_policy_number','insurance_policy_type','insurance_max_per_item','insurance_max_aggregate','insurance_deductible','insurance_coverage_start','insurance_coverage_end','insurance_exclusions','insurance_caveau_address'],
+};
+
+function readKey(k){
+  if(k === 'company_office_address'){
+    return {
+      street:  getVal('addr_street').trim(),
+      civic:   getVal('addr_civic').trim(),
+      zip:     getVal('addr_zip').trim(),
+      city:    getVal('addr_city').trim(),
+      province: getVal('addr_province').trim().toUpperCase(),
+      country: getVal('addr_country').trim().toUpperCase()||'IT',
+    };
+  }
+  var el = document.querySelector('[data-key="'+k+'"]');
+  if(!el) return null;
+  var v = el.value;
+  if(el.dataset.type === 'number'){
+    if(v==='') return null;
+    var n = Number(v);
+    return isFinite(n) ? n : null;
+  }
+  return v;
+}
+
+function refreshDirty(section){
+  var keys = SECTION_KEYS[section] || [];
+  var anyDirty = false;
+  keys.forEach(function(k){
+    var current = readKey(k);
+    var orig = _settingsOriginal[k];
+    if(orig === undefined) return;
+    var changed = JSON.stringify(current) !== orig;
+    var el = (k==='company_office_address') ? null : document.querySelector('[data-key="'+k+'"]');
+    if(el) el.classList.toggle('dirty', changed);
+    if(changed) anyDirty = true;
+  });
+  var status = document.getElementById(section+'Status');
+  if(status){
+    status.classList.remove('saved','dirty');
+    if(anyDirty){ status.classList.add('dirty'); status.textContent = 'Modifiche non salvate'; }
+    else        { status.textContent = ''; }
+  }
+}
+function refreshDirtyAll(){
+  Object.keys(SECTION_KEYS).forEach(refreshDirty);
+}
+
+// Listener generico su tutti gli input
+document.addEventListener('input', function(e){
+  if(!e.target.matches('[data-key], [id^="addr_"]')) return;
+  // determina la sezione
+  Object.keys(SECTION_KEYS).forEach(function(sec){
+    var keys = SECTION_KEYS[sec];
+    if(keys.indexOf(e.target.dataset.key)>-1) refreshDirty(sec);
+    if(sec==='company' && e.target.id && e.target.id.startsWith('addr_')) refreshDirty('company');
+  });
+});
+
+async function saveSection(section){
+  var keys = SECTION_KEYS[section] || [];
+  var btn = document.querySelector('#section-'+section+' .btn-primary');
+  if(btn) btn.disabled = true;
+  var ok = 0, errors = [];
+  for(var i=0;i<keys.length;i++){
+    var k = keys[i];
+    var val = readKey(k);
+    var orig = _settingsOriginal[k];
+    if(orig === undefined) continue;
+    if(JSON.stringify(val) === orig) continue; // unchanged
+
+    try{
+      // upsert: PATCH se esiste, POST se non esiste
+      if(_settings[k]){
+        await supa('PATCH','platform_settings?key=eq.'+encodeURIComponent(k), {
+          value: val,
+          updated_at: new Date().toISOString(),
+          updated_by: _session.user?.id || null,
+        });
+      } else {
+        await supa('POST','platform_settings',{
+          key: k,
+          value: val,
+          category: section==='company' ? 'company' : section==='insurance' ? 'insurance' : section==='legal' ? 'legal' : section==='club' ? 'club' : 'commercial',
+          is_sensitive: section==='insurance',
+          updated_by: _session.user?.id || null,
+        });
+      }
+      ok++;
+    }catch(e){
+      errors.push(k+': '+e.message);
+    }
+  }
+  if(btn) btn.disabled = false;
+
+  if(errors.length>0){
+    toast('Salvataggio parziale: '+ok+' ok, '+errors.length+' errori. '+errors[0], 'err');
+  } else if(ok>0){
+    toast('Salvate '+ok+' modifiche', 'ok');
+    var status = document.getElementById(section+'Status');
+    if(status){ status.classList.remove('dirty'); status.classList.add('saved'); status.textContent = '✓ Salvato'; }
+  } else {
+    toast('Nessuna modifica da salvare', 'info');
+  }
+  await loadSettings();
+}
+
+function resetSection(section){
+  // Ricarica solo i valori originali da _settings senza fetch
+  loadSettings();
+}
+
+// =============================================================================
+//  Custody tiers
+// =============================================================================
+async function loadTiers(){
+  document.getElementById('tiersBody').innerHTML = '<tr><td colspan="8" class="loading-shimmer">Caricamento tariffario</td></tr>';
+  try{
+    _tiers = await supa('GET','custody_fee_tiers?select=*&order=sort_order.asc,display_name.asc');
+    renderTiers();
+  }catch(e){
+    document.getElementById('tiersBody').innerHTML = '<tr><td colspan="8" class="empty">Errore: '+esc(e.message)+'</td></tr>';
+  }
+}
+function renderTiers(){
+  if(_tiers.length===0){
+    document.getElementById('tiersBody').innerHTML = '<tr><td colspan="8" class="empty">Nessuna fascia configurata</td></tr>';
+    return;
+  }
+  document.getElementById('tiersBody').innerHTML = _tiers.map(function(t){
+    return '<tr>'+
+      '<td class="mono">'+esc(t.code)+'</td>'+
+      '<td>'+esc(t.display_name)+'</td>'+
+      '<td><span class="badge">'+esc(t.size_category)+'</span></td>'+
+      '<td class="mono">'+esc(t.max_dimensions_cm||'—')+'</td>'+
+      '<td class="num">'+fmtEUR(t.annual_fee_cents)+'/anno</td>'+
+      '<td class="num">'+(t.insurance_max_eur?(new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(t.insurance_max_eur)):'—')+'</td>'+
+      '<td class="center">'+(t.is_active?'<span class="badge ok">attiva</span>':'<span class="badge">inattiva</span>')+'</td>'+
+      '<td><button class="btn-ghost" onclick="openTierModal(\''+t.id+'\')">Modifica</button></td>'+
+    '</tr>';
+  }).join('');
+}
+
+function openTierModal(id){
+  _editingTierId = id || null;
+  document.getElementById('tierModalTitle').textContent = id ? 'Modifica fascia' : 'Nuova fascia di custodia';
+  document.getElementById('tierDeleteBtn').style.display = id ? '' : 'none';
+  if(id){
+    var t = _tiers.find(function(x){ return x.id===id; });
+    if(!t) return;
+    document.getElementById('tierCode').value = t.code;
+    document.getElementById('tierCode').disabled = true;
+    document.getElementById('tierName').value = t.display_name;
+    document.getElementById('tierSize').value = t.size_category;
+    document.getElementById('tierDesc').value = t.description||'';
+    document.getElementById('tierDim').value = t.max_dimensions_cm||'';
+    document.getElementById('tierFee').value = (t.annual_fee_cents/100).toFixed(2);
+    document.getElementById('tierIns').value = t.insurance_max_eur||'';
+    document.getElementById('tierOrder').value = t.sort_order||0;
+    document.getElementById('tierActive').checked = !!t.is_active;
+  } else {
+    document.getElementById('tierCode').value = '';
+    document.getElementById('tierCode').disabled = false;
+    document.getElementById('tierName').value = '';
+    document.getElementById('tierSize').value = 'card';
+    document.getElementById('tierDesc').value = '';
+    document.getElementById('tierDim').value = '';
+    document.getElementById('tierFee').value = '';
+    document.getElementById('tierIns').value = '';
+    document.getElementById('tierOrder').value = 100;
+    document.getElementById('tierActive').checked = true;
+  }
+  document.getElementById('tierModalBg').classList.add('show');
+}
+function closeTierModal(){
+  document.getElementById('tierModalBg').classList.remove('show');
+  _editingTierId = null;
+}
+async function saveTier(){
+  var payload = {
+    code: document.getElementById('tierCode').value.trim().toLowerCase(),
+    display_name: document.getElementById('tierName').value.trim(),
+    description: document.getElementById('tierDesc').value.trim()||null,
+    size_category: document.getElementById('tierSize').value,
+    max_dimensions_cm: document.getElementById('tierDim').value.trim()||null,
+    annual_fee_cents: eurToCents(document.getElementById('tierFee').value),
+    insurance_max_eur: Number(document.getElementById('tierIns').value)||null,
+    sort_order: Number(document.getElementById('tierOrder').value)||0,
+    is_active: document.getElementById('tierActive').checked,
+  };
+  if(!payload.code){ toast('Codice obbligatorio','err'); return; }
+  if(!/^[a-z0-9_]+$/.test(payload.code)){ toast('Codice: solo a-z, 0-9, _','err'); return; }
+  if(!payload.display_name){ toast('Nome obbligatorio','err'); return; }
+
+  try{
+    if(_editingTierId){
+      await supa('PATCH','custody_fee_tiers?id=eq.'+_editingTierId, payload);
+      toast('Fascia aggiornata','ok');
+    } else {
+      await supa('POST','custody_fee_tiers', payload);
+      toast('Fascia creata','ok');
+    }
+    closeTierModal();
+    await loadTiers();
+  }catch(e){
+    toast('Errore: '+e.message,'err');
+  }
+}
+async function deleteTier(){
+  if(!_editingTierId) return;
+  if(!confirm('Eliminare questa fascia? I prodotti associati perderanno il riferimento (settati a NULL).')) return;
+  try{
+    // Verifica se la fascia è in uso
+    var tier = _tiers.find(function(x){ return x.id===_editingTierId; });
+    if(tier){
+      var inUse = await supa('GET','inv_products?select=id&custody_tier_code=eq.'+encodeURIComponent(tier.code)+'&limit=1');
+      if(inUse && inUse.length>0){
+        if(!confirm('ATTENZIONE: la fascia è usata da almeno 1 prodotto. Eliminare comunque (i prodotti perderanno l\'assegnazione)?')) return;
+        // Setta a NULL i prodotti
+        await supa('PATCH','inv_products?custody_tier_code=eq.'+encodeURIComponent(tier.code), { custody_tier_code: null });
+      }
+    }
+    await supa('DELETE','custody_fee_tiers?id=eq.'+_editingTierId);
+    toast('Fascia eliminata','ok');
+    closeTierModal();
+    await loadTiers();
+  }catch(e){
+    toast('Errore: '+e.message,'err');
+  }
+}
+
+// =============================================================================
+//  History
+// =============================================================================
+async function loadHistory(){
+  document.getElementById('historyBody').innerHTML = '<tr><td colspan="4" class="loading-shimmer">Caricamento storico</td></tr>';
+  try{
+    var rows = await supa('GET','platform_settings_history?select=*&order=changed_at.desc&limit=100');
+    if(!rows || rows.length===0){
+      document.getElementById('historyBody').innerHTML = '<tr><td colspan="4" class="empty">Nessuna modifica registrata</td></tr>';
+      return;
+    }
+    // Risolvi gli email degli autori
+    var userIds = [...new Set(rows.map(function(r){ return r.changed_by; }).filter(Boolean))];
+    if(userIds.length>0){
+      try{
+        var profs = await supa('GET','profiles?select=id,email&id=in.('+userIds.join(',')+')');
+        (profs||[]).forEach(function(p){ _userMap[p.id]=p.email; });
+      }catch(e){}
+    }
+    document.getElementById('historyBody').innerHTML = rows.map(function(r){
+      var oldStr = r.old_value === null ? '∅' : (typeof r.old_value === 'object' ? JSON.stringify(r.old_value) : String(r.old_value));
+      var newStr = typeof r.new_value === 'object' ? JSON.stringify(r.new_value) : String(r.new_value);
+      var diff = '<span class="from">'+esc(oldStr.length>120?oldStr.slice(0,120)+'…':oldStr)+'</span>'+
+                 '<span class="arrow">→</span>'+
+                 '<span class="to">'+esc(newStr.length>120?newStr.slice(0,120)+'…':newStr)+'</span>';
+      var author = r.changed_by ? (_userMap[r.changed_by] || r.changed_by.slice(0,8)+'…') : 'sistema';
+      return '<tr>'+
+        '<td class="mono" style="white-space:nowrap;color:var(--text-muted);font-size:11.5px">'+fmtDateTime(r.changed_at)+'</td>'+
+        '<td class="mono">'+esc(r.key)+'</td>'+
+        '<td><div class="diff">'+diff+'</div></td>'+
+        '<td class="mono" style="font-size:11.5px;color:var(--text-muted)">'+esc(author)+'</td>'+
+      '</tr>';
+    }).join('');
+  }catch(e){
+    document.getElementById('historyBody').innerHTML = '<tr><td colspan="4" class="empty">Errore: '+esc(e.message)+'</td></tr>';
+  }
+}
+
+// =============================================================================
+//  Reload all
+// =============================================================================
+async function reloadAll(){
+  var btn = document.getElementById('reloadBtn');
+  if(btn) btn.disabled = true;
+  try{
+    await loadSettings();
+    if(document.getElementById('section-custody').classList.contains('active')) await loadTiers();
+    if(document.getElementById('section-history').classList.contains('active')) await loadHistory();
+  }catch(e){
+    toast('Errore caricamento: '+e.message,'err');
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+
+// =============================================================================
+//  Boot
+// =============================================================================
+document.addEventListener('DOMContentLoaded', bootstrap);
+</script>
+
+</body>
+</html>

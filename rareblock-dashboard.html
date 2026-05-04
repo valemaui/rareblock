@@ -4777,6 +4777,7 @@ textarea{resize:vertical;min-height:60px}
       <button class="admin-side-btn" onclick="adminSection('drop')"><span class="rb-i rb-i-clock"></span> Drop Countdown</button>
       <button class="admin-side-btn" onclick="adminSection('submissions')"><span class="rb-i rb-i-package"></span> Richieste</button>
       <button class="admin-side-btn" onclick="adminSection('users')"><span class="rb-i rb-i-user"></span> Utenti</button>
+      <button class="admin-side-btn" onclick="adminSection('settings')"><span class="rb-i rb-i-gear"></span> Settings</button>
     </div>
     <div class="admin-main">
 
@@ -5308,6 +5309,15 @@ textarea{resize:vertical;min-height:60px}
         <iframe id="adminUsersIframe"
                 src="about:blank"
                 title="Gestione utenti"></iframe>
+      </div>
+
+      <!-- SETTINGS — embed di rareblock-admin-settings.html via iframe lazy.
+           Stesso pattern di "Utenti": il file è standalone (?embed=1) e
+           gestisce dati societari, polizza, custody tiers, history. -->
+      <div class="admin-section admin-section-users" id="admin-settings">
+        <iframe id="adminSettingsIframe"
+                src="about:blank"
+                title="Settings"></iframe>
       </div>
 
     </div><!-- /admin-main -->
@@ -9763,6 +9773,7 @@ function adminSection(s){
   if(s==='drop')        dropAdminLoad();
   if(s==='submissions') submLoadAll();
   if(s==='users')       adminLoadUsers();
+  if(s==='settings')    adminLoadSettings();
   if(s==='vendor-payouts') adminLoadVendorPayouts();
 }
 
@@ -9776,6 +9787,16 @@ function adminLoadUsers(){
   // Lazy load al primo accesso. Il display è gestito dal CSS via .active.
   if(iframe.dataset.loaded !== '1'){
     iframe.src = 'rareblock-admin-users.html?embed=1';
+    iframe.dataset.loaded = '1';
+  }
+}
+
+// Lazy-load dell'iframe Settings — stesso pattern di adminLoadUsers.
+function adminLoadSettings(){
+  var iframe = document.getElementById('adminSettingsIframe');
+  if(!iframe) return;
+  if(iframe.dataset.loaded !== '1'){
+    iframe.src = 'rareblock-admin-settings.html?embed=1';
     iframe.dataset.loaded = '1';
   }
 }
