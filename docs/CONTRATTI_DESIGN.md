@@ -12,6 +12,19 @@
   - `038_kyc_quote_acknowledgments.sql` (in PR9 con 035) — dipende da `contracts.id` per FK
 - ⏳ Restano da confermare: B4 (preemption vs scioglimento) e B6 (questionario consapevolezza), entrambi non bloccanti per le PR successive di infrastruttura
 
+## Cambiamenti v0.5 → v0.6 (PR9 specs consolidamento)
+- ✅ **B4 → trigger ibrido OR**: vendita scattata da `target_price` (se mercato offre ≥) **OR** `exit_window` (se al voto in finestra apposita ≥66.67% delle quote vota "vendi")
+  - **B4.1**: exit window one-shot, con rinvio di N anni (default 2) se al voto vince "non vendere"; ricorsivo
+  - **B4.2**: OR continuo — il `target_price` è valutato sempre, anche prima della finestra di voto
+  - **B4.3**: `target_price` immutabile al lancio (modificabile solo via voto qualificato 2/3 dei comproprietari)
+  - **B4.4**: voto per quote (non per teste), maggioranza qualificata 2/3
+- ✅ **B6 → nessun obbligo di buyback RareBlock; illiquidità trasparente con disclosure**
+  - L'utente deve esplicitamente acknowledgere 3 punti via `kyc_quote_acknowledgments`:
+    1. Illiquidità: la quota può non avere compratori sul secondario
+    2. No-buyback: RareBlock non garantisce ritiro a fermo
+    3. Capital loss: il valore può scendere; nessun capitale garantito
+- ⚖️ Razionale: queste sono le opzioni più conservative dal punto di vista di RareBlock (no rischio bilancio) e legalmente più solide (il buyback obbligatorio richiederebbe licenza MiFID e expone a market making con bilancio proprio).
+
 ## Cambiamenti v0.3 → v0.4
 - ✅ B1: comunicazione marketing = **co-titolarità di un bene da collezione** (no linguaggio "investimento con rendimento")
 - ✅ B2: **nessuna promessa di rendimento** — solo dichiarazione di volatilità
