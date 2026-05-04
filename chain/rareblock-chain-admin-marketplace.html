@@ -1,0 +1,716 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RareBlock Admin — Marketplace</title>
+<meta name="robots" content="noindex">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Figtree:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#0d1117; --bg-elev:#161b22; --bg-elev-2:#1c2128; --bg-elev-3:#22272e;
+  --border:#21262d; --border-soft:#1f242b;
+  --text:#e6edf3; --text-muted:#8b949e; --text-dim:#6e7681;
+  --gold:#c9a961; --gold-deep:#a8893f; --gold-soft:rgba(201,169,97,.10);
+  --green:#3fb950; --red:#f85149; --amber:#d29922; --blue:#58a6ff;
+  --serif:'Fraunces','Times New Roman',Georgia,serif;
+  --sans:'Figtree',-apple-system,system-ui,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  --maxw:1280px;
+  --radius:8px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+::selection{background:var(--gold);color:var(--bg)}
+button{font-family:inherit}
+
+.page{max-width:var(--maxw);margin:0 auto;padding:32px 28px 96px}
+@media (max-width:640px){.page{padding:24px 16px 64px}}
+
+.rule-gold{height:1px;background:linear-gradient(90deg,transparent,var(--gold) 30%,var(--gold) 70%,transparent);margin:32px 0}
+
+/* ─── Topbar + Hero ─── */
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;padding-bottom:24px;border-bottom:1px solid var(--border)}
+.brand{font-weight:700;font-size:13px;letter-spacing:.32em;color:var(--text)}
+.brand-sub{font-size:9px;letter-spacing:.22em;color:var(--text-muted);margin-top:2px}
+.topbar-right{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--text-muted)}
+.user-pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px 6px 6px;background:var(--bg-elev);border:1px solid var(--border);border-radius:999px}
+.user-pill .avatar{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--gold) 0%,var(--gold-deep) 100%);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--bg)}
+.user-pill .uname{font-family:var(--mono);font-size:11px;color:var(--text)}
+.btn-link{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:6px 10px}
+.btn-link:hover{color:var(--gold)}
+
+.hero{padding:24px 0 32px}
+.hero-eyebrow{font-size:10px;letter-spacing:.32em;color:var(--gold);text-transform:uppercase;margin-bottom:10px}
+.hero h1{font-family:var(--serif);font-style:italic;font-weight:300;font-size:42px;line-height:1.05;margin:0 0 8px;letter-spacing:-.012em}
+.hero p{color:var(--text-muted);max-width:620px;margin:0;font-size:15px}
+@media (max-width:640px){.hero h1{font-size:30px}}
+
+/* ─── Tabs ─── */
+.tabs{display:flex;gap:6px;margin-bottom:20px;border-bottom:1px solid var(--border);overflow-x:auto}
+.tab{padding:11px 18px;font-size:13px;letter-spacing:.04em;color:var(--text-muted);cursor:pointer;background:none;border:none;border-bottom:2px solid transparent;white-space:nowrap;font-family:var(--sans);font-weight:500;transition:color .15s,border-color .15s}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+.tab .badge{display:inline-block;background:var(--gold);color:var(--bg);font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px}
+
+/* ─── Section ─── */
+.section{display:none}
+.section.active{display:block}
+
+.card{background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:18px}
+
+/* ─── Tables ─── */
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:left;font-size:9px;letter-spacing:.18em;color:var(--text-muted);text-transform:uppercase;font-weight:500;padding:12px 12px 10px;border-bottom:1px solid var(--border)}
+.tbl th.num,.tbl td.num{text-align:right;font-family:var(--mono)}
+.tbl td{padding:12px;border-bottom:1px solid var(--border-soft);vertical-align:top}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:var(--bg-elev-2)}
+.tbl .ref{font-family:var(--mono);font-size:12px;color:var(--gold)}
+.tbl .email{font-size:12px;color:var(--text-muted)}
+.tbl .stack{display:flex;flex-direction:column;gap:2px}
+.tbl .stack .small{font-size:11px;color:var(--text-muted)}
+
+/* ─── Buttons ─── */
+.btn{background:var(--gold);color:var(--bg);border:none;padding:9px 16px;border-radius:6px;font-weight:600;font-size:12px;letter-spacing:.04em;cursor:pointer;transition:background .15s;font-family:var(--sans);text-decoration:none;display:inline-block}
+.btn:hover{background:var(--gold-deep)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-sm{padding:6px 11px;font-size:11px}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-ghost:hover{background:var(--bg-elev-2);border-color:var(--gold)}
+.btn-danger{background:transparent;border:1px solid rgba(248,81,73,.4);color:var(--red)}
+.btn-danger:hover{background:rgba(248,81,73,.08);border-color:var(--red)}
+
+/* ─── States ─── */
+.state{text-align:center;padding:48px 20px}
+.state-icon{font-size:32px;margin-bottom:14px;color:var(--gold);opacity:.7}
+.state h2{font-family:var(--serif);font-style:italic;font-weight:300;font-size:22px;margin:0 0 6px}
+.state p{color:var(--text-muted);max-width:480px;margin:0 auto}
+.spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.alert{padding:11px 14px;border-radius:6px;font-size:13px;margin-bottom:14px}
+.alert-info{background:var(--bg-elev-2);border:1px solid var(--border);color:var(--text-muted)}
+.alert-error{background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.3);color:var(--red)}
+.alert-success{background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.3);color:var(--green)}
+
+/* ─── Pill / Badge ─── */
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:9px;letter-spacing:.14em;text-transform:uppercase;padding:3px 8px;border-radius:999px;border:1px solid var(--border);font-weight:600;font-family:var(--sans)}
+.pill::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--text-dim)}
+.pill-ok{color:var(--green);border-color:rgba(63,185,80,.4)} .pill-ok::before{background:var(--green)}
+.pill-warn{color:var(--amber);border-color:rgba(210,153,34,.4)} .pill-warn::before{background:var(--amber)}
+.pill-err{color:var(--red);border-color:rgba(248,81,73,.4)} .pill-err::before{background:var(--red)}
+.pill-blue{color:var(--blue);border-color:rgba(88,166,255,.4)} .pill-blue::before{background:var(--blue)}
+
+/* ─── Fee config form ─── */
+.fee-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
+@media (max-width:840px){.fee-grid{grid-template-columns:1fr}}
+.fee-card{background:var(--bg-elev-2);border:1px solid var(--border);border-radius:var(--radius);padding:18px}
+.fee-card h3{font-family:var(--serif);font-style:italic;font-weight:400;font-size:18px;margin:0 0 4px}
+.fee-card .sub{font-size:11px;color:var(--text-muted);margin-bottom:12px}
+.fee-row{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+.fee-row label{flex:1;font-size:11px;letter-spacing:.12em;color:var(--text-muted);text-transform:uppercase}
+.fee-input{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--mono);font-size:13px;width:90px;outline:none;text-align:right}
+.fee-input:focus{border-color:var(--gold)}
+.fee-suffix{font-size:11px;color:var(--text-muted);font-family:var(--mono);width:24px}
+
+/* ─── Modal ─── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal-overlay.active{display:flex}
+.modal{background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);padding:28px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto}
+.modal h2{font-family:var(--serif);font-style:italic;font-weight:300;font-size:24px;margin:0 0 12px}
+.modal p{color:var(--text-muted);font-size:13px;line-height:1.65;margin:0 0 16px}
+.modal .input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:6px;font-size:14px;font-family:var(--sans);outline:none;margin-bottom:12px}
+.modal .input:focus{border-color:var(--gold)}
+.modal textarea.input{resize:vertical;min-height:64px}
+.modal .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:8px}
+.modal .label{display:block;font-size:10px;letter-spacing:.16em;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;font-family:var(--sans)}
+
+/* Footer */
+.foot{text-align:center;color:var(--text-dim);font-size:11px;margin-top:64px}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ─── LOADING ─── -->
+<section id="state-loading" class="state" hidden>
+  <div class="spinner"></div><h2>Loading admin panel…</h2>
+</section>
+
+<!-- ─── AUTH ─── -->
+<section id="state-auth" class="state" hidden>
+  <div class="state-icon">⚿</div>
+  <h2>Sign in required</h2>
+  <p>Admin authentication required.</p>
+  <a href="./rareblock-chain-portfolio.html" class="btn" style="margin-top:14px">Sign in</a>
+</section>
+
+<!-- ─── NOT ADMIN ─── -->
+<section id="state-forbidden" class="state" hidden>
+  <div class="state-icon" style="color:var(--red)">⛔</div>
+  <h2>Forbidden</h2>
+  <p>This page is restricted to admin accounts.</p>
+</section>
+
+<!-- ─── MAIN ─── -->
+<section id="state-main" hidden>
+
+  <header class="topbar">
+    <div>
+      <div class="brand">RARE BLOCK</div>
+      <div class="brand-sub">ADMIN · MARKETPLACE</div>
+    </div>
+    <div class="topbar-right">
+      <div class="user-pill">
+        <div class="avatar" id="user-avatar">·</div>
+        <div class="uname" id="user-email">—</div>
+      </div>
+      <button class="btn-link" id="logout-btn">Sign out</button>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="hero-eyebrow">Reconciliation</div>
+    <h1>Marketplace operations.</h1>
+    <p>Match incoming bank transfers, trigger on-chain settlements, and manage fee configuration. All actions are logged and audit-tracked.</p>
+  </section>
+
+  <div id="page-error" class="alert alert-error" hidden></div>
+  <div id="page-success" class="alert alert-success" hidden></div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" data-tab="bank">Bank transfers <span class="badge" id="badge-bank">0</span></button>
+    <button class="tab" data-tab="settle">Pending settlement <span class="badge" id="badge-settle">0</span></button>
+    <button class="tab" data-tab="fees">Fee config</button>
+  </div>
+
+  <!-- ═══ BANK ═══ -->
+  <section class="section active" id="sec-bank">
+    <div class="card">
+      <h2 style="font-family:var(--serif);font-style:italic;font-weight:400;font-size:22px;margin:0 0 14px">Bank transfers awaiting confirmation</h2>
+      <p style="color:var(--text-muted);font-size:13px;margin:0 0 18px">When you see the buyer's bank transfer arrive on the bank statement, match it by the reference (causale) and click <strong>Mark paid</strong>. This will mark the order paid and automatically trigger the on-chain settlement.</p>
+      <div id="bank-list">
+        <div class="state"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ SETTLE ═══ -->
+  <section class="section" id="sec-settle">
+    <div class="card">
+      <h2 style="font-family:var(--serif);font-style:italic;font-weight:400;font-size:22px;margin:0 0 14px">Orders ready to settle on-chain</h2>
+      <p style="color:var(--text-muted);font-size:13px;margin:0 0 18px">Orders in this list have been paid but the on-chain transfer hasn't completed (usually a transient RPC issue). Click <strong>Run settlement</strong> to execute the on-chain transfer manually.</p>
+      <div id="settle-list">
+        <div class="state"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ FEES ═══ -->
+  <section class="section" id="sec-fees">
+    <div class="card">
+      <h2 style="font-family:var(--serif);font-style:italic;font-weight:400;font-size:22px;margin:0 0 14px">Fee configuration</h2>
+      <p style="color:var(--text-muted);font-size:13px;margin:0 0 18px">Buyer's premium varies by payment method (Sotheby's-style). Changes apply only to <strong>new</strong> orders — existing orders carry a frozen snapshot of fees from the moment they were created.</p>
+      <div class="fee-grid" id="fee-grid">
+        <div class="state" style="grid-column:1/-1"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </section>
+
+</section>
+
+<!-- ═══ MODAL ═══ -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2 id="modal-title">Confirm action</h2>
+    <p id="modal-body"></p>
+    <div id="modal-form"></div>
+    <div class="actions">
+      <button class="btn btn-ghost" id="modal-cancel">Cancel</button>
+      <button class="btn" id="modal-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<footer class="foot">
+  <div class="rule-gold"></div>
+  <p>© RareBlock S.r.l. — Admin Panel</p>
+</footer>
+
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   CONFIG
+   ═══════════════════════════════════════════════════════════════════ */
+const SUPA_URL  = 'https://rbjaaeyjeeqfpbzyavag.supabase.co';
+const SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
+const RB_SESSION_KEY = 'rb_auth_session';
+const SETTLE_FN_URL = SUPA_URL + '/functions/v1/chain-transfer-secondary';
+
+const PAYMENT_METHOD_LABELS = {
+  bank_transfer: 'Bank transfer',
+  stripe_card:   'Card (Stripe)',
+  paypal:        'PayPal',
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════════════════ */
+var _session = null;
+var _profile = null;
+var _bank = [];
+var _settle = [];
+var _fees = [];
+
+/* ═══════════════════════════════════════════════════════════════════
+   HELPERS
+   ═══════════════════════════════════════════════════════════════════ */
+const $ = id => document.getElementById(id);
+const show = (id, on=true) => { const e=$(id); if(e) e.hidden = !on; };
+const setText = (id, t) => { const e=$(id); if(e) e.textContent = t; };
+const escHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtEUR = c => c==null||isNaN(c) ? '€ —' : new Intl.NumberFormat('it-IT', {style:'currency',currency:'EUR'}).format(c/100);
+const fmtDate = iso => { if(!iso) return '—'; const d=new Date(iso); return isNaN(d) ? iso : d.toLocaleString('en-US', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); };
+const avatar = e => (e || '?').slice(0,1).toUpperCase();
+
+function loadSession(){ try{ const r = localStorage.getItem(RB_SESSION_KEY); return r ? JSON.parse(r) : null; }catch(e){ return null; }}
+function saveSession(s){ try{ localStorage.setItem(RB_SESSION_KEY, JSON.stringify(s)); }catch(e){} }
+function clearSession(){ try{ localStorage.removeItem(RB_SESSION_KEY); }catch(e){} }
+
+function authHeaders(){
+  const token = (_session && _session.access_token) || SUPA_ANON;
+  return { 'Content-Type':'application/json', 'apikey':SUPA_ANON, 'Authorization':'Bearer '+token };
+}
+
+async function refreshToken(refresh_token) {
+  const r = await fetch(SUPA_URL + '/auth/v1/token?grant_type=refresh_token', {
+    method:'POST', headers:{ 'Content-Type':'application/json', 'apikey':SUPA_ANON },
+    body: JSON.stringify({ refresh_token }),
+  });
+  if (!r.ok) throw new Error('refresh failed');
+  return await r.json();
+}
+
+async function restoreSession() {
+  const s = loadSession();
+  if (!s || !s.access_token || !s.refresh_token) return null;
+  const now = Math.floor(Date.now() / 1000);
+  if (s.expires_at && s.expires_at <= now + 30) {
+    try { const fresh = await refreshToken(s.refresh_token); _session = fresh; saveSession(fresh); return fresh.user; }
+    catch(e){ clearSession(); return null; }
+  }
+  _session = s;
+  return s.user;
+}
+
+async function getProfile(userId) {
+  const url = `${SUPA_URL}/rest/v1/profiles?id=eq.${userId}&select=role,display_name&limit=1`;
+  const r = await fetch(url, { headers: authHeaders() });
+  if (!r.ok) return null;
+  const arr = await r.json();
+  return arr[0] || null;
+}
+
+function showError(msg) {
+  $('page-error').textContent = msg;
+  $('page-error').hidden = false;
+  show('page-success', false);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function showSuccess(msg) {
+  $('page-success').textContent = msg;
+  $('page-success').hidden = false;
+  show('page-error', false);
+  setTimeout(() => $('page-success').hidden = true, 4500);
+}
+function clearAlerts() { show('page-error', false); show('page-success', false); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   DATA
+   ═══════════════════════════════════════════════════════════════════ */
+async function fetchBank() {
+  const url = `${SUPA_URL}/rest/v1/v_marketplace_pending_bank_transfers?select=*`;
+  const r = await fetch(url, { headers: authHeaders() });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return await r.json();
+}
+async function fetchSettle() {
+  const url = `${SUPA_URL}/rest/v1/v_marketplace_admin_to_settle?select=*`;
+  const r = await fetch(url, { headers: authHeaders() });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return await r.json();
+}
+async function fetchFees() {
+  const url = `${SUPA_URL}/rest/v1/marketplace_fee_config?select=*&order=buyer_fee_bps.asc`;
+  const r = await fetch(url, { headers: authHeaders() });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return await r.json();
+}
+async function rpcMarkPaidBank(orderId, ref, notes) {
+  const r = await fetch(`${SUPA_URL}/rest/v1/rpc/marketplace_admin_mark_paid_bank`, {
+    method: 'POST', headers: authHeaders(),
+    body: JSON.stringify({ p_order_id: orderId, p_bank_ref: ref, p_admin_notes: notes }),
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    let msg = t; try { msg = JSON.parse(t).message; } catch(e){}
+    throw new Error(msg || `HTTP ${r.status}`);
+  }
+  return await r.json();
+}
+async function rpcCancelOrder(orderId, reason) {
+  const r = await fetch(`${SUPA_URL}/rest/v1/rpc/marketplace_admin_cancel_order`, {
+    method: 'POST', headers: authHeaders(),
+    body: JSON.stringify({ p_order_id: orderId, p_reason: reason }),
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    let msg = t; try { msg = JSON.parse(t).message; } catch(e){}
+    throw new Error(msg || `HTTP ${r.status}`);
+  }
+  return await r.json();
+}
+async function rpcUpdateFee(method, buyerBps, sellerBps, notes) {
+  const r = await fetch(`${SUPA_URL}/rest/v1/rpc/marketplace_admin_update_fee_config`, {
+    method: 'POST', headers: authHeaders(),
+    body: JSON.stringify({
+      p_payment_method: method,
+      p_buyer_fee_bps:  buyerBps,
+      p_seller_fee_bps: sellerBps,
+      p_notes: notes,
+    }),
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    let msg = t; try { msg = JSON.parse(t).message; } catch(e){}
+    throw new Error(msg || `HTTP ${r.status}`);
+  }
+  return await r.json();
+}
+async function fnTriggerSettle(orderId) {
+  const r = await fetch(SETTLE_FN_URL, {
+    method: 'POST', headers: authHeaders(),
+    body: JSON.stringify({ order_id: orderId }),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const e = new Error(data.error || `HTTP ${r.status}`);
+    e.code = data.code;
+    throw e;
+  }
+  return data;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RENDER — BANK
+   ═══════════════════════════════════════════════════════════════════ */
+function renderBank() {
+  setText('badge-bank', _bank.length);
+  const root = $('bank-list');
+  if (_bank.length === 0) {
+    root.innerHTML = `<div class="state"><div class="state-icon">✓</div><h2>All caught up</h2><p>No pending bank transfers right now.</p></div>`;
+    return;
+  }
+  root.innerHTML = `
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>Reference</th>
+          <th>Listing / Buyer</th>
+          <th class="num">Amount</th>
+          <th>Created</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${_bank.map(o => `
+          <tr>
+            <td><span class="ref">${escHtml(o.bank_reference || '—')}</span></td>
+            <td>
+              <div class="stack">
+                <div>${escHtml(o.product_name || '—')} <span class="small">${o.qty} share${o.qty>1?'s':''}</span></div>
+                <div class="email">Buyer: ${escHtml(o.buyer_email || '—')}</div>
+                <div class="email">Seller: ${escHtml(o.seller_email || '—')}</div>
+              </div>
+            </td>
+            <td class="num">${escHtml(fmtEUR(o.total_cents))}</td>
+            <td><span style="font-size:11px;color:var(--text-muted)">${fmtDate(o.created_at)}</span></td>
+            <td style="text-align:right;white-space:nowrap">
+              <button class="btn btn-sm" data-act="mark-paid" data-id="${escHtml(o.order_id)}" data-ref="${escHtml(o.bank_reference || '')}" data-amt="${escHtml(fmtEUR(o.total_cents))}">Mark paid</button>
+              <button class="btn btn-sm btn-danger" data-act="cancel" data-id="${escHtml(o.order_id)}">Cancel</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  // Wire buttons
+  root.querySelectorAll('[data-act="mark-paid"]').forEach(b => {
+    b.addEventListener('click', () => promptMarkPaid(b.dataset.id, b.dataset.ref, b.dataset.amt));
+  });
+  root.querySelectorAll('[data-act="cancel"]').forEach(b => {
+    b.addEventListener('click', () => promptCancel(b.dataset.id));
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RENDER — SETTLE
+   ═══════════════════════════════════════════════════════════════════ */
+function renderSettle() {
+  setText('badge-settle', _settle.length);
+  const root = $('settle-list');
+  if (_settle.length === 0) {
+    root.innerHTML = `<div class="state"><div class="state-icon">✓</div><h2>Nothing to settle</h2><p>All paid orders have been settled on-chain.</p></div>`;
+    return;
+  }
+  root.innerHTML = `
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>Order</th>
+          <th>Listing / Buyer</th>
+          <th>Method</th>
+          <th class="num">Total / Payout</th>
+          <th>Paid at</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${_settle.map(o => `
+          <tr>
+            <td><span class="ref">${escHtml((o.order_id || '').slice(0,8))}…</span></td>
+            <td>
+              <div class="stack">
+                <div>${escHtml(o.product_name || '—')} <span class="small">${o.qty} share${o.qty>1?'s':''}</span></div>
+                <div class="email">${escHtml(o.buyer_email || '—')} ← ${escHtml(o.seller_email || '—')}</div>
+                <div class="email">cert: <span style="font-family:var(--mono)">${escHtml(o.seller_serial)}</span></div>
+              </div>
+            </td>
+            <td><span class="pill pill-blue">${escHtml(PAYMENT_METHOD_LABELS[o.payment_method] || o.payment_method)}</span></td>
+            <td class="num">
+              <div>${escHtml(fmtEUR(o.total_cents))}</div>
+              <div style="font-size:10px;color:var(--text-muted)">payout ${escHtml(fmtEUR(o.payout_cents))}</div>
+            </td>
+            <td><span style="font-size:11px;color:var(--text-muted)">${fmtDate(o.paid_at)}</span></td>
+            <td style="text-align:right;white-space:nowrap">
+              <button class="btn btn-sm" data-act="settle" data-id="${escHtml(o.order_id)}">Run settlement</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  root.querySelectorAll('[data-act="settle"]').forEach(b => {
+    b.addEventListener('click', () => runSettle(b.dataset.id, b));
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RENDER — FEES
+   ═══════════════════════════════════════════════════════════════════ */
+function renderFees() {
+  const root = $('fee-grid');
+  if (_fees.length === 0) {
+    root.innerHTML = `<div class="state" style="grid-column:1/-1"><h2>No fee config</h2></div>`;
+    return;
+  }
+  root.innerHTML = _fees.map(f => {
+    const lab = PAYMENT_METHOD_LABELS[f.payment_method] || f.payment_method;
+    return `
+      <div class="fee-card">
+        <h3>${escHtml(lab)}</h3>
+        <div class="sub">Last updated ${fmtDate(f.updated_at)}</div>
+        <div class="fee-row">
+          <label>Buyer's premium</label>
+          <input class="fee-input" type="number" min="0" max="5000" step="10" value="${f.buyer_fee_bps}" data-pm="${escHtml(f.payment_method)}" data-side="buyer" />
+          <span class="fee-suffix">bps</span>
+        </div>
+        <div class="fee-row">
+          <label>Seller fee</label>
+          <input class="fee-input" type="number" min="0" max="5000" step="10" value="${f.seller_fee_bps}" data-pm="${escHtml(f.payment_method)}" data-side="seller" />
+          <span class="fee-suffix">bps</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-dim);margin:8px 0 12px">
+          1% = 100 bps. Currently <strong>${(f.buyer_fee_bps/100).toFixed(f.buyer_fee_bps%100===0?0:1)}%</strong> buyer + <strong>${(f.seller_fee_bps/100).toFixed(f.seller_fee_bps%100===0?0:1)}%</strong> seller.
+        </div>
+        <button class="btn btn-sm" style="width:100%" data-act="save-fee" data-pm="${escHtml(f.payment_method)}">Save</button>
+      </div>`;
+  }).join('');
+  root.querySelectorAll('[data-act="save-fee"]').forEach(b => {
+    b.addEventListener('click', () => saveFee(b.dataset.pm, b));
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ACTIONS
+   ═══════════════════════════════════════════════════════════════════ */
+
+function openModal({ title, body, formHtml, confirmLabel='Confirm', confirmStyle='', onConfirm }) {
+  setText('modal-title', title);
+  setText('modal-body', body);
+  $('modal-form').innerHTML = formHtml || '';
+  $('modal-confirm').textContent = confirmLabel;
+  $('modal-confirm').className = `btn ${confirmStyle}`;
+  $('modal').classList.add('active');
+  // Wire
+  $('modal-cancel').onclick = () => $('modal').classList.remove('active');
+  $('modal-confirm').onclick = async () => {
+    $('modal-confirm').disabled = true;
+    try { await onConfirm(); $('modal').classList.remove('active'); }
+    finally { $('modal-confirm').disabled = false; }
+  };
+}
+
+function promptMarkPaid(orderId, ref, amt) {
+  openModal({
+    title: 'Confirm payment received',
+    body: `You're about to mark this order as paid. This will trigger the on-chain settlement. Reference: ${ref || '—'}. Amount: ${amt}.`,
+    formHtml: `
+      <label class="label">Bank reference (causale)</label>
+      <input class="input" type="text" id="mp-ref" value="${escHtml(ref)}" />
+      <label class="label">Admin notes (optional)</label>
+      <textarea class="input" id="mp-notes" placeholder="e.g. Bonifico SEPA arrivato 4/5/26 ore 14:30"></textarea>
+    `,
+    confirmLabel: 'Mark paid & settle',
+    onConfirm: async () => {
+      const refVal = $('mp-ref').value.trim();
+      const notesVal = $('mp-notes').value.trim() || null;
+      try {
+        await rpcMarkPaidBank(orderId, refVal, notesVal);
+        // Trigger settlement immediately
+        try {
+          const r = await fnTriggerSettle(orderId);
+          if (r.was_idempotent) {
+            showSuccess(`Order marked paid. Settlement was already done.`);
+          } else {
+            showSuccess(`Order marked paid and settled on-chain. tx_hash: ${(r.tx_hash || '').slice(0,16)}…`);
+          }
+        } catch (e) {
+          showError(`Order marked paid, but on-chain settlement failed: ${e.message}. Use the "Pending settlement" tab to retry.`);
+        }
+        await reloadAll();
+      } catch (e) {
+        showError(`Could not mark paid: ${e.message}`);
+      }
+    },
+  });
+}
+
+function promptCancel(orderId) {
+  openModal({
+    title: 'Cancel order',
+    body: `This cancels the pending order and frees the listing back to active. The buyer will not be charged. Use this only if the bank transfer never arrived after a reasonable wait.`,
+    formHtml: `
+      <label class="label">Reason</label>
+      <textarea class="input" id="cancel-reason" placeholder="e.g. Bonifico mai arrivato dopo 7 giorni"></textarea>
+    `,
+    confirmLabel: 'Cancel order',
+    confirmStyle: 'btn-danger',
+    onConfirm: async () => {
+      const reason = $('cancel-reason').value.trim() || null;
+      try {
+        await rpcCancelOrder(orderId, reason);
+        showSuccess('Order cancelled, listing reactivated.');
+        await reloadAll();
+      } catch (e) {
+        showError(`Could not cancel: ${e.message}`);
+      }
+    },
+  });
+}
+
+async function runSettle(orderId, btn) {
+  clearAlerts();
+  btn.disabled = true; btn.textContent = 'Running…';
+  try {
+    const r = await fnTriggerSettle(orderId);
+    if (r.was_idempotent) {
+      showSuccess(`Order was already settled.`);
+    } else {
+      showSuccess(`Settled on-chain. tx_hash: ${(r.tx_hash || '').slice(0,16)}…`);
+    }
+    await reloadAll();
+  } catch (e) {
+    showError(`Settlement failed: ${e.message}${e.code ? ` [${e.code}]` : ''}`);
+    btn.disabled = false; btn.textContent = 'Run settlement';
+  }
+}
+
+async function saveFee(method, btn) {
+  clearAlerts();
+  const buyerInp = document.querySelector(`.fee-input[data-pm="${method}"][data-side="buyer"]`);
+  const sellerInp = document.querySelector(`.fee-input[data-pm="${method}"][data-side="seller"]`);
+  const bps_b = parseInt(buyerInp.value, 10);
+  const bps_s = parseInt(sellerInp.value, 10);
+  if (!Number.isFinite(bps_b) || !Number.isFinite(bps_s) || bps_b < 0 || bps_s < 0 || bps_b > 5000 || bps_s > 5000) {
+    showError('Fee values must be integers between 0 and 5000 bps.');
+    return;
+  }
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    await rpcUpdateFee(method, bps_b, bps_s, null);
+    showSuccess(`Updated fees for ${PAYMENT_METHOD_LABELS[method] || method}.`);
+    await reloadFees();
+  } catch (e) {
+    showError(`Save failed: ${e.message}`);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   FLOW
+   ═══════════════════════════════════════════════════════════════════ */
+async function reloadBank()   { try { _bank = await fetchBank(); renderBank(); } catch(e){ showError('Bank list: '+e.message); }}
+async function reloadSettle() { try { _settle = await fetchSettle(); renderSettle(); } catch(e){ showError('Settle list: '+e.message); }}
+async function reloadFees()   { try { _fees = await fetchFees(); renderFees(); } catch(e){ showError('Fee config: '+e.message); }}
+async function reloadAll() { await Promise.all([reloadBank(), reloadSettle(), reloadFees()]); }
+
+function wireTabs() {
+  document.querySelectorAll('.tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.section').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      $('sec-' + t.dataset.tab).classList.add('active');
+    });
+  });
+}
+
+async function init() {
+  show('state-loading', true);
+  const user = await restoreSession();
+  if (!user) { show('state-loading', false); show('state-auth', true); return; }
+  // Profile + role
+  const profile = await getProfile(user.id);
+  if (!profile || profile.role !== 'admin') {
+    show('state-loading', false); show('state-forbidden', true); return;
+  }
+  _profile = profile;
+
+  // Render topbar
+  setText('user-email', user.email);
+  setText('user-avatar', avatar(user.email));
+  $('logout-btn').addEventListener('click', () => {
+    clearSession();
+    location.href = './rareblock-chain-portfolio.html';
+  });
+
+  show('state-loading', false);
+  show('state-main', true);
+  wireTabs();
+  await reloadAll();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
