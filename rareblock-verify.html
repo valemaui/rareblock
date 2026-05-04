@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RareBlock — Verifica contratto</title>
+<meta name="description" content="Verifica l'autenticità di un contratto firmato RareBlock tramite ancoraggio on-chain Base."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Montserrat:wght@200;300&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#0d1117;
+  --surface:#161b22;
+  --surface2:#21262d;
+  --surface3:#2d333b;
+  --border:#30363d;
+  --border-strong:#3d444d;
+  --text:#e6edf3;
+  --text-muted:#7d8590;
+  --text-subtle:#484f58;
+  --accent:#58a6ff;
+  --accent-soft:rgba(88,166,255,.10);
+  --gold:#c9a84c;
+  --gold-soft:rgba(201,168,76,.10);
+  --gold-border:rgba(201,168,76,.35);
+  --success:#3fb950;
+  --success-soft:rgba(63,185,80,.10);
+  --danger:#f85149;
+  --danger-soft:rgba(248,81,73,.10);
+  --warning:#d29922;
+  --warning-soft:rgba(210,153,34,.10);
+  --font:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",monospace;
+  --display:"Montserrat",system-ui,sans-serif;
+  --serif:"Fraunces",Georgia,serif;
+  --r:6px;
+  --r-lg:8px;
+}
+
+html,body{height:100%}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font);
+  font-size:14px;
+  line-height:1.55;
+  display:flex;
+  flex-direction:column;
+  min-height:100vh;
+}
+
+/* Header minimale */
+.hdr{
+  height:56px;display:flex;align-items:center;padding:0 24px;
+  border-bottom:1px solid var(--border);background:var(--surface);
+  flex-shrink:0;justify-content:space-between;
+}
+.hdr-logo{
+  font-family:var(--display);font-size:14px;font-weight:300;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--text);
+  text-decoration:none;
+}
+.hdr-logo .b{color:var(--gold)}
+.hdr-pill{
+  font-size:10.5px;font-family:var(--mono);
+  letter-spacing:.08em;text-transform:uppercase;
+  color:var(--gold);background:var(--gold-soft);
+  border:1px solid var(--gold-border);
+  padding:4px 10px;border-radius:20px;
+}
+
+/* Hero */
+main{flex:1;padding:48px 24px;max-width:880px;width:100%;margin:0 auto}
+.hero{text-align:center;margin-bottom:36px}
+.hero-eyebrow{
+  font-size:11px;font-family:var(--mono);
+  text-transform:uppercase;letter-spacing:.14em;
+  color:var(--gold);margin-bottom:14px;
+}
+.hero-title{
+  font-family:var(--serif);font-style:italic;font-weight:300;
+  font-size:38px;line-height:1.15;letter-spacing:-.01em;
+  margin-bottom:14px;
+}
+@media (max-width:560px){.hero-title{font-size:30px}}
+.hero-sub{
+  font-size:14.5px;color:var(--text-muted);
+  max-width:620px;margin:0 auto;line-height:1.7;
+}
+
+/* Tabs */
+.tabs{
+  display:flex;gap:4px;padding:4px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);max-width:480px;margin:0 auto 24px;
+}
+.tab-btn{
+  flex:1;padding:9px 14px;border:none;background:none;
+  color:var(--text-muted);font-family:var(--font);font-size:13px;
+  font-weight:500;border-radius:var(--r);cursor:pointer;
+  transition:background .15s,color .15s;
+}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{background:var(--surface2);color:var(--gold)}
+
+/* Form card */
+.card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);overflow:hidden;
+}
+.card-body{padding:28px}
+@media (max-width:560px){.card-body{padding:20px}}
+
+/* Search input */
+.search-row{display:flex;gap:10px;flex-wrap:wrap}
+.search-input{
+  flex:1;min-width:0;background:var(--surface2);
+  border:1px solid var(--border);border-radius:var(--r);
+  color:var(--text);font-family:var(--mono);font-size:14px;
+  padding:11px 14px;outline:none;transition:border-color .15s,box-shadow .15s;
+}
+.search-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.search-input::placeholder{color:var(--text-subtle)}
+.btn{
+  padding:11px 22px;background:var(--gold);color:var(--bg);
+  border:1px solid var(--gold);border-radius:var(--r);
+  font-family:var(--font);font-size:13.5px;font-weight:600;
+  cursor:pointer;white-space:nowrap;transition:all .15s;
+}
+.btn:hover:not(:disabled){background:#d4b561;border-color:#d4b561}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-ghost{background:none;color:var(--text-muted);border-color:var(--border)}
+.btn-ghost:hover:not(:disabled){background:var(--surface2);color:var(--text)}
+
+/* PDF drop */
+.pdf-drop{
+  border:2px dashed var(--border-strong);border-radius:var(--r-lg);
+  padding:36px 24px;text-align:center;cursor:pointer;
+  transition:all .15s;background:var(--surface2);
+}
+.pdf-drop:hover,.pdf-drop.dragover{border-color:var(--gold);background:var(--gold-soft)}
+.pdf-drop input{display:none}
+.pdf-drop-icon{font-size:38px;color:var(--text-muted);margin-bottom:8px;line-height:1}
+.pdf-drop-label{font-size:14px;font-weight:500;color:var(--text);margin-bottom:4px}
+.pdf-drop-hint{font-size:12px;color:var(--text-muted);font-family:var(--mono)}
+
+.hint-text{
+  font-size:12px;color:var(--text-muted);
+  margin-top:14px;line-height:1.6;
+}
+
+/* Result */
+.result{margin-top:24px;display:none}
+.result.show{display:block}
+.res-banner{
+  padding:18px 22px;border-radius:var(--r-lg);
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+}
+.res-banner.ok{background:var(--success-soft);border:1px solid rgba(63,185,80,.4)}
+.res-banner.err{background:var(--danger-soft);border:1px solid rgba(248,81,73,.4)}
+.res-banner.warn{background:var(--warning-soft);border:1px solid rgba(210,153,34,.4)}
+.res-icon{
+  font-size:24px;width:42px;height:42px;
+  border-radius:50%;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;font-weight:700;
+}
+.res-banner.ok .res-icon{background:var(--success);color:var(--bg)}
+.res-banner.err .res-icon{background:var(--danger);color:var(--bg)}
+.res-banner.warn .res-icon{background:var(--warning);color:var(--bg)}
+.res-text{flex:1;min-width:0}
+.res-title{font-size:15px;font-weight:600;margin-bottom:3px}
+.res-sub{font-size:12.5px;color:var(--text-muted)}
+
+.res-table{
+  margin-top:18px;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r-lg);
+  overflow:hidden;
+}
+.res-row{
+  display:flex;border-bottom:1px solid var(--border);
+  padding:13px 18px;gap:16px;
+}
+.res-row:last-child{border-bottom:none}
+.res-label{
+  flex:0 0 160px;font-size:11px;font-family:var(--mono);
+  text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);
+  font-weight:500;padding-top:2px;
+}
+.res-value{
+  flex:1;min-width:0;font-size:13px;
+  word-break:break-all;font-family:var(--mono);
+}
+.res-value a{color:var(--accent);text-decoration:none}
+.res-value a:hover{text-decoration:underline}
+.res-value .copy{
+  background:none;border:1px solid var(--border);
+  color:var(--text-muted);font-family:var(--mono);font-size:10px;
+  padding:2px 7px;border-radius:3px;cursor:pointer;margin-left:8px;
+  transition:all .12s;
+}
+.res-value .copy:hover{color:var(--gold);border-color:var(--gold)}
+
+/* Footer */
+footer{
+  padding:24px;text-align:center;
+  font-size:11.5px;color:var(--text-subtle);
+  border-top:1px solid var(--border);font-family:var(--mono);
+  letter-spacing:.04em;
+}
+footer a{color:var(--text-muted);text-decoration:none}
+footer a:hover{color:var(--gold)}
+
+/* Loading */
+.spinner{
+  display:inline-block;width:14px;height:14px;
+  border:2px solid var(--text-subtle);border-top-color:var(--gold);
+  border-radius:50%;animation:spin .8s linear infinite;
+  vertical-align:middle;margin-right:6px;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+#toast{
+  position:fixed;bottom:20px;left:50%;transform:translate(-50%,120%);
+  background:var(--surface);border:1px solid var(--border-strong);
+  border-radius:var(--r);padding:10px 18px;font-size:13px;
+  box-shadow:0 12px 30px rgba(0,0,0,.4);transition:transform .25s;
+  z-index:1000;
+}
+#toast.show{transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <a href="/" class="hdr-logo"><span>Rare</span><span class="b">Block</span></a>
+  <span class="hdr-pill">Verifica pubblica</span>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="hero-eyebrow">Verifica autenticità contratto</div>
+    <h1 class="hero-title">È davvero questo<br/>il documento firmato?</h1>
+    <p class="hero-sub">
+      Ogni contratto firmato su RareBlock è ancorato on-chain alla blockchain Base.
+      Il suo hash crittografico (SHA-256) e il timestamp del blocco sono pubblici e
+      immutabili — sufficienti per dimostrare che il documento esiste in quella forma
+      esatta da quel momento, e non è stato modificato.
+    </p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-mode="serial" onclick="setMode('serial')">Per numero contratto</button>
+    <button class="tab-btn" data-mode="pdf" onclick="setMode('pdf')">Carica il PDF</button>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+
+      <!-- Mode: serial -->
+      <div id="modeSerial">
+        <div class="search-row">
+          <input class="search-input" id="serialInput" type="text"
+                 placeholder="Es. RB-VND-2026-000001"
+                 spellcheck="false" autocomplete="off"/>
+          <button class="btn" id="serialBtn" onclick="verifyBySerial()">Verifica</button>
+        </div>
+        <p class="hint-text">
+          Inserisci il numero di contratto stampato sul tuo PDF firmato (di solito
+          nell'intestazione o in fondo alla pagina di firma). Il sistema mostra
+          i dati on-chain associati senza esporre dati personali.
+        </p>
+      </div>
+
+      <!-- Mode: PDF upload -->
+      <div id="modePdf" style="display:none">
+        <label class="pdf-drop" id="pdfDrop">
+          <div class="pdf-drop-icon">⬆</div>
+          <div class="pdf-drop-label" id="pdfDropLabel">Trascina qui il PDF firmato</div>
+          <div class="pdf-drop-hint">o clicca per selezionarlo · max 25 MB</div>
+          <input type="file" id="pdfInput" accept="application/pdf"/>
+        </label>
+        <p class="hint-text">
+          Il file <strong>NON</strong> viene caricato sui nostri server: lo SHA-256
+          è calcolato direttamente nel tuo browser. Inviamo solo l'hash di 64
+          caratteri per cercare l'eventuale notarizzazione corrispondente.
+        </p>
+      </div>
+
+      <!-- Result -->
+      <div class="result" id="result"></div>
+
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div>RareBlock — Notarizzazione su Base mainnet · <a href="https://basescan.org" target="_blank" rel="noopener">basescan.org</a></div>
+  <div style="margin-top:6px">Contatti: <a href="mailto:info@rareblock.eu">info@rareblock.eu</a></div>
+</footer>
+
+<div id="toast"></div>
+
+<script>
+const SUPA_URL = 'https://rbjaaeyjeeqfpbzyavag.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtDateTime(s){
+  if(!s) return '—';
+  try{
+    return new Date(s).toLocaleString('it-IT',{
+      day:'2-digit',month:'short',year:'numeric',
+      hour:'2-digit',minute:'2-digit',timeZoneName:'short'
+    });
+  }catch(e){ return s; }
+}
+function toast(m){
+  const t=$('toast'); t.textContent=m; t.classList.add('show');
+  clearTimeout(window._t); window._t=setTimeout(()=>t.classList.remove('show'),1800);
+}
+
+function setMode(m){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.mode===m));
+  $('modeSerial').style.display = m==='serial' ? '' : 'none';
+  $('modePdf').style.display    = m==='pdf'    ? '' : 'none';
+  $('result').classList.remove('show');
+  $('result').innerHTML = '';
+}
+
+// ── Read URL param ──
+(function readUrl(){
+  const url = new URL(location.href);
+  const s = url.searchParams.get('serial') || url.searchParams.get('s');
+  if(s){
+    setMode('serial');
+    $('serialInput').value = s;
+    setTimeout(verifyBySerial, 200);
+    return;
+  }
+  const h = url.searchParams.get('sha256');
+  if(h){ verifyByHash(h); return; }
+  // /verify/RB-VND-... pattern
+  const m = location.pathname.match(/\/verify\/([A-Z0-9_-]+)/i);
+  if(m && m[1]){
+    setMode('serial');
+    $('serialInput').value = m[1];
+    setTimeout(verifyBySerial, 200);
+  }
+})();
+
+async function verifyBySerial(){
+  const serial = $('serialInput').value.trim();
+  if(!serial){ toast('Inserisci un numero di contratto'); return; }
+  const btn = $('serialBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Verifica...';
+  try{
+    const r = await fetch(`${SUPA_URL}/functions/v1/contract-verify?serial=${encodeURIComponent(serial)}`, {
+      method: 'GET',
+      headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY }
+    });
+    const body = await r.json().catch(()=>({}));
+    renderResult(body);
+  }catch(e){
+    renderError('Errore di rete: '+(e.message||e));
+  }finally{
+    btn.disabled = false; btn.textContent = 'Verifica';
+  }
+}
+
+async function verifyByHash(hash){
+  setMode('pdf');
+  $('pdfDropLabel').textContent = 'Verifica in corso...';
+  try{
+    const r = await fetch(`${SUPA_URL}/functions/v1/contract-verify?sha256=${encodeURIComponent(hash)}`, {
+      method: 'GET',
+      headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY }
+    });
+    const body = await r.json().catch(()=>({}));
+    renderResult(body);
+  }catch(e){
+    renderError('Errore di rete: '+(e.message||e));
+  }finally{
+    $('pdfDropLabel').textContent = 'Trascina qui il PDF firmato';
+  }
+}
+
+// PDF upload + sha256 client-side
+async function sha256OfFile(file){
+  const buf = await file.arrayBuffer();
+  const hash = await crypto.subtle.digest('SHA-256', buf);
+  const arr = new Uint8Array(hash);
+  let s = '0x';
+  for(const b of arr) s += b.toString(16).padStart(2,'0');
+  return s;
+}
+async function handlePdfFile(file){
+  if(!file) return;
+  if(file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')){
+    toast('Carica un file PDF'); return;
+  }
+  if(file.size > 25*1024*1024){ toast('File troppo grande (max 25MB)'); return; }
+  const drop = $('pdfDrop');
+  drop.classList.add('dragover');
+  $('pdfDropLabel').innerHTML = '<span class="spinner"></span> Calcolo SHA-256...';
+  try{
+    const hash = await sha256OfFile(file);
+    $('pdfDropLabel').innerHTML = '<span class="spinner"></span> Cerco notarizzazione...';
+    const r = await fetch(`${SUPA_URL}/functions/v1/contract-verify?sha256=${encodeURIComponent(hash)}`, {
+      method: 'GET',
+      headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY }
+    });
+    const body = await r.json().catch(()=>({}));
+    body._uploaded_filename = file.name;
+    body._uploaded_sha256 = hash;
+    renderResult(body);
+  }catch(e){
+    renderError('Errore: '+(e.message||e));
+  }finally{
+    drop.classList.remove('dragover');
+    $('pdfDropLabel').textContent = 'Trascina qui il PDF firmato';
+  }
+}
+
+(function setupDrop(){
+  const drop = $('pdfDrop');
+  const input = $('pdfInput');
+  if(!drop) return;
+  input.addEventListener('change', e=>handlePdfFile(e.target.files[0]));
+  ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev, e=>{
+    e.preventDefault(); drop.classList.add('dragover');
+  }));
+  ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev, e=>{
+    e.preventDefault(); drop.classList.remove('dragover');
+  }));
+  drop.addEventListener('drop', e=>{
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if(f) handlePdfFile(f);
+  });
+})();
+
+function renderError(msg){
+  const el = $('result');
+  el.innerHTML = `<div class="res-banner err"><div class="res-icon">!</div>
+    <div class="res-text"><div class="res-title">Errore</div>
+    <div class="res-sub">${esc(msg)}</div></div></div>`;
+  el.classList.add('show');
+}
+
+function renderResult(body){
+  const el = $('result');
+  if(!body || body.error){
+    renderError(body && body.error ? body.error : 'Risposta non valida');
+    return;
+  }
+  if(!body.found){
+    let extra = '';
+    if(body._uploaded_filename){
+      extra = `<div class="res-table" style="margin-top:14px">
+        <div class="res-row"><div class="res-label">File caricato</div><div class="res-value">${esc(body._uploaded_filename)}</div></div>
+        <div class="res-row"><div class="res-label">SHA-256 calcolato</div><div class="res-value">${esc(body._uploaded_sha256)}<button class="copy" onclick="copy('${esc(body._uploaded_sha256)}')">Copia</button></div></div>
+      </div>`;
+    }
+    el.innerHTML = `<div class="res-banner warn"><div class="res-icon">?</div>
+      <div class="res-text">
+        <div class="res-title">Notarizzazione non trovata</div>
+        <div class="res-sub">${esc(body.message || 'Il sistema non ha trovato corrispondenze.')}</div>
+      </div></div>${extra}`;
+    el.classList.add('show');
+    return;
+  }
+
+  const tx = body.tx_hash || '—';
+  const txShort = tx.length > 18 ? tx.slice(0,10)+'...'+tx.slice(-8) : tx;
+
+  let warnRow = '';
+  if(body._uploaded_filename && body._uploaded_sha256){
+    const matches = body.pdf_sha256 &&
+      body._uploaded_sha256.toLowerCase().replace(/^0x/,'') ===
+      body.pdf_sha256.toLowerCase().replace(/^0x/,'');
+    warnRow = matches ? '' :
+      `<div class="res-banner warn" style="margin-top:14px"><div class="res-icon">!</div>
+       <div class="res-text"><div class="res-title">Hash diverso</div>
+       <div class="res-sub">L'hash del file caricato non corrisponde all'hash notarizzato. Il PDF potrebbe essere stato modificato.</div></div></div>`;
+  }
+
+  el.innerHTML = `
+    <div class="res-banner ok">
+      <div class="res-icon">✓</div>
+      <div class="res-text">
+        <div class="res-title">Contratto autentico</div>
+        <div class="res-sub">Notarizzazione registrata su blockchain Base. ${body.status==='broadcasted' ? 'In attesa di conferma definitiva.' : 'Confermato.'}</div>
+      </div>
+    </div>
+    ${warnRow}
+    <div class="res-table">
+      <div class="res-row">
+        <div class="res-label">Numero contratto</div>
+        <div class="res-value">${esc(body.contract_serial || '—')}</div>
+      </div>
+      <div class="res-row">
+        <div class="res-label">Hash documento</div>
+        <div class="res-value">${esc(body.pdf_sha256 || '—')}<button class="copy" onclick="copy('${esc(body.pdf_sha256||'')}')">Copia</button></div>
+      </div>
+      <div class="res-row">
+        <div class="res-label">Tx hash</div>
+        <div class="res-value">${
+          body.basescan_url
+            ? `<a href="${esc(body.basescan_url)}" target="_blank" rel="noopener noreferrer">${esc(txShort)} ↗</a>`
+            : esc(txShort)
+        }<button class="copy" onclick="copy('${esc(tx)}')">Copia</button></div>
+      </div>
+      <div class="res-row">
+        <div class="res-label">Block number</div>
+        <div class="res-value">${body.block_number != null ? esc(String(body.block_number)) : '—'}</div>
+      </div>
+      <div class="res-row">
+        <div class="res-label">Block timestamp</div>
+        <div class="res-value">${esc(fmtDateTime(body.block_timestamp))}</div>
+      </div>
+      <div class="res-row">
+        <div class="res-label">Chain</div>
+        <div class="res-value">${body.chain_id===84532 ? 'Base Sepolia (testnet)' : 'Base mainnet'} · ID ${body.chain_id}</div>
+      </div>
+      <div class="res-row">
+        <div class="res-label">Verificato il</div>
+        <div class="res-value">${esc(fmtDateTime(body.verified_at))}</div>
+      </div>
+    </div>
+    <p class="hint-text" style="margin-top:14px">
+      ${esc(body.verifier_note || '')}
+    </p>
+  `;
+  el.classList.add('show');
+}
+
+async function copy(t){
+  try{
+    await navigator.clipboard.writeText(t);
+    toast('Copiato');
+  }catch(e){
+    toast('Impossibile copiare');
+  }
+}
+
+// Enter key to submit
+$('serialInput').addEventListener('keydown', e=>{
+  if(e.key==='Enter') verifyBySerial();
+});
+</script>
+</body>
+</html>
