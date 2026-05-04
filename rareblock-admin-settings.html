@@ -791,13 +791,34 @@ function loadSession(){
 }
 function clearSession(){
   try{ localStorage.removeItem(RB_SESSION_KEY); localStorage.removeItem('rbJWT'); }catch(e){}
+  // Pulisci anche le chiavi SDK Supabase (sb-<ref>-auth-token e simili)
+  try {
+    var keysToRemove = [];
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (k && k.indexOf('sb-') === 0) keysToRemove.push(k);
+    }
+    keysToRemove.forEach(function(k){ try { localStorage.removeItem(k); } catch(e){} });
+  } catch(e){}
+  try { sessionStorage.clear(); } catch(e){}
 }
 function doLogout(){
+  // Server-side signout best-effort (revoca refresh_token su Supabase)
+  try {
+    var token = _session && _session.access_token;
+    if (token) {
+      fetch(SUPA_URL + '/auth/v1/logout?scope=local', {
+        method: 'POST',
+        headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + token },
+        keepalive: true,
+      }).catch(function(){});
+    }
+  } catch(e){}
   clearSession();
   if(IS_EMBED){
-    try{ window.parent.location.href='rareblock-login.html'; }catch(e){ location.href='rareblock-login.html'; }
+    try{ window.parent.location.href='pokemon-db.html'; }catch(e){ location.href='pokemon-db.html'; }
   } else {
-    location.href='rareblock-login.html';
+    location.href='pokemon-db.html';
   }
 }
 
