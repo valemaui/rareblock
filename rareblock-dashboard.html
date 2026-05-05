@@ -3993,6 +3993,11 @@ textarea{resize:vertical;min-height:60px}
 .admin-side-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;border-radius:9px;background:var(--danger);color:#fff;font-size:10px;font-weight:600;font-family:var(--mono);margin-left:auto;letter-spacing:.02em}
 .admin-side-btn:hover{background:var(--surface2);color:var(--text)}
 .admin-side-btn.active{background:var(--accent-soft);color:var(--accent)}
+
+/* PR5c: tabs interne sezione admin (es. Bonifici) */
+.admin-tab-btn{padding:9px 16px;background:transparent;border:none;color:var(--text-muted);font-family:var(--font);font-size:13px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;transition:all .12s;margin-bottom:-1px}
+.admin-tab-btn:hover{color:var(--text)}
+.admin-tab-btn.active{color:var(--gold);border-bottom-color:var(--gold)}
 .admin-main{flex:1;overflow-y:auto;padding:20px 24px}
 .admin-section{display:none}
 .admin-section.active{display:block}
@@ -6431,6 +6436,7 @@ select.prof-input{cursor:pointer}
       </div>
       <button class="admin-side-btn active" onclick="adminSection('products')"><span class="rb-i rb-i-package"></span> Prodotti</button>
       <button class="admin-side-btn" onclick="adminSection('payments')"><span class="rb-i rb-i-card"></span> Pagamenti <span id="adminSidePayCount" class="admin-side-badge" style="display:none">0</span></button>
+      <button class="admin-side-btn" onclick="adminSection('bonifici')"><span class="rb-i rb-i-card"></span> Bonifici <span id="adminSideBonificiCount" class="admin-side-badge" style="display:none">0</span></button>
       <button class="admin-side-btn" onclick="adminSection('vendors')"><span class="rb-i rb-i-users"></span> Venditori</button>
       <button class="admin-side-btn" onclick="adminSection('vendor-payouts')"><span class="rb-i rb-i-coin"></span> Payout Vendor <span id="adminSidePayoutCount" class="admin-side-badge" style="display:none">0</span></button>
       <button class="admin-side-btn" onclick="adminSection('accruals')"><span class="rb-i rb-i-paperclip"></span> Accrual</button>
@@ -6681,6 +6687,111 @@ select.prof-input{cursor:pointer}
           <tbody id="adminPaymentsTbody"></tbody>
         </table>
         <div class="empty-state" id="adminPaymentsEmpty" style="display:none"><div class="icon"><span class="rb-i rb-i-card"></span></div><h3>Nessun pagamento pendente</h3></div>
+      </div>
+
+      <!-- BONIFICI: settings IBAN RareBlock + riconciliazione (PR5c) -->
+      <div class="admin-section" id="admin-bonifici">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div>
+            <div style="font-size:15px;font-weight:600">Bonifici bancari</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:3px">Configurazione IBAN RareBlock + riconciliazione ordini in attesa pagamento</div>
+          </div>
+          <button class="btn" onclick="adminBonificiLoad()" title="Ricarica"><span class="rb-i rb-i-refresh"></span> Aggiorna</button>
+        </div>
+
+        <!-- Tabs interne -->
+        <div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:18px">
+          <button class="admin-tab-btn active" data-bonifici-tab="recon" onclick="adminBonificiTab('recon')">Da riconciliare <span id="adminBonificiReconCount" style="margin-left:6px;color:var(--text-subtle);font-family:var(--mono);font-size:11px"></span></button>
+          <button class="admin-tab-btn" data-bonifici-tab="settings" onclick="adminBonificiTab('settings')">Settings IBAN RareBlock</button>
+        </div>
+
+        <!-- TAB: Riconciliazione -->
+        <div class="admin-bonifici-tab" id="admin-bonifici-recon">
+          <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
+            <select id="adminBonificiFilter" onchange="adminBonificiFilterChange()" style="max-width:240px">
+              <option value="all" selected>Tutti</option>
+              <option value="awaiting_payment">In attesa pagamento</option>
+              <option value="expired">Scaduti</option>
+              <option value="critical">Urgenti (&lt;24h)</option>
+            </select>
+            <input type="text" id="adminBonificiSearch" placeholder="Cerca per numero, causale, email…" oninput="adminBonificiSearchChange()" style="max-width:280px"/>
+          </div>
+
+          <table class="admin-table" id="adminBonificiTable">
+            <thead>
+              <tr>
+                <th style="width:160px">Ordine</th>
+                <th>Cliente</th>
+                <th>Prodotto</th>
+                <th style="text-align:right">Importo</th>
+                <th>Scenario</th>
+                <th>Scadenza</th>
+                <th style="width:140px">Stato</th>
+                <th style="width:160px">Azioni</th>
+              </tr>
+            </thead>
+            <tbody id="adminBonificiTbody"></tbody>
+          </table>
+          <div class="empty-state" id="adminBonificiEmpty" style="display:none">
+            <div class="icon"><span class="rb-i rb-i-card"></span></div>
+            <h3>Nessun bonifico in attesa</h3>
+            <p>Tutti gli ordini sono stati riconciliati o non ce ne sono al momento.</p>
+          </div>
+        </div>
+
+        <!-- TAB: Settings IBAN RareBlock -->
+        <div class="admin-bonifici-tab" id="admin-bonifici-settings" style="display:none">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:24px;max-width:680px">
+            <div style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:20px">
+              Questi dati vengono usati come <strong style="color:var(--text)">snapshot al momento del checkout</strong> per gli ordini con scenario <em>"RareBlock standard"</em>. Modificandoli, gli ordini esistenti restano coerenti col bonifico originale; solo i <strong>nuovi</strong> ordini erediteranno i nuovi dati.
+            </div>
+            <div class="form-grid">
+              <div class="field span2">
+                <label>Ragione sociale</label>
+                <input type="text" id="rbsCompanyName" placeholder="RareBlock S.r.l."/>
+              </div>
+              <div class="field span2">
+                <label>IBAN <span style="color:var(--accent);font-family:var(--mono);font-size:11px">obbligatorio</span></label>
+                <input type="text" id="rbsIban" placeholder="IT60 X054 ..." style="font-family:var(--mono);letter-spacing:.06em"/>
+              </div>
+              <div class="field">
+                <label>BIC/SWIFT</label>
+                <input type="text" id="rbsBic" placeholder="BANKITAA" style="font-family:var(--mono)"/>
+              </div>
+              <div class="field">
+                <label>Banca</label>
+                <input type="text" id="rbsBankName" placeholder="es. Intesa Sanpaolo"/>
+              </div>
+              <div class="field span2">
+                <label>Indirizzo banca</label>
+                <input type="text" id="rbsBankAddress" placeholder="opzionale"/>
+              </div>
+              <div class="field span2">
+                <label>Intestatario IBAN <span style="color:var(--text-subtle);font-size:11px;font-weight:400">(se diverso dalla ragione sociale)</span></label>
+                <input type="text" id="rbsIbanHolder" placeholder="lascia vuoto se uguale alla ragione sociale"/>
+              </div>
+              <div class="field">
+                <label>Scadenza pagamento (giorni)</label>
+                <input type="number" id="rbsExpiryDays" min="1" max="30" placeholder="7"/>
+                <div style="font-size:11px;color:var(--text-subtle);font-family:var(--mono);margin-top:3px">1–30 giorni</div>
+              </div>
+              <div class="field">
+                <label>Reminder (giorni prima scadenza)</label>
+                <input type="number" id="rbsReminderDays" min="1" max="14" placeholder="3"/>
+                <div style="font-size:11px;color:var(--text-subtle);font-family:var(--mono);margin-top:3px">1–14 giorni</div>
+              </div>
+              <div class="field span2">
+                <label>Email mittente notifiche</label>
+                <input type="email" id="rbsPaymentEmailFrom" placeholder="noreply@rareblock.eu"/>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:20px;padding-top:18px;border-top:1px solid var(--border)">
+              <button class="btn primary" onclick="adminSaveRbSettings()" id="rbsSaveBtn"><span class="rb-i rb-i-check"></span> Salva</button>
+              <button class="btn" onclick="adminBonificiLoad()">Annulla</button>
+              <div id="rbsStatus" style="margin-left:auto;font-size:12px;display:flex;align-items:center"></div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- VENDITORI (anagrafica + statistiche vendite) -->
@@ -7639,6 +7750,14 @@ select.prof-input{cursor:pointer}
               <option value="">— Nessuno (gestito da admin) —</option>
             </select>
             <div class="pm-hint">Se assegnato, il venditore potrà modificare descrizione e foto del prodotto. Prezzo e scadenza restano sempre admin-only.</div>
+          </div>
+          <div class="field span2">
+            <label>Modalità bonifico</label>
+            <select id="pmPayoutMode">
+              <option value="rareblock" selected>RareBlock (standard) — il cliente bonifica a RareBlock</option>
+              <option value="vendor_direct">Diretto al venditore — il cliente bonifica direttamente al vendor</option>
+            </select>
+            <div class="pm-hint">"Diretto al venditore" è per accordi specifici (fee separate). Richiede IBAN del vendor configurato nel suo profilo. Default: <strong>RareBlock</strong>.</div>
           </div>
           <div class="field span2">
             <label>Note interne admin</label>
@@ -14934,6 +15053,259 @@ function adminSection(s){
   if(s==='vendor-payouts') adminLoadVendorPayouts();
   if(s==='contracts')   admCtrLoad();
   if(s==='kyc')         admKycLoad();
+  if(s==='bonifici')    adminBonificiLoad();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  PR5c — Admin: Bonifici (settings + riconciliazione)
+// ═══════════════════════════════════════════════════════════
+var _adminBonificiRows = [];
+var _adminBonificiFilter = 'all';
+var _adminBonificiSearch = '';
+var _adminBonificiTab = 'recon';
+
+function adminBonificiTab(tab){
+  _adminBonificiTab = tab;
+  document.querySelectorAll('.admin-tab-btn[data-bonifici-tab]').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-bonifici-tab') === tab);
+  });
+  document.getElementById('admin-bonifici-recon').style.display    = (tab === 'recon')    ? '' : 'none';
+  document.getElementById('admin-bonifici-settings').style.display = (tab === 'settings') ? '' : 'none';
+  if(tab === 'settings') adminLoadRbSettings();
+}
+
+async function adminBonificiLoad(){
+  // Carica sia recon che settings counts (il count alla sidebar)
+  await Promise.all([
+    adminLoadBonificiRecon(),
+    adminBadgeBonificiCount()
+  ]);
+}
+
+async function adminLoadBonificiRecon(){
+  var tbody = document.getElementById('adminBonificiTbody');
+  var empty = document.getElementById('adminBonificiEmpty');
+  if(!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px"><span class="rb-i rb-i-hourglass"></span> Caricamento…</td></tr>';
+  if(empty) empty.style.display = 'none';
+  try{
+    // Riusa view v_admin_pending_orders (PR5a)
+    var rows = await supa('GET', 'v_admin_pending_orders?select=*&order=expires_at.asc.nullslast&limit=200');
+    _adminBonificiRows = Array.isArray(rows) ? rows : [];
+    adminRenderBonificiTable();
+    // Aggiorna badge sidebar (count totale awaiting + critical/expired)
+    var pending = _adminBonificiRows.filter(function(r){ return r.status === 'awaiting_payment'; }).length;
+    var badge = document.getElementById('adminSideBonificiCount');
+    if(badge){
+      if(pending > 0){ badge.textContent = pending; badge.style.display = ''; }
+      else badge.style.display = 'none';
+    }
+  }catch(e){
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--danger);padding:20px">Errore caricamento: '+esc(e.message||e)+'</td></tr>';
+  }
+}
+
+async function adminBadgeBonificiCount(){
+  // Conteggio veloce per badge sidebar (chiamato anche da adminInit)
+  try{
+    var rows = await supa('GET', 'v_admin_pending_orders?select=id,status&status=eq.awaiting_payment&limit=200');
+    var n = Array.isArray(rows) ? rows.length : 0;
+    var badge = document.getElementById('adminSideBonificiCount');
+    if(badge){
+      if(n > 0){ badge.textContent = n; badge.style.display = ''; }
+      else badge.style.display = 'none';
+    }
+    var lbl = document.getElementById('adminBonificiReconCount');
+    if(lbl) lbl.textContent = n > 0 ? '('+n+')' : '';
+  }catch(e){ /* graceful */ }
+}
+
+function adminRenderBonificiTable(){
+  var tbody = document.getElementById('adminBonificiTbody');
+  var empty = document.getElementById('adminBonificiEmpty');
+  if(!tbody) return;
+
+  var filtered = _adminBonificiRows.filter(function(r){
+    // Filter status
+    if(_adminBonificiFilter === 'awaiting_payment' && r.status !== 'awaiting_payment') return false;
+    if(_adminBonificiFilter === 'expired' && r.status !== 'expired') return false;
+    if(_adminBonificiFilter === 'critical' && r.urgency !== 'critical' && r.urgency !== 'expired') return false;
+    // Filter search
+    if(_adminBonificiSearch){
+      var q = _adminBonificiSearch.toLowerCase();
+      var hay = [
+        r.order_number, r.causale, r.bill_email, r.bill_full_name,
+        r.product_name, r.payout_iban
+      ].filter(Boolean).join(' ').toLowerCase();
+      if(hay.indexOf(q) === -1) return false;
+    }
+    return true;
+  });
+
+  if(filtered.length === 0){
+    tbody.innerHTML = '';
+    if(empty) empty.style.display = 'block';
+    return;
+  }
+  if(empty) empty.style.display = 'none';
+
+  var html = filtered.map(function(r){
+    var urgencyBadge = '';
+    if(r.urgency === 'expired')       urgencyBadge = '<span class="badge" style="background:rgba(248,81,73,.15);color:var(--danger);border:1px solid rgba(248,81,73,.3)">SCADUTO</span>';
+    else if(r.urgency === 'critical') urgencyBadge = '<span class="badge" style="background:rgba(248,81,73,.10);color:var(--danger)">URGENTE</span>';
+    else if(r.urgency === 'warning')  urgencyBadge = '<span class="badge" style="background:rgba(210,153,34,.10);color:var(--warning)">&lt;3 GIORNI</span>';
+    else                              urgencyBadge = '<span class="badge" style="background:rgba(63,185,80,.10);color:var(--success)">OK</span>';
+
+    var scenarioBadge = (r.payout_mode === 'vendor_direct')
+      ? '<span class="badge" style="background:rgba(201,168,76,.10);color:var(--gold)" title="Cliente paga direttamente al venditore">Vendor</span>'
+      : '<span class="badge" style="background:var(--surface2);color:var(--text-muted)">RareBlock</span>';
+
+    var expiresStr = r.expires_at
+      ? new Date(r.expires_at).toLocaleDateString('it-IT', { day:'2-digit', month:'short', year:'numeric' })
+      : '—';
+    var totalStr = (parseFloat(r.total)||0).toFixed(2)+'\u202F€';
+
+    var actions = (r.status === 'awaiting_payment' || r.status === 'expired')
+      ? '<button class="btn sm primary" onclick="adminMarkOrderPaid(\''+r.id+'\', \''+esc(r.order_number)+'\')" title="Segna pagato"><span class="rb-i rb-i-check"></span> Pagato</button> <button class="btn sm" onclick="adminBonificiDetail(\''+r.id+'\')" title="Dettagli"><span class="rb-i rb-i-eye"></span></button>'
+      : '<button class="btn sm" onclick="adminBonificiDetail(\''+r.id+'\')" title="Dettagli"><span class="rb-i rb-i-eye"></span></button>';
+
+    return '<tr>'
+      + '<td><div style="font-family:var(--mono);font-size:12px;color:var(--text)">'+esc(r.order_number)+'</div><div style="font-family:var(--mono);font-size:10.5px;color:var(--gold);margin-top:2px">'+esc(r.causale||'—')+'</div></td>'
+      + '<td><div style="font-size:12.5px">'+esc(r.bill_full_name||'—')+'</div><div style="font-size:11px;color:var(--text-muted);font-family:var(--mono)">'+esc(r.bill_email||'')+'</div></td>'
+      + '<td style="font-size:12px;color:var(--text-muted)">'+esc(r.product_name||'—')+' · <span style="color:var(--text)">×'+r.qty+'</span></td>'
+      + '<td style="text-align:right;font-family:var(--mono);font-weight:600;color:var(--gold)">'+totalStr+'</td>'
+      + '<td>'+scenarioBadge+'</td>'
+      + '<td><div style="font-size:12px">'+esc(expiresStr)+'</div></td>'
+      + '<td>'+urgencyBadge+'</td>'
+      + '<td>'+actions+'</td>'
+      + '</tr>';
+  }).join('');
+  tbody.innerHTML = html;
+}
+
+function adminBonificiFilterChange(){
+  var v = document.getElementById('adminBonificiFilter').value;
+  _adminBonificiFilter = v;
+  adminRenderBonificiTable();
+}
+function adminBonificiSearchChange(){
+  var v = document.getElementById('adminBonificiSearch').value || '';
+  _adminBonificiSearch = v.trim();
+  adminRenderBonificiTable();
+}
+
+async function adminMarkOrderPaid(orderId, orderNumber){
+  var bankRef = prompt('Riferimento bonifico ricevuto (opzionale, es. CRO o IBAN mittente):');
+  // null = canceled, '' = ok ma vuoto
+  if(bankRef === null) return;
+
+  if(!confirm('Segnare l\'ordine '+orderNumber+' come pagato?\n\nQuesta operazione registra il bonifico ricevuto e cambia lo stato a "payment_received". Procedere?')){
+    return;
+  }
+
+  try{
+    var r = await fetch(SUPA_URL + '/rest/v1/rpc/mark_order_paid', {
+      method:'POST',
+      headers: getHDR(),
+      body: JSON.stringify({
+        p_order_id: orderId,
+        p_bank_ref: bankRef || null,
+        p_admin_notes: bankRef ? ('Bonifico ricevuto: ' + bankRef) : 'Pagamento confermato manualmente da admin'
+      })
+    });
+    if(!r.ok){
+      var t = await r.text();
+      throw new Error(t || 'HTTP '+r.status);
+    }
+    // Refresh
+    await adminBonificiLoad();
+    alert('Ordine '+orderNumber+' segnato come pagato.');
+  }catch(e){
+    alert('Errore: ' + (e.message || e));
+  }
+}
+
+function adminBonificiDetail(orderId){
+  var r = _adminBonificiRows.find(function(x){ return x.id === orderId; });
+  if(!r){ alert('Ordine non trovato'); return; }
+  var lines = [
+    'Ordine: ' + r.order_number,
+    'Causale: ' + (r.causale || '—'),
+    'Cliente: ' + (r.bill_full_name || '—') + ' (' + (r.bill_email || '') + ')',
+    'Prodotto: ' + (r.product_name || '—') + ' × ' + r.qty,
+    'Importo: ' + (parseFloat(r.total)||0).toFixed(2) + ' €',
+    'Scenario: ' + (r.payout_mode === 'vendor_direct' ? 'Pagamento al venditore' : 'RareBlock standard'),
+    'IBAN destinatario: ' + (r.payout_iban || '—'),
+    'Intestatario: ' + (r.payout_holder || '—'),
+    'Stato: ' + r.status,
+    'Scadenza: ' + (r.expires_at ? new Date(r.expires_at).toLocaleString('it-IT') : '—'),
+    'Reminder inviato: ' + (r.reminder_sent_at ? new Date(r.reminder_sent_at).toLocaleString('it-IT') : 'no'),
+    'Riferimento banca: ' + (r.bank_reference || '—')
+  ];
+  alert(lines.join('\n'));
+}
+
+// ── Settings RareBlock (rb_settings singleton) ──
+async function adminLoadRbSettings(){
+  try{
+    var rows = await supa('GET', 'rb_settings?select=*&id=eq.1&limit=1');
+    var s = (rows && rows[0]) || {};
+    document.getElementById('rbsCompanyName').value      = s.rb_company_name || '';
+    document.getElementById('rbsIban').value             = s.rb_iban || '';
+    document.getElementById('rbsBic').value              = s.rb_bic || '';
+    document.getElementById('rbsBankName').value         = s.rb_bank_name || '';
+    document.getElementById('rbsBankAddress').value      = s.rb_bank_address || '';
+    document.getElementById('rbsIbanHolder').value       = s.rb_iban_holder || '';
+    document.getElementById('rbsExpiryDays').value       = s.payment_expiry_days || 7;
+    document.getElementById('rbsReminderDays').value     = s.reminder_days || 3;
+    document.getElementById('rbsPaymentEmailFrom').value = s.payment_email_from || 'noreply@rareblock.eu';
+    var st = document.getElementById('rbsStatus');
+    if(st) st.innerHTML = '';
+  }catch(e){
+    var st = document.getElementById('rbsStatus');
+    if(st) st.innerHTML = '<span style="color:var(--danger)">Errore caricamento: '+esc(e.message||e)+'</span>';
+  }
+}
+
+async function adminSaveRbSettings(){
+  var btn = document.getElementById('rbsSaveBtn');
+  var st  = document.getElementById('rbsStatus');
+  if(btn) btn.disabled = true;
+  if(st)  st.innerHTML = '<span style="color:var(--text-muted)"><span class="rb-i rb-i-hourglass"></span> Salvataggio…</span>';
+
+  var iban = (document.getElementById('rbsIban').value||'').trim().replace(/\s+/g,'');
+  if(!iban){
+    if(st) st.innerHTML = '<span style="color:var(--danger)">IBAN obbligatorio</span>';
+    if(btn) btn.disabled = false;
+    return;
+  }
+
+  var body = {
+    rb_company_name:   document.getElementById('rbsCompanyName').value.trim() || null,
+    rb_iban:           iban,
+    rb_bic:            document.getElementById('rbsBic').value.trim().toUpperCase() || null,
+    rb_bank_name:      document.getElementById('rbsBankName').value.trim() || null,
+    rb_bank_address:   document.getElementById('rbsBankAddress').value.trim() || null,
+    rb_iban_holder:    document.getElementById('rbsIbanHolder').value.trim() || null,
+    payment_expiry_days: parseInt(document.getElementById('rbsExpiryDays').value) || 7,
+    reminder_days:       parseInt(document.getElementById('rbsReminderDays').value) || 3,
+    payment_email_from:  document.getElementById('rbsPaymentEmailFrom').value.trim() || 'noreply@rareblock.eu',
+    updated_at:        new Date().toISOString(),
+    updated_by:        (_session && _session.user) ? _session.user.id : null
+  };
+
+  try{
+    await supa('PATCH', 'rb_settings?id=eq.1', body);
+    if(st) st.innerHTML = '<span style="color:var(--success)"><span class="rb-i rb-i-check"></span> Salvato</span>';
+    // Invalida cache client
+    if(typeof BANK_DETAILS === 'object'){ BANK_DETAILS._loaded_at = 0; }
+    if(typeof rbLoadBankSettings === 'function'){ rbLoadBankSettings(true); }
+    setTimeout(function(){ if(st) st.innerHTML = ''; }, 3000);
+  }catch(e){
+    if(st) st.innerHTML = '<span style="color:var(--danger)">Errore: '+esc(e.message||e)+'</span>';
+  }finally{
+    if(btn) btn.disabled = false;
+  }
 }
 
 // Lazy-load dell'iframe Utenti: lo carichiamo solo al primo accesso al tab,
@@ -16075,6 +16447,7 @@ function openProductModal(pid){
     var pmCat=document.getElementById('pmCategory'); if(pmCat) pmCat.value='';
     document.getElementById('pmStatus').value='draft';
     var pmVend = document.getElementById('pmVendor'); if(pmVend) pmVend.value='';
+    var pmPay = document.getElementById('pmPayoutMode'); if(pmPay) pmPay.value='rareblock';
     // Reset campi Modalità B (PR9d)
     var fTp = document.getElementById('pmFractTargetPrice');     if(fTp) fTp.value = '';
     var fEy = document.getElementById('pmFractExitYears');        if(fEy) fEy.value = '';
@@ -16101,6 +16474,9 @@ function openProductModal(pid){
       // Vendor assegnato (potrebbe essere null)
       var pmVend2 = document.getElementById('pmVendor');
       if(pmVend2) pmVend2.value = p.vendor_id||'';
+      // PR5c: payout_mode (default 'rareblock')
+      var pmPayout2 = document.getElementById('pmPayoutMode');
+      if(pmPayout2) pmPayout2.value = p.payout_mode || 'rareblock';
       if(p.type==='grade_hold'){
         document.getElementById('pmGradingHouse').value=p.grading_house||'PSA';
         document.getElementById('pmGradingCertNum').value=p.grading_cert_number||'';
@@ -16366,6 +16742,11 @@ async function pmSave(){
   if(pmVendEl){
     var vid = pmVendEl.value || null;
     body.vendor_id = vid;
+  }
+  // PR5c: payout_mode (rareblock | vendor_direct)
+  var pmPayoutEl = document.getElementById('pmPayoutMode');
+  if(pmPayoutEl){
+    body.payout_mode = pmPayoutEl.value || 'rareblock';
   }
   if(type==='grade_hold'){
     body.grading_house            = document.getElementById('pmGradingHouse').value;
@@ -17354,6 +17735,14 @@ function redirectToLogin(){
           <input type="text" id="vmBic" placeholder="CRPPIT2P"/>
         </div>
         <div class="field">
+          <label>Banca</label>
+          <input type="text" id="vmBankName" placeholder="es. Intesa Sanpaolo"/>
+        </div>
+        <div class="field span2">
+          <label>Intestatario IBAN <span style="color:var(--text-subtle);font-size:11px;font-weight:400">(se diverso dalla ragione sociale)</span></label>
+          <input type="text" id="vmIbanHolder" placeholder="lascia vuoto se uguale alla ragione sociale"/>
+        </div>
+        <div class="field">
           <label>Commissione RareBlock (%)</label>
           <input type="number" id="vmCommission" placeholder="15" step="0.5" min="0" max="100"/>
         </div>
@@ -17710,7 +18099,7 @@ function openVendorModal(){
   document.getElementById('vendorModalTitle').textContent = 'Nuovo Venditore';
   document.getElementById('vmDeleteBtn').style.display = 'none';
   // Reset
-  ['vmId','vmDisplayName','vmLegalName','vmEmail','vmPhone','vmFC','vmVAT','vmPEC','vmSDI','vmAddress','vmCity','vmZip','vmIban','vmBic','vmCommission','vmUserId','vmNotes'].forEach(function(id){
+  ['vmId','vmDisplayName','vmLegalName','vmEmail','vmPhone','vmFC','vmVAT','vmPEC','vmSDI','vmAddress','vmCity','vmZip','vmIban','vmBic','vmIbanHolder','vmBankName','vmCommission','vmUserId','vmNotes'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.value='';
   });
   document.getElementById('vmCountry').value = 'IT';
@@ -17750,6 +18139,8 @@ function adminEditVendor(vid){
   document.getElementById('vmCountry').value     = v.country||'IT';
   document.getElementById('vmIban').value        = v.iban||'';
   document.getElementById('vmBic').value         = v.bic||'';
+  document.getElementById('vmIbanHolder').value  = v.iban_holder||'';
+  document.getElementById('vmBankName').value    = v.bank_name||'';
   document.getElementById('vmCommission').value  = v.commission_pct||0;
   document.getElementById('vmUserId').value      = v.user_id||'';
   document.getElementById('vmNotes').value       = v.notes||'';
@@ -17929,6 +18320,8 @@ async function adminSaveVendor(){
     country: document.getElementById('vmCountry').value||'IT',
     iban: document.getElementById('vmIban').value.trim().replace(/\s+/g,'')||null,
     bic: document.getElementById('vmBic').value.trim().toUpperCase()||null,
+    iban_holder: document.getElementById('vmIbanHolder').value.trim()||null,
+    bank_name: document.getElementById('vmBankName').value.trim()||null,
     commission_pct: commPct,
     user_id: userIdVal||null,
     notes: document.getElementById('vmNotes').value.trim()||null,
