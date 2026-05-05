@@ -78,6 +78,17 @@
 #authOverlay .ao-consent-text a:hover{border-bottom-color:var(--ao-gold)}
 #authOverlay .ao-consent-required{color:rgba(201,168,76,.6);font-weight:500;margin-left:2px}
 
+/* T2b — "Ricorda accesso" row: checkbox a sinistra + "Password dimenticata?" a destra */
+#authOverlay .ao-remember-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:-4px;flex-wrap:wrap}
+#authOverlay .ao-remember{cursor:pointer;font-family:var(--ao-sans);user-select:none;display:inline-flex;align-items:center;gap:8px}
+#authOverlay .ao-remember input[type=checkbox]{position:absolute;opacity:0;pointer-events:none}
+#authOverlay .ao-remember-mark{flex-shrink:0;width:14px;height:14px;border-radius:2px;border:1px solid rgba(240,234,216,.25);background:var(--ao-bg-3);display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:var(--ao-bg);transition:all .15s}
+#authOverlay .ao-remember input:checked + .ao-remember-mark{background:var(--ao-gold);border-color:var(--ao-gold)}
+#authOverlay .ao-remember input:checked + .ao-remember-mark::before{content:'✓';font-weight:700}
+#authOverlay .ao-remember:hover .ao-remember-mark{border-color:rgba(201,168,76,.4)}
+#authOverlay .ao-remember-text{font-size:12px;color:rgba(240,234,216,.55);font-weight:300;letter-spacing:.01em}
+#authOverlay .ao-remember:hover .ao-remember-text{color:var(--ao-cream-dim)}
+
 #authOverlay .ao-field{display:flex;flex-direction:column;gap:7px}
 #authOverlay .ao-field label{font-size:10px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:rgba(240,234,216,.35);font-family:var(--ao-sans)}
 #authOverlay .ao-input-wrap{position:relative;display:flex;align-items:center}
@@ -154,7 +165,14 @@
           </div>
         </div>
       </div>
-      <button type="button" class="ao-forgot" onclick="aoShowReset()">Password dimenticata?</button>
+      <div class="ao-remember-row">
+        <label class="ao-remember">
+          <input type="checkbox" id="authRememberMe" checked />
+          <span class="ao-remember-mark"></span>
+          <span class="ao-remember-text">Ricorda accesso</span>
+        </label>
+        <button type="button" class="ao-forgot" onclick="aoShowReset()">Password dimenticata?</button>
+      </div>
       <button class="ao-btn-primary" id="authLoginBtn" onclick="authDoLogin()">Accedi</button>
 
       <!-- Divider sottile -->
@@ -456,13 +474,60 @@ function aoTogglePwd(){
   if(b) b.textContent = (i.type==='password') ? '◎' : '◉';
 }
 
-// ── Sessione in localStorage ─────────────────────────────────
+// ── Sessione: persistenza modulabile (T2b) ──────────────────
+//
+// Storage strategy:
+//   - "Ricorda accesso" ON  (default, preferenza salvata in localStorage)
+//     → sessione in localStorage: persiste tra chiusure browser/tab
+//   - "Ricorda accesso" OFF
+//     → sessione in sessionStorage: muore alla chiusura del tab/browser
+//
+// La PREFERENZA dell'utente (checkbox stato) e' essa stessa salvata in
+// localStorage sotto chiave separata RB_REMEMBER_KEY: serve a ricordarsi
+// la scelta del prossimo accesso, indipendentemente dal fatto che la
+// sessione corrente sia o no in localStorage. E' una info non sensibile.
+//
+// Compat backward: rbLoadSession legge prima localStorage poi sessionStorage,
+// quindi sessioni create prima di T2b (sempre in localStorage) continuano
+// a essere caricate correttamente.
+var RB_REMEMBER_KEY = 'rb_remember_pref';
+var _rbRememberMe = true; // default: comportamento precedente a T2b
+
+function rbReadRememberPref(){
+  try {
+    var v = localStorage.getItem(RB_REMEMBER_KEY);
+    // Se mai impostato (nuovo utente), default true. Se '0', false.
+    if(v === '0') return false;
+    return true;
+  } catch(e){ return true; }
+}
+function rbWriteRememberPref(val){
+  try { localStorage.setItem(RB_REMEMBER_KEY, val ? '1' : '0'); } catch(e){}
+}
+// Storage scelto in base al flag corrente
+function rbSessionStorage(){
+  return _rbRememberMe ? localStorage : sessionStorage;
+}
+
 function rbSaveSession(s){
-  try{ localStorage.setItem(RB_SESSION_KEY, JSON.stringify(s)); }catch(e){}
-  // Esporta JWT per userscript Hunter (chiave 'rbJWT')
+  // Pulisce SEMPRE l'altro storage (evita duplicati se l'utente cambia
+  // preferenza fra due login). Poi scrive nello storage scelto.
   try{
-    if(s && s.access_token) localStorage.setItem('rbJWT', s.access_token);
-    else localStorage.removeItem('rbJWT');
+    if(_rbRememberMe){
+      sessionStorage.removeItem(RB_SESSION_KEY);
+      sessionStorage.removeItem('rbJWT');
+      localStorage.setItem(RB_SESSION_KEY, JSON.stringify(s));
+    } else {
+      localStorage.removeItem(RB_SESSION_KEY);
+      localStorage.removeItem('rbJWT');
+      sessionStorage.setItem(RB_SESSION_KEY, JSON.stringify(s));
+    }
+  }catch(e){}
+  // Esporta JWT per userscript Hunter (sempre nello storage scelto, NON sull'altro)
+  try{
+    var st = rbSessionStorage();
+    if(s && s.access_token) st.setItem('rbJWT', s.access_token);
+    else st.removeItem('rbJWT');
   }catch(e){}
   window._rbSession = s;
   var badge=document.getElementById('userBadge');
@@ -471,10 +536,20 @@ function rbSaveSession(s){
   if(emailEl&&s) emailEl.textContent = s.user&&s.user.email||'Utente';
 }
 function rbLoadSession(){
-  try{ var raw=localStorage.getItem(RB_SESSION_KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; }
+  // Compat: prova localStorage prima (sessioni "Ricorda" + sessioni
+  // pre-T2b), poi sessionStorage (sessioni "non ricorda" T2b+).
+  try{
+    var raw = localStorage.getItem(RB_SESSION_KEY);
+    if(raw) return JSON.parse(raw);
+    raw = sessionStorage.getItem(RB_SESSION_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return null;
 }
 function rbClearSession(){
+  // Pulisce TUTTO da entrambi storage, per sicurezza al logout.
   try{ localStorage.removeItem(RB_SESSION_KEY); localStorage.removeItem('rbJWT'); }catch(e){}
+  try{ sessionStorage.removeItem(RB_SESSION_KEY); sessionStorage.removeItem('rbJWT'); }catch(e){}
   // Pulisci anche le chiavi SDK Supabase (sb-<ref>-auth-token e simili)
   try {
     var keysToRemove = [];
@@ -1721,6 +1796,26 @@ window.rbAuthInit = function(){
   _rbAuthInitDone = true;
   // Popola version footer overlay
   try{ var _av=document.getElementById('authVersion'); if(_av) _av.textContent=APP_VERSION; }catch(e){}
+
+  // T2b: bootstrap "Ricorda accesso"
+  // - leggi la preferenza salvata (default true)
+  // - applica al checkbox UI (default già checked nell'HTML)
+  // - listener sul change: salva preferenza, aggiorna flag globale
+  try {
+    _rbRememberMe = rbReadRememberPref();
+    var rmCb = document.getElementById('authRememberMe');
+    if(rmCb){
+      rmCb.checked = _rbRememberMe;
+      rmCb.addEventListener('change', function(){
+        _rbRememberMe = !!rmCb.checked;
+        rbWriteRememberPref(_rbRememberMe);
+        // Se l'utente cambia preferenza durante una sessione attiva, NON
+        // sposto la sessione fra storage al volo: aspetto il prossimo
+        // login. La preferenza ha effetto dal prossimo rbSaveSession().
+      });
+    }
+  } catch(e){ /* non bloccante */ }
+
   authDiag('controllo sessione...',false);
 
   var session = rbLoadSession();
