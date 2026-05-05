@@ -7056,6 +7056,20 @@ select.prof-input{cursor:pointer}
           </div>
         </div>
 
+        <!-- ══════════════ TEMPLATE MANAGEMENT (Task 1) ══════════════ -->
+        <div style="margin-top:16px;padding:16px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px">
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--gold,#c9a84c);text-transform:uppercase;letter-spacing:.6px;font-family:var(--mono);margin-bottom:4px">Template contratti · gestione versioni</div>
+              <div style="font-size:12px;color:var(--text-muted);line-height:1.5">Stato dei template di contratto. Solo i template <strong>attivi</strong> possono generare nuovi contratti firmabili. I contratti già firmati conservano lo snapshot del template originale anche se disattivato successivamente.</div>
+            </div>
+            <button class="btn sm" onclick="admTplLoad()" title="Aggiorna"><span class="rb-i rb-i-refresh"></span></button>
+          </div>
+          <div id="admTplList">
+            Caricamento...
+          </div>
+        </div>
+
         <!-- ══════════════ EMAIL OUTBOX (Task 3) ══════════════ -->
         <div style="margin-top:16px;padding:16px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r)">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px">
@@ -12718,6 +12732,10 @@ async function admCtrLoad(){
     if(typeof admFractCronLogLoad === 'function'){
       admFractCronLogLoad();
     }
+    // Task 1 — carica template management widget
+    if(typeof admTplLoad === 'function'){
+      admTplLoad();
+    }
     // Task 3 — carica outbox email in parallelo (non blocking)
     if(typeof admEmailOutboxLoad === 'function'){
       admEmailOutboxLoad();
@@ -13481,6 +13499,105 @@ async function admEmailOutboxPreview(emailId){
     setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
   }catch(e){
     showToast('Errore preview: '+(e.message||e), 'err');
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  Task 1 — TEMPLATE CONTRATTI · GESTIONE ATTIVAZIONE
+// ═══════════════════════════════════════════════════════════
+//
+// Widget admin per visualizzare lo stato dei template di contratto e
+// attivare/disattivare versioni. Una versione attivata può generare
+// contratti firmabili reali; una versione disattivata non più
+// (i contratti già firmati restano validi via snapshot JSONB).
+//
+// Per attivare serve indicare legal_review_by (audit obbligatorio).
+// Per disattivare serve indicare reason (audit obbligatorio).
+// ═══════════════════════════════════════════════════════════
+
+async function admTplLoad(){
+  var box = document.getElementById('admTplList');
+  if(!box) return;
+  try{
+    var rows = await supa('GET', 'v_contract_templates_status?order=code.asc,version.desc');
+    var arr = Array.isArray(rows) ? rows : [];
+    if(arr.length === 0){
+      box.innerHTML = '<div style="opacity:.7;padding:20px;text-align:center;font-size:12px">Nessun template registrato.</div>';
+      return;
+    }
+
+    box.innerHTML = arr.map(function(t){
+      var statusBadge = t.is_active
+        ? '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:10px;font-family:var(--mono);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--success,#3fb950);border:1px solid rgba(63,185,80,.4);background:rgba(63,185,80,.08)">● ATTIVO</span>'
+        : '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:10px;font-family:var(--mono);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);border:1px solid var(--border);background:var(--surface2)">○ DRAFT</span>';
+
+      var actions = t.is_active
+        ? '<button class="btn sm" onclick="admTplDeactivate(\''+escAttr(t.code)+'\','+t.version+')">Disattiva</button>'
+        : '<button class="btn sm primary" onclick="admTplActivate(\''+escAttr(t.code)+'\','+t.version+')">Attiva</button>';
+
+      var meta = [];
+      if(t.legal_review_by) meta.push('Reviewed by: <strong>'+escHtml(t.legal_review_by)+'</strong>');
+      if(t.legal_review_date) meta.push('Review date: '+escHtml(t.legal_review_date));
+      if(t.contracts_count > 0) meta.push('Contratti generati: <strong>'+t.contracts_count+'</strong> ('+t.contracts_signed_count+' firmati)');
+      if(t.last_action) meta.push('Ultima azione: '+escHtml(t.last_action)+' il '+(t.last_action_at ? new Date(t.last_action_at).toLocaleDateString('it-IT') : '—'));
+
+      return '<div style="padding:14px 16px;border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;background:var(--bg)">'
+        + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">'
+        +   '<div style="min-width:0;flex:1">'
+        +     '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap">'
+        +       '<span style="font-family:var(--mono);font-size:12px;font-weight:600">'+escHtml(t.code)+' <span style="opacity:.5">v'+t.version+'</span></span>'
+        +       statusBadge
+        +     '</div>'
+        +     '<div style="font-size:13px;color:var(--text);margin-bottom:4px">'+escHtml(t.title||'—')+'</div>'
+        +     (meta.length ? '<div style="font-size:11px;color:var(--text-muted);line-height:1.6">'+meta.join(' · ')+'</div>' : '')
+        +   '</div>'
+        +   '<div style="flex-shrink:0">'+actions+'</div>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }catch(e){
+    box.innerHTML = '<div style="color:var(--danger,#f85149);padding:14px 16px">Errore caricamento template: '+escHtml(e.message||String(e))+'</div>';
+  }
+}
+
+async function admTplActivate(code, version){
+  // Modal-light via prompt: legal_review_by obbligatorio, notes opzionali
+  var who = prompt('Attivare template '+code+' v'+version+'?\n\nNome dell\'avvocato/studio legale che ha rivisto questa versione (obbligatorio per audit):', 'Studio Legale RareBlock');
+  if(!who || !who.trim()){ return; }
+  var notes = prompt('Note opzionali sulla revisione (facoltativo):\n\nEs. "Versione 1 originale, attivata al lancio prodotto"', '');
+  if(notes === null) return; // cancel
+
+  try{
+    await supa('POST', 'rpc/activate_contract_template', {
+      p_code: code,
+      p_version: version,
+      p_legal_review_by: who.trim(),
+      p_legal_review_date: new Date().toISOString().slice(0,10),
+      p_legal_review_notes: notes && notes.trim() ? notes.trim() : null
+    });
+    showToast('Template '+code+' v'+version+' ATTIVATO', 'ok');
+    admTplLoad();
+  }catch(e){
+    showToast('Errore: '+(e.message||e), 'err');
+  }
+}
+
+async function admTplDeactivate(code, version){
+  var reason = prompt('Disattivare template '+code+' v'+version+'?\n\nMotivo della disattivazione (obbligatorio per audit):\n\nEs. "Sostituito da v2 con clausole aggiornate" oppure "Errore individuato in art. 8.3"', '');
+  if(!reason || !reason.trim()){ return; }
+  if(!confirm('CONFERMA: disattivare '+code+' v'+version+'?\n\n• I contratti GIÀ firmati restano validi (snapshot JSONB)\n• Non si potranno generare NUOVI contratti da questa versione\n\nProcedere?')) return;
+
+  try{
+    await supa('POST', 'rpc/deactivate_contract_template', {
+      p_code: code,
+      p_version: version,
+      p_reason: reason.trim()
+    });
+    showToast('Template '+code+' v'+version+' DISATTIVATO', 'ok');
+    admTplLoad();
+  }catch(e){
+    showToast('Errore: '+(e.message||e), 'err');
   }
 }
 
