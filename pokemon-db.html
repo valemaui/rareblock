@@ -1247,6 +1247,16 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 #authOverlay .ao-btn-primary.loading::after{content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;border-radius:50%;border:2px solid rgba(12,12,11,.2);border-top-color:var(--ao-bg);animation:aoSpin .7s linear infinite}
 @keyframes aoSpin{to{transform:rotate(360deg)}}
 #authOverlay .ao-btn-ghost{width:100%;padding:11px;border-radius:2px;font-family:var(--ao-sans);font-size:12px;font-weight:400;letter-spacing:.06em;background:none;border:.5px solid rgba(240,234,216,.1);color:var(--ao-cream-dim);cursor:pointer;transition:all .2s}
+
+/* PR2: divider "oppure" + bottone secondary per magic link */
+#authOverlay .ao-divider{position:relative;text-align:center;margin:6px 0;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(240,234,216,.25);font-family:var(--ao-sans)}
+#authOverlay .ao-divider::before{content:'';position:absolute;left:0;top:50%;width:calc(50% - 30px);height:.5px;background:rgba(240,234,216,.08)}
+#authOverlay .ao-divider::after{content:'';position:absolute;right:0;top:50%;width:calc(50% - 30px);height:.5px;background:rgba(240,234,216,.08)}
+#authOverlay .ao-divider span{position:relative;background:transparent;padding:0 12px}
+#authOverlay .ao-btn-secondary{width:100%;padding:11px;border-radius:2px;font-family:var(--ao-sans);font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;background:transparent;border:.5px solid rgba(201,168,76,.25);color:var(--ao-gold);cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+#authOverlay .ao-btn-secondary:hover{border-color:rgba(201,168,76,.5);background:rgba(201,168,76,.04)}
+#authOverlay .ao-btn-secondary:disabled{opacity:.5;cursor:not-allowed}
+#authOverlay .ao-btn-secondary-icon{font-size:14px;line-height:1}
 #authOverlay .ao-btn-ghost:hover{border-color:rgba(240,234,216,.2);color:var(--ao-cream)}
 #authOverlay .ao-footer{font-size:11px;color:rgba(240,234,216,.18);text-align:center;letter-spacing:.04em;line-height:1.9;font-family:var(--ao-sans)}
 
@@ -1430,6 +1440,15 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
       </div>
       <button type="button" class="ao-forgot" onclick="aoShowReset()">Password dimenticata?</button>
       <button class="ao-btn-primary" id="authLoginBtn" onclick="authDoLogin()">Accedi</button>
+
+      <!-- Divider sottile -->
+      <div class="ao-divider"><span>oppure</span></div>
+
+      <button type="button" class="ao-btn-secondary" onclick="aoShowMagic()">
+        <span class="ao-btn-secondary-icon">✉</span>
+        Accedi senza password
+      </button>
+
       <button class="ao-btn-ghost" onclick="aoShowRegister()">Non hai un account? Registrati</button>
     </div>
 
@@ -1505,6 +1524,26 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
         </div>
       </div>
       <button class="ao-btn-primary" id="authResetBtn" onclick="authDoReset()">Invia link di reset</button>
+      <button class="ao-btn-ghost" onclick="aoShowLogin()">← Torna al login</button>
+    </div>
+
+    <!-- MAGIC LINK (login passwordless via email) -->
+    <div class="ao-card" id="ao-form-magic" style="display:none">
+      <div>
+        <div class="ao-card-title">Accesso senza <em>password.</em></div>
+        <div class="ao-card-sub">Ti inviamo un link via email per entrare con un click</div>
+      </div>
+      <div class="ao-alert" id="ao-alert-magic"><span class="ao-alert-icon">—</span><span id="ao-alert-magic-msg"></span></div>
+      <div class="ao-fields">
+        <div class="ao-field">
+          <label>Email</label>
+          <div class="ao-input-wrap">
+            <input type="email" id="authMagicEmail" placeholder="nome@email.com" autocomplete="email" onkeydown="if(event.key==='Enter')authDoMagicLink()"/>
+            <span class="ao-input-icon">@</span>
+          </div>
+        </div>
+      </div>
+      <button class="ao-btn-primary" id="authMagicBtn" onclick="authDoMagicLink()">Invia link di accesso</button>
       <button class="ao-btn-ghost" onclick="aoShowLogin()">← Torna al login</button>
     </div>
 
@@ -13761,7 +13800,7 @@ function authShow(){ var o=document.getElementById('authOverlay'); if(o) o.class
 function authHide(){ var o=document.getElementById('authOverlay'); if(o) o.classList.add('hidden'); }
 
 // IDs alert: authLoginMsg → ao-alert-login, authRegMsg → ao-alert-reg, authResetMsg → ao-alert-reset, authNewPwdMsg → ao-alert-newpwd
-var AO_ALERT_MAP = { authLoginMsg:'ao-alert-login', authRegMsg:'ao-alert-reg', authResetMsg:'ao-alert-reset', authNewPwdMsg:'ao-alert-newpwd' };
+var AO_ALERT_MAP = { authLoginMsg:'ao-alert-login', authRegMsg:'ao-alert-reg', authResetMsg:'ao-alert-reset', authMagicMsg:'ao-alert-magic', authNewPwdMsg:'ao-alert-newpwd' };
 
 function authMsg(id, msg, type){
   var aoId = AO_ALERT_MAP[id] || id;
@@ -13798,7 +13837,7 @@ function authDiag(msg, ok){
 
 // Switch tra login / register / reset / newpwd
 function aoHideAllForms(){
-  ['ao-form-login','ao-form-register','ao-form-reset','ao-form-newpwd'].forEach(function(id){
+  ['ao-form-login','ao-form-register','ao-form-reset','ao-form-magic','ao-form-newpwd'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.style.display = 'none';
   });
@@ -13818,6 +13857,19 @@ function aoShowReset(){
   var f = document.getElementById('ao-form-reset'); if(f) f.style.display = 'flex';
   var emLogin = (document.getElementById('authLoginEmail').value||'').trim();
   if(emLogin) document.getElementById('authResetEmail').value = emLogin;
+}
+function aoShowMagic(){
+  aoHideAllForms();
+  var f = document.getElementById('ao-form-magic'); if(f) f.style.display = 'flex';
+  // Pre-popola con email del form login se l utente l aveva già scritta
+  var emLogin = (document.getElementById('authLoginEmail').value||'').trim();
+  if(emLogin) document.getElementById('authMagicEmail').value = emLogin;
+  // Reset eventuali messaggi residui
+  authClear('authMagicMsg');
+  setTimeout(function(){
+    var el = document.getElementById('authMagicEmail');
+    if(el && !el.value) el.focus();
+  }, 80);
 }
 function aoShowNewPwd(){
   aoHideAllForms();
@@ -14020,6 +14072,64 @@ window.authDoReset = async function(){
   }
 };
 
+// ── Magic link (PR2 — login passwordless) ────────────────────
+// L utente inserisce solo l email; Supabase invia un link che, una volta
+// cliccato, autentica direttamente.
+//
+// API endpoint: /auth/v1/otp con body { email, create_user: false }
+//   - create_user=false impedisce la creazione automatica di nuovi account
+//     (no signup di utenti che digitano un'email a caso). Se l email non
+//     è registrata, Supabase ritorna comunque 200 generico per privacy
+//     (non rivela esistenza account).
+//
+// Email sent: usa template 'Magic Link' (docs/email-templates/02-magic-link.html
+// quando caricato su Supabase).
+//
+// Redirect: il link nel template porta a {{ .ConfirmationURL }} che è
+// configurato nelle Auth Settings di Supabase (default: redirectTo passato
+// nella request, qui usiamo l URL corrente).
+window.authDoMagicLink = async function(){
+  var email = (document.getElementById('authMagicEmail').value||'').trim().toLowerCase();
+  authClear('authMagicMsg');
+  if(!email){ authMsg('authMagicMsg','Inserisci la tua email'); return; }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    authMsg('authMagicMsg','Email non valida');
+    return;
+  }
+
+  authBtn('authMagicBtn',true,'Invia link di accesso');
+  try{
+    var redirectTo = location.origin + location.pathname;
+    var hdrs={'Content-Type':'application/json','apikey':RB_ANON_KEY};
+    var r = await fetch(RB_AUTH_URL+'/otp',{
+      method:'POST',
+      headers:hdrs,
+      body: JSON.stringify({
+        email: email,
+        create_user: false,           // no signup automatico
+        options: { emailRedirectTo: redirectTo }
+      })
+    });
+    var data = await r.json().catch(function(){return{};});
+    if(!r.ok){
+      throw new Error(data.error_description||data.msg||data.error||('HTTP '+r.status));
+    }
+    // Per privacy, Supabase ritorna 200 anche se l email non è registrata.
+    // Mostriamo un messaggio generico per non rivelare se l account esiste.
+    authMsg('authMagicMsg','Se l\'indirizzo è registrato, riceverai un link di accesso entro pochi minuti. Controlla la casella (anche lo spam).','ok');
+  }catch(e){
+    var msg = e && e.message ? e.message : 'Errore invio link';
+    if(/Failed to fetch|NetworkError/i.test(msg)){
+      msg = 'Connessione non disponibile. Verifica la tua connessione e riprova.';
+    } else if(/rate limit|too many/i.test(msg)){
+      msg = 'Troppi tentativi recenti. Attendi qualche minuto prima di riprovare.';
+    }
+    authMsg('authMagicMsg', msg);
+  }finally{
+    authBtn('authMagicBtn',false,'Invia link di accesso');
+  }
+};
+
 // ── Update password (recovery completion) ───────────────────
 // Chiamato dopo che l'utente clicca il link nell'email e arriva su
 // pokemon-db.html con un access_token "recovery" già impostato come
@@ -14085,6 +14195,11 @@ window.authDoUpdatePassword = async function(){
 // mostra il form di nuova password.
 function rbHandleRecoveryCallback(){
   // gotrue mette i parametri nel fragment '#access_token=...&type=recovery&...'
+  // I tipi gestiti:
+  //   - 'recovery'   → reset password: mostra form newpwd
+  //   - 'magiclink'  → magic link login (PR2): autentica e avvia app
+  //   - 'signup'     → conferma email post-signup: autentica e avvia app
+  //   - 'invite'     → invito da admin: autentica e mostra newpwd (deve impostare pwd)
   var hash = (window.location.hash||'').replace(/^#/,'');
   if(!hash) return false;
   var params = {};
@@ -14094,34 +14209,49 @@ function rbHandleRecoveryCallback(){
       params[decodeURIComponent(kv.slice(0,eq))] = decodeURIComponent(kv.slice(eq+1));
     }
   });
-  if(params.type !== 'recovery' || !params.access_token) return false;
-  // Costruisci una sessione temporanea con il token di recovery
+  if(!params.access_token) return false;
+  var t = params.type || '';
+  // Tipi noti che vogliamo intercettare nel fragment
+  if(['recovery','magiclink','signup','invite','email_change'].indexOf(t) === -1) return false;
+
+  // Costruisci sessione dal token
   var session = {
     access_token: params.access_token,
     refresh_token: params.refresh_token || null,
     expires_at: params.expires_at ? parseInt(params.expires_at) : null,
     expires_in: params.expires_in ? parseInt(params.expires_in) : null,
     token_type: 'bearer',
-    user: null  // verrà popolato al primo /user fetch
+    user: null
   };
-  // Recupera info utente per visualizzare email nel form
+  // Recupera info utente
   fetch(RB_AUTH_URL+'/user', {
     headers:{'apikey':RB_ANON_KEY,'Authorization':'Bearer '+session.access_token}
   }).then(function(r){ return r.ok ? r.json() : null; })
     .then(function(u){ if(u){ session.user = u; rbSaveSession(session); } })
     .catch(function(){});
-  // Salva subito la sessione temporanea (anche senza user) e mostra form
   rbSaveSession(session);
-  // Pulisci il fragment dall'URL (per non re-triggerare al refresh)
+  // Pulisci il fragment dall'URL
   try{ history.replaceState(null,'', window.location.pathname + window.location.search); }catch(e){}
-  // Apri il login overlay e mostra form newpwd
-  // (l'overlay potrebbe non essere ancora visibile a questo punto, quindi
-  //  forziamo lo show via la funzione di gating)
-  setTimeout(function(){
-    var ov = document.getElementById('authOverlay');
-    if(ov) ov.style.display = 'flex';
-    aoShowNewPwd();
-  }, 50);
+
+  if(t === 'recovery' || t === 'invite'){
+    // Reset password / nuovo invito: forza form newpwd nell overlay
+    setTimeout(function(){
+      var ov = document.getElementById('authOverlay');
+      if(ov) ov.style.display = 'flex';
+      aoShowNewPwd();
+    }, 50);
+  } else {
+    // Magic link / signup confirm / email change: autentica e nascondi overlay,
+    // avvia app normale dopo che la session è caricata
+    setTimeout(function(){
+      var ov = document.getElementById('authOverlay');
+      if(ov) ov.style.display = 'none';
+      // Eventuale appStart già parte da gating; se è già montato, nessun-op
+      if(typeof appStart === 'function'){
+        try { appStart(); } catch(e){}
+      }
+    }, 100);
+  }
   return true;
 }
 
