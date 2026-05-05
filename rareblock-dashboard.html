@@ -7055,6 +7055,23 @@ select.prof-input{cursor:pointer}
             Caricamento log...
           </div>
         </div>
+
+        <!-- ══════════════ EMAIL OUTBOX (Task 3) ══════════════ -->
+        <div style="margin-top:16px;padding:16px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px">
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--gold,#c9a84c);text-transform:uppercase;letter-spacing:.6px;font-family:var(--mono);margin-bottom:4px">Email outbox · transactional queue</div>
+              <div style="font-size:12px;color:var(--text-muted);line-height:1.5">Coda delle notifiche email generate dal sistema. <strong>Status pending</strong> = mai inviata (provider SMTP non ancora configurato). Qui sotto le ultime 10 email enqueued.</div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <span id="admEmailOutboxStatsBadge" style="font-size:10.5px;font-family:var(--mono);padding:3px 9px;border-radius:20px;background:var(--surface2);color:var(--text-muted);border:1px solid var(--border)">—</span>
+              <button class="btn sm" onclick="admEmailOutboxLoad()" title="Aggiorna"><span class="rb-i rb-i-refresh"></span></button>
+            </div>
+          </div>
+          <div id="admEmailOutboxList" style="font-size:11.5px;color:var(--text-muted);font-family:var(--mono);padding:10px 12px;background:var(--surface2);border-radius:var(--r-sm,4px);max-height:240px;overflow:auto;line-height:1.7">
+            Caricamento...
+          </div>
+        </div>
       </div>
 
       <!-- ══════════════ KYC REVIEW (PR8) ══════════════ -->
@@ -12701,6 +12718,10 @@ async function admCtrLoad(){
     if(typeof admFractCronLogLoad === 'function'){
       admFractCronLogLoad();
     }
+    // Task 3 — carica outbox email in parallelo (non blocking)
+    if(typeof admEmailOutboxLoad === 'function'){
+      admEmailOutboxLoad();
+    }
   }catch(e){
     // Fallback graceful: se v_admin_contracts non esiste ancora (es. migration
     // non applicata), prova lettura diretta su contracts. Funzionerà solo se
@@ -13385,10 +13406,81 @@ async function admFractCronTrigger(){
     var rows = await supa('POST', 'rpc/fractional_cron_tick', {});
     showToast('Cron eseguito con successo', 'ok');
     admFractCronLogLoad();
+    // Anche l'outbox può aver ricevuto nuove email
+    admEmailOutboxLoad();
   }catch(e){
     showToast('Errore: ' + (e.message||e), 'err');
   }finally{
     btn.disabled = false; btn.textContent = '▶ Trigger ora';
+  }
+}
+
+
+// ─── EMAIL OUTBOX (admin viewer) ─────────────────────────────────
+
+async function admEmailOutboxLoad(){
+  var box = document.getElementById('admEmailOutboxList');
+  var badge = document.getElementById('admEmailOutboxStatsBadge');
+  if(!box) return;
+  try{
+    var rows = await supa('GET', 'email_outbox?order=enqueued_at.desc&limit=10');
+    var arr = Array.isArray(rows) ? rows : [];
+
+    // Stats: count by status (limitato alle 10 più recenti per speed)
+    var counts = { pending:0, sent:0, failed:0, sending:0, cancelled:0 };
+    arr.forEach(function(r){ if(counts[r.status] != null) counts[r.status]++; });
+    var statsTxt = arr.length === 0
+      ? 'vuoto'
+      : counts.pending + ' pending · ' + counts.sent + ' sent · ' + counts.failed + ' failed';
+    if(badge) badge.textContent = statsTxt;
+
+    if(arr.length === 0){
+      box.innerHTML = '<span style="opacity:.7">Nessuna email in coda. Le notifiche apparirannno qui quando il sistema le genera (apertura voto, chiusura voto, etc).</span>';
+      return;
+    }
+
+    box.innerHTML = arr.map(function(r){
+      var t = new Date(r.enqueued_at).toLocaleString('it-IT', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'});
+      var statusColor = r.status === 'sent' ? 'var(--success,#3fb950)'
+                      : r.status === 'failed' ? 'var(--danger,#f85149)'
+                      : r.status === 'pending' ? 'var(--warning,#d29922)'
+                      : 'var(--text-muted)';
+      var statusBadge = '<span style="color:'+statusColor+';font-weight:600">'+escHtml(r.status)+'</span>';
+      var template = r.template_code ? '<span style="opacity:.6">['+escHtml(r.template_code)+']</span> ' : '';
+      var attempts = r.attempt_count > 0 ? ' <span style="opacity:.5">(tentativi: '+r.attempt_count+')</span>' : '';
+      return '<div style="padding:6px 0;border-bottom:1px solid var(--border)">'
+        + '['+t+'] '+statusBadge+' · '+template+'<strong>'+escHtml(r.to_email)+'</strong>: '+escHtml((r.subject||'').slice(0,80))
+        + ' <a href="javascript:admEmailOutboxPreview(\''+escAttr(r.id)+'\')" style="color:var(--gold,#c9a84c);margin-left:6px">preview</a>'
+        + attempts
+        + '</div>';
+    }).join('');
+  }catch(e){
+    box.innerHTML = '<span style="color:var(--danger,#f85149)">Errore caricamento outbox: '+escHtml(e.message||String(e))+'</span>';
+  }
+}
+
+async function admEmailOutboxPreview(emailId){
+  try{
+    var rows = await supa('GET', 'email_outbox?id=eq.'+encodeURIComponent(emailId)+'&limit=1');
+    if(!Array.isArray(rows) || !rows.length){ showToast('Email non trovata', 'err'); return; }
+    var em = rows[0];
+    // Apri preview in nuova tab via blob URL (così l'utente vede esattamente come sarà inviata)
+    var fullHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Preview · '+escHtml(em.subject||'')+'</title></head>'
+      + '<body style="margin:0;padding:0">'
+      + '<div style="background:#444;color:#fff;padding:14px 20px;font-family:monospace;font-size:12px;line-height:1.6">'
+      +   '<div><strong>To:</strong> '+escHtml(em.to_name||'')+' &lt;'+escHtml(em.to_email||'')+'&gt;</div>'
+      +   '<div><strong>From:</strong> '+escHtml(em.from_name||'')+' &lt;'+escHtml(em.from_email||'')+'&gt;</div>'
+      +   '<div><strong>Subject:</strong> '+escHtml(em.subject||'')+'</div>'
+      +   '<div><strong>Status:</strong> '+escHtml(em.status||'')+' · enqueued '+escHtml(em.enqueued_at||'')+'</div>'
+      + '</div>'
+      + (em.body_html||'')
+      + '</body></html>';
+    var blob = new Blob([fullHtml], {type:'text/html;charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+  }catch(e){
+    showToast('Errore preview: '+(e.message||e), 'err');
   }
 }
 

@@ -19,6 +19,7 @@
 // ═════════════════════════════════════════════════════════════════════════════
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { enqueueFractionalVoteOpenEmails } from '../_shared/email.ts';
 
 const ADMIN_EMAILS = [
   'admin@rareblock.eu',
@@ -160,6 +161,19 @@ Deno.serve(async (req: Request) => {
       })
       .eq('id', productId);
 
+    // 8) Enqueue notifiche email comproprietari (best-effort, non blocca la risposta)
+    let emailsEnqueued = 0;
+    try {
+      const emailRes = await enqueueFractionalVoteOpenEmails(sbAdmin, voteRow.id);
+      if (emailRes.ok) {
+        emailsEnqueued = emailRes.emails_count;
+      } else {
+        console.warn('enqueue emails failed:', emailRes.error);
+      }
+    } catch (e) {
+      console.warn('enqueue emails exception:', e);
+    }
+
     return json({
       ok: true,
       vote_id: voteRow.id,
@@ -171,6 +185,7 @@ Deno.serve(async (req: Request) => {
       total_eligible_quotes: totalEligibleQuotes,
       threshold_pct: 66.67,
       threshold_quotes: Math.ceil(totalEligibleQuotes * 0.6667),
+      emails_enqueued: emailsEnqueued,
     });
 
   } catch (e: any) {
