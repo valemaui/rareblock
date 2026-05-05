@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pagamento annullato — RareBlock</title>
+  <link rel="icon" type="image/png" href="https://www.rareblock.eu/favicon.png">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#0a0d12; --surface:#161b22; --surface2:#21262d;
+      --border:#30363d; --border-soft:#262c36;
+      --text:#e6edf3; --text-muted:#9ca3af; --text-subtle:#6b7280;
+      --gold:#c9a84c; --gold-soft:rgba(201,168,76,.10);
+      --warning:#d29922; --warning-soft:rgba(210,153,34,.10);
+      --r:8px;
+      --font-sans:'IBM Plex Sans','Inter',system-ui,-apple-system,sans-serif;
+      --font-mono:'IBM Plex Mono','Menlo',monospace;
+      --font-serif:Georgia,'Times New Roman',serif;
+    }
+    html,body{background:var(--bg);color:var(--text);font-family:var(--font-sans);min-height:100vh;line-height:1.6;-webkit-font-smoothing:antialiased}
+    body{display:flex;align-items:center;justify-content:center;padding:24px 16px}
+    .pay-card{
+      max-width:520px; width:100%;
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:var(--r); overflow:hidden;
+      box-shadow:0 12px 40px rgba(0,0,0,.4);
+    }
+    .pay-head{
+      padding:22px 32px; border-bottom:1px solid var(--border);
+      text-align:center;
+    }
+    .pay-brand{
+      font-family:'Montserrat',Arial,sans-serif;
+      font-size:18px; font-weight:300; letter-spacing:.18em;
+      text-transform:uppercase; color:#f0ead8;
+    }
+    .pay-brand span{color:var(--gold)}
+    .pay-body{padding:36px 32px}
+    .pay-icon{
+      width:56px; height:56px; border-radius:50%;
+      background:var(--warning-soft); border:1px solid rgba(210,153,34,.25);
+      display:flex; align-items:center; justify-content:center;
+      margin:0 auto 22px; color:var(--warning); font-size:30px;
+      font-family:var(--font-serif);
+    }
+    .pay-eyebrow{
+      font-family:var(--font-mono); font-size:10.5px; letter-spacing:.22em;
+      text-transform:uppercase; color:var(--warning); font-weight:600;
+      text-align:center; margin-bottom:10px;
+    }
+    .pay-title{
+      font-family:var(--font-serif); font-style:italic;
+      font-size:24px; line-height:1.3; color:#f0ead8;
+      text-align:center; margin-bottom:14px;
+    }
+    .pay-intro{
+      font-size:14px; line-height:1.65; color:var(--text-muted);
+      text-align:center; margin-bottom:22px;
+    }
+    .pay-note{
+      background:var(--gold-soft); border:1px solid rgba(201,168,76,.2);
+      border-radius:6px; padding:13px 16px;
+      font-size:12.5px; line-height:1.55; color:var(--text-muted);
+      margin-bottom:24px; text-align:left;
+    }
+    .pay-note strong{color:#f0ead8}
+    .pay-cta{
+      display:flex; gap:10px; flex-direction:column;
+    }
+    .btn{
+      display:inline-flex; align-items:center; justify-content:center; gap:8px;
+      padding:12px 20px; border-radius:6px; cursor:pointer;
+      font-size:13px; font-weight:600; letter-spacing:.02em;
+      border:1px solid transparent; text-decoration:none;
+      transition:all .15s; font-family:var(--font-sans);
+    }
+    .btn.primary{background:var(--gold); color:#0a0d12; border-color:var(--gold)}
+    .btn.primary:hover{filter:brightness(1.08)}
+    .btn.ghost{background:transparent; color:var(--text-muted); border-color:var(--border)}
+    .btn.ghost:hover{color:var(--text); border-color:var(--border-soft); background:var(--surface2)}
+    .pay-footer{
+      padding:16px 32px; border-top:1px solid var(--border);
+      text-align:center; font-size:11px; color:var(--text-subtle);
+      line-height:1.6;
+    }
+    .pay-footer a{color:var(--gold); text-decoration:none}
+    .pay-order{
+      font-family:var(--font-mono); color:var(--gold); font-size:11.5px;
+      letter-spacing:.06em; margin-top:6px;
+    }
+  </style>
+</head>
+<body>
+<div class="pay-card">
+  <div class="pay-head">
+    <div class="pay-brand">Rare<span>Block</span></div>
+  </div>
+  <div class="pay-body">
+    <div class="pay-icon">×</div>
+    <div class="pay-eyebrow">Pagamento annullato</div>
+    <div class="pay-title">Hai annullato il pagamento</div>
+    <div class="pay-intro">
+      Nessun importo è stato addebitato. Il tuo ordine è stato registrato ma resta in attesa di pagamento.
+      <div id="payOrderRef" class="pay-order" style="display:none"></div>
+    </div>
+
+    <div class="pay-note">
+      <strong>Vuoi riprovare?</strong> Puoi ritentare il pagamento dalla dashboard, oppure scegliere il bonifico bancario come metodo alternativo. L'ordine resterà valido per 7 giorni dalla creazione.
+    </div>
+
+    <div class="pay-cta">
+      <a class="btn primary" href="https://www.rareblock.eu/rareblock-dashboard.html">Torna alla dashboard</a>
+      <a class="btn ghost" href="https://www.rareblock.eu/rareblock-dashboard.html#admin-portfolio">Vai al portafoglio</a>
+    </div>
+  </div>
+  <div class="pay-footer">
+    Hai problemi con il pagamento? <a href="mailto:support@rareblock.eu">support@rareblock.eu</a>
+  </div>
+</div>
+
+<script>
+  // Mostra il numero ordine se presente
+  var qs = new URLSearchParams(location.search);
+  var orderNumber = qs.get('order');
+  if(orderNumber){
+    var el = document.getElementById('payOrderRef');
+    el.textContent = 'Ordine: ' + orderNumber;
+    el.style.display = '';
+  }
+</script>
+</body>
+</html>

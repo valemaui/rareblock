@@ -7449,29 +7449,31 @@ select.prof-input{cursor:pointer}
           </div>
         </div>
 
-        <!-- Pannello carta di credito (mock UI: il submit reale avviene via gateway lato server) -->
+        <!-- Pannello carta di credito (Stripe Checkout — redirect a hosted page) -->
         <div id="coPayCardDetails" style="display:none">
-          <div class="form-grid">
-            <div class="field span2">
-              <label>Numero carta</label>
-              <input type="text" id="coCardNumber" placeholder="1234 5678 9012 3456" autocomplete="cc-number" maxlength="23"/>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px 20px">
+            <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:14px">
+              <div style="flex-shrink:0;width:42px;height:42px;border-radius:8px;background:rgba(99,91,255,.10);border:1px solid rgba(99,91,255,.25);display:flex;align-items:center;justify-content:center;color:#635bff">
+                <span class="rb-i rb-i-credit-card" style="font-size:18px"></span>
+              </div>
+              <div style="flex:1">
+                <div style="font-size:14px;font-weight:600;color:var(--text);line-height:1.4;margin-bottom:4px">Pagamento sicuro tramite Stripe</div>
+                <div style="font-size:12.5px;color:var(--text-muted);line-height:1.55">Al click su <strong style="color:var(--text)">Procedi al pagamento</strong> verrai reindirizzato sulla pagina sicura di Stripe per completare la transazione. I dati della carta non transitano mai dai nostri server.</div>
+              </div>
             </div>
-            <div class="field span2">
-              <label>Intestatario</label>
-              <input type="text" id="coCardName" placeholder="Mario Rossi" autocomplete="cc-name"/>
-            </div>
-            <div class="field">
-              <label>Scadenza (MM/AA)</label>
-              <input type="text" id="coCardExp" placeholder="12/28" autocomplete="cc-exp" maxlength="5"/>
-            </div>
-            <div class="field">
-              <label>CVV</label>
-              <input type="text" id="coCardCvv" placeholder="123" autocomplete="cc-csc" maxlength="4"/>
+            <!-- Wallet supportati -->
+            <div style="display:flex;gap:14px;align-items:center;padding-top:14px;border-top:1px solid var(--border);font-size:11.5px;color:var(--text-muted)">
+              <span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em">Accettati:</span>
+              <span style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <span style="padding:3px 8px;background:var(--surface2);border-radius:4px;font-size:11px;font-weight:500">Visa</span>
+                <span style="padding:3px 8px;background:var(--surface2);border-radius:4px;font-size:11px;font-weight:500">Mastercard</span>
+                <span style="padding:3px 8px;background:var(--surface2);border-radius:4px;font-size:11px;font-weight:500">Amex</span>
+                <span style="padding:3px 8px;background:var(--surface2);border-radius:4px;font-size:11px;font-weight:500">Apple Pay</span>
+                <span style="padding:3px 8px;background:var(--surface2);border-radius:4px;font-size:11px;font-weight:500">Google Pay</span>
+              </span>
             </div>
           </div>
-          <div style="font-size:11px;color:var(--iwc-text-muted);margin-top:14px;letter-spacing:.005em">
-            Pagamento sicuro tramite gateway certificato. I dati della carta non vengono mai memorizzati sui nostri server.
-          </div>
+          <div id="coPayCardError" style="display:none;margin-top:10px;padding:10px 12px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);border-radius:6px;font-size:12.5px;color:var(--danger);line-height:1.5"></div>
         </div>
 
         <!-- Pannello PayPal: breakdown fee + bottoni SDK ufficiali -->
@@ -10400,6 +10402,29 @@ function coGotoStep(n){
   if(n===2){
     coRefreshImportBtnState();
   }
+  // PR6c: quando si entra nello step 3 (Pagamento), nascondi il bottone
+  // 'Carta di credito' se il prodotto è vendor_direct (Stripe non
+  // disponibile per scenario B, solo bonifico).
+  if(n===3){
+    coSyncPayMethodsForProduct();
+    // Sync label del bottone next in base al metodo correntemente selezionato
+    var nb = document.getElementById('coNextBtn');
+    if(nb && _coPayMethod === 'card') nb.textContent = 'Procedi al pagamento →';
+  }
+}
+
+// PR6c: sincronizza disponibilità metodi pagamento in base al prodotto.
+// Per prodotti con payout_mode='vendor_direct' nascondiamo Stripe
+// (cliente paga direttamente al venditore via bonifico).
+function coSyncPayMethodsForProduct(){
+  var cardBtn = document.getElementById('coPayCard');
+  if(!cardBtn || !_buyProduct) return;
+  var isVendorDirect = (_buyProduct.payout_mode === 'vendor_direct');
+  cardBtn.style.display = isVendorDirect ? 'none' : '';
+  // Se ero su 'card' ma il prodotto è vendor_direct, fallback a bonifico
+  if(isVendorDirect && _coPayMethod === 'card'){
+    coSelectPayMethod('bonifico');
+  }
 }
 
 // Verifica se ci sono dati anagrafica salvati e propone l'import
@@ -10773,12 +10798,20 @@ function coSelectPayMethod(method){
   if(method==='bonifico'){
     document.getElementById('coPayBonifico').classList.add('active');
     if(bonifEl) bonifEl.style.display = '';
-    if(nextBtn) nextBtn.style.display = '';
+    if(nextBtn){
+      nextBtn.style.display = '';
+      if(_coStep === 3) nextBtn.textContent = 'Conferma ordine';
+    }
   } else if(method==='card'){
     var c = document.getElementById('coPayCard');
     if(c) c.classList.add('active');
     if(cardEl) cardEl.style.display = '';
-    if(nextBtn) nextBtn.style.display = '';
+    if(nextBtn){
+      nextBtn.style.display = '';
+      // PR6c: label specifico per Stripe (l'utente sa che sta per essere
+      // ridirezionato, non sta confermando un ordine bonifico)
+      if(_coStep === 3) nextBtn.textContent = 'Procedi al pagamento →';
+    }
   } else if(method==='paypal'){
     var p = document.getElementById('coPayPaypal');
     if(p) p.classList.add('active');
@@ -11251,6 +11284,52 @@ async function coSubmitOrder(){
 
     // Persisti anagrafica nel profilo per i prossimi acquisti (best-effort)
     coSaveBillingToProfile(bill);
+
+    // PR6c: branch Stripe Checkout
+    // Se l'utente ha scelto 'card', invece di mostrare lo step di conferma,
+    // chiamiamo l'edge function per creare la Checkout Session e
+    // ridirezioniamo l'utente alla hosted page Stripe.
+    // L'INSERT order è già avvenuto sopra (status='awaiting_payment').
+    // Stripe webhook al completed cambierà lo status a 'payment_received'.
+    if(_coPayMethod === 'card'){
+      if(!orderRow || !orderRow.id){
+        coShowError('Errore: ordine non creato, impossibile procedere al pagamento. Riprova.');
+        return;
+      }
+      // Defense in depth: se prodotto è vendor_direct, blocca qui
+      if(_buyProduct.payout_mode === 'vendor_direct'){
+        coShowError('Per questo prodotto è disponibile solo il bonifico bancario.');
+        return;
+      }
+      var errEl = document.getElementById('coPayCardError');
+      if(errEl){ errEl.style.display='none'; errEl.textContent=''; }
+      try {
+        var resp = await fetch(SUPA_URL + '/functions/v1/stripe-create-checkout-session', {
+          method: 'POST',
+          headers: getHDR(),
+          body: JSON.stringify({ order_id: orderRow.id })
+        });
+        var data = await resp.json().catch(function(){ return null; });
+        if(!resp.ok || !data || !data.checkout_url){
+          var errMsg = (data && data.error) || ('HTTP '+resp.status);
+          throw new Error(errMsg);
+        }
+        // Redirect a Stripe hosted page (NO step 4: la conferma è gestita
+        // dalla pagina /pagamento-ok.html dopo il return da Stripe)
+        window.location.href = data.checkout_url;
+        return;
+      } catch(eStripe) {
+        if(errEl){
+          errEl.style.display = 'block';
+          errEl.textContent = 'Pagamento non avviato: ' + (eStripe.message || eStripe);
+        } else {
+          coShowError('Pagamento carta non avviato: ' + (eStripe.message || eStripe));
+        }
+        // Non procedere allo step 4: l'ordine resta awaiting_payment, l'utente
+        // può riprovare cliccando di nuovo il bottone (idempotency lato edge).
+        return;
+      }
+    }
 
     coRenderConfirmation();
     coGotoStep(4);

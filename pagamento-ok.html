@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pagamento confermato — RareBlock</title>
+  <link rel="icon" type="image/png" href="https://www.rareblock.eu/favicon.png">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#0a0d12; --surface:#161b22; --surface2:#21262d;
+      --border:#30363d; --border-soft:#262c36;
+      --text:#e6edf3; --text-muted:#9ca3af; --text-subtle:#6b7280;
+      --gold:#c9a84c; --gold-soft:rgba(201,168,76,.10);
+      --success:#3fb950; --success-soft:rgba(63,185,80,.10);
+      --danger:#f85149;
+      --r:8px;
+      --font-sans:'IBM Plex Sans','Inter',system-ui,-apple-system,sans-serif;
+      --font-mono:'IBM Plex Mono','Menlo',monospace;
+      --font-serif:Georgia,'Times New Roman',serif;
+    }
+    html,body{background:var(--bg);color:var(--text);font-family:var(--font-sans);min-height:100vh;line-height:1.6;-webkit-font-smoothing:antialiased}
+    body{display:flex;align-items:center;justify-content:center;padding:24px 16px}
+    .pay-card{
+      max-width:560px; width:100%;
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:var(--r); overflow:hidden;
+      box-shadow:0 12px 40px rgba(0,0,0,.4);
+    }
+    .pay-head{
+      padding:22px 32px; border-bottom:1px solid var(--border);
+      text-align:center;
+    }
+    .pay-brand{
+      font-family:'Montserrat',Arial,sans-serif;
+      font-size:18px; font-weight:300; letter-spacing:.18em;
+      text-transform:uppercase; color:#f0ead8;
+    }
+    .pay-brand span{color:var(--gold)}
+    .pay-body{padding:36px 32px}
+    .pay-icon{
+      width:56px; height:56px; border-radius:50%;
+      background:var(--success-soft); border:1px solid rgba(63,185,80,.25);
+      display:flex; align-items:center; justify-content:center;
+      margin:0 auto 22px; color:var(--success); font-size:28px;
+    }
+    .pay-icon.loading{
+      background:var(--gold-soft); border-color:rgba(201,168,76,.25); color:var(--gold);
+      animation:spin 1.4s linear infinite;
+    }
+    .pay-icon.error{
+      background:rgba(248,81,73,.10); border-color:rgba(248,81,73,.25); color:var(--danger);
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .pay-eyebrow{
+      font-family:var(--font-mono); font-size:10.5px; letter-spacing:.22em;
+      text-transform:uppercase; color:var(--success); font-weight:600;
+      text-align:center; margin-bottom:10px;
+    }
+    .pay-eyebrow.loading{color:var(--gold)}
+    .pay-eyebrow.error{color:var(--danger)}
+    .pay-title{
+      font-family:var(--font-serif); font-style:italic;
+      font-size:26px; line-height:1.3; color:#f0ead8;
+      text-align:center; margin-bottom:14px;
+    }
+    .pay-intro{
+      font-size:14px; line-height:1.65; color:var(--text-muted);
+      text-align:center; margin-bottom:28px;
+    }
+    .pay-recap{
+      background:#0d1117; border:1px solid var(--border);
+      border-radius:6px; padding:4px 0; margin-bottom:24px;
+    }
+    .pay-row{
+      display:flex; justify-content:space-between; align-items:center;
+      padding:13px 18px; border-bottom:1px solid var(--surface2);
+      font-size:13px;
+    }
+    .pay-row:last-child{border-bottom:none}
+    .pay-key{
+      color:var(--text-subtle); font-family:var(--font-mono);
+      font-size:11px; text-transform:uppercase; letter-spacing:.1em;
+    }
+    .pay-val{color:var(--text)}
+    .pay-val.gold{color:var(--gold); font-weight:600}
+    .pay-val.mono{font-family:var(--font-mono); letter-spacing:.04em}
+    .pay-cta{
+      display:flex; gap:10px; flex-direction:column;
+    }
+    .btn{
+      display:inline-flex; align-items:center; justify-content:center; gap:8px;
+      padding:12px 20px; border-radius:6px; cursor:pointer;
+      font-size:13px; font-weight:600; letter-spacing:.02em;
+      border:1px solid transparent; text-decoration:none;
+      transition:all .15s; font-family:var(--font-sans);
+    }
+    .btn.primary{background:var(--gold); color:#0a0d12; border-color:var(--gold)}
+    .btn.primary:hover{filter:brightness(1.08)}
+    .btn.ghost{background:transparent; color:var(--text-muted); border-color:var(--border)}
+    .btn.ghost:hover{color:var(--text); border-color:var(--border-soft); background:var(--surface2)}
+    .pay-footer{
+      padding:16px 32px; border-top:1px solid var(--border);
+      text-align:center; font-size:11px; color:var(--text-subtle);
+      line-height:1.6;
+    }
+    .pay-foot a{color:var(--gold); text-decoration:none}
+  </style>
+</head>
+<body>
+<div class="pay-card">
+  <div class="pay-head">
+    <div class="pay-brand">Rare<span>Block</span></div>
+  </div>
+  <div class="pay-body">
+    <div id="payIcon" class="pay-icon loading">
+      <span id="payIconChar">⟳</span>
+    </div>
+    <div id="payEyebrow" class="pay-eyebrow loading">Verifica in corso</div>
+    <div id="payTitle" class="pay-title">Stiamo confermando il tuo pagamento…</div>
+    <div id="payIntro" class="pay-intro">Stripe ha registrato il tuo pagamento. Attendi qualche secondo mentre RareBlock conferma l'ordine.</div>
+
+    <div id="payRecap" class="pay-recap" style="display:none"></div>
+
+    <div class="pay-cta">
+      <a class="btn primary" id="payCtaPrimary" href="https://www.rareblock.eu/rareblock-dashboard.html">Vai al portafoglio</a>
+      <a class="btn ghost" href="https://www.rareblock.eu/rareblock-dashboard.html">Torna alla dashboard</a>
+    </div>
+  </div>
+  <div class="pay-footer">
+    Hai ricevuto un'email di conferma con tutti i dettagli all'indirizzo associato all'ordine.<br>
+    Hai problemi? <a href="mailto:support@rareblock.eu">support@rareblock.eu</a>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── Config ──
+var SUPA_URL = 'https://rbjaaeyjeeqfpbzyavag.supabase.co';
+var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4ODc1MzgsImV4cCI6MjA2OTQ2MzUzOH0.RsM3FF4Pu2n_iPWi83vP8e4y9k8Be1vXRDFnRJ6srkw';
+
+// ── Parse query params ──
+var qs = new URLSearchParams(location.search);
+var orderNumber = qs.get('order') || '';
+var sessionId   = qs.get('session') || '';
+
+// ── Helpers ──
+function getSession(){
+  try {
+    var raw = localStorage.getItem('rb_auth_session');
+    if(!raw) return null;
+    return JSON.parse(raw);
+  } catch(e){ return null; }
+}
+
+function fmtPrice(n){
+  return Number(n||0).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+function setState(state, payload){
+  payload = payload || {};
+  var icon = document.getElementById('payIcon');
+  var iconChar = document.getElementById('payIconChar');
+  var eyebrow = document.getElementById('payEyebrow');
+  var title = document.getElementById('payTitle');
+  var intro = document.getElementById('payIntro');
+  var recap = document.getElementById('payRecap');
+
+  icon.classList.remove('loading','error');
+  eyebrow.classList.remove('loading','error');
+
+  if(state === 'success'){
+    iconChar.textContent = '✓';
+    eyebrow.textContent = 'Pagamento confermato';
+    title.textContent = 'Grazie, il tuo ordine è confermato.';
+    intro.textContent = 'Le quote sono state riservate. Riceverai aggiornamenti via email sui prossimi passi.';
+    if(payload.order){
+      var o = payload.order;
+      var methodLabel = 'Carta di credito';
+      if(o.stripe_method_type === 'apple_pay') methodLabel = 'Apple Pay';
+      else if(o.stripe_method_type === 'google_pay') methodLabel = 'Google Pay';
+      else if(o.stripe_card_brand) methodLabel = o.stripe_card_brand.charAt(0).toUpperCase()+o.stripe_card_brand.slice(1)
+        + (o.stripe_card_last4 ? ' ····'+o.stripe_card_last4 : '');
+      recap.innerHTML =
+        '<div class="pay-row"><span class="pay-key">Ordine</span><span class="pay-val mono gold">'+escapeHtml(o.order_number)+'</span></div>'+
+        '<div class="pay-row"><span class="pay-key">Importo</span><span class="pay-val">'+fmtPrice(o.total)+' €</span></div>'+
+        '<div class="pay-row"><span class="pay-key">Metodo</span><span class="pay-val">'+escapeHtml(methodLabel)+'</span></div>';
+      recap.style.display = '';
+    }
+  } else if(state === 'pending'){
+    icon.classList.add('loading');
+    eyebrow.classList.add('loading');
+    iconChar.textContent = '⟳';
+    eyebrow.textContent = 'Verifica in corso';
+    title.textContent = 'Stiamo confermando il tuo pagamento…';
+    intro.textContent = payload.message || 'Stripe ha registrato il tuo pagamento. Attendi qualche secondo mentre RareBlock conferma l\'ordine.';
+  } else if(state === 'error'){
+    icon.classList.add('error');
+    eyebrow.classList.add('error');
+    iconChar.textContent = '!';
+    eyebrow.textContent = 'Verifica non riuscita';
+    title.textContent = 'Non riusciamo a confermare il pagamento';
+    intro.textContent = payload.message || 'Il pagamento potrebbe essere stato comunque processato. Controlla la tua email o accedi al portafoglio per vedere lo stato dell\'ordine.';
+  }
+}
+
+function escapeHtml(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Polling status ordine ──
+async function fetchOrder(){
+  var session = getSession();
+  if(!session || !session.access_token) return null;
+  if(!orderNumber) return null;
+  var hdrs = {
+    'apikey': SUPA_KEY,
+    'Authorization': 'Bearer ' + session.access_token
+  };
+  var url = SUPA_URL + '/rest/v1/inv_orders?select=order_number,total,status,stripe_method_type,stripe_card_brand,stripe_card_last4,paid_at&order_number=eq.' + encodeURIComponent(orderNumber) + '&limit=1';
+  try {
+    var r = await fetch(url, { headers: hdrs });
+    if(!r.ok) return null;
+    var arr = await r.json();
+    return Array.isArray(arr) && arr[0] ? arr[0] : null;
+  } catch(e) { return null; }
+}
+
+var POLL_INTERVAL_MS = 1500;
+var POLL_MAX_ATTEMPTS = 20;  // 30 secondi totali
+var pollAttempts = 0;
+var pollTimer = null;
+
+async function pollStatus(){
+  pollAttempts++;
+  var order = await fetchOrder();
+  if(order && (order.status === 'payment_received' || order.status === 'completed')){
+    setState('success', { order: order });
+    return;
+  }
+  if(pollAttempts >= POLL_MAX_ATTEMPTS){
+    // Timeout: il webhook potrebbe essere ancora in elaborazione.
+    // Mostra messaggio ottimista (probabilmente il pagamento è OK ma il
+    // webhook è ritardato — Stripe garantisce processing entro minuti).
+    setState('pending', {
+      message: 'Il pagamento è stato registrato ma la conferma è in elaborazione. Riceverai un\'email a breve. Puoi controllare lo stato nel portafoglio.'
+    });
+    return;
+  }
+  pollTimer = setTimeout(pollStatus, POLL_INTERVAL_MS);
+}
+
+// Se non c'è session locale, mostra fallback (utente potrebbe aver chiuso
+// la sessione tra il redirect Stripe e il return)
+if(!getSession()){
+  setState('success');
+  document.getElementById('payIntro').textContent =
+    'Il tuo pagamento è stato processato da Stripe. Accedi alla dashboard per vedere il dettaglio dell\'ordine.';
+} else if(!orderNumber){
+  // Nessun parametro 'order' nell'URL: probabilmente arrivo diretto, mostra success generico
+  setState('success');
+  document.getElementById('payIntro').textContent =
+    'Pagamento ricevuto. Accedi al portafoglio per vedere il dettaglio.';
+} else {
+  // Polling
+  pollStatus();
+}
+</script>
+</body>
+</html>
