@@ -1,0 +1,29 @@
+# RareBlock — .well-known/.htaccess
+# ============================================================================
+# Configurazione per servire correttamente i file di verifica dominio
+# (Apple Pay, Let's Encrypt, ecc.) senza interferenze di rewrite.
+# ============================================================================
+
+# Disabilita rewrite engine in questa directory (passa-attraverso)
+RewriteEngine Off
+
+# Accesso in lettura aperto
+<IfModule mod_authz_core.c>
+  Require all granted
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Allow from all
+</IfModule>
+
+# File Apple Pay: senza estensione, va servito come text/plain
+<Files "apple-developer-merchantid-domain-association">
+  ForceType text/plain
+  Header set Content-Type "text/plain; charset=utf-8"
+  Header set X-Robots-Tag "noindex, nofollow"
+</Files>
+
+# Sicurezza minima: nega lettura .htaccess stesso
+<Files ".htaccess">
+  Require all denied
+</Files>
