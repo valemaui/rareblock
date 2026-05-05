@@ -5,6 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <!-- ═══════════════════════════════════════════════════════════════════
+       NO-CACHE — root document
+       ─────────────────────────────────────────────────────────────────
+       Aruba serve gli HTML senza header Cache-Control espliciti, quindi
+       i browser applicano la propria euristica (di solito 24h o piu')
+       e tengono index.html in cache locale. Conseguenza: gli utenti
+       che hanno visitato il sito quando era ancora un bridge-redirect
+       continuano a ricevere quella copia anche dopo il deploy della
+       landing reale, fino a scadenza naturale della cache.
+       Questi 3 meta forzano il browser a rivalidare sempre col server.
+       Necessari solo sul root document; gli asset statici (font, img)
+       non hanno questo problema perche' versionati per URL.
+       ═══════════════════════════════════════════════════════════════ -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <!-- ═══════════════════════════════════════════════════════════════════
        SUPABASE AUTH · FRAGMENT-HANDLER (safety net)
        ─────────────────────────────────────────────────────────────────
        Quando un utente clicca un link email Supabase (signup confirm,
