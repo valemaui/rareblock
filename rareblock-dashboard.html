@@ -10782,6 +10782,14 @@ async function coSaveBillingToProfile(billing){
 
 // ── Step 3 — pagamento ──────────────────────────────────────
 var _coPayMethod = 'bonifico';
+// PR6c hotfix: il client distingue 'card' (UI) da 'stripe' (DB).
+// Le tabelle inv_orders / inv_payments hanno CHECK constraint che
+// accettano solo IN ('bonifico','paypal','stripe','contanti','altro') —
+// 'card' NON è valido. Mappiamo qui prima di salvare.
+function rbCoPayMethodForDb(uiMethod){
+  if(uiMethod === 'card') return 'stripe';
+  return uiMethod || 'bonifico';
+}
 function coSelectPayMethod(method){
   _coPayMethod = method;
   document.querySelectorAll('.co-pay-method').forEach(function(m){ m.classList.remove('active'); });
@@ -11180,7 +11188,7 @@ async function coSubmitOrder(){
       bill_pec:        bill.pec,
       bill_sdi_code:   bill.sdi,
       is_company:      bill.is_company,
-      payment_method:  _coPayMethod || 'bonifico',
+      payment_method:  rbCoPayMethodForDb(_coPayMethod),
       bank_reference:  bankRef||null,
       causale:         prelimCausale,
       status:          'awaiting_payment',
@@ -11238,7 +11246,7 @@ async function coSubmitOrder(){
         user_id: user.id, product_id: _buyProduct.id,
         holding_id: holdingId,
         type: 'purchase', amount: calc.net, qty: qty,
-        method: _coPayMethod || 'bonifico', status: 'pending',
+        method: rbCoPayMethodForDb(_coPayMethod), status: 'pending',
         bank_reference: bankRef||null,
         admin_notes: noteWithDiscount||null
       });
