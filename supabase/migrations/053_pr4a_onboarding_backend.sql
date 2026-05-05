@@ -18,6 +18,44 @@
 --  - PR4a tocca solo le query/view/RPC per supportare l UI di PR4b/PR4c.
 -- ═══════════════════════════════════════════════════════════════════════
 
+-- ── 0. Safety: assicura presenza campi referenziati dalla view/RPC ────
+-- Alcune migrations precedenti potrebbero non essere state eseguite sul DB
+-- produttivo. Aggiungiamo tutti i campi che la 053 referenzia, idempotente.
+ALTER TABLE public.profiles
+  -- da 033 KYC anagrafica
+  ADD COLUMN IF NOT EXISTS first_name             TEXT,
+  ADD COLUMN IF NOT EXISTS last_name              TEXT,
+  ADD COLUMN IF NOT EXISTS birth_date             DATE,
+  ADD COLUMN IF NOT EXISTS birth_place            TEXT,
+  ADD COLUMN IF NOT EXISTS birth_country          CHAR(2) DEFAULT 'IT',
+  ADD COLUMN IF NOT EXISTS nationality            CHAR(2) DEFAULT 'IT',
+  ADD COLUMN IF NOT EXISTS fiscal_code            TEXT,
+  ADD COLUMN IF NOT EXISTS id_doc_type            TEXT,
+  ADD COLUMN IF NOT EXISTS id_doc_number          TEXT,
+  ADD COLUMN IF NOT EXISTS id_doc_issuer          TEXT,
+  ADD COLUMN IF NOT EXISTS id_doc_issue_date      DATE,
+  ADD COLUMN IF NOT EXISTS id_doc_expiry_date     DATE,
+  ADD COLUMN IF NOT EXISTS id_doc_front_path      TEXT,
+  ADD COLUMN IF NOT EXISTS id_doc_back_path       TEXT,
+  ADD COLUMN IF NOT EXISTS res_address            TEXT,
+  ADD COLUMN IF NOT EXISTS res_civic              TEXT,
+  ADD COLUMN IF NOT EXISTS res_zip                TEXT,
+  ADD COLUMN IF NOT EXISTS res_city               TEXT,
+  ADD COLUMN IF NOT EXISTS res_province           TEXT,
+  ADD COLUMN IF NOT EXISTS res_country            CHAR(2) DEFAULT 'IT',
+  ADD COLUMN IF NOT EXISTS phone_country_code     TEXT DEFAULT '+39',
+  ADD COLUMN IF NOT EXISTS phone_e164             TEXT,
+  ADD COLUMN IF NOT EXISTS phone_verified_at      TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS kyc_level              INT  DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS kyc_status             TEXT DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS kyc_reviewer_id        UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS gdpr_privacy_accepted_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS gdpr_tos_accepted_at     TIMESTAMPTZ,
+  -- da 043 KYC reviewed_at
+  ADD COLUMN IF NOT EXISTS kyc_reviewed_at        TIMESTAMPTZ,
+  -- updated_at: assumiamo esista già (trigger profiles_updated_at è attivo)
+  ADD COLUMN IF NOT EXISTS updated_at             TIMESTAMPTZ DEFAULT now();
+
 -- ── 1. View v_user_onboarding_status ──────────────────────────────────
 -- Aggrega lo stato di completamento KYC per l utente corrente in 3 sezioni:
 --   - personal: anagrafica L2 (nome, cognome, data nascita, CF, residenza)
