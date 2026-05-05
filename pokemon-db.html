@@ -14020,7 +14020,10 @@ window.authDoRegister = async function(){
         gdpr_tos_version: '1.0'
       }
     };
-    var r=await fetch(RB_AUTH_URL+'/signup',{method:'POST',headers:hdrs,body:JSON.stringify(signupBody)});
+    // GoTrue v1 (Supabase Auth) legge redirect_to SOLO dal query param,
+    // non dal body. Lo passiamo come queryparam URL-encoded.
+    var signupUrl = RB_AUTH_URL + '/signup?redirect_to=' + encodeURIComponent(signupRedirectTo);
+    var r=await fetch(signupUrl,{method:'POST',headers:hdrs,body:JSON.stringify(signupBody)});
     var data=await r.json().catch(function(){return{};});
     if(!r.ok) throw new Error(data.error_description||data.msg||data.error||('HTTP '+r.status));
 
@@ -14059,7 +14062,7 @@ window.authDoReset = async function(){
       redirect_to: redirectTo,
       options: { redirectTo: redirectTo }
     };
-    var r = await fetch(RB_AUTH_URL+'/recover', {
+    var r = await fetch(RB_AUTH_URL+'/recover?redirect_to='+encodeURIComponent(redirectTo), {
       method:'POST',
       headers: hdrs,
       body: JSON.stringify(body)
@@ -14117,7 +14120,7 @@ window.authDoMagicLink = async function(){
   try{
     var redirectTo = location.origin + location.pathname;
     var hdrs={'Content-Type':'application/json','apikey':RB_ANON_KEY};
-    var r = await fetch(RB_AUTH_URL+'/otp',{
+    var r = await fetch(RB_AUTH_URL+'/otp?redirect_to='+encodeURIComponent(redirectTo),{
       method:'POST',
       headers:hdrs,
       body: JSON.stringify({
