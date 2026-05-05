@@ -1,66 +1,1785 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>RareBlock — Accedi</title>
-<meta name="robots" content="noindex,nofollow"/>
-<!--
-  Bridge file. La pagina di login del sistema è ora pokemon-db.html
-  (entry point unico Investor + Collector). Questo file esiste solo
-  per compatibilità con link esistenti (home page, email, segnalibri,
-  pannelli admin precedenti) che ancora puntano a 'rareblock-login.html'.
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>RareBlock — Accedi</title>
+  <meta name="robots" content="noindex,nofollow" />
 
-  Comportamento:
-    - Preserva il parametro ?return=... se presente
-    - Redirect istantaneo via meta refresh + JS
-    - Fallback HTML visivo se JS è disabilitato (con link manuale)
--->
-<meta http-equiv="refresh" content="0; url=pokemon-db.html"/>
-<script>
-(function(){
-  try{
-    var u = new URL(location.href);
-    var ret = u.searchParams.get('return');
-    var target = 'pokemon-db.html';
-    if (ret) target += '?return=' + encodeURIComponent(ret);
-    location.replace(target);
-  } catch(e) {
-    location.replace('pokemon-db.html');
-  }
-})();
-</script>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{height:100%}
-body{
-  background:#0d1117;color:#e6edf3;
-  font-family:'IBM Plex Sans',system-ui,sans-serif;
-  display:flex;align-items:center;justify-content:center;
-  flex-direction:column;gap:20px;padding:40px;text-align:center;
+  <!-- ═══════════════════════════════════════════════════════════════════
+       NO-CACHE — root document (vedi index.html per rationale)
+       ═══════════════════════════════════════════════════════════════ -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <!-- Preconnect e load font (stessa lista di pokemon-db.html, cache condivisa) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Montserrat:wght@200;300&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300;1,9..144,400&family=Figtree:wght@300;400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ─── Reset minimo + body styles per pagina standalone ─── */
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+    body{background:#0c0c0b;color:#f0ead8;font-family:'Figtree',system-ui,sans-serif}
+
+    /* ─── Variabili globali (sostituiscono :root del dashboard) ─── */
+    :root{
+      --gold:#c9a84c;
+    }
+
+/* ── AUTH OVERLAY — login/registrazione/recovery integrati in pokemon-db.html ── */
+#authOverlay{
+  --ao-bg:#0c0c0b;--ao-bg-2:#131310;--ao-bg-3:#1a1a16;
+  --ao-gold:var(--gold);--ao-gold-light:#e8c96a;--ao-gold-dim:rgba(201,168,76,0.12);
+  --ao-cream:#f0ead8;--ao-cream-dim:rgba(240,234,216,0.55);
+  --ao-border:rgba(201,168,76,0.18);
+  --ao-serif:'Fraunces',Georgia,serif;--ao-sans:'Figtree',system-ui,sans-serif;
+  position:fixed;inset:0;background:var(--ao-bg);color:var(--ao-cream);
+  font-family:var(--ao-sans);font-weight:300;line-height:1.7;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:9999;overflow-y:auto;padding:24px 0;
 }
-.logo{
-  font-family:'Montserrat',system-ui,sans-serif;font-size:18px;font-weight:300;
-  letter-spacing:.18em;text-transform:uppercase;
-}
-.logo .b{color:#c9a84c}
-.spinner{
-  width:18px;height:18px;border:2px solid #30363d;border-top-color:#c9a84c;
-  border-radius:50%;animation:spin .8s linear infinite;display:inline-block;
-  vertical-align:middle;margin-right:8px;
-}
-@keyframes spin{to{transform:rotate(360deg)}}
-.msg{color:#7d8590;font-size:13px}
-.fallback{
-  margin-top:20px;color:#58a6ff;text-decoration:none;
-  font-size:12px;font-family:'IBM Plex Mono',monospace;
-}
-.fallback:hover{text-decoration:underline}
-</style>
+#authOverlay.hidden{display:none}
+#authOverlay::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:0;opacity:.4}
+#authOverlay .ao-glow{position:fixed;top:30%;left:50%;transform:translateX(-50%);width:500px;height:400px;background:radial-gradient(ellipse,rgba(201,168,76,.06) 0%,transparent 70%);pointer-events:none;z-index:0}
+#authOverlay .ao-back{position:fixed;top:24px;left:32px;z-index:10;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:rgba(240,234,216,.3);text-decoration:none;display:flex;align-items:center;gap:8px;transition:color .2s;font-family:var(--ao-sans)}
+#authOverlay .ao-back:hover{color:var(--ao-cream-dim)}
+#authOverlay .ao-back-line{width:24px;height:.5px;background:currentColor}
+#authOverlay .ao-wrap{position:relative;z-index:1;width:100%;max-width:400px;padding:24px 20px;display:flex;flex-direction:column;align-items:center;gap:36px;animation:aoFadeUp .7s ease forwards}
+@keyframes aoFadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+#authOverlay .ao-logo{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+#authOverlay .ao-logo-name{font-family:'Montserrat',system-ui,sans-serif;font-size:18px;font-weight:300;letter-spacing:.18em;text-transform:uppercase}
+#authOverlay .ao-logo-name span{color:var(--ao-gold)}
+#authOverlay .ao-logo-sub{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:rgba(240,234,216,.3)}
+#authOverlay .ao-card{width:100%;background:var(--ao-bg-2);border:.5px solid var(--ao-border);border-radius:4px;padding:32px;display:flex;flex-direction:column;gap:22px}
+#authOverlay .ao-card-title{font-family:var(--ao-serif);font-size:20px;font-weight:300;margin-bottom:2px;color:var(--ao-cream)}
+#authOverlay .ao-card-title em{font-style:italic;color:var(--ao-gold)}
+#authOverlay .ao-card-sub{font-size:13px;color:var(--ao-cream-dim);font-weight:300}
+#authOverlay .ao-alert{padding:10px 14px;border-radius:2px;font-size:12px;display:none;align-items:flex-start;gap:8px;line-height:1.5;letter-spacing:.01em}
+#authOverlay .ao-alert.err{display:flex;background:rgba(192,57,43,.08);border:.5px solid rgba(192,57,43,.25);color:#e07070}
+#authOverlay .ao-alert.ok{display:flex;background:rgba(201,168,76,.08);border:.5px solid rgba(201,168,76,.2);color:var(--ao-gold-light)}
+#authOverlay .ao-alert.info{display:flex;background:rgba(120,140,200,.06);border:.5px solid rgba(120,140,200,.2);color:#b8c5d6}
+#authOverlay .ao-alert-icon{flex-shrink:0;margin-top:1px;display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px}
+#authOverlay .ao-alert-icon .rb-i{width:14px;height:14px}
+#authOverlay .ao-fields{display:flex;flex-direction:column;gap:16px}
+
+/* ── PR1: GDPR consent checkboxes ── */
+#authOverlay .ao-consents{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+#authOverlay .ao-consent{display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-family:var(--ao-sans);user-select:none}
+#authOverlay .ao-consent input[type=checkbox]{position:absolute;opacity:0;pointer-events:none}
+#authOverlay .ao-consent-mark{flex-shrink:0;width:16px;height:16px;border-radius:2px;border:1px solid rgba(240,234,216,.25);background:var(--ao-bg-3);display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:var(--ao-bg);transition:all .15s;margin-top:1px}
+#authOverlay .ao-consent input:checked + .ao-consent-mark{background:var(--ao-gold);border-color:var(--ao-gold)}
+#authOverlay .ao-consent input:checked + .ao-consent-mark::before{content:'✓';font-weight:700}
+#authOverlay .ao-consent:hover .ao-consent-mark{border-color:rgba(201,168,76,.4)}
+#authOverlay .ao-consent-text{font-size:11.5px;line-height:1.5;color:rgba(240,234,216,.55);font-weight:300}
+#authOverlay .ao-consent-text a{color:var(--ao-gold);text-decoration:none;border-bottom:.5px solid rgba(201,168,76,.3);transition:border-color .15s}
+#authOverlay .ao-consent-text a:hover{border-bottom-color:var(--ao-gold)}
+#authOverlay .ao-consent-required{color:rgba(201,168,76,.6);font-weight:500;margin-left:2px}
+
+#authOverlay .ao-field{display:flex;flex-direction:column;gap:7px}
+#authOverlay .ao-field label{font-size:10px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:rgba(240,234,216,.35);font-family:var(--ao-sans)}
+#authOverlay .ao-input-wrap{position:relative;display:flex;align-items:center}
+#authOverlay input[type=email],#authOverlay input[type=password],#authOverlay input[type=text]{width:100%;background:var(--ao-bg-3);border:.5px solid rgba(240,234,216,.1);border-radius:2px;color:var(--ao-cream);font-family:var(--ao-sans);font-size:14px;font-weight:300;padding:11px 40px 11px 14px;outline:none;transition:border-color .2s,box-shadow .2s}
+#authOverlay input:focus{border-color:rgba(201,168,76,.4);box-shadow:0 0 0 3px rgba(201,168,76,.06)}
+#authOverlay input::placeholder{color:rgba(240,234,216,.15)}
+#authOverlay input:-webkit-autofill{-webkit-text-fill-color:var(--ao-cream);-webkit-box-shadow:0 0 0 30px var(--ao-bg-3) inset;caret-color:var(--ao-cream);transition:background-color 5000s ease-in-out 0s}
+#authOverlay .ao-input-icon{position:absolute;right:12px;font-size:13px;color:rgba(240,234,216,.2);pointer-events:none}
+#authOverlay .ao-eye-btn{position:absolute;right:12px;background:none;border:none;color:rgba(240,234,216,.2);cursor:pointer;padding:0;font-size:13px;line-height:1;transition:color .2s}
+#authOverlay .ao-eye-btn:hover{color:rgba(240,234,216,.5)}
+#authOverlay .ao-forgot{font-size:12px;color:rgba(240,234,216,.25);text-decoration:none;align-self:flex-end;margin-top:-8px;transition:color .2s;letter-spacing:.02em;background:none;border:none;cursor:pointer;padding:0;font-family:var(--ao-sans)}
+#authOverlay .ao-forgot:hover{color:var(--ao-gold)}
+#authOverlay .ao-btn-primary{width:100%;padding:13px;border-radius:2px;font-family:var(--ao-sans);font-size:12px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;background:var(--ao-gold);color:var(--ao-bg);border:none;cursor:pointer;transition:background .2s,transform .15s;position:relative}
+#authOverlay .ao-btn-primary:hover{background:var(--ao-gold-light);transform:translateY(-1px)}
+#authOverlay .ao-btn-primary:active{transform:translateY(0)}
+#authOverlay .ao-btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
+#authOverlay .ao-btn-primary.loading{color:transparent}
+#authOverlay .ao-btn-primary.loading::after{content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;border-radius:50%;border:2px solid rgba(12,12,11,.2);border-top-color:var(--ao-bg);animation:aoSpin .7s linear infinite}
+@keyframes aoSpin{to{transform:rotate(360deg)}}
+#authOverlay .ao-btn-ghost{width:100%;padding:11px;border-radius:2px;font-family:var(--ao-sans);font-size:12px;font-weight:400;letter-spacing:.06em;background:none;border:.5px solid rgba(240,234,216,.1);color:var(--ao-cream-dim);cursor:pointer;transition:all .2s}
+
+/* PR2: divider "oppure" + bottone secondary per magic link */
+#authOverlay .ao-divider{position:relative;text-align:center;margin:6px 0;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(240,234,216,.25);font-family:var(--ao-sans)}
+#authOverlay .ao-divider::before{content:'';position:absolute;left:0;top:50%;width:calc(50% - 30px);height:.5px;background:rgba(240,234,216,.08)}
+#authOverlay .ao-divider::after{content:'';position:absolute;right:0;top:50%;width:calc(50% - 30px);height:.5px;background:rgba(240,234,216,.08)}
+#authOverlay .ao-divider span{position:relative;background:transparent;padding:0 12px}
+#authOverlay .ao-btn-secondary{width:100%;padding:11px;border-radius:2px;font-family:var(--ao-sans);font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;background:transparent;border:.5px solid rgba(201,168,76,.25);color:var(--ao-gold);cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+#authOverlay .ao-btn-secondary:hover{border-color:rgba(201,168,76,.5);background:rgba(201,168,76,.04)}
+#authOverlay .ao-btn-secondary:disabled{opacity:.5;cursor:not-allowed}
+#authOverlay .ao-btn-secondary-icon{font-size:14px;line-height:1}
+
+/* PR3: bottone Google OAuth (white background, sobrio, brand Google) */
+#authOverlay .ao-btn-oauth{width:100%;padding:11px 14px;border-radius:2px;font-family:var(--ao-sans);font-size:12.5px;font-weight:500;letter-spacing:.04em;background:#ffffff;border:.5px solid rgba(255,255,255,.06);color:#1a1a1a;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;justify-content:center;gap:10px}
+#authOverlay .ao-btn-oauth:hover{background:#f5f5f5;transform:translateY(-1px)}
+#authOverlay .ao-btn-oauth:active{transform:translateY(0)}
+#authOverlay .ao-btn-oauth:disabled{opacity:.45;cursor:not-allowed;transform:none}
+#authOverlay .ao-btn-oauth svg{flex-shrink:0;width:16px;height:16px}
+#authOverlay .ao-btn-ghost:hover{border-color:rgba(240,234,216,.2);color:var(--ao-cream)}
+#authOverlay .ao-footer{font-size:11px;color:rgba(240,234,216,.18);text-align:center;letter-spacing:.04em;line-height:1.9;font-family:var(--ao-sans)}
+
+  </style>
 </head>
 <body>
-  <div class="logo"><span>Rare</span><span class="b">Block</span></div>
-  <div class="msg"><span class="spinner"></span>Reindirizzamento al login&hellip;</div>
-  <a class="fallback" href="pokemon-db.html">Continua manualmente &rsaquo;</a>
+
+<div id="authOverlay">
+  <div class="ao-glow"></div>
+  <a href="index.html" class="ao-back"><span class="ao-back-line"></span>Torna al sito</a>
+  <div class="ao-wrap">
+    <div class="ao-logo">
+      <div class="ao-logo-name">Rare<span>Block</span></div>
+      <div class="ao-logo-sub">Collector &amp; Investor Portal</div>
+    </div>
+
+    <!-- LOGIN -->
+    <div class="ao-card" id="ao-form-login">
+      <div>
+        <div class="ao-card-title">Accedi all'area <em>riservata.</em></div>
+        <div class="ao-card-sub">Inserisci le credenziali del tuo account</div>
+      </div>
+      <div class="ao-alert" id="ao-alert-login"><span class="ao-alert-icon">—</span><span id="ao-alert-login-msg"></span></div>
+      <div class="ao-fields">
+        <div class="ao-field">
+          <label>Email</label>
+          <div class="ao-input-wrap">
+            <input type="email" id="authLoginEmail" placeholder="nome@email.com" autocomplete="email"/>
+            <span class="ao-input-icon">@</span>
+          </div>
+        </div>
+        <div class="ao-field">
+          <label>Password</label>
+          <div class="ao-input-wrap">
+            <input type="password" id="authLoginPwd" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')authDoLogin()"/>
+            <button class="ao-eye-btn" id="ao-eye-btn" type="button" onclick="aoTogglePwd()">◎</button>
+          </div>
+        </div>
+      </div>
+      <button type="button" class="ao-forgot" onclick="aoShowReset()">Password dimenticata?</button>
+      <button class="ao-btn-primary" id="authLoginBtn" onclick="authDoLogin()">Accedi</button>
+
+      <!-- Divider sottile -->
+      <div class="ao-divider"><span>oppure</span></div>
+
+      <!-- PR3: Google OAuth -->
+      <button type="button" class="ao-btn-oauth" id="authLoginGoogleBtn" onclick="authDoGoogle('login')">
+        <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
+          <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/>
+          <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
+          <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
+        </svg>
+        Continua con Google
+      </button>
+
+      <button type="button" class="ao-btn-secondary" onclick="aoShowMagic()">
+        <span class="ao-btn-secondary-icon">✉</span>
+        Accedi senza password
+      </button>
+
+      <button class="ao-btn-ghost" onclick="aoShowRegister()">Non hai un account? Registrati</button>
+    </div>
+
+    <!-- REGISTER -->
+    <div class="ao-card" id="ao-form-register" style="display:none">
+      <div>
+        <div class="ao-card-title">Crea il tuo <em>account.</em></div>
+        <div class="ao-card-sub">Accesso alla collezione e al portale investitori</div>
+      </div>
+      <div class="ao-alert" id="ao-alert-reg"><span class="ao-alert-icon">—</span><span id="ao-alert-reg-msg"></span></div>
+      <div class="ao-fields">
+        <div class="ao-field">
+          <label>Email</label>
+          <div class="ao-input-wrap">
+            <input type="email" id="authRegEmail" placeholder="nome@email.com" autocomplete="email"/>
+            <span class="ao-input-icon">@</span>
+          </div>
+        </div>
+        <div class="ao-field">
+          <label>Password</label>
+          <div class="ao-input-wrap">
+            <input type="password" id="authRegPwd" placeholder="min 8 caratteri" autocomplete="new-password"/>
+            <span class="ao-input-icon">◎</span>
+          </div>
+        </div>
+        <div class="ao-field">
+          <label>Conferma password</label>
+          <div class="ao-input-wrap">
+            <input type="password" id="authRegPwd2" placeholder="ripeti password" onkeydown="if(event.key==='Enter')authDoRegister()"/>
+            <span class="ao-input-icon">◎</span>
+          </div>
+        </div>
+
+        <!-- ─── Consensi GDPR (PR1) ─── -->
+        <div class="ao-consents">
+          <label class="ao-consent">
+            <input type="checkbox" id="authRegConsentPrivacy"/>
+            <span class="ao-consent-mark"></span>
+            <span class="ao-consent-text">
+              Ho letto e accetto l'<a href="/privacy.html" target="_blank" rel="noopener">Informativa Privacy</a>
+              <span class="ao-consent-required">*</span>
+            </span>
+          </label>
+          <label class="ao-consent">
+            <input type="checkbox" id="authRegConsentTos"/>
+            <span class="ao-consent-mark"></span>
+            <span class="ao-consent-text">
+              Accetto i <a href="/terms.html" target="_blank" rel="noopener">Termini di Servizio</a>
+              <span class="ao-consent-required">*</span>
+            </span>
+          </label>
+        </div>
+
+      </div>
+      <button class="ao-btn-primary" id="authRegBtn" onclick="authDoRegister()">Crea account</button>
+
+      <!-- Divider sottile -->
+      <div class="ao-divider"><span>oppure</span></div>
+
+      <!-- PR3: Google OAuth (richiede consensi GDPR spuntati prima del redirect) -->
+      <button type="button" class="ao-btn-oauth" id="authRegGoogleBtn" onclick="authDoGoogle('register')">
+        <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
+          <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/>
+          <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
+          <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
+        </svg>
+        Registrati con Google
+      </button>
+
+      <button class="ao-btn-ghost" onclick="aoShowLogin()">← Torna al login</button>
+    </div>
+
+    <!-- RESET (richiesta link via email) -->
+    <div class="ao-card" id="ao-form-reset" style="display:none">
+      <div>
+        <div class="ao-card-title">Recupero <em>accesso.</em></div>
+        <div class="ao-card-sub">Ti inviamo un link per reimpostare la password</div>
+      </div>
+      <div class="ao-alert" id="ao-alert-reset"><span class="ao-alert-icon">—</span><span id="ao-alert-reset-msg"></span></div>
+      <div class="ao-fields">
+        <div class="ao-field">
+          <label>Email</label>
+          <div class="ao-input-wrap">
+            <input type="email" id="authResetEmail" placeholder="nome@email.com" onkeydown="if(event.key==='Enter')authDoReset()"/>
+            <span class="ao-input-icon">@</span>
+          </div>
+        </div>
+      </div>
+      <button class="ao-btn-primary" id="authResetBtn" onclick="authDoReset()">Invia link di reset</button>
+      <button class="ao-btn-ghost" onclick="aoShowLogin()">← Torna al login</button>
+    </div>
+
+    <!-- MAGIC LINK (login passwordless via email) -->
+    <div class="ao-card" id="ao-form-magic" style="display:none">
+      <div>
+        <div class="ao-card-title">Accesso senza <em>password.</em></div>
+        <div class="ao-card-sub">Ti inviamo un link via email per entrare con un click</div>
+      </div>
+      <div class="ao-alert" id="ao-alert-magic"><span class="ao-alert-icon">—</span><span id="ao-alert-magic-msg"></span></div>
+      <div class="ao-fields">
+        <div class="ao-field">
+          <label>Email</label>
+          <div class="ao-input-wrap">
+            <input type="email" id="authMagicEmail" placeholder="nome@email.com" autocomplete="email" onkeydown="if(event.key==='Enter')authDoMagicLink()"/>
+            <span class="ao-input-icon">@</span>
+          </div>
+        </div>
+      </div>
+      <button class="ao-btn-primary" id="authMagicBtn" onclick="authDoMagicLink()">Invia link di accesso</button>
+      <button class="ao-btn-ghost" onclick="aoShowLogin()">← Torna al login</button>
+    </div>
+
+    <!-- NUOVA PASSWORD (dopo click sul link email, recovery completion) -->
+    <div class="ao-card" id="ao-form-newpwd" style="display:none">
+      <div>
+        <div class="ao-card-title">Nuova <em>password.</em></div>
+        <div class="ao-card-sub">Imposta la nuova password per il tuo account</div>
+      </div>
+      <div class="ao-alert" id="ao-alert-newpwd"><span class="ao-alert-icon">—</span><span id="ao-alert-newpwd-msg"></span></div>
+      <div class="ao-fields">
+        <div class="ao-field">
+          <label>Nuova password</label>
+          <div class="ao-input-wrap">
+            <input type="password" id="authNewPwd" placeholder="min. 8 caratteri" autocomplete="new-password"/>
+            <span class="ao-input-icon">·</span>
+          </div>
+        </div>
+        <div class="ao-field">
+          <label>Conferma password</label>
+          <div class="ao-input-wrap">
+            <input type="password" id="authNewPwd2" placeholder="ripeti la password" autocomplete="new-password" onkeydown="if(event.key==='Enter')authDoUpdatePassword()"/>
+            <span class="ao-input-icon">·</span>
+          </div>
+        </div>
+      </div>
+      <button class="ao-btn-primary" id="authNewPwdBtn" onclick="authDoUpdatePassword()">Imposta password</button>
+      <button class="ao-btn-ghost" onclick="aoShowLogin()">Annulla</button>
+    </div>
+
+    <div class="ao-footer">Accesso riservato &mdash; Collezionisti &amp; Investitori<br>v<span id="authVersion"></span> &middot; <span id="authDiag">verifica sessione</span></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  rareblock-login.html — config & redirect helper
+//  Definisce le globali necessarie al modulo AUTH estratto
+//  da pokemon-db.html (vedi blocco sotto).
+// ═══════════════════════════════════════════════════════════
+
+// Versione app — duplicata da pokemon-db.html (in attesa di centralizzazione in T5).
+const APP_VERSION = '5.8';
+
+// Redirect post-autenticazione: rispetta ?return=<url> se presente
+// e sicuro (path-only o pagina rareblock-*/pokemon-db*), altrimenti default
+// /pokemon-db.html. Sostituisce le chiamate appStart() del modulo
+// auth originale (che esisteva quando login + collector tool erano
+// nello stesso file).
+function rbLoginRedirectAfterAuth(){
+  try {
+    var qs = new URLSearchParams(location.search);
+    var ret = qs.get('return');
+    if(ret){
+      var d = decodeURIComponent(ret);
+      // Whitelist conservativa:
+      //   - path absolute (/foo) MA NON protocol-relative (//evil.com)
+      //   - file relativo che inizia con rareblock- o pokemon-db
+      // Tutto il resto (URL esterne, javascript:, mailto:, ecc) viene scartato.
+      var isSafePath = d.indexOf('/') === 0 && d.indexOf('//') !== 0;
+      var isAppPage  = d.indexOf('rareblock-') === 0 || d.indexOf('pokemon-db') === 0;
+      if(isSafePath || isAppPage){
+        location.href = d;
+        return;
+      }
+    }
+  } catch(e){}
+  location.href = '/pokemon-db.html';
+}
+</script>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  AUTH — fetch puro, zero dipendenze CDN
+//  Usa direttamente le REST API di Supabase Auth v1
+// ═══════════════════════════════════════════════════════════
+
+var RB_AUTH_URL = 'https://rbjaaeyjeeqfpbzyavag.supabase.co/auth/v1';
+var RB_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
+var RB_SESSION_KEY = 'rb_auth_session';
+
+// ── Helpers UI ──────────────────────────────────────────────
+function authShow(){ var o=document.getElementById('authOverlay'); if(o) o.classList.remove('hidden'); }
+function authHide(){ var o=document.getElementById('authOverlay'); if(o) o.classList.add('hidden'); }
+
+// IDs alert: authLoginMsg → ao-alert-login, authRegMsg → ao-alert-reg, authResetMsg → ao-alert-reset, authNewPwdMsg → ao-alert-newpwd
+var AO_ALERT_MAP = { authLoginMsg:'ao-alert-login', authRegMsg:'ao-alert-reg', authResetMsg:'ao-alert-reset', authMagicMsg:'ao-alert-magic', authNewPwdMsg:'ao-alert-newpwd' };
+
+function authMsg(id, msg, type){
+  var aoId = AO_ALERT_MAP[id] || id;
+  var wrap = document.getElementById(aoId); if(!wrap) return;
+  // Il messaggio viene sempre trattato come testo puro per sicurezza (no XSS).
+  // Per le icone usiamo lo span dedicato .ao-alert-icon che ha il proprio markup.
+  var txt  = document.getElementById(aoId+'-msg'); if(txt) txt.textContent = msg; else wrap.textContent = msg;
+  // L'icona è HTML reale (span.rb-i con mask), usiamo innerHTML
+  var icon = wrap.querySelector('.ao-alert-icon');
+  if(icon){
+    if(type==='ok') icon.innerHTML = '<span class="rb-i rb-i-check"></span>';
+    else if(type==='info') icon.innerHTML = '<span class="rb-i rb-i-info"></span>';
+    else icon.innerHTML = '<span class="rb-i rb-i-alert"></span>';
+  }
+  wrap.className = 'ao-alert ' + (type==='ok'?'ok':(type==='info'?'info':'err'));
+}
+function authClear(id){
+  var aoId = AO_ALERT_MAP[id] || id;
+  var wrap = document.getElementById(aoId); if(!wrap) return;
+  wrap.className = 'ao-alert';
+  var txt = document.getElementById(aoId+'-msg'); if(txt) txt.textContent = '';
+}
+function authBtn(id, loading, lbl){
+  var b = document.getElementById(id); if(!b) return;
+  b.disabled = !!loading;
+  b.classList.toggle('loading', !!loading);
+  // tieni il testo: il loading usa ::after per il spinner
+  if(lbl && !loading) b.textContent = lbl;
+}
+function authDiag(msg, ok){
+  var el = document.getElementById('authDiag');
+  if(el){ el.textContent = msg; el.style.color = ok ? 'var(--ao-gold-light)' : 'rgba(240,234,216,.3)'; }
+}
+
+// Switch tra login / register / reset / newpwd
+function aoHideAllForms(){
+  ['ao-form-login','ao-form-register','ao-form-reset','ao-form-magic','ao-form-newpwd'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.style.display = 'none';
+  });
+}
+function aoShowLogin(){
+  aoHideAllForms();
+  var f = document.getElementById('ao-form-login'); if(f) f.style.display = 'flex';
+}
+function aoShowRegister(){
+  aoHideAllForms();
+  var f = document.getElementById('ao-form-register'); if(f) f.style.display = 'flex';
+  var emLogin = (document.getElementById('authLoginEmail').value||'').trim();
+  if(emLogin) document.getElementById('authRegEmail').value = emLogin;
+}
+function aoShowReset(){
+  aoHideAllForms();
+  var f = document.getElementById('ao-form-reset'); if(f) f.style.display = 'flex';
+  var emLogin = (document.getElementById('authLoginEmail').value||'').trim();
+  if(emLogin) document.getElementById('authResetEmail').value = emLogin;
+}
+function aoShowMagic(){
+  aoHideAllForms();
+  var f = document.getElementById('ao-form-magic'); if(f) f.style.display = 'flex';
+  // Pre-popola con email del form login se l utente l aveva già scritta
+  var emLogin = (document.getElementById('authLoginEmail').value||'').trim();
+  if(emLogin) document.getElementById('authMagicEmail').value = emLogin;
+  // Reset eventuali messaggi residui
+  authClear('authMagicMsg');
+  setTimeout(function(){
+    var el = document.getElementById('authMagicEmail');
+    if(el && !el.value) el.focus();
+  }, 80);
+}
+function aoShowNewPwd(){
+  aoHideAllForms();
+  var f = document.getElementById('ao-form-newpwd'); if(f) f.style.display = 'flex';
+}
+// Toggle mostra/nascondi password
+function aoTogglePwd(){
+  var i = document.getElementById('authLoginPwd');
+  var b = document.getElementById('ao-eye-btn');
+  if(!i) return;
+  i.type = (i.type==='password') ? 'text' : 'password';
+  if(b) b.textContent = (i.type==='password') ? '◎' : '◉';
+}
+
+// ── Sessione in localStorage ─────────────────────────────────
+function rbSaveSession(s){
+  try{ localStorage.setItem(RB_SESSION_KEY, JSON.stringify(s)); }catch(e){}
+  // Esporta JWT per userscript Hunter (chiave 'rbJWT')
+  try{
+    if(s && s.access_token) localStorage.setItem('rbJWT', s.access_token);
+    else localStorage.removeItem('rbJWT');
+  }catch(e){}
+  window._rbSession = s;
+  var badge=document.getElementById('userBadge');
+  var emailEl=document.getElementById('userEmail');
+  if(badge) badge.style.display = s?'flex':'none';
+  if(emailEl&&s) emailEl.textContent = s.user&&s.user.email||'Utente';
+}
+function rbLoadSession(){
+  try{ var raw=localStorage.getItem(RB_SESSION_KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; }
+}
+function rbClearSession(){
+  try{ localStorage.removeItem(RB_SESSION_KEY); localStorage.removeItem('rbJWT'); }catch(e){}
+  // Pulisci anche le chiavi SDK Supabase (sb-<ref>-auth-token e simili)
+  try {
+    var keysToRemove = [];
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (k && k.indexOf('sb-') === 0) keysToRemove.push(k);
+    }
+    keysToRemove.forEach(function(k){ try { localStorage.removeItem(k); } catch(e){} });
+  } catch(e){}
+  try { sessionStorage.clear(); } catch(e){}
+  window._rbSession=null;
+}
+
+// ── Chiamata REST diretta a Supabase Auth ─────────────────────
+async function rbAuthFetch(path, body, token){
+  var hdrs = {'Content-Type':'application/json','apikey':RB_ANON_KEY};
+  if(token) hdrs['Authorization']='Bearer '+token;
+  var r = await fetch(RB_AUTH_URL+path, {
+    method:'POST', headers:hdrs,
+    body: JSON.stringify(body)
+  });
+  var data = await r.json().catch(function(){return{};});
+  if(!r.ok) throw new Error(data.error_description||data.msg||data.error||('HTTP '+r.status));
+  return data;
+}
+
+// ── Login ────────────────────────────────────────────────────
+window.authDoLogin = async function(){
+  var email=(document.getElementById('authLoginEmail').value||'').trim();
+  var pwd  = document.getElementById('authLoginPwd').value||'';
+  authClear('authLoginMsg');
+  if(!email||!pwd){ authMsg('authLoginMsg','Inserisci email e password'); return; }
+
+  authBtn('authLoginBtn',true,'Accedi');
+  authDiag('Accesso in corso...',false);
+  try{
+    var data = await rbAuthFetch('/token?grant_type=password',{email:email,password:pwd});
+    var session = {
+      access_token:  data.access_token,
+      refresh_token: data.refresh_token,
+      expires_at:    Math.floor(Date.now()/1000)+(data.expires_in||3600),
+      user:          data.user
+    };
+    rbSaveSession(session);
+    authDiag('Accesso riuscito!',true);
+    authHide();
+    // Se c'è un return URL, redirect lì invece di avviare il Collector
+    var params = new URLSearchParams(location.search);
+    var ret = params.get('return');
+    if(ret){
+      try{ var decoded = decodeURIComponent(ret); if(decoded.indexOf('/')===0 || decoded.startsWith('rareblock-')) { location.href = decoded; return; } }catch(e){}
+    }
+    rbLoginRedirectAfterAuth();
+  }catch(e){
+    var msg=e.message||'Errore sconosciuto';
+    if(/invalid login/i.test(msg))               msg='Email o password errata';
+    else if(/email not confirmed/i.test(msg))    msg='Devi prima confermare la tua email. Controlla la casella (anche spam).';
+    else if(/Failed to fetch|NetworkError/i.test(msg)) msg='Connessione non disponibile. Verifica la rete e riprova.';
+    else if(/rate.?limit|too many/i.test(msg))   msg='Troppi tentativi. Attendi qualche minuto e riprova.';
+    else if(/user not found/i.test(msg))         msg='Email o password errata';
+    else if(/invalid.*email/i.test(msg))         msg='Email non valida';
+    authMsg('authLoginMsg', msg);
+    authDiag('Accesso fallito',false);
+  }finally{
+    authBtn('authLoginBtn',false,'Accedi');
+  }
+};
+
+// ── Register ─────────────────────────────────────────────────
+window.authDoRegister = async function(){
+  var email=(document.getElementById('authRegEmail').value||'').trim();
+  var pwd  = document.getElementById('authRegPwd').value||'';
+  var pwd2 = document.getElementById('authRegPwd2').value||'';
+  var consPriv = document.getElementById('authRegConsentPrivacy');
+  var consTos  = document.getElementById('authRegConsentTos');
+  var privacyOk = consPriv && consPriv.checked;
+  var tosOk     = consTos  && consTos.checked;
+
+  authClear('authRegMsg');
+  if(!email||!pwd){ authMsg('authRegMsg','Inserisci email e password'); return; }
+  if(pwd.length<8){ authMsg('authRegMsg','Password minimo 8 caratteri'); return; }
+  if(pwd!==pwd2){   authMsg('authRegMsg','Le password non coincidono');  return; }
+  if(!privacyOk){   authMsg('authRegMsg','Devi accettare l\'Informativa Privacy per procedere'); return; }
+  if(!tosOk){       authMsg('authRegMsg','Devi accettare i Termini di Servizio per procedere'); return; }
+
+  authBtn('authRegBtn',true,'Registrati');
+  try{
+    var hdrs={'Content-Type':'application/json','apikey':RB_ANON_KEY};
+    // Passiamo i consensi GDPR come raw_user_meta_data nel signup payload.
+    // Verranno letti dal trigger handle_new_user lato DB e persistiti in
+    // gdpr_consent_log atomicamente alla creazione user — anche se il signup
+    // richiede email_confirmation (in quel caso data.access_token è null e
+    // non potremmo chiamare edge functions auth-only).
+    var nowIso = new Date().toISOString();
+    var signupRedirectTo = location.origin + location.pathname;
+    var signupBody = {
+      email: email,
+      password: pwd,
+      // emailRedirectTo: per i link nelle email di conferma signup.
+      // Supabase preferisce options.emailRedirectTo all'API GoTrue v1, ma per
+      // sicurezza passiamo entrambi (alcuni setup ignorano l'uno o l'altro).
+      redirect_to: signupRedirectTo,
+      options: {
+        emailRedirectTo: signupRedirectTo,
+        data: {
+          gdpr_privacy_accepted_at: nowIso,
+          gdpr_privacy_version: '1.0',
+          gdpr_tos_accepted_at: nowIso,
+          gdpr_tos_version: '1.0'
+        }
+      },
+      // Compatibilità con vecchio formato (alcuni endpoint GoTrue leggono il
+      // 'data' top-level invece di options.data per la creazione metadata)
+      data: {
+        gdpr_privacy_accepted_at: nowIso,
+        gdpr_privacy_version: '1.0',
+        gdpr_tos_accepted_at: nowIso,
+        gdpr_tos_version: '1.0'
+      }
+    };
+    // GoTrue v1 (Supabase Auth) legge redirect_to SOLO dal query param,
+    // non dal body. Lo passiamo come queryparam URL-encoded.
+    var signupUrl = RB_AUTH_URL + '/signup?redirect_to=' + encodeURIComponent(signupRedirectTo);
+    var r=await fetch(signupUrl,{method:'POST',headers:hdrs,body:JSON.stringify(signupBody)});
+    var data=await r.json().catch(function(){return{};});
+    if(!r.ok) throw new Error(data.error_description||data.msg||data.error||('HTTP '+r.status));
+
+    authMsg('authRegMsg','Account creato. Controlla la tua email per confermare.','ok');
+  }catch(e){
+    var msg = e.message || 'Errore registrazione';
+    if(/already registered|already exists/i.test(msg))     msg='Esiste già un account con questa email. Prova ad accedere.';
+    else if(/password.*should be at least|password.*length/i.test(msg)) msg='La password deve essere di almeno 8 caratteri.';
+    else if(/weak.*password/i.test(msg))                   msg='Password troppo debole. Usa almeno 8 caratteri con lettere e numeri.';
+    else if(/invalid.*email|email.*invalid/i.test(msg))    msg='Email non valida.';
+    else if(/rate.?limit|too many/i.test(msg))             msg='Troppe registrazioni recenti. Attendi qualche minuto.';
+    else if(/Failed to fetch|NetworkError/i.test(msg))     msg='Connessione non disponibile. Verifica la rete.';
+    else if(/Signups?\s+not\s+allowed/i.test(msg))         msg='Le registrazioni sono temporaneamente disabilitate. Riprova più tardi.';
+    authMsg('authRegMsg', msg);
+  }finally{
+    authBtn('authRegBtn',false,'Crea account');
+  }
+};
+
+// ── Reset password ───────────────────────────────────────────
+window.authDoReset = async function(){
+  var email=(document.getElementById('authResetEmail').value||'').trim().toLowerCase();
+  authClear('authResetMsg');
+  if(!email){ authMsg('authResetMsg','Inserisci la tua email'); return; }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    authMsg('authResetMsg','Email non valida');
+    return;
+  }
+
+  authBtn('authResetBtn',true,'Invia link reset');
+  try{
+    // Costruisce la URL di redirect: stessa origine + stesso path corrente
+    // (pokemon-db.html). Quando l'utente clicca il link nell'email Supabase,
+    // viene rimandato qui con un fragment #access_token=... che il client
+    // intercetta per aprire il form di nuova password.
+    var redirectTo = window.location.origin + window.location.pathname + '?recovery=1';
+    var hdrs = {
+      'Content-Type':'application/json',
+      'apikey': RB_ANON_KEY
+    };
+    var body = {
+      email: email,
+      // gotrue accetta sia camelCase che snake_case; passiamo entrambi per safety
+      redirect_to: redirectTo,
+      options: { redirectTo: redirectTo }
+    };
+    var r = await fetch(RB_AUTH_URL+'/recover?redirect_to='+encodeURIComponent(redirectTo), {
+      method:'POST',
+      headers: hdrs,
+      body: JSON.stringify(body)
+    });
+    // gotrue su /recover risponde sempre 200 OK anche se l'email non esiste
+    // (per non rivelare quali email sono registrate). Ma se l'API è down o
+    // la chiave è sbagliata, può restituire 4xx/5xx e qui DEVE fallire.
+    if(!r.ok){
+      var data;
+      try { data = await r.json(); } catch(e){ data = null; }
+      var em = (data && (data.error_description || data.msg || data.error)) || ('HTTP '+r.status);
+      // Mappa errori comuni a messaggi user-friendly
+      if(/rate.?limit/i.test(em)) em = 'Troppe richieste. Attendi qualche minuto prima di riprovare.';
+      else if(/invalid.*email/i.test(em)) em = 'Email non valida';
+      throw new Error(em);
+    }
+    authMsg('authResetMsg','Link inviato. Controlla la tua casella email (anche spam).','ok');
+  }catch(e){
+    var msg = e && e.message ? e.message : 'Errore invio link';
+    if(/Failed to fetch|NetworkError/i.test(msg)){
+      msg = 'Connessione non disponibile. Verifica la tua connessione e riprova.';
+    }
+    authMsg('authResetMsg', msg);
+  }finally{
+    authBtn('authResetBtn',false,'Invia link reset');
+  }
+};
+
+// ── Magic link (PR2 — login passwordless) ────────────────────
+// L utente inserisce solo l email; Supabase invia un link che, una volta
+// cliccato, autentica direttamente.
+//
+// API endpoint: /auth/v1/otp con body { email, create_user: false }
+//   - create_user=false impedisce la creazione automatica di nuovi account
+//     (no signup di utenti che digitano un'email a caso). Se l email non
+//     è registrata, Supabase ritorna comunque 200 generico per privacy
+//     (non rivela esistenza account).
+//
+// Email sent: usa template 'Magic Link' (docs/email-templates/02-magic-link.html
+// quando caricato su Supabase).
+//
+// Redirect: il link nel template porta a {{ .ConfirmationURL }} che è
+// configurato nelle Auth Settings di Supabase (default: redirectTo passato
+// nella request, qui usiamo l URL corrente).
+window.authDoMagicLink = async function(){
+  var email = (document.getElementById('authMagicEmail').value||'').trim().toLowerCase();
+  authClear('authMagicMsg');
+  if(!email){ authMsg('authMagicMsg','Inserisci la tua email'); return; }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    authMsg('authMagicMsg','Email non valida');
+    return;
+  }
+
+  authBtn('authMagicBtn',true,'Invia link di accesso');
+  try{
+    var redirectTo = location.origin + location.pathname;
+    var hdrs={'Content-Type':'application/json','apikey':RB_ANON_KEY};
+    var r = await fetch(RB_AUTH_URL+'/otp?redirect_to='+encodeURIComponent(redirectTo),{
+      method:'POST',
+      headers:hdrs,
+      body: JSON.stringify({
+        email: email,
+        create_user: false,           // no signup automatico
+        options: { emailRedirectTo: redirectTo }
+      })
+    });
+    var data = await r.json().catch(function(){return{};});
+    // Caso speciale: Supabase ritorna 422 con "Signups not allowed for otp"
+    // quando l'email NON è registrata e create_user=false. Per privacy NON
+    // dobbiamo rivelare se l'account esiste, quindi mostriamo lo stesso
+    // messaggio generico di successo.
+    var errMsg = data.error_description || data.msg || data.error || '';
+    if(!r.ok && /Signups?\s+not\s+allowed/i.test(errMsg)){
+      // Privacy: trattiamo come successo silenzioso
+      authMsg('authMagicMsg','Se l\'indirizzo è registrato, riceverai un link di accesso entro pochi minuti. Controlla la casella (anche lo spam).','ok');
+      return;
+    }
+    if(!r.ok){
+      throw new Error(errMsg || ('HTTP '+r.status));
+    }
+    // Per privacy, Supabase ritorna 200 anche se l email non è registrata.
+    // Mostriamo un messaggio generico per non rivelare se l account esiste.
+    authMsg('authMagicMsg','Se l\'indirizzo è registrato, riceverai un link di accesso entro pochi minuti. Controlla la casella (anche lo spam).','ok');
+  }catch(e){
+    var msg = e && e.message ? e.message : 'Errore invio link';
+    if(/Failed to fetch|NetworkError/i.test(msg)){
+      msg = 'Connessione non disponibile. Verifica la tua connessione e riprova.';
+    } else if(/rate limit|too many/i.test(msg)){
+      msg = 'Troppi tentativi recenti. Attendi qualche minuto prima di riprovare.';
+    } else if(/invalid.*email/i.test(msg)){
+      msg = 'Email non valida';
+    } else if(/email.*not.*confirmed/i.test(msg)){
+      msg = 'Devi confermare l\'email prima di poter usare il login senza password';
+    }
+    authMsg('authMagicMsg', msg);
+  }finally{
+    authBtn('authMagicBtn',false,'Invia link di accesso');
+  }
+};
+
+// ── Google OAuth (PR3) ───────────────────────────────────────
+// Sign-in / sign-up via Google. Pattern Supabase: redirect a
+// /auth/v1/authorize?provider=google&redirect_to=URL.
+// Supabase gestisce tutto il dance OAuth con Google e alla fine
+// rimanda l'utente su redirect_to con #access_token=... nel fragment.
+// rbHandleRecoveryCallback intercetta e autentica.
+//
+// CONSENSI GDPR per signup via Google:
+//   - mode='register' → richiede privacy + tos checkbox spuntati
+//                       i timestamp vengono salvati come query param
+//                       e popolati lato server al primo accesso
+//   - mode='login'    → bottone sempre attivo (utente già accettò
+//                       in passato, oppure è un account precedente
+//                       all'introduzione del consenso)
+//
+// NOTA: I consensi via OAuth signup sono salvati al primo callback
+// nel raw_user_meta_data dal trigger handle_new_user (migration 052),
+// che leggerà gdpr_*_accepted_at dai metadata se presenti.
+// Per OAuth, però, Supabase non passa metadata custom dal client al
+// signup automatico. Quindi salviamo i timestamp in localStorage
+// e li applichiamo via call a edge signup-consent-log al primo login.
+window.authDoGoogle = async function(mode){
+  mode = mode || 'login';
+
+  // Se è register, richiediamo consensi GDPR spuntati prima del redirect
+  if(mode === 'register'){
+    var consPriv = document.getElementById('authRegConsentPrivacy');
+    var consTos  = document.getElementById('authRegConsentTos');
+    if(!(consPriv && consPriv.checked)){
+      authMsg('authRegMsg','Devi accettare l\'Informativa Privacy per procedere');
+      return;
+    }
+    if(!(consTos && consTos.checked)){
+      authMsg('authRegMsg','Devi accettare i Termini di Servizio per procedere');
+      return;
+    }
+    // Memorizza timestamp consensi in localStorage; al primo login post-OAuth
+    // verranno persistiti via signup-consent-log edge function
+    var nowIso = new Date().toISOString();
+    try{
+      localStorage.setItem('rb_pending_consents', JSON.stringify({
+        privacy: { accepted_at: nowIso, version: '1.0' },
+        tos:     { accepted_at: nowIso, version: '1.0' }
+      }));
+    }catch(e){ console.warn('localStorage non disponibile:', e); }
+  }
+
+  var btnId = mode === 'register' ? 'authRegGoogleBtn' : 'authLoginGoogleBtn';
+  var btn = document.getElementById(btnId);
+  if(btn) btn.disabled = true;
+
+  // Costruisci URL di redirect Supabase
+  var redirectTo = location.origin + location.pathname;
+  // Supabase /auth/v1/authorize è un endpoint GET che fa redirect HTTP a
+  // accounts.google.com. Non possiamo usare fetch (CORS preflight) — dobbiamo
+  // semplicemente cambiare window.location.
+  var authUrl = RB_AUTH_URL + '/authorize'
+    + '?provider=google'
+    + '&redirect_to=' + encodeURIComponent(redirectTo);
+  window.location.href = authUrl;
+  // Nessuna gestione Promise: il browser fa redirect, qualunque cosa qui
+  // dopo non viene eseguita.
+};
+
+// ── Update password (recovery completion) ───────────────────
+// Chiamato dopo che l'utente clicca il link nell'email e arriva su
+// pokemon-db.html con un access_token "recovery" già impostato come
+// sessione temporanea (vedi rbHandleRecoveryCallback).
+window.authDoUpdatePassword = async function(){
+  var pwd  = (document.getElementById('authNewPwd').value||'');
+  var pwd2 = (document.getElementById('authNewPwd2').value||'');
+  authClear('authNewPwdMsg');
+  if(!pwd || pwd.length < 8){
+    authMsg('authNewPwdMsg','La password deve essere di almeno 8 caratteri'); return;
+  }
+  if(pwd !== pwd2){
+    authMsg('authNewPwdMsg','Le due password non coincidono'); return;
+  }
+  var s = window._rbSession;
+  if(!s || !s.access_token){
+    authMsg('authNewPwdMsg','Sessione di recovery non valida. Richiedi un nuovo link.');
+    return;
+  }
+  authBtn('authNewPwdBtn',true,'Imposta password');
+  try{
+    var r = await fetch(RB_AUTH_URL+'/user', {
+      method:'PUT',
+      headers:{
+        'Content-Type':'application/json',
+        'apikey': RB_ANON_KEY,
+        'Authorization': 'Bearer '+s.access_token
+      },
+      body: JSON.stringify({ password: pwd })
+    });
+    var data;
+    try { data = await r.json(); } catch(e){ data = null; }
+    if(!r.ok){
+      var em = (data && (data.error_description || data.msg || data.error)) || ('HTTP '+r.status);
+      if(/same.*password|new password.*should be different/i.test(em)) em = 'La nuova password deve essere diversa dalla precedente.';
+      else if(/weak|too short/i.test(em)) em = 'Password troppo debole. Usa almeno 8 caratteri con lettere e numeri.';
+      throw new Error(em);
+    }
+    authMsg('authNewPwdMsg','Password aggiornata. Accedi con le nuove credenziali.','ok');
+    // Pulisci la URL (rimuovi ?recovery=1 e fragment)
+    try{ history.replaceState(null,'', window.location.pathname); }catch(e){}
+    // Logout di sicurezza: la sessione recovery non deve restare attiva
+    setTimeout(function(){
+      rbClearSession();
+      aoShowLogin();
+      authMsg('authLoginMsg','Password aggiornata. Accedi con le nuove credenziali.','ok');
+    }, 1500);
+  }catch(e){
+    var msg = e && e.message ? e.message : 'Errore aggiornamento password';
+    if(/Failed to fetch|NetworkError/i.test(msg)){
+      msg = 'Connessione non disponibile. Riprova tra qualche istante.';
+    }
+    authMsg('authNewPwdMsg', msg);
+  }finally{
+    authBtn('authNewPwdBtn',false,'Imposta password');
+  }
+};
+
+// ── Recovery callback handler ───────────────────────────────
+// All'apertura della pagina, controlla se siamo arrivati da un link di
+// recovery: Supabase Auth aggiunge access_token + refresh_token + type=recovery
+// nel fragment (#) dell'URL. Se trovati, salva la sessione temporanea e
+// mostra il form di nuova password.
+
+// ═══════════════════════════════════════════════════════════
+//  ONBOARDING WIZARD (PR4b)
+// ═══════════════════════════════════════════════════════════
+//
+// Modal multi-step adaptive per completare KYC L2 dopo signup.
+// Si apre via onbOpen() o onbOpenAtStep('personal'|'document'|'phone').
+// Adaptive: skippa step già completi via v_user_onboarding_status.
+//
+// Esposte come window.onbXxx per callability da pulsanti onclick.
+// ═══════════════════════════════════════════════════════════
+
+var ONB_STEPS = ['personal','document','phone','confirm'];
+var _onbState = {
+  open: false,
+  currentStep: null,
+  status: null,        // v_user_onboarding_status row
+  uploadedFront: null, // path storage del file front
+  uploadedBack: null,  // path storage del file back
+  frontIsPdf: false,   // true se il file front è un PDF
+  backIsPdf: false,    // true se il file back è un PDF
+  singleScan: false    // true se il front contiene già fronte+retro (no back richiesto)
+};
+
+// Helper: alert dentro al modal
+function onbAlert(msg, type){
+  var box = document.getElementById('onbAlert');
+  var txt = document.getElementById('onbAlertMsg');
+  if(!box||!txt) return;
+  txt.textContent = msg || '';
+  box.className = 'onb-alert' + (msg ? ' ' + (type || 'err') : '');
+}
+function onbAlertClear(){ onbAlert('', null); }
+
+// Aggiorna lo stepper visivo (active/done/idle)
+function onbRefreshStepper(){
+  var st = _onbState.status || {};
+  var current = _onbState.currentStep;
+  var doneMap = {
+    personal: !!st.personal_complete,
+    document: !!st.document_complete && !st.document_expired,
+    phone:    !!st.phone_provided,
+    confirm:  false
+  };
+  ONB_STEPS.forEach(function(s){
+    var el = document.querySelector('.onb-step-item[data-step="'+s+'"]');
+    if(!el) return;
+    el.classList.remove('active','done');
+    if(s === current){ el.classList.add('active'); }
+    else if(doneMap[s]){ el.classList.add('done'); }
+  });
+}
+
+// Show only the card for current step
+function onbShowStep(step){
+  ONB_STEPS.forEach(function(s){
+    var el = document.getElementById('onb-step-'+s);
+    if(el) el.style.display = (s === step ? 'flex' : 'none');
+  });
+  _onbState.currentStep = step;
+  onbRefreshStepper();
+  onbAlertClear();
+  // Se step confirm, popola il recap
+  if(step === 'confirm') onbBuildRecap();
+}
+
+// Fetch fresh onboarding status from DB
+async function onbFetchStatus(){
+  var s = window._rbSession; if(!s||!s.access_token) throw new Error('non autenticato');
+  var supaBase = RB_AUTH_URL.replace(/\/auth\/v1\/?$/, '');
+  var r = await fetch(supaBase + '/rest/v1/v_user_onboarding_status?select=*&limit=1', {
+    headers: {
+      'Content-Type':'application/json',
+      'apikey': RB_ANON_KEY,
+      'Authorization': 'Bearer ' + s.access_token
+    }
+  });
+  if(!r.ok) throw new Error('fetch status HTTP '+r.status);
+  var arr = await r.json();
+  return Array.isArray(arr) && arr.length ? arr[0] : null;
+}
+
+// Pre-fill form fields da una row profiles
+async function onbPrefillFromProfile(){
+  var s = window._rbSession; if(!s||!s.access_token) return;
+  var supaBase = RB_AUTH_URL.replace(/\/auth\/v1\/?$/, '');
+  try{
+    var r = await fetch(supaBase + '/rest/v1/profiles?id=eq.' + s.user.id + '&select=*&limit=1', {
+      headers: {
+        'apikey': RB_ANON_KEY,
+        'Authorization': 'Bearer ' + s.access_token
+      }
+    });
+    if(!r.ok) return;
+    var arr = await r.json();
+    if(!Array.isArray(arr) || !arr.length) return;
+    var p = arr[0];
+
+    // Step 1 fields
+    if(p.first_name) document.getElementById('onbFirstName').value = p.first_name;
+    if(p.last_name)  document.getElementById('onbLastName').value  = p.last_name;
+    if(p.fiscal_code) document.getElementById('onbFiscalCode').value = p.fiscal_code;
+    if(p.birth_date) document.getElementById('onbBirthDate').value = p.birth_date;
+    if(p.birth_place) document.getElementById('onbBirthPlace').value = p.birth_place;
+    if(p.birth_country) document.getElementById('onbBirthCountry').value = p.birth_country;
+    if(p.nationality) document.getElementById('onbNationality').value = p.nationality;
+    if(p.res_address) document.getElementById('onbResAddress').value = p.res_address;
+    if(p.res_civic)   document.getElementById('onbResCivic').value   = p.res_civic;
+    if(p.res_zip)     document.getElementById('onbResZip').value     = p.res_zip;
+    if(p.res_city)    document.getElementById('onbResCity').value    = p.res_city;
+    if(p.res_province) document.getElementById('onbResProvince').value = p.res_province;
+
+    // Step 2 fields
+    if(p.id_doc_type) document.getElementById('onbDocType').value = p.id_doc_type;
+    if(p.id_doc_number) document.getElementById('onbDocNumber').value = p.id_doc_number;
+    if(p.id_doc_issuer) document.getElementById('onbDocIssuer').value = p.id_doc_issuer;
+    if(p.id_doc_expiry_date) document.getElementById('onbDocExpiry').value = p.id_doc_expiry_date;
+    // Foto già caricate: mostra preview generata da signed URL (se path presente)
+    if(p.id_doc_front_path){
+      _onbState.uploadedFront = p.id_doc_front_path;
+      onbShowExistingPreview('front', p.id_doc_front_path);
+    }
+    if(p.id_doc_back_path){
+      _onbState.uploadedBack = p.id_doc_back_path;
+      onbShowExistingPreview('back', p.id_doc_back_path);
+    }
+    // Ripristina toggle "fronte-retro singolo": se i due path coincidono significa
+    // che l'utente aveva caricato una scansione fronte-retro singola.
+    if(p.id_doc_front_path && p.id_doc_back_path && p.id_doc_front_path === p.id_doc_back_path){
+      _onbState.singleScan = true;
+      _onbState.uploadedBack = null; // così la UI non mostra il preview duplicato sul retro
+      var chk = document.getElementById('onbSingleScan');
+      if(chk) chk.checked = true;
+    }
+    // Applica visibilità zona back coerente col tipo doc + toggle (deve girare DOPO
+    // aver settato il valore del select e dello stato singleScan)
+    onbDocTypeChanged();
+
+    // Step 3 fields
+    if(p.phone_country_code) document.getElementById('onbPhoneCountry').value = p.phone_country_code;
+    if(p.phone_e164){
+      var n = p.phone_e164;
+      var pref = p.phone_country_code || '+39';
+      if(n.indexOf(pref) === 0) n = n.slice(pref.length);
+      document.getElementById('onbPhoneNumber').value = n;
+    }
+  }catch(e){ console.warn('prefill profile:', e); }
+}
+
+// Show preview of an existing uploaded file (path stored in profile)
+async function onbShowExistingPreview(side, path){
+  var s = window._rbSession; if(!s||!s.access_token) return;
+  var zone = document.getElementById(side === 'front' ? 'onbUploadFront' : 'onbUploadBack');
+  if(!zone) return;
+  var isPdf = /\.pdf$/i.test(path||'');
+  // Aggiorna flag PDF nello state per coerenza con i save successivi
+  if(side === 'front') _onbState.frontIsPdf = isPdf;
+  else                 _onbState.backIsPdf  = isPdf;
+  if(isPdf){
+    // PDF: niente signed URL preview, mostriamo placeholder con bottone "Visualizza"
+    onbRenderUploadPreview(side, path, true, path.split('/').pop(), null);
+    return;
+  }
+  // Immagine: signed URL per anteprima inline (durata 1h)
+  try{
+    var supaBase = RB_AUTH_URL.replace(/\/auth\/v1\/?$/, '');
+    var r = await fetch(supaBase + '/storage/v1/object/sign/kyc-documents/' + encodeURI(path), {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'apikey':RB_ANON_KEY,
+        'Authorization':'Bearer '+s.access_token
+      },
+      body: JSON.stringify({ expiresIn: 3600 })
+    });
+    if(r.ok){
+      var data = await r.json();
+      if(data && data.signedURL){
+        onbRenderUploadPreview(side, path, false, null, supaBase + '/storage/v1' + data.signedURL);
+      }
+    }
+  }catch(e){ /* graceful: lasciamo zona vuota se signed url fallisce */ }
+}
+
+// Handle file selection: client-side resize (immagini) o upload diretto (PDF)
+async function onbHandleFile(ev, side){
+  var f = ev.target.files && ev.target.files[0];
+  if(!f) return;
+  // Reset input per permettere re-upload stesso file
+  ev.target.value = '';
+
+  var isPdf = (f.type === 'application/pdf') || /\.pdf$/i.test(f.name||'');
+  var isImg = /^image\/(jpeg|png|webp)$/i.test(f.type);
+  if(!isPdf && !isImg){
+    onbAlert('Formato non supportato. Carica JPG, PNG, WebP o PDF.', 'err'); return;
+  }
+  if(f.size > 10 * 1024 * 1024){
+    onbAlert('Il file è troppo grande (max 10MB).', 'err'); return;
+  }
+  onbAlertClear();
+
+  var zone = document.getElementById(side === 'front' ? 'onbUploadFront' : 'onbUploadBack');
+  zone.classList.add('uploading');
+  var progBar = zone.querySelector('.onb-upload-progress-bar');
+  var progBox = zone.querySelector('.onb-upload-progress');
+  if(progBox) progBox.style.display = 'block';
+  if(progBar) progBar.style.width = '15%';
+
+  try{
+    var blob, contentType, ext;
+    if(isPdf){
+      // PDF: upload as-is, niente resize
+      blob = f;
+      contentType = 'application/pdf';
+      ext = 'pdf';
+      if(progBar) progBar.style.width = '40%';
+    } else {
+      // Immagine: resize lato client (max 1600px lato lungo, qualità .85)
+      blob = await onbResizeImage(f, 1600, 0.85);
+      contentType = 'image/jpeg';
+      ext = 'jpg';
+      if(progBar) progBar.style.width = '40%';
+    }
+
+    // Upload diretto a Storage Supabase
+    var s = window._rbSession; if(!s||!s.access_token) throw new Error('non autenticato');
+    var ts = Date.now();
+    var path = s.user.id + '/id_' + side + '_' + ts + '.' + ext;
+    var supaBase = RB_AUTH_URL.replace(/\/auth\/v1\/?$/, '');
+
+    if(progBar) progBar.style.width = '70%';
+    var ur = await fetch(supaBase + '/storage/v1/object/kyc-documents/' + path, {
+      method:'POST',
+      headers:{
+        'apikey':RB_ANON_KEY,
+        'Authorization':'Bearer '+s.access_token,
+        'Content-Type':contentType,
+        'x-upsert':'true'
+      },
+      body: blob
+    });
+    if(!ur.ok){
+      var errTxt = await ur.text();
+      throw new Error('upload HTTP '+ur.status+': '+errTxt);
+    }
+    if(progBar) progBar.style.width = '100%';
+
+    // Memorizza path + tipo nello state e mostra preview
+    if(side === 'front'){
+      _onbState.uploadedFront = path;
+      _onbState.frontIsPdf    = isPdf;
+    } else {
+      _onbState.uploadedBack  = path;
+      _onbState.backIsPdf     = isPdf;
+    }
+    onbRenderUploadPreview(side, path, isPdf, isPdf ? f.name : null, isPdf ? null : URL.createObjectURL(blob));
+
+    setTimeout(function(){ if(progBox) progBox.style.display = 'none'; if(progBar) progBar.style.width = '0'; }, 600);
+  }catch(e){
+    onbAlert('Errore upload: ' + (e.message || e), 'err');
+    if(progBox) progBox.style.display = 'none';
+    if(progBar) progBar.style.width = '0';
+  }finally{
+    zone.classList.remove('uploading');
+  }
+}
+
+// Render preview di un file caricato (immagine o PDF) in una zona upload
+function onbRenderUploadPreview(side, path, isPdf, pdfName, imgUrl){
+  var zone = document.getElementById(side === 'front' ? 'onbUploadFront' : 'onbUploadBack');
+  if(!zone) return;
+  var emptyEl = zone.querySelector('.onb-upload-empty');
+  var prevEl  = zone.querySelector('.onb-upload-preview');
+  var imgEl   = zone.querySelector('.onb-upload-img');
+  var pdfEl   = zone.querySelector('.onb-upload-pdf');
+  var pdfName_el = zone.querySelector('.onb-upload-pdf-name');
+  if(isPdf){
+    if(imgEl) imgEl.style.display = 'none';
+    if(pdfEl) pdfEl.style.display = 'flex';
+    if(pdfName_el) pdfName_el.textContent = pdfName || (path ? path.split('/').pop() : 'documento.pdf');
+  } else {
+    if(pdfEl) pdfEl.style.display = 'none';
+    if(imgEl){
+      imgEl.style.display = 'block';
+      if(imgUrl) imgEl.src = imgUrl;
+    }
+  }
+  if(emptyEl) emptyEl.style.display = 'none';
+  if(prevEl)  prevEl.style.display  = 'block';
+}
+
+// Apre un file privato in nuova tab via signed URL (per i PDF)
+async function onbOpenSigned(path){
+  if(!path) return;
+  try{
+    var s = window._rbSession; if(!s||!s.access_token) throw new Error('non autenticato');
+    var supaBase = RB_AUTH_URL.replace(/\/auth\/v1\/?$/, '');
+    var r = await fetch(supaBase + '/storage/v1/object/sign/kyc-documents/' + encodeURI(path), {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'apikey':RB_ANON_KEY,
+        'Authorization':'Bearer '+s.access_token
+      },
+      body: JSON.stringify({ expiresIn: 60 })
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var data = await r.json();
+    if(data && data.signedURL){
+      window.open(supaBase + '/storage/v1' + data.signedURL, '_blank');
+    }
+  }catch(e){
+    onbAlert('Impossibile aprire il file: '+(e.message||e), 'err');
+  }
+}
+
+// Client-side image resize via canvas
+function onbResizeImage(file, maxSide, quality){
+  return new Promise(function(resolve, reject){
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.onload = function(){
+      URL.revokeObjectURL(url);
+      var w = img.width, h = img.height;
+      if(Math.max(w,h) > maxSide){
+        if(w > h){ h = Math.round(h * maxSide / w); w = maxSide; }
+        else     { w = Math.round(w * maxSide / h); h = maxSide; }
+      }
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(function(blob){
+        if(blob) resolve(blob); else reject(new Error('canvas toBlob fallito'));
+      }, 'image/jpeg', quality);
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('immagine non valida')); };
+    img.src = url;
+  });
+}
+
+// Reagisce al cambio tipo documento: il passaporto non ha retro,
+// quindi forziamo singleScan=true e nascondiamo la zona back.
+function onbDocTypeChanged(){
+  var t = document.getElementById('onbDocType').value;
+  var wrapBack = document.getElementById('onbUploadBack');
+  var wrapToggle = document.getElementById('onbSingleScanWrap');
+  var chk = document.getElementById('onbSingleScan');
+  if(!wrapBack || !wrapToggle || !chk) return;
+  if(t === 'PASSAPORTO'){
+    // Passaporto → nascondi sia toggle sia zona retro, forza singleScan
+    wrapBack.style.display = 'none';
+    wrapToggle.style.display = 'none';
+    _onbState.singleScan = true;
+  } else {
+    // Altri documenti → toggle visibile, zona back dipende dallo stato del toggle
+    wrapToggle.style.display = 'flex';
+    wrapBack.style.display = chk.checked ? 'none' : '';
+    _onbState.singleScan = !!chk.checked;
+  }
+}
+
+// Reagisce al toggle "documento fronte-retro nella stessa scansione"
+function onbToggleSingleScan(){
+  var chk = document.getElementById('onbSingleScan');
+  var wrapBack = document.getElementById('onbUploadBack');
+  if(!chk || !wrapBack) return;
+  _onbState.singleScan = !!chk.checked;
+  wrapBack.style.display = chk.checked ? 'none' : '';
+  // Se l'utente attiva il toggle dopo aver caricato un retro, lo scartiamo
+  // (il retro non sarà più richiesto né inviato; il file in storage resterà
+  //  orfano, verrà sovrascritto al prossimo upload o ignorato — nessun riferimento DB)
+  if(chk.checked && _onbState.uploadedBack){
+    _onbState.uploadedBack = null;
+    _onbState.backIsPdf = false;
+    var zone = document.getElementById('onbUploadBack');
+    if(zone){
+      var emptyEl = zone.querySelector('.onb-upload-empty');
+      var prevEl  = zone.querySelector('.onb-upload-preview');
+      var imgEl   = zone.querySelector('.onb-upload-img');
+      var pdfEl   = zone.querySelector('.onb-upload-pdf');
+      if(emptyEl) emptyEl.style.display = 'flex';
+      if(prevEl)  prevEl.style.display  = 'none';
+      if(imgEl){ imgEl.style.display = 'block'; imgEl.src = ''; }
+      if(pdfEl)  pdfEl.style.display  = 'none';
+    }
+  }
+}
+
+// Remove uploaded file (only client-side state; il vero delete avviene a save success)
+function onbRemoveFile(side){
+  if(!confirm('Rimuovere questo file? Dovrai caricarne uno nuovo prima di proseguire.')) return;
+  var zone = document.getElementById(side === 'front' ? 'onbUploadFront' : 'onbUploadBack');
+  if(!zone) return;
+  if(side === 'front'){ _onbState.uploadedFront = null; _onbState.frontIsPdf = false; }
+  else                { _onbState.uploadedBack  = null; _onbState.backIsPdf  = false; }
+  var emptyEl = zone.querySelector('.onb-upload-empty');
+  var prevEl  = zone.querySelector('.onb-upload-preview');
+  var imgEl   = zone.querySelector('.onb-upload-img');
+  var pdfEl   = zone.querySelector('.onb-upload-pdf');
+  if(emptyEl) emptyEl.style.display = 'flex';
+  if(prevEl)  prevEl.style.display  = 'none';
+  if(imgEl){ imgEl.style.display = 'block'; imgEl.src = ''; }
+  if(pdfEl)  pdfEl.style.display  = 'none';
+}
+
+// Save personal (Step 1) → kyc_save_personal RPC
+async function onbSavePersonal(){
+  onbAlertClear();
+  var firstName = (document.getElementById('onbFirstName').value||'').trim();
+  var lastName  = (document.getElementById('onbLastName').value||'').trim();
+  var fc        = (document.getElementById('onbFiscalCode').value||'').trim().toUpperCase();
+  var birthDate = document.getElementById('onbBirthDate').value;
+  var birthPlace= (document.getElementById('onbBirthPlace').value||'').trim();
+  var birthCountry = document.getElementById('onbBirthCountry').value;
+  var nationality  = document.getElementById('onbNationality').value;
+  var resAddress = (document.getElementById('onbResAddress').value||'').trim();
+  var resCivic   = (document.getElementById('onbResCivic').value||'').trim();
+  var resZip     = (document.getElementById('onbResZip').value||'').trim();
+  var resCity    = (document.getElementById('onbResCity').value||'').trim();
+  var resProv    = (document.getElementById('onbResProvince').value||'').trim().toUpperCase();
+
+  if(firstName.length < 2){ onbAlert('Nome obbligatorio'); return; }
+  if(lastName.length < 2){ onbAlert('Cognome obbligatorio'); return; }
+  if(!birthDate){ onbAlert('Data di nascita obbligatoria'); return; }
+  // Verifica >= 18 anni
+  var bd = new Date(birthDate); var minAge = new Date(); minAge.setFullYear(minAge.getFullYear() - 18);
+  if(bd > minAge){ onbAlert('Devi essere maggiorenne (18+) per usare la piattaforma'); return; }
+  if(!birthPlace){ onbAlert('Luogo di nascita obbligatorio'); return; }
+  if(!fc || (fc.length !== 11 && fc.length !== 16)){
+    onbAlert('Codice fiscale obbligatorio (16 caratteri per persone fisiche)'); return;
+  }
+  if(!resAddress){ onbAlert('Indirizzo di residenza obbligatorio'); return; }
+  if(!resZip || !/^\d{5}$/.test(resZip)){ onbAlert('CAP obbligatorio (5 cifre)'); return; }
+  if(!resCity){ onbAlert('Città obbligatoria'); return; }
+
+  var btn = document.getElementById('onbBtnSavePersonal');
+  btn.disabled = true; var origLbl = btn.textContent; btn.textContent = 'Salvataggio...';
+  try{
+    var s = window._rbSession;
+    var supaBase = RB_AUTH_URL.replace(/\/auth\/v1\/?$/, '');
+    var r = await fetch(supaBase + '/rest/v1/rpc/kyc_save_personal', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'apikey':RB_ANON_KEY,
+        'Authorization':'Bearer '+s.access_token
+      },
+      body: JSON.stringify({
+        p_first_name: firstName,
+        p_last_name:  lastName,
+        p_birth_date: birthDate,
+        p_birth_place: birthPlace,
+        p_birth_country: birthCountry || 'IT',
+        p_nationality:   nationality  || 'IT',
+        p_fiscal_code:   fc || null,
+        p_res_address:   resAddress,
+        p_res_civic:     resCivic || null,
+        p_res_zip:       resZip,
+        p_res_city:      resCity,
+        p_res_province:  resProv || null,
+        p_res_country:   'IT'
+      })
+    });
+    if(!r.ok){
+      var data; try{ data = await r.json(); }catch(e){ data = null; }
+      throw new Error((data && (data.message || data.hint)) || 'HTTP '+r.status);
+    }
+    // Refresh status + go to next step
+    _onbState.status = await onbFetchStatus();
+    onbAdvanceFromStep('personal');
+  }catch(e){
+    onbAlert('Errore salvataggio: ' + (e.message || e));
+  }finally{
+    btn.disabled = false; btn.textContent = origLbl;
+  }
+}
+
+// Save document (Step 2) → kyc_save_document RPC
+async function onbSaveDocument(){
+  onbAlertClear();
+  var docType = document.getElementById('onbDocType').value;
+  var docNum  = (document.getElementById('onbDocNumber').value||'').trim();
+  var docIssuer = (document.getElementById('onbDocIssuer').value||'').trim();
+  var docExpiry = document.getElementById('onbDocExpiry').value;
+
+  if(!docType){ onbAlert('Seleziona il tipo di documento'); return; }
+  if(!docNum || docNum.length < 3){ onbAlert('Numero documento obbligatorio'); return; }
+  if(!docExpiry){ onbAlert('Data di scadenza obbligatoria'); return; }
+  var ed = new Date(docExpiry);
+  if(ed <= new Date()){ onbAlert('Il documento è scaduto. Caricane uno valido.'); return; }
+  if(!_onbState.uploadedFront){ onbAlert('Carica il file del FRONTE del documento'); return; }
+  // Retro non richiesto se: passaporto OR scansione fronte-retro singola
+  var backOptional = (docType === 'PASSAPORTO') || _onbState.singleScan;
+  if(!backOptional && !_onbState.uploadedBack){
+    onbAlert('Carica il file del RETRO del documento (oppure spunta "fronte-retro nella stessa scansione" se applicabile)'); return;
+  }
+  // Quando il retro è opzionale e non caricato, riusiamo il path del fronte (lo stesso file
+  // contiene già entrambi i lati, oppure il documento ha solo un lato come il passaporto).
+  // Il backend si aspetta sempre p_back_path != null (RPC kyc_save_document, mig 053).
+  var backPathToSend = _onbState.uploadedBack || _onbState.uploadedFront;
+
+  var btn = document.getElementById('onbBtnSaveDocument');
+  btn.disabled = true; var origLbl = btn.textContent; btn.textContent = 'Salvataggio...';
+  try{
+    var s = window._rbSession;
+    var supaBase = RB_AUTH_URL.replace(/\/auth\/v1\/?$/, '');
+    var r = await fetch(supaBase + '/rest/v1/rpc/kyc_save_document', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'apikey':RB_ANON_KEY,
+        'Authorization':'Bearer '+s.access_token
+      },
+      body: JSON.stringify({
+        p_doc_type: docType,
+        p_doc_number: docNum,
+        p_doc_issuer: docIssuer || null,
+        p_doc_issue_date: null,
+        p_doc_expiry_date: docExpiry,
+        p_front_path: _onbState.uploadedFront,
+        p_back_path:  backPathToSend
+      })
+    });
+    if(!r.ok){
+      var data; try{ data = await r.json(); }catch(e){ data = null; }
+      throw new Error((data && (data.message || data.hint)) || 'HTTP '+r.status);
+    }
+    _onbState.status = await onbFetchStatus();
+    onbAdvanceFromStep('document');
+  }catch(e){
+    onbAlert('Errore salvataggio: ' + (e.message || e));
+  }finally{
+    btn.disabled = false; btn.textContent = origLbl;
+  }
+}
+
+// Save phone (Step 3) → kyc_save_phone_pending RPC
+async function onbSavePhone(){
+  onbAlertClear();
+  var prefix = document.getElementById('onbPhoneCountry').value || '+39';
+  var num    = (document.getElementById('onbPhoneNumber').value||'').replace(/[^\d]/g, '');
+  if(!num || num.length < 7){ onbAlert('Numero di telefono troppo corto'); return; }
+  var e164 = prefix + num;
+  if(!/^\+[1-9][0-9]{6,14}$/.test(e164)){
+    onbAlert('Formato numero non valido'); return;
+  }
+
+  var btn = document.getElementById('onbBtnSavePhone');
+  btn.disabled = true; var origLbl = btn.textContent; btn.textContent = 'Salvataggio...';
+  try{
+    var s = window._rbSession;
+    var supaBase = RB_AUTH_URL.replace(/\/auth\/v1\/?$/, '');
+    var r = await fetch(supaBase + '/rest/v1/rpc/kyc_save_phone_pending', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'apikey':RB_ANON_KEY,
+        'Authorization':'Bearer '+s.access_token
+      },
+      body: JSON.stringify({
+        p_phone_country_code: prefix,
+        p_phone_e164: e164
+      })
+    });
+    if(!r.ok){
+      var data; try{ data = await r.json(); }catch(e){ data = null; }
+      throw new Error((data && (data.message || data.hint)) || 'HTTP '+r.status);
+    }
+    _onbState.status = await onbFetchStatus();
+    onbAdvanceFromStep('phone');
+  }catch(e){
+    onbAlert('Errore salvataggio: ' + (e.message || e));
+  }finally{
+    btn.disabled = false; btn.textContent = origLbl;
+  }
+}
+
+// Advance: trova il prossimo step incompleto, o chiudi se tutto ok
+function onbAdvanceFromStep(currentStep){
+  var st = _onbState.status || {};
+  // Sequenza adaptive: skippa step già completi
+  var next = null;
+  if(currentStep === 'personal'){
+    if(!st.document_complete || st.document_expired) next = 'document';
+    else if(!st.phone_provided) next = 'phone';
+    else next = 'confirm';
+  } else if(currentStep === 'document'){
+    if(!st.phone_provided) next = 'phone';
+    else next = 'confirm';
+  } else if(currentStep === 'phone'){
+    next = 'confirm';
+  }
+  if(next) onbShowStep(next);
+  else onbClose();
+}
+
+// Back navigation: torna al precedente step (anche se completato)
+function onbGoBack(fromStep){
+  if(fromStep === 'document') onbShowStep('personal');
+  else if(fromStep === 'phone') onbShowStep('document');
+}
+
+// Build recap content per step Confirm
+function onbBuildRecap(){
+  var st = _onbState.status || {};
+  var rows = [];
+  if(st.personal_complete){
+    rows.push({label:'Anagrafica', value:'Dati personali e residenza completi'});
+  }
+  if(st.document_complete){
+    rows.push({label:'Documento', value: st.document_expired
+      ? 'Caricato (scaduto, da rinnovare)'
+      : 'Caricato e valido'});
+  }
+  if(st.phone_provided){
+    rows.push({label:'Telefono', value: st.phone_verified
+      ? 'Verificato'
+      : 'Numero registrato (verifica OTP differita al primo investimento)'});
+  }
+  rows.push({label:'KYC', value: 'Livello ' + (st.kyc_level || 0) + ' · stato: ' + (st.kyc_status || 'pending')});
+
+  var html = rows.map(function(r){
+    return '<div class="onb-recap-row">'
+      + '<div class="onb-recap-icon">✓</div>'
+      + '<div class="onb-recap-label">'+escHtmlOnb(r.label)+'</div>'
+      + '<div class="onb-recap-value">'+escHtmlOnb(r.value)+'</div>'
+      + '</div>';
+  }).join('');
+  document.getElementById('onbRecap').innerHTML = html;
+}
+
+function escHtmlOnb(s){
+  if(s == null) return '';
+  return String(s).replace(/[&<>"']/g, function(c){
+    return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;';
+  });
+}
+
+// Open the modal at the next incomplete step
+window.onbOpen = async function(){
+  if(_onbState.open) return;
+  _onbState.open = true;
+  var modal = document.getElementById('onbModal');
+  if(!modal) return;
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  // Fetch + prefill
+  try{
+    _onbState.status = await onbFetchStatus();
+    await onbPrefillFromProfile();
+  }catch(e){ /* graceful */ console.warn('onbOpen fetch:', e); }
+  // Adaptive: show first incomplete step
+  var st = _onbState.status || {};
+  var firstIncomplete;
+  if(!st.personal_complete) firstIncomplete = 'personal';
+  else if(!st.document_complete || st.document_expired) firstIncomplete = 'document';
+  else if(!st.phone_provided) firstIncomplete = 'phone';
+  else firstIncomplete = 'confirm';
+  onbShowStep(firstIncomplete);
+};
+
+// Open at specific step (forced — usato da PR4c per "vai al primo step mancante")
+window.onbOpenAtStep = async function(step){
+  if(!_onbState.open){
+    _onbState.open = true;
+    var modal = document.getElementById('onbModal');
+    if(!modal) return;
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    try{
+      _onbState.status = await onbFetchStatus();
+      await onbPrefillFromProfile();
+    }catch(e){ console.warn('onbOpenAtStep fetch:', e); }
+  }
+  if(ONB_STEPS.indexOf(step) === -1) step = 'personal';
+  onbShowStep(step);
+};
+
+window.onbClose = function(){
+  var modal = document.getElementById('onbModal');
+  if(modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
+  _onbState.open = false;
+};
+
+
+function rbHandleRecoveryCallback(){
+  // gotrue mette i parametri nel fragment '#access_token=...&type=recovery&...'
+  // I tipi gestiti:
+  //   - 'recovery'   → reset password: mostra form newpwd
+  //   - 'magiclink'  → magic link login (PR2): autentica e avvia app
+  //   - 'signup'     → conferma email post-signup: autentica e avvia app
+  //   - 'invite'     → invito da admin: autentica e mostra newpwd (deve impostare pwd)
+  var hash = (window.location.hash||'').replace(/^#/,'');
+  if(!hash) return false;
+  var params = {};
+  hash.split('&').forEach(function(kv){
+    var eq = kv.indexOf('=');
+    if(eq > -1){
+      params[decodeURIComponent(kv.slice(0,eq))] = decodeURIComponent(kv.slice(eq+1));
+    }
+  });
+
+  // CASO ERROR: il link nell email è scaduto, già usato o invalido.
+  // Atterriamo su #error=access_denied&error_code=otp_expired&error_description=...
+  // Mostriamo messaggio chiaro nell'overlay invece di lasciare l'utente confuso.
+  if(params.error || params.error_code){
+    try{ history.replaceState(null,'', window.location.pathname + window.location.search); }catch(e){}
+    var errMsg;
+    if(params.error_code === 'otp_expired'){
+      errMsg = 'Il link è scaduto o è già stato utilizzato. Richiedi un nuovo link di accesso.';
+    } else if(params.error_code === 'access_denied'){
+      errMsg = 'Accesso negato. Il link potrebbe essere scaduto o non valido.';
+    } else {
+      errMsg = (params.error_description || 'Errore di autenticazione').replace(/\+/g, ' ');
+    }
+    setTimeout(function(){
+      var ov = document.getElementById('authOverlay');
+      if(ov) ov.style.display = 'flex';
+      if(typeof aoShowLogin === 'function') aoShowLogin();
+      if(typeof authMsg === 'function') authMsg('authLoginMsg', errMsg);
+    }, 50);
+    return true;
+  }
+
+  if(!params.access_token) return false;
+  var t = params.type || '';
+  // Tipi noti via email link
+  var KNOWN_EMAIL_TYPES = ['recovery','magiclink','signup','invite','email_change'];
+  // OAuth callback (Google ecc): NON ha 'type' nel fragment, ma ha provider_token.
+  // È un login successful, va trattato come magiclink (autentica + avvia app).
+  var isOAuth = !t && !!params.provider_token;
+  if(KNOWN_EMAIL_TYPES.indexOf(t) === -1 && !isOAuth) return false;
+
+  // Costruisci sessione dal token
+  var session = {
+    access_token: params.access_token,
+    refresh_token: params.refresh_token || null,
+    expires_at: params.expires_at ? parseInt(params.expires_at) : null,
+    expires_in: params.expires_in ? parseInt(params.expires_in) : null,
+    token_type: 'bearer',
+    user: null
+  };
+  rbSaveSession(session);
+  // Pulisci il fragment dall'URL
+  try{ history.replaceState(null,'', window.location.pathname + window.location.search); }catch(e){}
+
+  // Avvio del flow async: PRIMA fetch /user, POI lancia handle dei branch.
+  // Questo assicura che window._rbSession.user sia popolato prima di
+  // chiamare appStart() (che fa loadUserProfile e pre-popola _rbProfile,
+  // necessario per il soft trigger onboarding PR4c).
+  (async function _continueFlow(){
+    try{
+      var r = await fetch(RB_AUTH_URL+'/user', {
+        headers:{'apikey':RB_ANON_KEY,'Authorization':'Bearer '+session.access_token}
+      });
+      if(r.ok){
+        var u = await r.json();
+        if(u){
+          session.user = u;
+          rbSaveSession(session);
+        }
+      }
+    }catch(e){ console.warn('[recovery] fetch user:', e); }
+
+    if(t === 'recovery' || t === 'invite'){
+    // Reset password / nuovo invito: forza form newpwd nell overlay
+    setTimeout(function(){
+      var ov = document.getElementById('authOverlay');
+      if(ov) ov.style.display = 'flex';
+      aoShowNewPwd();
+    }, 50);
+  } else {
+    // Magic link / signup confirm / email change / oauth: autentica e nascondi
+    // overlay, avvia app normale dopo che la session è caricata
+    setTimeout(function(){
+      var ov = document.getElementById('authOverlay');
+      if(ov) ov.style.display = 'none';
+      // PR3: persisti consensi GDPR pending da OAuth signup (se presenti)
+      // Quando l'utente fa signup via Google, i consensi sono stati salvati
+      // in localStorage prima del redirect. Ora che abbiamo access_token,
+      // possiamo chiamare la edge function per persisterli formalmente.
+      try{
+        var pending = localStorage.getItem('rb_pending_consents');
+        if(pending && session && session.access_token){
+          localStorage.removeItem('rb_pending_consents'); // one-shot
+          var supaBase = RB_AUTH_URL.replace(/\/auth\/v1\/?$/, '');
+          fetch(supaBase + '/functions/v1/signup-consent-log', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': RB_ANON_KEY,
+              'Authorization': 'Bearer ' + session.access_token
+            },
+            body: JSON.stringify({
+              consents: { privacy: true, tos: true },
+              privacy_version: '1.0',
+              tos_version: '1.0'
+            })
+          }).catch(function(e){ console.warn('signup-consent-log post-oauth:', e); });
+        }
+      }catch(e){ console.warn('pending consents:', e); }
+      // Eventuale appStart già parte da gating; se è già montato, nessun-op
+      if(typeof rbLoginRedirectAfterAuth === 'function'){
+        try { rbLoginRedirectAfterAuth(); } catch(e){}
+      }
+    }, 100);
+    } // chiusura else
+  })(); // chiusura IIFE _continueFlow
+  return true;
+}
+
+// Avvia controllo recovery al load (prima che parta il login flow normale)
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', rbHandleRecoveryCallback);
+} else {
+  rbHandleRecoveryCallback();
+}
+
+// ── Logout ───────────────────────────────────────────────────
+window.authLogout = async function(){
+  var s=window._rbSession;
+  if(s&&s.access_token){
+    fetch(RB_AUTH_URL+'/logout',{
+      method:'POST',
+      headers:{'apikey':RB_ANON_KEY,'Authorization':'Bearer '+s.access_token}
+    }).catch(function(){});
+  }
+  rbClearSession();
+  // Reset stale state per sessioni cross-utente
+  _vendInited = false;
+  _wishInited = false;
+  _dashData = null;
+  preventivi = [];
+  activePrev = null;
+  _rbAuthInitDone = false;
+  window._rbProfile = null;
+  location.reload();
+};
+
+// ── Init ─────────────────────────────────────────────────────
+var _rbAuthInitDone = false;
+window.rbAuthInit = function(){
+  if(_rbAuthInitDone){ return; }
+  _rbAuthInitDone = true;
+  // Popola version footer overlay
+  try{ var _av=document.getElementById('authVersion'); if(_av) _av.textContent=APP_VERSION; }catch(e){}
+  authDiag('controllo sessione...',false);
+
+  var session = rbLoadSession();
+
+  // Verifica se la sessione è ancora valida (non scaduta)
+  if(session && session.access_token){
+    var now = Math.floor(Date.now()/1000);
+    var expired = session.expires_at && (now > session.expires_at - 60);
+
+    if(!expired){
+      // Sessione valida → avvia app direttamente
+      rbSaveSession(session);
+      authDiag('sessione attiva',true);
+      authHide();
+      // Return URL redirect
+      var _p1 = new URLSearchParams(location.search);
+      var _r1 = _p1.get('return');
+      if(_r1){ try{ var _d1=decodeURIComponent(_r1); if(_d1.indexOf('/')===0 || _d1.startsWith('rareblock-')){ location.href=_d1; return; } }catch(e){} }
+      rbLoginRedirectAfterAuth();
+      return;
+    } else if(session.refresh_token){
+      // Sessione scaduta ma abbiamo refresh token → rinnova
+      authDiag('rinnovo sessione...',false);
+      rbAuthFetch('/token?grant_type=refresh_token',{refresh_token:session.refresh_token})
+        .then(function(data){
+          var newSession={
+            access_token:data.access_token,
+            refresh_token:data.refresh_token,
+            expires_at:Math.floor(Date.now()/1000)+(data.expires_in||3600),
+            user:data.user||session.user
+          };
+          rbSaveSession(newSession);
+          authDiag('sessione rinnovata',true);
+          authHide();
+          var _p2 = new URLSearchParams(location.search);
+          var _r2 = _p2.get('return');
+          if(_r2){ try{ var _d2=decodeURIComponent(_r2); if(_d2.indexOf('/')===0 || _d2.startsWith('rareblock-')){ location.href=_d2; return; } }catch(e){} }
+          rbLoginRedirectAfterAuth();
+        })
+        .catch(function(){
+          rbClearSession();
+          authDiag('sessione scaduta — effettua il login',false);
+          authShow();
+        });
+      return;
+    }
+  }
+
+  // Nessuna sessione → mostra login
+  rbClearSession();
+  authDiag('nessuna sessione — effettua il login',false);
+  authShow();
+};
+
+// NOTA: rbAuthInit viene chiamato UNA SOLA VOLTA da DOMContentLoaded
+// handler sopra (riga ~3237). Non ri-chiamare qui per evitare race conditions.
+</script>
+
+<script src="config.js" defer onerror="console.warn('config.js non trovato')"></script>
+
 </body>
 </html>
