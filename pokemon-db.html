@@ -14350,8 +14350,12 @@ function rbHandleRecoveryCallback(){
 
   if(!params.access_token) return false;
   var t = params.type || '';
-  // Tipi noti che vogliamo intercettare nel fragment
-  if(['recovery','magiclink','signup','invite','email_change'].indexOf(t) === -1) return false;
+  // Tipi noti via email link
+  var KNOWN_EMAIL_TYPES = ['recovery','magiclink','signup','invite','email_change'];
+  // OAuth callback (Google ecc): NON ha 'type' nel fragment, ma ha provider_token.
+  // È un login successful, va trattato come magiclink (autentica + avvia app).
+  var isOAuth = !t && !!params.provider_token;
+  if(KNOWN_EMAIL_TYPES.indexOf(t) === -1 && !isOAuth) return false;
 
   // Costruisci sessione dal token
   var session = {
