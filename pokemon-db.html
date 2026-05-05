@@ -6824,6 +6824,21 @@ async function appStart(){
 
   setTimeout(checkApiStatus, 800);
   loadCollection();
+
+  // PR4c — Auto-apertura wizard onboarding se richiesto via query param
+  // Es. utente clicca "Acquista" in dashboard senza KYC → redirect a
+  // pokemon-db.html?onboarding=personal → qui apriamo il wizard al step.
+  try{
+    var qs = new URLSearchParams(window.location.search);
+    var onbStep = qs.get('onboarding');
+    if(onbStep && typeof window.onbOpenAtStep === 'function'){
+      // Pulisci la query string per non riapertura su refresh
+      var cleanUrl = window.location.pathname + window.location.hash;
+      try{ history.replaceState(null,'', cleanUrl); }catch(_){}
+      // Apri al step richiesto (con piccolo delay per UI ready)
+      setTimeout(function(){ window.onbOpenAtStep(onbStep); }, 400);
+    }
+  }catch(e){ console.warn('auto-onboarding:', e); }
 }
 document.addEventListener('DOMContentLoaded', function() {
   // Piccolo delay per assicurarsi che tutti gli script inline siano eseguiti

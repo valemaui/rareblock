@@ -9845,10 +9845,152 @@ var BANK_DETAILS = {
   bic:          'CRPPIT2P'
 };
 
+// ═══════════════════════════════════════════════════════════
+//  PR4c — KYC gating helper
+// ═══════════════════════════════════════════════════════════
+//
+// rbCheckKycOrPrompt() chiama la RPC kyc_can_invest() (migration 053).
+// Se l'utente NON può investire, mostra il modal #kycGateModal con CTA
+// per completare il profilo (redirect a pokemon-db.html?onboarding=STEP)
+// e ritorna false.
+// Altrimenti ritorna true.
+//
+// Usato come gating prima di apertura buy modal e prima di submit order.
+async function rbCheckKycOrPrompt(){
+  try{
+    if(!_session || !_session.access_token){
+      // Non autenticato — fail safe (l'app non dovrebbe nemmeno arrivare qui)
+      return false;
+    }
+    var r = await fetch(SUPA_URL + '/rest/v1/rpc/kyc_can_invest', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'apikey': SUPA_KEY,
+        'Authorization': 'Bearer ' + _session.access_token
+      },
+      body: '{}'
+    });
+    if(!r.ok){
+      // Se la RPC non esiste o errore, fail-open (non bloccare investitori
+      // legacy se il backend non ha ancora la migration 053). Loggalo.
+      console.warn('kyc_can_invest RPC error:', r.status);
+      return true;
+    }
+    var data = await r.json();
+    var row = Array.isArray(data) ? data[0] : data;
+    if(!row || row.ok === true){
+      return true;
+    }
+    // Show gating modal
+    rbShowKycGate(row);
+    return false;
+  }catch(e){
+    // Fail-open su errore network (non bloccare utenti per glitches)
+    console.warn('rbCheckKycOrPrompt:', e);
+    return true;
+  }
+}
+
+// Mostra modal gating con messaggio + CTA
+function rbShowKycGate(kycInfo){
+  var modal = document.getElementById('kycGateModal');
+  if(!modal){
+    rbBuildKycGateModal();
+    modal = document.getElementById('kycGateModal');
+  }
+  // Popola messaggio + CTA href
+  var msgEl = document.getElementById('kycGateMsg');
+  var ctaEl = document.getElementById('kycGateCta');
+  var titleEl = document.getElementById('kycGateTitle');
+  var iconEl = document.getElementById('kycGateIcon');
+
+  var step = kycInfo.missing_step || '';
+  var detail = kycInfo.detail || 'Per investire devi completare il profilo';
+  var reason = kycInfo.reason || '';
+
+  var title = 'Completa il tuo profilo';
+  var icon = '⚠';
+  if(reason === 'kyc_rejected'){ title = 'Verifica KYC rifiutata'; icon = '✕'; }
+  else if(reason === 'document_expired'){ title = 'Documento scaduto'; icon = '!'; }
+  else if(reason === 'phone_not_verified'){ title = 'Verifica telefono richiesta'; icon = '☏'; }
+
+  if(titleEl) titleEl.textContent = title;
+  if(msgEl) msgEl.textContent = detail;
+  if(iconEl) iconEl.textContent = icon;
+  if(ctaEl){
+    if(reason === 'kyc_rejected'){
+      ctaEl.textContent = 'Contatta supporto →';
+      ctaEl.href = 'mailto:supporto@rareblock.eu?subject=KYC%20Verification';
+      ctaEl.removeAttribute('target');
+    } else {
+      ctaEl.textContent = 'Completa il profilo →';
+      // pokemon-db.html è il file che ospita il wizard (PR4b)
+      ctaEl.href = 'pokemon-db.html?onboarding=' + encodeURIComponent(step || 'personal');
+      ctaEl.removeAttribute('target');
+    }
+  }
+  modal.style.display = 'flex';
+}
+
+function rbHideKycGate(){
+  var modal = document.getElementById('kycGateModal');
+  if(modal) modal.style.display = 'none';
+}
+
+// Costruisce il modal gating al primo uso (lazy init)
+function rbBuildKycGateModal(){
+  // Markup
+  var div = document.createElement('div');
+  div.id = 'kycGateModal';
+  div.className = 'kyc-gate-modal';
+  div.innerHTML = ''
+    + '<div class="kyc-gate-bg" onclick="rbHideKycGate()"></div>'
+    + '<div class="kyc-gate-card">'
+    + '  <div class="kyc-gate-icon-wrap"><div class="kyc-gate-icon" id="kycGateIcon">⚠</div></div>'
+    + '  <div class="kyc-gate-title" id="kycGateTitle">Completa il tuo profilo</div>'
+    + '  <div class="kyc-gate-msg" id="kycGateMsg">Per investire devi completare il profilo</div>'
+    + '  <div class="kyc-gate-actions">'
+    + '    <button type="button" class="kyc-gate-btn-ghost" onclick="rbHideKycGate()">Più tardi</button>'
+    + '    <a id="kycGateCta" class="kyc-gate-btn-primary" href="pokemon-db.html?onboarding=personal">Completa il profilo →</a>'
+    + '  </div>'
+    + '</div>';
+  document.body.appendChild(div);
+  // Style (inline come block per non interferire col CSS modulare della dashboard)
+  if(!document.getElementById('kycGateStyle')){
+    var st = document.createElement('style');
+    st.id = 'kycGateStyle';
+    st.textContent = ''
+      + '.kyc-gate-modal{position:fixed;inset:0;z-index:9997;display:none;align-items:center;justify-content:center;font-family:"IBM Plex Sans",system-ui,sans-serif}'
+      + '.kyc-gate-bg{position:fixed;inset:0;background:rgba(13,17,23,.85);backdrop-filter:blur(4px);z-index:0}'
+      + '.kyc-gate-card{position:relative;z-index:1;max-width:440px;width:calc(100% - 32px);background:#161b22;border:1px solid #30363d;border-radius:8px;padding:32px 28px;display:flex;flex-direction:column;gap:16px;box-shadow:0 8px 32px rgba(0,0,0,.6);animation:kycGateIn .3s ease}'
+      + '@keyframes kycGateIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}'
+      + '.kyc-gate-icon-wrap{display:flex;justify-content:center;margin-bottom:4px}'
+      + '.kyc-gate-icon{width:52px;height:52px;border-radius:50%;background:rgba(201,168,76,.10);border:1px solid rgba(201,168,76,.30);color:#c9a84c;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:300;font-family:"IBM Plex Sans",sans-serif}'
+      + '.kyc-gate-title{font-size:18px;font-weight:600;color:#e6edf3;text-align:center;margin-top:4px}'
+      + '.kyc-gate-msg{font-size:13.5px;line-height:1.55;color:#7d8590;text-align:center;font-weight:400}'
+      + '.kyc-gate-actions{display:flex;gap:10px;margin-top:8px;justify-content:center;flex-wrap:wrap}'
+      + '.kyc-gate-btn-primary{padding:10px 22px;border-radius:6px;font-family:"IBM Plex Sans",sans-serif;font-size:13px;font-weight:600;background:#c9a84c;color:#0d1117;border:1px solid #c9a84c;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;transition:all .15s}'
+      + '.kyc-gate-btn-primary:hover{background:#d4b557;border-color:#d4b557}'
+      + '.kyc-gate-btn-ghost{padding:10px 18px;border-radius:6px;font-family:"IBM Plex Sans",sans-serif;font-size:13px;font-weight:500;background:#21262d;color:#e6edf3;border:1px solid #30363d;cursor:pointer;transition:all .15s}'
+      + '.kyc-gate-btn-ghost:hover{border-color:#3d444d;background:#2d333b}';
+    document.head.appendChild(st);
+  }
+}
+
+
 async function openBuyModal(pid){
   try {
     _buyProduct = _mktProducts.find(function(p){ return p.id===pid; });
     if(!_buyProduct){ alert('Prodotto non trovato'); return; }
+
+    // PR4c — Gating KYC: blocca apertura se utente non può investire
+    var canInvest = await rbCheckKycOrPrompt();
+    if(!canInvest){
+      // rbCheckKycOrPrompt ha già mostrato il modal con CTA. Non procediamo.
+      return;
+    }
+
     _coOrder = null;
     _coStep = 1;
     _buyDiscTiers = [];
@@ -10713,6 +10855,15 @@ async function coSubmitOrder(){
   if(!_buyProduct || !_session){ coShowError('Sessione non valida'); return; }
   var user = _session.user || {};
   if(!user.id){ coShowError('Sessione non valida'); return; }
+
+  // PR4c — Defense in depth: check KYC anche prima del submit, se nel
+  // frattempo la situazione è cambiata (admin reject, doc scaduto, etc).
+  var canInvest = await rbCheckKycOrPrompt();
+  if(!canInvest){
+    coShowError('Impossibile finalizzare l\'ordine: verifica i requisiti KYC');
+    closeBuyModal();
+    return;
+  }
 
   var qty = parseInt(document.getElementById('coQty').value)||0;
   var calc = calcDiscountedTotal(_buyProduct.price_per_quote, qty, _buyDiscTiers);
