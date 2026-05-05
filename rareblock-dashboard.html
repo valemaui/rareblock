@@ -11314,7 +11314,11 @@ async function coSubmitOrder(){
       try {
         var resp = await fetch(SUPA_URL + '/functions/v1/stripe-create-checkout-session', {
           method: 'POST',
-          headers: getHDR(),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + ((_session && _session.access_token) || ''),
+            'apikey': SUPA_KEY,
+          },
           body: JSON.stringify({ order_id: orderRow.id })
         });
         var data = await resp.json().catch(function(){ return null; });

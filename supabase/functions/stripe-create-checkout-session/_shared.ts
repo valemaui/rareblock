@@ -12,8 +12,9 @@
 
 export const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey, Prefer, Range, x-supabase-api-version',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Max-Age':       '86400',
 };
 
 export function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
