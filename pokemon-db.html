@@ -2729,11 +2729,13 @@ async function loadUserProfile(){
     role:(ADMIN_EMAILS.indexOf(u.email)>-1?'admin':'investor'),
     can_collector:true,
     can_investor:true,
-    status:'active'
+    status:'active',
+    kyc_level:0,        // PR4c: serve per soft trigger onboarding
+    kyc_status:'pending'
   };
   try{
     // Tentativo con schema completo, fallback se status non esiste ancora (pre-015)
-    var r=await fetch(SUPA_URL+'/rest/v1/profiles?id=eq.'+u.id+'&select=id,role,can_collector,can_investor,full_name,email,status,suspension_reason',{headers:getHDR()});
+    var r=await fetch(SUPA_URL+'/rest/v1/profiles?id=eq.'+u.id+'&select=id,role,can_collector,can_investor,full_name,email,status,suspension_reason,kyc_level,kyc_status',{headers:getHDR()});
     if(!r.ok && r.status===400){
       // Probabile colonna status mancante → fallback senza
       r=await fetch(SUPA_URL+'/rest/v1/profiles?id=eq.'+u.id+'&select=id,role,can_collector,can_investor,full_name,email',{headers:getHDR()});
@@ -2749,6 +2751,8 @@ async function loadUserProfile(){
         if(p.full_name) prof.full_name=p.full_name;
         if(p.status) prof.status=p.status;
         if(p.suspension_reason) prof.suspension_reason=p.suspension_reason;
+        if(typeof p.kyc_level === 'number') prof.kyc_level = p.kyc_level;
+        if(p.kyc_status) prof.kyc_status = p.kyc_status;
       }else{
         // Profilo mancante → lo creiamo (best-effort)
         try{
@@ -6825,18 +6829,42 @@ async function appStart(){
   setTimeout(checkApiStatus, 800);
   loadCollection();
 
-  // PR4c — Auto-apertura wizard onboarding se richiesto via query param
-  // Es. utente clicca "Acquista" in dashboard senza KYC → redirect a
-  // pokemon-db.html?onboarding=personal → qui apriamo il wizard al step.
+  // PR4c — Apertura automatica wizard onboarding
+  // Due trigger:
+  //  A) Forced via query param (?onboarding=STEP) — viene da gating
+  //     dashboard quando user clicca 'Acquista' senza KYC
+  //  B) Soft per nuovi user — kyc_level=0 e mai mostrato, lo apriamo
+  //     una volta sola al primo accesso post-signup. Flag in localStorage
+  //     scoped per user_id per evitare cross-account leak.
   try{
     var qs = new URLSearchParams(window.location.search);
-    var onbStep = qs.get('onboarding');
-    if(onbStep && typeof window.onbOpenAtStep === 'function'){
-      // Pulisci la query string per non riapertura su refresh
+    var onbStepParam = qs.get('onboarding');
+
+    if(onbStepParam && typeof window.onbOpenAtStep === 'function'){
+      // CASO A: forced — pulisci query e apri al step richiesto
       var cleanUrl = window.location.pathname + window.location.hash;
       try{ history.replaceState(null,'', cleanUrl); }catch(_){}
-      // Apri al step richiesto (con piccolo delay per UI ready)
-      setTimeout(function(){ window.onbOpenAtStep(onbStep); }, 400);
+      setTimeout(function(){ window.onbOpenAtStep(onbStepParam); }, 400);
+    } else if(typeof window.onbOpen === 'function' && window._rbProfile){
+      // CASO B: soft trigger una volta sola per nuovi user
+      // Trigger se kyc_level=0 (mai iniziato KYC) E flag non già settato
+      // Bypass: admin (l'admin gestisce KYC altrui, non deve essere
+      //         interrotto) e user con kyc_status='approved' o role 'admin'
+      var prof = window._rbProfile;
+      var uid = prof.id || (window._rbSession && window._rbSession.user && window._rbSession.user.id);
+      var kycLevel = parseInt(prof.kyc_level || 0);
+      var isAdmin = prof.role === 'admin';
+      if(uid && kycLevel === 0 && !isAdmin){
+        var flagKey = 'rb_onb_seen:' + uid;
+        var alreadySeen = false;
+        try{ alreadySeen = localStorage.getItem(flagKey) === '1'; }catch(_){}
+        if(!alreadySeen){
+          // Set flag PRIMA dell'apertura per evitare doppio trigger
+          // su refresh accidentale durante il wizard
+          try{ localStorage.setItem(flagKey, '1'); }catch(_){}
+          setTimeout(function(){ window.onbOpen(); }, 800);
+        }
+      }
     }
   }catch(e){ console.warn('auto-onboarding:', e); }
 }

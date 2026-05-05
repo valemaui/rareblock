@@ -9848,14 +9848,31 @@ var BANK_DETAILS = {
 // ═══════════════════════════════════════════════════════════
 //  PR4c — KYC gating helper
 // ═══════════════════════════════════════════════════════════
-//
-// rbCheckKycOrPrompt() chiama la RPC kyc_can_invest() (migration 053).
-// Se l'utente NON può investire, mostra il modal #kycGateModal con CTA
-// per completare il profilo (redirect a pokemon-db.html?onboarding=STEP)
-// e ritorna false.
-// Altrimenti ritorna true.
-//
-// Usato come gating prima di apertura buy modal e prima di submit order.
+
+// HOTFIX SECURITY (PR4c v2): chiave billing localStorage scoped per user.
+// Pre-PR4c: 'rb_billing' (globale per browser) → CROSS-ACCOUNT LEAK quando
+// più utenti loggavano dallo stesso browser/sessione di test.
+// Post-PR4c: 'rb_billing:{user_id}' (scoped per user, fallback null).
+function _rbBillingKey(){
+  var u = (_session && _session.user && _session.user.id) || null;
+  return u ? ('rb_billing:' + u) : null;
+}
+function rbBillingLoad(){
+  var k = _rbBillingKey(); if(!k) return null;
+  try{ return JSON.parse(localStorage.getItem(k) || 'null'); }
+  catch(e){ return null; }
+}
+function rbBillingSave(obj){
+  var k = _rbBillingKey(); if(!k) return;
+  try{ localStorage.setItem(k, JSON.stringify(obj)); }catch(e){}
+}
+// Pulizia: rimuove la VECCHIA chiave globale (legacy 'rb_billing' senza user_id).
+// Chiamata una volta al primo load per migrare gli utenti che avevano dati
+// salvati con la chiave vecchia (li perdono ma non avranno più il leak).
+(function _migrateLegacyBilling(){
+  try{ localStorage.removeItem('rb_billing'); }catch(e){}
+})();
+
 async function rbCheckKycOrPrompt(){
   try{
     if(!_session || !_session.access_token){
@@ -10049,9 +10066,9 @@ async function openBuyModal(pid){
     if(_session && _session.user && _session.user.email){
       document.getElementById('coBillEmail').value = _session.user.email;
     }
-    // Ripristina dati fatturazione salvati localmente
+    // Ripristina dati fatturazione salvati localmente (scoped per user)
     try {
-      var saved = JSON.parse(localStorage.getItem('rb_billing')||'null');
+      var saved = rbBillingLoad();
       if(saved){
         // Mappa nuovi campi → input id
         var mapNew = {
@@ -10211,7 +10228,7 @@ async function coRefreshImportBtnState(){
     }
     if(!hasData){
       try {
-        var saved = JSON.parse(localStorage.getItem('rb_billing')||'null');
+        var saved = rbBillingLoad();
         if(saved && (saved.address||saved.fc||saved.vat)) hasData = true;
       } catch(e){}
     }
@@ -10229,8 +10246,8 @@ async function coStepNext(){
   // Step 1 (Riepilogo) saltato: il flow inizia direttamente da step 2.
   if(_coStep===2){
     if(!coValidateStep2()) return;
-    // Salva billing localmente per i prossimi ordini
-    try { localStorage.setItem('rb_billing', JSON.stringify(coCollectBilling())); } catch(e){}
+    // Salva billing localmente per i prossimi ordini (scoped per user)
+    try { rbBillingSave(coCollectBilling()); } catch(e){}
     coUpdateBonificoSummary();
     coGotoStep(3);
   } else if(_coStep===3){
@@ -10438,10 +10455,10 @@ async function coImportFromProfile(){
       } catch(eOrd){ /* tabella non esiste → fallback */ }
     }
 
-    // 3. Fallback finale: localStorage
+    // 3. Fallback finale: localStorage (scoped per user)
     if(!data){
       try {
-        var saved = JSON.parse(localStorage.getItem('rb_billing')||'null');
+        var saved = rbBillingLoad();
         if(saved && (saved.address || saved.fc || saved.vat)){
           data = saved;
           source = 'local';
