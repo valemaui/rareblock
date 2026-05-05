@@ -13994,9 +13994,25 @@ window.authDoRegister = async function(){
     // richiede email_confirmation (in quel caso data.access_token è null e
     // non potremmo chiamare edge functions auth-only).
     var nowIso = new Date().toISOString();
+    var signupRedirectTo = location.origin + location.pathname;
     var signupBody = {
       email: email,
       password: pwd,
+      // emailRedirectTo: per i link nelle email di conferma signup.
+      // Supabase preferisce options.emailRedirectTo all'API GoTrue v1, ma per
+      // sicurezza passiamo entrambi (alcuni setup ignorano l'uno o l'altro).
+      redirect_to: signupRedirectTo,
+      options: {
+        emailRedirectTo: signupRedirectTo,
+        data: {
+          gdpr_privacy_accepted_at: nowIso,
+          gdpr_privacy_version: '1.0',
+          gdpr_tos_accepted_at: nowIso,
+          gdpr_tos_version: '1.0'
+        }
+      },
+      // Compatibilità con vecchio formato (alcuni endpoint GoTrue leggono il
+      // 'data' top-level invece di options.data per la creazione metadata)
       data: {
         gdpr_privacy_accepted_at: nowIso,
         gdpr_privacy_version: '1.0',
@@ -14209,6 +14225,29 @@ function rbHandleRecoveryCallback(){
       params[decodeURIComponent(kv.slice(0,eq))] = decodeURIComponent(kv.slice(eq+1));
     }
   });
+
+  // CASO ERROR: il link nell email è scaduto, già usato o invalido.
+  // Atterriamo su #error=access_denied&error_code=otp_expired&error_description=...
+  // Mostriamo messaggio chiaro nell'overlay invece di lasciare l'utente confuso.
+  if(params.error || params.error_code){
+    try{ history.replaceState(null,'', window.location.pathname + window.location.search); }catch(e){}
+    var errMsg;
+    if(params.error_code === 'otp_expired'){
+      errMsg = 'Il link è scaduto o è già stato utilizzato. Richiedi un nuovo link di accesso.';
+    } else if(params.error_code === 'access_denied'){
+      errMsg = 'Accesso negato. Il link potrebbe essere scaduto o non valido.';
+    } else {
+      errMsg = (params.error_description || 'Errore di autenticazione').replace(/\+/g, ' ');
+    }
+    setTimeout(function(){
+      var ov = document.getElementById('authOverlay');
+      if(ov) ov.style.display = 'flex';
+      if(typeof aoShowLogin === 'function') aoShowLogin();
+      if(typeof authMsg === 'function') authMsg('authLoginMsg', errMsg);
+    }, 50);
+    return true;
+  }
+
   if(!params.access_token) return false;
   var t = params.type || '';
   // Tipi noti che vogliamo intercettare nel fragment
