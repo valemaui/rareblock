@@ -141,15 +141,24 @@ Deno.serve(async (req) => {
     const minExpire = Math.min(orderExpiresMs || max24hMs, max24hMs);
     const sessionExpiresAt = Math.floor(Math.max(minExpire, Date.now() + 35 * 60 * 1000) / 1000);  // min Stripe = 30 min, prendo 35 per sicurezza
 
+    // Email pre-fill: bill_email (form fatturazione) → fallback user.email
+    // (auth account, sempre presente). Se entrambi mancano, omettiamo
+    // completamente il campo: Stripe NON accetta empty string ('Invalid
+    // email address: ') e fa 400. Lo step Stripe Checkout chiederà
+    // l'email all'utente in quel caso.
+    const customerEmail = (order.bill_email && String(order.bill_email).trim())
+                       || (user.email && String(user.email).trim())
+                       || null;
+
     const sessionBody: Record<string, unknown> = {
       mode: 'payment',
       currency: 'eur',
       payment_method_types: ['card'],  // Apple/Google Pay automatici come carte mobile
-      // Pre-fill cliente
-      customer_email: order.bill_email,
-      // Disabilita Stripe receipt nativo (usiamo email custom da PR6a)
+      // Disabilita Stripe receipt nativo (usiamo email custom da PR6a).
+      // NB: NON passare receipt_email='' — Stripe rifiuta empty string.
+      // Per disabilitare la ricevuta, basta NON popolare receipt_email
+      // nel payment_intent_data.
       payment_intent_data: {
-        receipt_email: '',  // empty string esplicita
         metadata: {
           order_id: order.id,
           order_number: order.order_number,
@@ -184,6 +193,12 @@ Deno.serve(async (req) => {
       // Disabilita save di metodi di pagamento (no PII su nostro account)
       // (default: non salva, va specificato solo se vuoi setup_future_usage)
     };
+
+    // Aggiungi customer_email SOLO se valido (non null/empty).
+    // Stripe rifiuta empty string con 400 'Invalid email address: '.
+    if (customerEmail) {
+      sessionBody.customer_email = customerEmail;
+    }
 
     // Idempotency key: ordine + ultimo update (riusa session se stesso ordine
     // entro pochi secondi, ma rigenera se l'ordine è cambiato)
