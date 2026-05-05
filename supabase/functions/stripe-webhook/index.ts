@@ -27,8 +27,8 @@
 // =============================================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { CORS, json, preflight } from '../_shared/http.ts';
-import { stripeApi, verifyStripeSignature } from '../_shared/stripe.ts';
+import { CORS, json, preflight } from './_shared.ts';
+import { stripeApi, verifyStripeSignature } from './_shared.ts';
 
 Deno.serve(async (req) => {
   const pf = preflight(req); if (pf) return pf;

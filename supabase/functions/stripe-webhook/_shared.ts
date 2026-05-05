@@ -1,0 +1,162 @@
+// =============================================================================
+// SHARED HELPERS — inlined da _shared/http.ts + _shared/stripe.ts
+// =============================================================================
+// Inlinato per compatibilità con deploy via Supabase Dashboard
+// (che non risolve import relativi `../_shared/`).
+// Contenuto identico a supabase/functions/_shared/{http,stripe}.ts.
+// In caso di modifiche futura, aggiornare entrambe le copie o adottare
+// CLI deploy che risolve i path relativi automaticamente.
+// =============================================================================
+
+// ── HTTP helpers ─────────────────────────────────────────────────────────────
+
+export const CORS: Record<string, string> = {
+  'Access-Control-Allow-Origin':  '*',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+};
+
+export function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      ...CORS,
+      'Content-Type': 'application/json; charset=utf-8',
+      ...extra,
+    },
+  });
+}
+
+export function preflight(req: Request): Response | null {
+  if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
+  return null;
+}
+
+// ── Stripe helpers ───────────────────────────────────────────────────────────
+
+const STRIPE_API_BASE = 'https://api.stripe.com';
+const STRIPE_API_VERSION = '2024-06-20';
+
+export function centsFromEur(eur: number): number {
+  return Math.round(eur * 100);
+}
+
+export function eurFromCents(cents: number): number {
+  return Math.round(cents) / 100;
+}
+
+export function toFormBody(obj: Record<string, unknown>, prefix = ''): string {
+  const parts: string[] = [];
+  for (const [key, val] of Object.entries(obj)) {
+    if (val === undefined || val === null) continue;
+    const k = prefix ? `${prefix}[${key}]` : key;
+    if (Array.isArray(val)) {
+      val.forEach((v, i) => {
+        if (typeof v === 'object' && v !== null) {
+          parts.push(toFormBody(v as Record<string, unknown>, `${k}[${i}]`));
+        } else {
+          parts.push(`${encodeURIComponent(`${k}[${i}]`)}=${encodeURIComponent(String(v))}`);
+        }
+      });
+    } else if (typeof val === 'object') {
+      parts.push(toFormBody(val as Record<string, unknown>, k));
+    } else {
+      parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(String(val))}`);
+    }
+  }
+  return parts.filter(Boolean).join('&');
+}
+
+export async function stripeApi(
+  path: string,
+  method: 'GET' | 'POST' | 'DELETE',
+  body?: Record<string, unknown>,
+  opts: { idempotencyKey?: string } = {},
+): Promise<any> {
+  const secretKey = Deno.env.get('STRIPE_SECRET_KEY');
+  if (!secretKey) throw new Error('STRIPE_SECRET_KEY non configurata');
+
+  const headers: Record<string, string> = {
+    'Authorization':       `Bearer ${secretKey}`,
+    'Stripe-Version':      STRIPE_API_VERSION,
+  };
+  if (body && method !== 'GET') {
+    headers['Content-Type'] = 'application/x-www-form-urlencoded';
+  }
+  if (opts.idempotencyKey) {
+    headers['Idempotency-Key'] = opts.idempotencyKey;
+  }
+
+  const resp = await fetch(`${STRIPE_API_BASE}${path}`, {
+    method,
+    headers,
+    body: body && method !== 'GET' ? toFormBody(body) : undefined,
+  });
+
+  const text = await resp.text();
+  let parsed: any = null;
+  try { parsed = JSON.parse(text); } catch { /* fallback below */ }
+
+  if (!resp.ok) {
+    const msg = parsed?.error?.message || text || `Stripe ${resp.status}`;
+    const err: Error & { stripeStatus?: number; stripeCode?: string } = new Error(msg);
+    err.stripeStatus = resp.status;
+    err.stripeCode = parsed?.error?.code;
+    throw err;
+  }
+  return parsed;
+}
+
+export async function verifyStripeSignature(
+  payload: string,
+  header: string | null,
+  secret: string,
+  toleranceSeconds = 300,
+): Promise<{ valid: boolean; timestamp: number | null; error?: string }> {
+  if (!header) return { valid: false, timestamp: null, error: 'header missing' };
+  if (!secret) return { valid: false, timestamp: null, error: 'secret missing' };
+
+  const parts = header.split(',').map(p => p.trim().split('='));
+  let timestamp: number | null = null;
+  const v1Sigs: string[] = [];
+  for (const [k, v] of parts) {
+    if (k === 't' && v) timestamp = parseInt(v, 10);
+    else if (k === 'v1' && v) v1Sigs.push(v);
+  }
+  if (!timestamp || v1Sigs.length === 0) {
+    return { valid: false, timestamp, error: 'malformed header' };
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - timestamp) > toleranceSeconds) {
+    return { valid: false, timestamp, error: 'timestamp too old' };
+  }
+
+  const signedPayload = `${timestamp}.${payload}`;
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const sigBuf = await crypto.subtle.sign('HMAC', key, enc.encode(signedPayload));
+  const expectedHex = Array.from(new Uint8Array(sigBuf))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+
+  for (const v1 of v1Sigs) {
+    if (constantTimeEqual(v1, expectedHex)) {
+      return { valid: true, timestamp };
+    }
+  }
+  return { valid: false, timestamp, error: 'signature mismatch' };
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
