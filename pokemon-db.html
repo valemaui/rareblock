@@ -1213,6 +1213,20 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 #authOverlay .ao-alert-icon{flex-shrink:0;margin-top:1px;display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px}
 #authOverlay .ao-alert-icon .rb-i{width:14px;height:14px}
 #authOverlay .ao-fields{display:flex;flex-direction:column;gap:16px}
+
+/* ── PR1: GDPR consent checkboxes ── */
+#authOverlay .ao-consents{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+#authOverlay .ao-consent{display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-family:var(--ao-sans);user-select:none}
+#authOverlay .ao-consent input[type=checkbox]{position:absolute;opacity:0;pointer-events:none}
+#authOverlay .ao-consent-mark{flex-shrink:0;width:16px;height:16px;border-radius:2px;border:1px solid rgba(240,234,216,.25);background:var(--ao-bg-3);display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:var(--ao-bg);transition:all .15s;margin-top:1px}
+#authOverlay .ao-consent input:checked + .ao-consent-mark{background:var(--ao-gold);border-color:var(--ao-gold)}
+#authOverlay .ao-consent input:checked + .ao-consent-mark::before{content:'✓';font-weight:700}
+#authOverlay .ao-consent:hover .ao-consent-mark{border-color:rgba(201,168,76,.4)}
+#authOverlay .ao-consent-text{font-size:11.5px;line-height:1.5;color:rgba(240,234,216,.55);font-weight:300}
+#authOverlay .ao-consent-text a{color:var(--ao-gold);text-decoration:none;border-bottom:.5px solid rgba(201,168,76,.3);transition:border-color .15s}
+#authOverlay .ao-consent-text a:hover{border-bottom-color:var(--ao-gold)}
+#authOverlay .ao-consent-required{color:rgba(201,168,76,.6);font-weight:500;margin-left:2px}
+
 #authOverlay .ao-field{display:flex;flex-direction:column;gap:7px}
 #authOverlay .ao-field label{font-size:10px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:rgba(240,234,216,.35);font-family:var(--ao-sans)}
 #authOverlay .ao-input-wrap{position:relative;display:flex;align-items:center}
@@ -1448,6 +1462,27 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
             <span class="ao-input-icon">◎</span>
           </div>
         </div>
+
+        <!-- ─── Consensi GDPR (PR1) ─── -->
+        <div class="ao-consents">
+          <label class="ao-consent">
+            <input type="checkbox" id="authRegConsentPrivacy"/>
+            <span class="ao-consent-mark"></span>
+            <span class="ao-consent-text">
+              Ho letto e accetto l'<a href="/privacy.html" target="_blank" rel="noopener">Informativa Privacy</a>
+              <span class="ao-consent-required">*</span>
+            </span>
+          </label>
+          <label class="ao-consent">
+            <input type="checkbox" id="authRegConsentTos"/>
+            <span class="ao-consent-mark"></span>
+            <span class="ao-consent-text">
+              Accetto i <a href="/terms.html" target="_blank" rel="noopener">Termini di Servizio</a>
+              <span class="ao-consent-required">*</span>
+            </span>
+          </label>
+        </div>
+
       </div>
       <button class="ao-btn-primary" id="authRegBtn" onclick="authDoRegister()">Crea account</button>
       <button class="ao-btn-ghost" onclick="aoShowLogin()">← Torna al login</button>
@@ -13886,10 +13921,17 @@ window.authDoRegister = async function(){
   var email=(document.getElementById('authRegEmail').value||'').trim();
   var pwd  = document.getElementById('authRegPwd').value||'';
   var pwd2 = document.getElementById('authRegPwd2').value||'';
+  var consPriv = document.getElementById('authRegConsentPrivacy');
+  var consTos  = document.getElementById('authRegConsentTos');
+  var privacyOk = consPriv && consPriv.checked;
+  var tosOk     = consTos  && consTos.checked;
+
   authClear('authRegMsg');
   if(!email||!pwd){ authMsg('authRegMsg','Inserisci email e password'); return; }
   if(pwd.length<8){ authMsg('authRegMsg','Password minimo 8 caratteri'); return; }
   if(pwd!==pwd2){   authMsg('authRegMsg','Le password non coincidono');  return; }
+  if(!privacyOk){   authMsg('authRegMsg','Devi accettare l\'Informativa Privacy per procedere'); return; }
+  if(!tosOk){       authMsg('authRegMsg','Devi accettare i Termini di Servizio per procedere'); return; }
 
   authBtn('authRegBtn',true,'Registrati');
   try{
@@ -13897,6 +13939,32 @@ window.authDoRegister = async function(){
     var r=await fetch(RB_AUTH_URL+'/signup',{method:'POST',headers:hdrs,body:JSON.stringify({email:email,password:pwd})});
     var data=await r.json().catch(function(){return{};});
     if(!r.ok) throw new Error(data.error_description||data.msg||data.error||('HTTP '+r.status));
+
+    // Post-signup: persisti consensi GDPR per audit forense (best-effort, non blocca UX)
+    // Supabase signup ritorna access_token immediato anche con email_confirmation pending,
+    // quindi il JWT è valido per chiamare la edge function signup-consent-log.
+    if(data && data.access_token){
+      try{
+        var supaBase = RB_AUTH_URL.replace(/\/auth\/v1\/?$/, '');
+        await fetch(supaBase+'/functions/v1/signup-consent-log', {
+          method:'POST',
+          headers:{
+            'Content-Type':'application/json',
+            'apikey':RB_ANON_KEY,
+            'Authorization':'Bearer '+data.access_token
+          },
+          body: JSON.stringify({
+            consents: { privacy: true, tos: true },
+            privacy_version: '1.0',
+            tos_version: '1.0'
+          })
+        });
+        // Non controlliamo il response: se la edge function fallisce, l'utente
+        // rivedrà il prompt consensi al prossimo login (gestito altrove). Il
+        // consenso UX è già stato dato esplicitamente, non bloccare l'iscrizione.
+      }catch(e){ console.warn('signup-consent-log:', e && e.message); }
+    }
+
     authMsg('authRegMsg','Account creato. Controlla la tua email per confermare.','ok');
   }catch(e){
     authMsg('authRegMsg', e.message||'Errore registrazione');
