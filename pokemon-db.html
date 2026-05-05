@@ -2068,12 +2068,11 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
         <div class="onb-grid-2">
           <div class="onb-field">
             <label>Tipo documento *</label>
-            <select id="onbDocType">
+            <select id="onbDocType" onchange="onbDocTypeChanged()">
               <option value="">— Seleziona —</option>
-              <option value="CIE">Carta d'identità elettronica</option>
-              <option value="id_card">Carta d'identità cartacea</option>
-              <option value="passport">Passaporto</option>
-              <option value="license">Patente di guida</option>
+              <option value="CI">Carta d'identità</option>
+              <option value="PATENTE">Patente di guida</option>
+              <option value="PASSAPORTO">Passaporto</option>
             </select>
           </div>
           <div class="onb-field">
@@ -2095,17 +2094,26 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 
       <div class="onb-section">
         <div class="onb-section-title">Foto del documento</div>
+        <label class="onb-single-scan" id="onbSingleScanWrap" style="display:flex;align-items:center;gap:10px;margin:0 0 14px;padding:12px 14px;background:#161b22;border:1px solid #30363d;border-radius:8px;cursor:pointer;font-size:13px;color:#e6edf3;line-height:1.45;user-select:none">
+          <input type="checkbox" id="onbSingleScan" onchange="onbToggleSingleScan()" style="width:16px;height:16px;accent-color:#c9a84c;cursor:pointer;flex-shrink:0"/>
+          <span>Il file caricato contiene <strong>fronte e retro</strong> nella stessa scansione (es. PDF a due pagine o singola immagine fronte-retro). In questo caso non serve caricare il retro separatamente.</span>
+        </label>
         <div class="onb-grid-2">
           <!-- Front -->
           <div class="onb-upload-zone" id="onbUploadFront" data-side="front">
-            <input type="file" id="onbFrontFile" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="onbHandleFile(event,'front')"/>
+            <input type="file" id="onbFrontFile" accept="image/jpeg,image/png,image/webp,application/pdf" style="display:none" onchange="onbHandleFile(event,'front')"/>
             <div class="onb-upload-empty" onclick="document.getElementById('onbFrontFile').click()">
               <div class="onb-upload-icon">⬆</div>
               <div class="onb-upload-label">Fronte documento</div>
-              <div class="onb-upload-hint">Click per caricare · JPG/PNG · max 10MB</div>
+              <div class="onb-upload-hint">Click per caricare · JPG/PNG/PDF · max 10MB</div>
             </div>
             <div class="onb-upload-preview" style="display:none">
               <img class="onb-upload-img" alt="fronte"/>
+              <div class="onb-upload-pdf" style="display:none;width:100%;height:140px;background:#0d1117;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#e6edf3;font-size:12px">
+                <div style="font-size:32px;color:#c9a84c;line-height:1">📄</div>
+                <div class="onb-upload-pdf-name" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;color:#8b949e;max-width:90%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">documento.pdf</div>
+                <button type="button" onclick="event.stopPropagation();onbOpenSigned(_onbState.uploadedFront)" style="background:transparent;border:1px solid #30363d;color:#c9a84c;font-size:11px;padding:4px 10px;border-radius:4px;cursor:pointer">Visualizza PDF</button>
+              </div>
               <div class="onb-upload-overlay">
                 <button type="button" class="onb-upload-replace" onclick="document.getElementById('onbFrontFile').click()">Sostituisci</button>
                 <button type="button" class="onb-upload-remove" onclick="onbRemoveFile('front')">Rimuovi</button>
@@ -2115,14 +2123,19 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
           </div>
           <!-- Back -->
           <div class="onb-upload-zone" id="onbUploadBack" data-side="back">
-            <input type="file" id="onbBackFile" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="onbHandleFile(event,'back')"/>
+            <input type="file" id="onbBackFile" accept="image/jpeg,image/png,image/webp,application/pdf" style="display:none" onchange="onbHandleFile(event,'back')"/>
             <div class="onb-upload-empty" onclick="document.getElementById('onbBackFile').click()">
               <div class="onb-upload-icon">⬆</div>
               <div class="onb-upload-label">Retro documento</div>
-              <div class="onb-upload-hint">Click per caricare · JPG/PNG · max 10MB</div>
+              <div class="onb-upload-hint">Click per caricare · JPG/PNG/PDF · max 10MB</div>
             </div>
             <div class="onb-upload-preview" style="display:none">
               <img class="onb-upload-img" alt="retro"/>
+              <div class="onb-upload-pdf" style="display:none;width:100%;height:140px;background:#0d1117;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#e6edf3;font-size:12px">
+                <div style="font-size:32px;color:#c9a84c;line-height:1">📄</div>
+                <div class="onb-upload-pdf-name" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;color:#8b949e;max-width:90%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">documento.pdf</div>
+                <button type="button" onclick="event.stopPropagation();onbOpenSigned(_onbState.uploadedBack)" style="background:transparent;border:1px solid #30363d;color:#c9a84c;font-size:11px;padding:4px 10px;border-radius:4px;cursor:pointer">Visualizza PDF</button>
+              </div>
               <div class="onb-upload-overlay">
                 <button type="button" class="onb-upload-replace" onclick="document.getElementById('onbBackFile').click()">Sostituisci</button>
                 <button type="button" class="onb-upload-remove" onclick="onbRemoveFile('back')">Rimuovi</button>
@@ -6894,7 +6907,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='5.7';
+const APP_VERSION='5.8';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -14982,7 +14995,10 @@ var _onbState = {
   currentStep: null,
   status: null,        // v_user_onboarding_status row
   uploadedFront: null, // path storage del file front
-  uploadedBack: null   // path storage del file back
+  uploadedBack: null,  // path storage del file back
+  frontIsPdf: false,   // true se il file front è un PDF
+  backIsPdf: false,    // true se il file back è un PDF
+  singleScan: false    // true se il front contiene già fronte+retro (no back richiesto)
 };
 
 // Helper: alert dentro al modal
@@ -15087,6 +15103,17 @@ async function onbPrefillFromProfile(){
       _onbState.uploadedBack = p.id_doc_back_path;
       onbShowExistingPreview('back', p.id_doc_back_path);
     }
+    // Ripristina toggle "fronte-retro singolo": se i due path coincidono significa
+    // che l'utente aveva caricato una scansione fronte-retro singola.
+    if(p.id_doc_front_path && p.id_doc_back_path && p.id_doc_front_path === p.id_doc_back_path){
+      _onbState.singleScan = true;
+      _onbState.uploadedBack = null; // così la UI non mostra il preview duplicato sul retro
+      var chk = document.getElementById('onbSingleScan');
+      if(chk) chk.checked = true;
+    }
+    // Applica visibilità zona back coerente col tipo doc + toggle (deve girare DOPO
+    // aver settato il valore del select e dello stato singleScan)
+    onbDocTypeChanged();
 
     // Step 3 fields
     if(p.phone_country_code) document.getElementById('onbPhoneCountry').value = p.phone_country_code;
@@ -15104,10 +15131,16 @@ async function onbShowExistingPreview(side, path){
   var s = window._rbSession; if(!s||!s.access_token) return;
   var zone = document.getElementById(side === 'front' ? 'onbUploadFront' : 'onbUploadBack');
   if(!zone) return;
-  var emptyEl = zone.querySelector('.onb-upload-empty');
-  var prevEl  = zone.querySelector('.onb-upload-preview');
-  var imgEl   = zone.querySelector('.onb-upload-img');
-  // Generate signed URL (durata 1h)
+  var isPdf = /\.pdf$/i.test(path||'');
+  // Aggiorna flag PDF nello state per coerenza con i save successivi
+  if(side === 'front') _onbState.frontIsPdf = isPdf;
+  else                 _onbState.backIsPdf  = isPdf;
+  if(isPdf){
+    // PDF: niente signed URL preview, mostriamo placeholder con bottone "Visualizza"
+    onbRenderUploadPreview(side, path, true, path.split('/').pop(), null);
+    return;
+  }
+  // Immagine: signed URL per anteprima inline (durata 1h)
   try{
     var supaBase = RB_AUTH_URL.replace(/\/auth\/v1\/?$/, '');
     var r = await fetch(supaBase + '/storage/v1/object/sign/kyc-documents/' + encodeURI(path), {
@@ -15122,23 +15155,23 @@ async function onbShowExistingPreview(side, path){
     if(r.ok){
       var data = await r.json();
       if(data && data.signedURL){
-        imgEl.src = supaBase + data.signedURL;
-        emptyEl.style.display = 'none';
-        prevEl.style.display = 'block';
+        onbRenderUploadPreview(side, path, false, null, supaBase + '/storage/v1' + data.signedURL);
       }
     }
   }catch(e){ /* graceful: lasciamo zona vuota se signed url fallisce */ }
 }
 
-// Handle file selection: client-side resize + upload
+// Handle file selection: client-side resize (immagini) o upload diretto (PDF)
 async function onbHandleFile(ev, side){
   var f = ev.target.files && ev.target.files[0];
   if(!f) return;
   // Reset input per permettere re-upload stesso file
   ev.target.value = '';
 
-  if(!/^image\/(jpeg|png|webp)$/i.test(f.type)){
-    onbAlert('Formato non supportato. Carica JPG, PNG o WebP.', 'err'); return;
+  var isPdf = (f.type === 'application/pdf') || /\.pdf$/i.test(f.name||'');
+  var isImg = /^image\/(jpeg|png|webp)$/i.test(f.type);
+  if(!isPdf && !isImg){
+    onbAlert('Formato non supportato. Carica JPG, PNG, WebP o PDF.', 'err'); return;
   }
   if(f.size > 10 * 1024 * 1024){
     onbAlert('Il file è troppo grande (max 10MB).', 'err'); return;
@@ -15153,14 +15186,24 @@ async function onbHandleFile(ev, side){
   if(progBar) progBar.style.width = '15%';
 
   try{
-    // 1) Resize lato client (max 1600px lato lungo, qualità .85)
-    var blob = await onbResizeImage(f, 1600, 0.85);
-    if(progBar) progBar.style.width = '40%';
+    var blob, contentType, ext;
+    if(isPdf){
+      // PDF: upload as-is, niente resize
+      blob = f;
+      contentType = 'application/pdf';
+      ext = 'pdf';
+      if(progBar) progBar.style.width = '40%';
+    } else {
+      // Immagine: resize lato client (max 1600px lato lungo, qualità .85)
+      blob = await onbResizeImage(f, 1600, 0.85);
+      contentType = 'image/jpeg';
+      ext = 'jpg';
+      if(progBar) progBar.style.width = '40%';
+    }
 
-    // 2) Upload diretto a Storage Supabase
+    // Upload diretto a Storage Supabase
     var s = window._rbSession; if(!s||!s.access_token) throw new Error('non autenticato');
     var ts = Date.now();
-    var ext = 'jpg'; // dopo il resize è sempre JPEG
     var path = s.user.id + '/id_' + side + '_' + ts + '.' + ext;
     var supaBase = RB_AUTH_URL.replace(/\/auth\/v1\/?$/, '');
 
@@ -15170,7 +15213,7 @@ async function onbHandleFile(ev, side){
       headers:{
         'apikey':RB_ANON_KEY,
         'Authorization':'Bearer '+s.access_token,
-        'Content-Type':'image/jpeg',
+        'Content-Type':contentType,
         'x-upsert':'true'
       },
       body: blob
@@ -15181,16 +15224,15 @@ async function onbHandleFile(ev, side){
     }
     if(progBar) progBar.style.width = '100%';
 
-    // 3) Memorizza path nello state e mostra preview
-    if(side === 'front') _onbState.uploadedFront = path;
-    else                 _onbState.uploadedBack = path;
-
-    var emptyEl = zone.querySelector('.onb-upload-empty');
-    var prevEl  = zone.querySelector('.onb-upload-preview');
-    var imgEl   = zone.querySelector('.onb-upload-img');
-    imgEl.src = URL.createObjectURL(blob);
-    emptyEl.style.display = 'none';
-    prevEl.style.display = 'block';
+    // Memorizza path + tipo nello state e mostra preview
+    if(side === 'front'){
+      _onbState.uploadedFront = path;
+      _onbState.frontIsPdf    = isPdf;
+    } else {
+      _onbState.uploadedBack  = path;
+      _onbState.backIsPdf     = isPdf;
+    }
+    onbRenderUploadPreview(side, path, isPdf, isPdf ? f.name : null, isPdf ? null : URL.createObjectURL(blob));
 
     setTimeout(function(){ if(progBox) progBox.style.display = 'none'; if(progBar) progBar.style.width = '0'; }, 600);
   }catch(e){
@@ -15199,6 +15241,55 @@ async function onbHandleFile(ev, side){
     if(progBar) progBar.style.width = '0';
   }finally{
     zone.classList.remove('uploading');
+  }
+}
+
+// Render preview di un file caricato (immagine o PDF) in una zona upload
+function onbRenderUploadPreview(side, path, isPdf, pdfName, imgUrl){
+  var zone = document.getElementById(side === 'front' ? 'onbUploadFront' : 'onbUploadBack');
+  if(!zone) return;
+  var emptyEl = zone.querySelector('.onb-upload-empty');
+  var prevEl  = zone.querySelector('.onb-upload-preview');
+  var imgEl   = zone.querySelector('.onb-upload-img');
+  var pdfEl   = zone.querySelector('.onb-upload-pdf');
+  var pdfName_el = zone.querySelector('.onb-upload-pdf-name');
+  if(isPdf){
+    if(imgEl) imgEl.style.display = 'none';
+    if(pdfEl) pdfEl.style.display = 'flex';
+    if(pdfName_el) pdfName_el.textContent = pdfName || (path ? path.split('/').pop() : 'documento.pdf');
+  } else {
+    if(pdfEl) pdfEl.style.display = 'none';
+    if(imgEl){
+      imgEl.style.display = 'block';
+      if(imgUrl) imgEl.src = imgUrl;
+    }
+  }
+  if(emptyEl) emptyEl.style.display = 'none';
+  if(prevEl)  prevEl.style.display  = 'block';
+}
+
+// Apre un file privato in nuova tab via signed URL (per i PDF)
+async function onbOpenSigned(path){
+  if(!path) return;
+  try{
+    var s = window._rbSession; if(!s||!s.access_token) throw new Error('non autenticato');
+    var supaBase = RB_AUTH_URL.replace(/\/auth\/v1\/?$/, '');
+    var r = await fetch(supaBase + '/storage/v1/object/sign/kyc-documents/' + encodeURI(path), {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'apikey':RB_ANON_KEY,
+        'Authorization':'Bearer '+s.access_token
+      },
+      body: JSON.stringify({ expiresIn: 60 })
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var data = await r.json();
+    if(data && data.signedURL){
+      window.open(supaBase + '/storage/v1' + data.signedURL, '_blank');
+    }
+  }catch(e){
+    onbAlert('Impossibile aprire il file: '+(e.message||e), 'err');
   }
 }
 
@@ -15227,17 +15318,69 @@ function onbResizeImage(file, maxSide, quality){
   });
 }
 
+// Reagisce al cambio tipo documento: il passaporto non ha retro,
+// quindi forziamo singleScan=true e nascondiamo la zona back.
+function onbDocTypeChanged(){
+  var t = document.getElementById('onbDocType').value;
+  var wrapBack = document.getElementById('onbUploadBack');
+  var wrapToggle = document.getElementById('onbSingleScanWrap');
+  var chk = document.getElementById('onbSingleScan');
+  if(!wrapBack || !wrapToggle || !chk) return;
+  if(t === 'PASSAPORTO'){
+    // Passaporto → nascondi sia toggle sia zona retro, forza singleScan
+    wrapBack.style.display = 'none';
+    wrapToggle.style.display = 'none';
+    _onbState.singleScan = true;
+  } else {
+    // Altri documenti → toggle visibile, zona back dipende dallo stato del toggle
+    wrapToggle.style.display = 'flex';
+    wrapBack.style.display = chk.checked ? 'none' : '';
+    _onbState.singleScan = !!chk.checked;
+  }
+}
+
+// Reagisce al toggle "documento fronte-retro nella stessa scansione"
+function onbToggleSingleScan(){
+  var chk = document.getElementById('onbSingleScan');
+  var wrapBack = document.getElementById('onbUploadBack');
+  if(!chk || !wrapBack) return;
+  _onbState.singleScan = !!chk.checked;
+  wrapBack.style.display = chk.checked ? 'none' : '';
+  // Se l'utente attiva il toggle dopo aver caricato un retro, lo scartiamo
+  // (il retro non sarà più richiesto né inviato; il file in storage resterà
+  //  orfano, verrà sovrascritto al prossimo upload o ignorato — nessun riferimento DB)
+  if(chk.checked && _onbState.uploadedBack){
+    _onbState.uploadedBack = null;
+    _onbState.backIsPdf = false;
+    var zone = document.getElementById('onbUploadBack');
+    if(zone){
+      var emptyEl = zone.querySelector('.onb-upload-empty');
+      var prevEl  = zone.querySelector('.onb-upload-preview');
+      var imgEl   = zone.querySelector('.onb-upload-img');
+      var pdfEl   = zone.querySelector('.onb-upload-pdf');
+      if(emptyEl) emptyEl.style.display = 'flex';
+      if(prevEl)  prevEl.style.display  = 'none';
+      if(imgEl){ imgEl.style.display = 'block'; imgEl.src = ''; }
+      if(pdfEl)  pdfEl.style.display  = 'none';
+    }
+  }
+}
+
 // Remove uploaded file (only client-side state; il vero delete avviene a save success)
 function onbRemoveFile(side){
-  if(!confirm('Rimuovere questa foto? Dovrai caricarne una nuova prima di proseguire.')) return;
+  if(!confirm('Rimuovere questo file? Dovrai caricarne uno nuovo prima di proseguire.')) return;
   var zone = document.getElementById(side === 'front' ? 'onbUploadFront' : 'onbUploadBack');
   if(!zone) return;
-  if(side === 'front') _onbState.uploadedFront = null;
-  else                 _onbState.uploadedBack = null;
+  if(side === 'front'){ _onbState.uploadedFront = null; _onbState.frontIsPdf = false; }
+  else                { _onbState.uploadedBack  = null; _onbState.backIsPdf  = false; }
   var emptyEl = zone.querySelector('.onb-upload-empty');
   var prevEl  = zone.querySelector('.onb-upload-preview');
+  var imgEl   = zone.querySelector('.onb-upload-img');
+  var pdfEl   = zone.querySelector('.onb-upload-pdf');
   if(emptyEl) emptyEl.style.display = 'flex';
-  if(prevEl)  prevEl.style.display = 'none';
+  if(prevEl)  prevEl.style.display  = 'none';
+  if(imgEl){ imgEl.style.display = 'block'; imgEl.src = ''; }
+  if(pdfEl)  pdfEl.style.display  = 'none';
 }
 
 // Save personal (Step 1) → kyc_save_personal RPC
@@ -15325,8 +15468,16 @@ async function onbSaveDocument(){
   if(!docExpiry){ onbAlert('Data di scadenza obbligatoria'); return; }
   var ed = new Date(docExpiry);
   if(ed <= new Date()){ onbAlert('Il documento è scaduto. Caricane uno valido.'); return; }
-  if(!_onbState.uploadedFront){ onbAlert('Carica la foto del FRONTE del documento'); return; }
-  if(!_onbState.uploadedBack){ onbAlert('Carica la foto del RETRO del documento'); return; }
+  if(!_onbState.uploadedFront){ onbAlert('Carica il file del FRONTE del documento'); return; }
+  // Retro non richiesto se: passaporto OR scansione fronte-retro singola
+  var backOptional = (docType === 'PASSAPORTO') || _onbState.singleScan;
+  if(!backOptional && !_onbState.uploadedBack){
+    onbAlert('Carica il file del RETRO del documento (oppure spunta "fronte-retro nella stessa scansione" se applicabile)'); return;
+  }
+  // Quando il retro è opzionale e non caricato, riusiamo il path del fronte (lo stesso file
+  // contiene già entrambi i lati, oppure il documento ha solo un lato come il passaporto).
+  // Il backend si aspetta sempre p_back_path != null (RPC kyc_save_document, mig 053).
+  var backPathToSend = _onbState.uploadedBack || _onbState.uploadedFront;
 
   var btn = document.getElementById('onbBtnSaveDocument');
   btn.disabled = true; var origLbl = btn.textContent; btn.textContent = 'Salvataggio...';
@@ -15347,7 +15498,7 @@ async function onbSaveDocument(){
         p_doc_issue_date: null,
         p_doc_expiry_date: docExpiry,
         p_front_path: _onbState.uploadedFront,
-        p_back_path:  _onbState.uploadedBack
+        p_back_path:  backPathToSend
       })
     });
     if(!r.ok){
