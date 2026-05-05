@@ -9838,12 +9838,90 @@ var _buyDiscTiers = [];
 var _coStep = 1;
 var _coOrder = null; // ordine creato (popolato a step 4)
 
-// Bank details centralizzati (configurabili)
+// PR5b: BANK_DETAILS dinamici dal DB (rb_settings).
+// Cached in memoria per 5 minuti dopo il primo fetch.
+// Schema rb_settings (singleton id=1): rb_company_name, rb_iban, rb_bic,
+// rb_bank_name, rb_iban_holder, payment_expiry_days, reminder_days.
 var BANK_DETAILS = {
+  // Default fallback se DB non risponde (placeholder, da sostituire dal pannello admin)
   intestatario: 'RareBlock S.r.l.',
-  iban:         'IT60 X054 2811 1010 0000 0123 456',
-  bic:          'CRPPIT2P'
+  iban:         'IT00X0000000000000000000000',
+  bic:          '—',
+  bank_name:    '—',
+  payment_expiry_days: 7,
+  _loaded_at:   0
 };
+
+async function rbLoadBankSettings(force){
+  var now = Date.now();
+  // Cache 5 minuti
+  if(!force && BANK_DETAILS._loaded_at && (now - BANK_DETAILS._loaded_at < 5*60*1000)){
+    return BANK_DETAILS;
+  }
+  try{
+    var hdrs = { 'apikey': SUPA_KEY };
+    if(_session && _session.access_token) hdrs['Authorization'] = 'Bearer ' + _session.access_token;
+    var r = await fetch(SUPA_URL + '/rest/v1/rb_settings?select=rb_company_name,rb_iban,rb_bic,rb_bank_name,rb_iban_holder,payment_expiry_days&id=eq.1&limit=1', { headers: hdrs });
+    if(r.ok){
+      var arr = await r.json();
+      if(Array.isArray(arr) && arr.length){
+        var s = arr[0];
+        BANK_DETAILS.intestatario = s.rb_iban_holder || s.rb_company_name || 'RareBlock S.r.l.';
+        BANK_DETAILS.iban         = s.rb_iban || BANK_DETAILS.iban;
+        BANK_DETAILS.bic          = s.rb_bic || '—';
+        BANK_DETAILS.bank_name    = s.rb_bank_name || '—';
+        BANK_DETAILS.payment_expiry_days = s.payment_expiry_days || 7;
+        BANK_DETAILS._loaded_at = now;
+      }
+    }
+  }catch(e){ console.warn('[rb_settings] fetch fail, uso defaults:', e); }
+  return BANK_DETAILS;
+}
+
+// Boot: pre-load settings in background (non bloccante)
+setTimeout(function(){ rbLoadBankSettings(); }, 1500);
+
+// Risolve i dati IBAN da mostrare al checkout in base allo scenario del prodotto.
+// Returns { intestatario, iban, bic, bank_name, scenario, vendor_id }
+// scenario: 'rareblock' (A) | 'vendor_direct' (B)
+async function rbResolvePayoutForProduct(product){
+  // Scenario A (default): dati RareBlock dai settings
+  var settings = await rbLoadBankSettings();
+  var result = {
+    scenario:     'rareblock',
+    intestatario: settings.intestatario,
+    iban:         settings.iban,
+    bic:          settings.bic,
+    bank_name:    settings.bank_name,
+    vendor_id:    null
+  };
+  // Se prodotto ha payout_mode='vendor_direct' e vendor_id, fetch vendor IBAN
+  if(product && product.payout_mode === 'vendor_direct' && product.vendor_id){
+    try{
+      var hdrs = { 'apikey': SUPA_KEY };
+      if(_session && _session.access_token) hdrs['Authorization'] = 'Bearer ' + _session.access_token;
+      var r = await fetch(
+        SUPA_URL + '/rest/v1/inv_vendors?select=display_name,legal_name,iban,bic,iban_holder,bank_name&id=eq.' + product.vendor_id + '&limit=1',
+        { headers: hdrs }
+      );
+      if(r.ok){
+        var arr = await r.json();
+        if(Array.isArray(arr) && arr.length){
+          var v = arr[0];
+          if(v.iban){
+            result.scenario     = 'vendor_direct';
+            result.intestatario = v.iban_holder || v.legal_name || v.display_name || '—';
+            result.iban         = v.iban;
+            result.bic          = v.bic || '—';
+            result.bank_name    = v.bank_name || '—';
+            result.vendor_id    = product.vendor_id;
+          }
+        }
+      }
+    }catch(e){ console.warn('[vendor IBAN] fetch fail:', e); }
+  }
+  return result;
+}
 
 // ═══════════════════════════════════════════════════════════
 //  PR4c — KYC gating helper
@@ -10827,15 +10905,47 @@ function coRenderPayPalButtons(){
   });
 }
 
-function coUpdateBonificoSummary(){
+async function coUpdateBonificoSummary(){
   var qty = parseInt(document.getElementById('coQty').value)||0;
   if(_buyProduct && _buyProduct.type === 'full') qty = 1;
   var calc = calcDiscountedTotal(_buyProduct.price_per_quote, qty, _buyDiscTiers);
-  var causale = 'RBK-'+_buyProduct.id.slice(0,8).toUpperCase()+'-Q'+qty;
-  document.getElementById('coIban').textContent = BANK_DETAILS.iban;
-  document.getElementById('coCausale').textContent = causale;
+
+  // PR5b: Causale anteprima — il valore reale verrà generato dal trigger DB
+  // al INSERT (RBK-{order_number}-Q{qty} dove order_number = RBK-YYYY-NNNNNN).
+  // Per l'anteprima usiamo un placeholder esplicito così l'utente capisce
+  // che la causale definitiva sarà data dopo la conferma.
+  var causalePreview = '(verrà assegnata dopo la conferma)';
+
+  // PR5b: dati IBAN dinamici secondo scenario A/B del prodotto
+  var payout = await rbResolvePayoutForProduct(_buyProduct);
+
+  // Aggiorna campi DOM standard
+  var elIban    = document.getElementById('coIban');
+  var elCausale = document.getElementById('coCausale');
+  var elAmount  = document.getElementById('coAmount');
+  if(elIban)    elIban.textContent    = payout.iban;
+  if(elCausale) elCausale.textContent = causalePreview;
   var amt = fmtPrice(calc.net)+'\u202F€';
-  document.getElementById('coAmount').textContent = amt;
+  if(elAmount)  elAmount.textContent  = amt;
+
+  // Aggiorna intestatario / banca / scenario flag se gli elementi esistono
+  // (potrebbero essere stati aggiunti in un re-render del bonifico box)
+  var elHolder = document.getElementById('coBonificoHolder');
+  var elBank   = document.getElementById('coBonificoBank');
+  var elBic    = document.getElementById('coBonificoBic');
+  var elScenarioNote = document.getElementById('coBonificoScenarioNote');
+  if(elHolder) elHolder.textContent = payout.intestatario;
+  if(elBank && payout.bank_name && payout.bank_name !== '—') elBank.textContent = payout.bank_name;
+  if(elBic && payout.bic && payout.bic !== '—') elBic.textContent = payout.bic;
+  if(elScenarioNote){
+    if(payout.scenario === 'vendor_direct'){
+      elScenarioNote.style.display = 'block';
+      elScenarioNote.innerHTML = '<strong>Pagamento al venditore.</strong> Per accordo specifico, questo prodotto prevede il pagamento diretto al venditore. RareBlock ti notificherà quando il bonifico sarà confermato.';
+    } else {
+      elScenarioNote.style.display = 'none';
+    }
+  }
+
   // Aggiorna anche breakdown PayPal se il pannello è in uso
   if(_coPayMethod === 'paypal'){
     coUpdatePayPalBreakdown();
@@ -10936,8 +11046,20 @@ async function coSubmitOrder(){
     }
 
     var orderNumber = (orderRow && orderRow.order_number)
-      || ('ORD-'+new Date().getFullYear()+'-'+Date.now().toString().slice(-5));
-    var causaleFinal = orderRow ? orderRow.order_number : prelimCausale;
+      || ('RBK-'+new Date().getFullYear()+'-'+Date.now().toString().slice(-6));
+    // PR5b: causale corretta dal DB (auto-generated dal trigger inv_orders_set_causale).
+    // Formato: RBK-YYYY-NNNNNN-Q5
+    var causaleFinal = (orderRow && orderRow.causale)
+                     || (orderRow ? orderRow.order_number : prelimCausale);
+    // PR5b: payout snapshot dal DB (popolato dal trigger inv_orders_set_payment_metadata)
+    var payoutSnapshot = orderRow ? {
+      mode:    orderRow.payout_mode,
+      iban:    orderRow.payout_iban,
+      bic:     orderRow.payout_bic,
+      holder:  orderRow.payout_holder,
+      bank:    orderRow.payout_bank,
+      expires_at: orderRow.expires_at
+    } : null;
 
     // Per backward compat e perché holdings+payments sono ancora usati nel
     // resto della dashboard (portafoglio, vendite secondarie), creiamo
@@ -10986,8 +11108,27 @@ async function coSubmitOrder(){
       total:  calc.net,
       qty:    qty,
       causale: causaleFinal,
-      bill: bill
+      bill: bill,
+      // PR5b: payout snapshot per render del recap finale
+      payout: payoutSnapshot
     };
+
+    // PR5b: Enqueue email conferma bonifico (best-effort, non bloccante)
+    if(orderRow && orderRow.id){
+      (async function _enqueueConfirmationEmail(){
+        try{
+          var er = await fetch(SUPA_URL + '/rest/v1/rpc/enqueue_order_confirmation_email', {
+            method:'POST',
+            headers: getHDR(),
+            body: JSON.stringify({ p_order_id: orderRow.id })
+          });
+          if(!er.ok){
+            var t = await er.text();
+            console.warn('[email] enqueue conferma fallita:', t);
+          }
+        }catch(eEm){ console.warn('[email] enqueue exception:', eEm); }
+      })();
+    }
 
     // Persisti anagrafica nel profilo per i prossimi acquisti (best-effort)
     coSaveBillingToProfile(bill);
@@ -11010,11 +11151,39 @@ function coRenderConfirmation(){
   var qtyLine = isFull
     ? '<div class="co-bonifico-row"><span class="co-bonifico-key">Tipologia</span><span class="co-bonifico-val">Acquisto integrale</span></div>'
     : '<div class="co-bonifico-row"><span class="co-bonifico-key">Quote</span><span class="co-bonifico-val">'+_coOrder.qty+' '+(_buyProduct.quote_unit||'quote')+'</span></div>';
+
+  // PR5b: dati IBAN dal payout snapshot DB (scenario A o B), fallback BANK_DETAILS
+  var p = _coOrder.payout || {};
+  var pHolder = p.holder || BANK_DETAILS.intestatario;
+  var pIban   = p.iban   || BANK_DETAILS.iban;
+  var pBic    = p.bic    || BANK_DETAILS.bic;
+  var pBank   = p.bank   || BANK_DETAILS.bank_name;
+  var pMode   = p.mode   || 'rareblock';
+
+  // Scadenza pagamento (formattata)
+  var expiresStr = '';
+  if(p.expires_at){
+    try{
+      var d = new Date(p.expires_at);
+      expiresStr = d.toLocaleDateString('it-IT', { day:'2-digit', month:'long', year:'numeric' });
+    }catch(_){}
+  }
+
+  // Banner scenario B (vendor_direct)
+  var scenarioBanner = '';
+  if(pMode === 'vendor_direct'){
+    scenarioBanner = '<div class="co-bonifico-scenario-note" style="margin-bottom:10px;padding:10px 12px;background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.25);border-radius:6px;font-size:12.5px;line-height:1.5;color:var(--text-muted)"><strong style="color:var(--text)">Pagamento al venditore.</strong> Per accordo specifico, questo prodotto prevede il pagamento diretto al venditore. RareBlock confermerà l\'ordine al ricevimento del bonifico.</div>';
+  }
+
   document.getElementById('coConfirmRecap').innerHTML = ''
-    + '<div class="co-bonifico-row"><span class="co-bonifico-key">Intestatario</span><span class="co-bonifico-val">'+esc(BANK_DETAILS.intestatario)+'</span></div>'
-    + '<div class="co-bonifico-row"><span class="co-bonifico-key">IBAN</span><span><span class="co-bonifico-val">'+esc(BANK_DETAILS.iban)+'</span></span></div>'
+    + scenarioBanner
+    + '<div class="co-bonifico-row"><span class="co-bonifico-key">Intestatario</span><span class="co-bonifico-val">'+esc(pHolder)+'</span></div>'
+    + (pBank && pBank !== '—' ? '<div class="co-bonifico-row"><span class="co-bonifico-key">Banca</span><span class="co-bonifico-val">'+esc(pBank)+'</span></div>' : '')
+    + '<div class="co-bonifico-row"><span class="co-bonifico-key">IBAN</span><span><span class="co-bonifico-val">'+esc(pIban)+'</span></span></div>'
+    + (pBic && pBic !== '—' ? '<div class="co-bonifico-row"><span class="co-bonifico-key">BIC/SWIFT</span><span class="co-bonifico-val">'+esc(pBic)+'</span></div>' : '')
     + '<div class="co-bonifico-row"><span class="co-bonifico-key">Causale</span><span class="co-bonifico-val gold">'+esc(_coOrder.causale)+'</span></div>'
     + '<div class="co-bonifico-row"><span class="co-bonifico-key">Importo</span><span class="co-bonifico-val gold">'+fmtPrice(_coOrder.total)+'\u202F€</span></div>'
+    + (expiresStr ? '<div class="co-bonifico-row"><span class="co-bonifico-key">Scadenza</span><span class="co-bonifico-val">'+esc(expiresStr)+'</span></div>' : '')
     + qtyLine;
 }
 
@@ -11388,15 +11557,21 @@ function coDownloadOrderPdf(){
 
     + '<h2>Bonifico</h2>'
     + '<table>'
-    + '<tr><td class="k">Intestatario</td><td class="v">'+esc(BANK_DETAILS.intestatario)+'</td></tr>'
-    + '<tr><td class="k">IBAN</td><td class="v">'+esc(BANK_DETAILS.iban)+'</td></tr>'
-    + '<tr><td class="k">BIC</td><td class="v">'+esc(BANK_DETAILS.bic)+'</td></tr>'
+    + '<tr><td class="k">Intestatario</td><td class="v">'+esc((_coOrder.payout && _coOrder.payout.holder) || BANK_DETAILS.intestatario)+'</td></tr>'
+    + ((_coOrder.payout && _coOrder.payout.bank && _coOrder.payout.bank !== '—')
+        ? '<tr><td class="k">Banca</td><td class="v">'+esc(_coOrder.payout.bank)+'</td></tr>'
+        : '')
+    + '<tr><td class="k">IBAN</td><td class="v">'+esc((_coOrder.payout && _coOrder.payout.iban) || BANK_DETAILS.iban)+'</td></tr>'
+    + '<tr><td class="k">BIC</td><td class="v">'+esc((_coOrder.payout && _coOrder.payout.bic) || BANK_DETAILS.bic)+'</td></tr>'
     + '<tr><td class="k">Causale</td><td class="v"><b>'+esc(_coOrder.causale)+'</b></td></tr>'
+    + (_coOrder.payout && _coOrder.payout.expires_at
+        ? '<tr><td class="k">Scadenza</td><td class="v">'+esc(new Date(_coOrder.payout.expires_at).toLocaleDateString('it-IT', { day:'2-digit', month:'long', year:'numeric' }))+'</td></tr>'
+        : '')
     + '</table>'
 
     + '<div class="total">Totale: €'+fmt2(_coOrder.total)+'</div>'
 
-    + '<div class="foot">Ordine generato il '+new Date().toLocaleString('it-IT')+' · L\'invio del bonifico è obbligatorio entro 5 giorni lavorativi. La conferma di pagamento sblocca l\'emissione delle quote.</div>'
+    + '<div class="foot">Ordine generato il '+new Date().toLocaleString('it-IT')+' · L\'invio del bonifico è obbligatorio entro la data di scadenza indicata. La conferma di pagamento sblocca l\'emissione delle quote.</div>'
 
     + '<script>setTimeout(function(){window.print()},300);</'+'script>'
     + '</body></html>'
