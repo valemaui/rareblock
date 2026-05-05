@@ -6854,17 +6854,22 @@ async function appStart(){
       var uid = prof.id || (window._rbSession && window._rbSession.user && window._rbSession.user.id);
       var kycLevel = parseInt(prof.kyc_level || 0);
       var isAdmin = prof.role === 'admin';
+      console.log('[onb soft trigger]', { uid:uid, kycLevel:kycLevel, isAdmin:isAdmin, role:prof.role, profileLoaded:!!window._rbProfile, onbAvailable:typeof window.onbOpen });
       if(uid && kycLevel === 0 && !isAdmin){
         var flagKey = 'rb_onb_seen:' + uid;
         var alreadySeen = false;
         try{ alreadySeen = localStorage.getItem(flagKey) === '1'; }catch(_){}
+        console.log('[onb soft trigger] flag check:', { flagKey:flagKey, alreadySeen:alreadySeen });
         if(!alreadySeen){
           // Set flag PRIMA dell'apertura per evitare doppio trigger
           // su refresh accidentale durante il wizard
           try{ localStorage.setItem(flagKey, '1'); }catch(_){}
+          console.log('[onb soft trigger] OPENING wizard in 800ms...');
           setTimeout(function(){ window.onbOpen(); }, 800);
         }
       }
+    } else {
+      console.log('[onb soft trigger] skipped:', { profileLoaded:!!window._rbProfile, onbAvailable:typeof window.onbOpen });
     }
   }catch(e){ console.warn('auto-onboarding:', e); }
 }
@@ -14621,9 +14626,12 @@ window.authDoLogin = async function(){
     if(typeof appStart==='function') appStart();
   }catch(e){
     var msg=e.message||'Errore sconosciuto';
-    if(msg.includes('Invalid login'))       msg='Email o password errata';
-    if(msg.includes('Email not confirmed')) msg='Conferma la tua email';
-    if(msg.includes('Failed to fetch'))     msg='Errore di rete';
+    if(/invalid login/i.test(msg))               msg='Email o password errata';
+    else if(/email not confirmed/i.test(msg))    msg='Devi prima confermare la tua email. Controlla la casella (anche spam).';
+    else if(/Failed to fetch|NetworkError/i.test(msg)) msg='Connessione non disponibile. Verifica la rete e riprova.';
+    else if(/rate.?limit|too many/i.test(msg))   msg='Troppi tentativi. Attendi qualche minuto e riprova.';
+    else if(/user not found/i.test(msg))         msg='Email o password errata';
+    else if(/invalid.*email/i.test(msg))         msg='Email non valida';
     authMsg('authLoginMsg', msg);
     authDiag('Accesso fallito',false);
   }finally{
@@ -14692,7 +14700,15 @@ window.authDoRegister = async function(){
 
     authMsg('authRegMsg','Account creato. Controlla la tua email per confermare.','ok');
   }catch(e){
-    authMsg('authRegMsg', e.message||'Errore registrazione');
+    var msg = e.message || 'Errore registrazione';
+    if(/already registered|already exists/i.test(msg))     msg='Esiste già un account con questa email. Prova ad accedere.';
+    else if(/password.*should be at least|password.*length/i.test(msg)) msg='La password deve essere di almeno 8 caratteri.';
+    else if(/weak.*password/i.test(msg))                   msg='Password troppo debole. Usa almeno 8 caratteri con lettere e numeri.';
+    else if(/invalid.*email|email.*invalid/i.test(msg))    msg='Email non valida.';
+    else if(/rate.?limit|too many/i.test(msg))             msg='Troppe registrazioni recenti. Attendi qualche minuto.';
+    else if(/Failed to fetch|NetworkError/i.test(msg))     msg='Connessione non disponibile. Verifica la rete.';
+    else if(/Signups?\s+not\s+allowed/i.test(msg))         msg='Le registrazioni sono temporaneamente disabilitate. Riprova più tardi.';
+    authMsg('authRegMsg', msg);
   }finally{
     authBtn('authRegBtn',false,'Crea account');
   }
@@ -14793,8 +14809,18 @@ window.authDoMagicLink = async function(){
       })
     });
     var data = await r.json().catch(function(){return{};});
+    // Caso speciale: Supabase ritorna 422 con "Signups not allowed for otp"
+    // quando l'email NON è registrata e create_user=false. Per privacy NON
+    // dobbiamo rivelare se l'account esiste, quindi mostriamo lo stesso
+    // messaggio generico di successo.
+    var errMsg = data.error_description || data.msg || data.error || '';
+    if(!r.ok && /Signups?\s+not\s+allowed/i.test(errMsg)){
+      // Privacy: trattiamo come successo silenzioso
+      authMsg('authMagicMsg','Se l\'indirizzo è registrato, riceverai un link di accesso entro pochi minuti. Controlla la casella (anche lo spam).','ok');
+      return;
+    }
     if(!r.ok){
-      throw new Error(data.error_description||data.msg||data.error||('HTTP '+r.status));
+      throw new Error(errMsg || ('HTTP '+r.status));
     }
     // Per privacy, Supabase ritorna 200 anche se l email non è registrata.
     // Mostriamo un messaggio generico per non rivelare se l account esiste.
@@ -14805,6 +14831,10 @@ window.authDoMagicLink = async function(){
       msg = 'Connessione non disponibile. Verifica la tua connessione e riprova.';
     } else if(/rate limit|too many/i.test(msg)){
       msg = 'Troppi tentativi recenti. Attendi qualche minuto prima di riprovare.';
+    } else if(/invalid.*email/i.test(msg)){
+      msg = 'Email non valida';
+    } else if(/email.*not.*confirmed/i.test(msg)){
+      msg = 'Devi confermare l\'email prima di poter usare il login senza password';
     }
     authMsg('authMagicMsg', msg);
   }finally{
