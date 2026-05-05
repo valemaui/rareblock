@@ -4946,6 +4946,42 @@ textarea{resize:vertical;min-height:60px}
 .ctr-empty-title{font-family:var(--serif);font-style:italic;font-size:16px;margin-bottom:6px;color:var(--text)}
 .ctr-empty-sub{font-size:12.5px;line-height:1.6;max-width:380px;margin:0 auto}
 
+/* AUTO-PREPARE BANNER (ordini pagati senza contratto) */
+.ctr-autoprep{
+  display:flex;align-items:flex-start;gap:14px;
+  padding:16px 20px;margin-bottom:14px;
+  background:linear-gradient(135deg,rgba(201,168,76,.06),rgba(201,168,76,.015));
+  border:1px solid rgba(201,168,76,.22);
+  border-radius:var(--r-lg);
+}
+.ctr-autoprep-spinner{
+  width:16px;height:16px;flex:0 0 16px;margin-top:2px;
+  border:2px solid rgba(201,168,76,.28);
+  border-top-color:var(--gold);
+  border-radius:50%;
+  animation:ctr-autoprep-spin .9s linear infinite;
+}
+.ctr-autoprep-icon{
+  width:18px;height:18px;flex:0 0 18px;margin-top:1px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--gold);font-size:14px;
+}
+@keyframes ctr-autoprep-spin{to{transform:rotate(360deg)}}
+.ctr-autoprep-body{flex:1;min-width:0}
+.ctr-autoprep-title{
+  font-family:var(--serif);font-style:italic;font-size:14.5px;
+  color:#e6d59a;margin-bottom:3px;line-height:1.3;
+}
+.ctr-autoprep-sub{font-size:12px;line-height:1.55;color:var(--text-muted)}
+.ctr-autoprep-sub strong{color:#e6d59a;font-weight:500}
+.ctr-autoprep.error{
+  background:linear-gradient(135deg,rgba(248,81,73,.06),rgba(248,81,73,.015));
+  border-color:rgba(248,81,73,.22);
+}
+.ctr-autoprep.error .ctr-autoprep-icon{color:var(--danger)}
+.ctr-autoprep.error .ctr-autoprep-title{color:#f5a8a4}
+.ctr-autoprep.error .ctr-autoprep-sub strong{color:#f5a8a4}
+
 /* WIZARD MODAL */
 .ctr-wiz-bg{
   position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(6px);
@@ -12597,6 +12633,17 @@ var _ctrFilter  = 'all';
 var _ctrWiz     = null;
 var _ctrOtpTimer = null;
 var _ctrOtpResendTimer = null;
+// Auto-prepare contratti per ordini pagati senza contratto associato.
+// Vedi migration 058_pending_contracts_autoprepare.sql.
+//   _ctrAutoPrepInFlight  — guard re-entrancy fra chiamate concorrenti
+//   _ctrAutoPrepFailed    — Set di order_id che sono già falliti in questa sessione
+//                           (evita loop infiniti su KYC/platform incompleti)
+//   _ctrAutoPrepDone      — true dopo il primo passaggio andato a buon fine
+//                           (evita di rifare la query view ad ogni ctrLoad
+//                           manuale; il refresh manuale forza comunque il check)
+var _ctrAutoPrepInFlight = false;
+var _ctrAutoPrepFailed   = Object.create(null);
+var _ctrAutoPrepLastErr  = null;
 
 async function ctrLoad(){
   var list = document.getElementById('ctrList');
@@ -12610,6 +12657,245 @@ async function ctrLoad(){
     ctrUpdatePendingDot();
   }catch(e){
     list.innerHTML = '<div class="ctr-empty"><div class="ctr-empty-title">Errore di caricamento</div><div class="ctr-empty-sub">'+escHtml(e.message||String(e))+'</div></div>';
+    return;
+  }
+  // Auto-prepare contratti mancanti (ordini pagati senza contratto associato).
+  // Eseguito dopo il render iniziale per non bloccare la UI; se trova ordini
+  // pending innesca il banner + i contract-prepare in sequenza.
+  ctrAutoPrepareMissing().catch(function(err){
+    console.warn('ctrAutoPrepareMissing error:', err && (err.message || err));
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Auto-preparazione contratti per ordini pagati
+// ─────────────────────────────────────────────────────────────────────
+// Quando il buyer apre la tab Contratti, recuperiamo da
+// v_my_orders_pending_contract gli ordini in stato payment_received /
+// completed che non hanno ancora un contratto attivo. Per ognuno
+// chiamiamo l'edge function contract-prepare in sequenza (non parallelo
+// per evitare race / hammering). Alla fine refresh della lista.
+//
+// Idempotenza: a livello DB un unique partial index garantisce massimo
+// 1 contratto buyer non-terminale per (order, user); un INSERT duplicato
+// fallisce con errore 23505 e noi lo trattiamo come no-op (l'altra tab
+// ha già preparato il contratto).
+//
+// Errori non recuperabili (KYC incompleto, platform_not_ready, no
+// active template) vengono memorizzati in _ctrAutoPrepFailed in modo da
+// NON ripetere il tentativo nella stessa sessione: l'utente vede il
+// motivo nel banner di errore e agisce di conseguenza (es. completa KYC
+// e ricarica la pagina).
+async function ctrAutoPrepareMissing(){
+  if(_ctrAutoPrepInFlight) return;
+  var list = document.getElementById('ctrList');
+  if(!list) return;
+
+  // 1. Detect: query la view pending_contract
+  var pending;
+  try{
+    pending = await supa('GET','v_my_orders_pending_contract?select=*');
+  }catch(e){
+    // View non esiste (migration 058 non ancora applicata) o altro
+    // errore di accesso: fail silently. Niente toast, l'utente non sa
+    // di questa funzionalità interna; vedrà comunque la lista contratti.
+    console.warn('v_my_orders_pending_contract non disponibile:', e && (e.message||e));
+    return;
+  }
+
+  // Filtra ordini già falliti in questa sessione (evita loop)
+  var todo = (Array.isArray(pending) ? pending : []).filter(function(o){
+    return o && o.order_id && !_ctrAutoPrepFailed[o.order_id];
+  });
+  if(todo.length === 0) return;
+
+  // 2. Render banner sopra la lista
+  _ctrAutoPrepInFlight = true;
+  ctrRenderAutoPrepBanner(todo.length, 0);
+
+  // 3. Loop sequenziale
+  var ok = 0, ko = 0;
+  for(var i = 0; i < todo.length; i++){
+    var ord = todo[i];
+    ctrRenderAutoPrepBanner(todo.length, i);
+    try{
+      await ctrPrepareForOrder(ord);
+      ok++;
+    }catch(err){
+      ko++;
+      _ctrAutoPrepFailed[ord.order_id] = err && err.code || 'error';
+      _ctrAutoPrepLastErr = err;
+      // KYC/platform/template errors sono terminali: interrompi il loop
+      // (gli altri ordini avranno lo stesso errore, inutile riprovare)
+      if(err && (err.code === 'kyc_incomplete' || err.code === 'platform_not_ready' || err.code === 'no_active_template')){
+        break;
+      }
+    }
+  }
+
+  _ctrAutoPrepInFlight = false;
+
+  // 4. Refresh contratti per mostrare i nuovi appena creati
+  if(ok > 0){
+    try{
+      var rows = await supa('GET','v_my_contracts?select=*&order=created_at.desc');
+      _ctrList = Array.isArray(rows) ? rows : [];
+      ctrUpdateCounts();
+      ctrRenderList();
+      ctrUpdatePendingDot();
+    }catch(e){ /* ignore, lista resta com'è */ }
+
+    var msg = ok === 1
+      ? 'Contratto preparato. Lo trovi nella sezione "Da firmare".'
+      : ok + ' contratti preparati. Li trovi nella sezione "Da firmare".';
+    try{ showToast(msg, 'ok'); }catch(e){}
+  }
+
+  // 5. Se ci sono errori bloccanti, mostra banner errore al posto del banner di lavoro
+  if(ko > 0 && _ctrAutoPrepLastErr){
+    ctrRenderAutoPrepError(_ctrAutoPrepLastErr, ko, todo.length);
+  } else {
+    // Successo pulito: rimuovi banner se presente
+    var bn = document.getElementById('ctrAutoPrepBanner');
+    if(bn && bn.parentNode) bn.parentNode.removeChild(bn);
+  }
+}
+
+// Costruisce subject_data e chiama l'edge function contract-prepare per
+// un singolo ordine. Throw con .code se errore noto (così il caller può
+// distinguere errori terminali da transitori).
+async function ctrPrepareForOrder(ord){
+  // Mappatura tipo prodotto → template contratto buyer
+  //   full / grade_hold       → BUYER_PURCHASE_CUSTODY (Modalità A)
+  //   fractional / millesimal → BUYER_FRACTIONAL       (Modalità B)
+  var t = (ord.product_type || '').toLowerCase();
+  var templateCode;
+  if(t === 'fractional' || t === 'millesimal'){
+    templateCode = 'BUYER_FRACTIONAL';
+  } else if(t === 'full' || t === 'grade_hold'){
+    templateCode = 'BUYER_PURCHASE_CUSTODY';
+  } else {
+    var e = new Error('Tipo prodotto non riconosciuto: ' + (ord.product_type||'n/a'));
+    e.code = 'unknown_product_type';
+    throw e;
+  }
+
+  // Subject data: campi minimi per BUYER_PURCHASE_CUSTODY + addizionali
+  // per BUYER_FRACTIONAL (regime di comproprietà). Tutti i campi opzionali
+  // del template (set_name, grading, ecc.) vengono iniettati se presenti
+  // nella view; il template-prepare fa graceful degrade per i mancanti.
+  var subjectData = {
+    order_id:     ord.order_id,
+    order_number: ord.order_number,
+    product_id:   ord.product_id,
+    product_name: ord.product_name,
+    set_name:     ord.product_set_name || null,
+    qty:          ord.qty,
+    amount_eur:   parseFloat(ord.amount_eur) || 0,
+    unit_price:   parseFloat(ord.unit_price) || 0,
+  };
+  if(templateCode === 'BUYER_FRACTIONAL'){
+    subjectData.total_quotes      = ord.product_total_quotes;
+    subjectData.target_price_eur  = parseFloat(ord.product_target_price_eur) || null;
+    subjectData.exit_window_years = ord.product_exit_window_years;
+  }
+
+  var token = (_session && _session.access_token) || SUPA_KEY;
+  var r = await fetch(SUPA_URL + '/functions/v1/contract-prepare', {
+    method:'POST',
+    headers:{
+      'Authorization':'Bearer '+token,
+      'Content-Type':'application/json',
+      'apikey':SUPA_KEY,
+    },
+    body: JSON.stringify({ template_code: templateCode, subject_data: subjectData }),
+  });
+  var body = await r.json().catch(function(){ return {}; });
+  if(!r.ok){
+    // 412 = vincolo logico violato (KYC, platform, template). 23505 sul
+    // duplicate key arriva con error 'contract_insert_failed' e detail
+    // contenente "duplicate key" — lo trattiamo come no-op (race con
+    // altra tab).
+    var detail = (body && body.detail) || '';
+    if(body && body.error === 'contract_insert_failed' && /duplicate key/i.test(detail)){
+      return null; // race vinta dall'altra tab, no-op
+    }
+    var err = new Error(body.message || body.detail || body.error || ('HTTP '+r.status));
+    err.code = body.error || 'http_error';
+    err.status = r.status;
+    throw err;
+  }
+  return body;
+}
+
+// Render banner "stiamo preparando i tuoi contratti..."
+function ctrRenderAutoPrepBanner(total, doneSoFar){
+  var list = document.getElementById('ctrList');
+  if(!list) return;
+  // Se l'utente non ha ancora contratti, lo stato vuoto "Non ci sono
+  // contratti" stride col banner attivo. Lo rimuoviamo: il banner
+  // diventa l'unico elemento visibile finché non arriva il primo
+  // contratto preparato.
+  if(_ctrList.length === 0){
+    var emptyEl = list.querySelector('.ctr-empty');
+    if(emptyEl) emptyEl.remove();
+  }
+  var bn = document.getElementById('ctrAutoPrepBanner');
+  var counter = total > 1 ? (' (' + Math.min(doneSoFar+1, total) + '/' + total + ')') : '';
+  var html =
+    '<div class="ctr-autoprep" id="ctrAutoPrepBanner">'
+    +   '<div class="ctr-autoprep-spinner"></div>'
+    +   '<div class="ctr-autoprep-body">'
+    +     '<div class="ctr-autoprep-title">Stiamo preparando ' + (total === 1 ? 'il tuo contratto' : (total + ' contratti')) + counter + '</div>'
+    +     '<div class="ctr-autoprep-sub">Il pagamento è stato confermato. Tra pochi secondi ' + (total === 1 ? 'troverai il contratto' : 'troverai i contratti') + ' nella sezione <strong>Da firmare</strong>.</div>'
+    +   '</div>'
+    + '</div>';
+  if(bn){
+    bn.outerHTML = html;
+  } else {
+    // Inseriamo PRIMA della lista esistente (sopra le card o l'empty state)
+    list.insertAdjacentHTML('afterbegin', html);
+  }
+}
+
+// Render banner di errore terminale (KYC, platform, template)
+function ctrRenderAutoPrepError(err, koCount, totalCount){
+  var list = document.getElementById('ctrList');
+  if(!list) return;
+  // Stesso ragionamento del banner di lavoro: rimuovi empty state se
+  // la lista è vuota (l'errore è la nuova "informazione visibile").
+  if(_ctrList.length === 0){
+    var emptyEl = list.querySelector('.ctr-empty');
+    if(emptyEl) emptyEl.remove();
+  }
+  var title, sub;
+  var code = err && err.code;
+  if(code === 'kyc_incomplete'){
+    title = 'Completa il profilo per generare il contratto';
+    sub   = 'Per firmare il contratto di acquisto è necessario completare la verifica anagrafica (KYC). Vai nella sezione <strong>Profilo</strong> e completa i dati richiesti, poi torna qui.';
+  } else if(code === 'platform_not_ready'){
+    title = 'Configurazione di piattaforma in corso';
+    sub   = 'I contratti non possono ancora essere generati: alcuni dati societari (società/polizza assicurativa) non sono completi. Stiamo lavorando per attivarli; riprova tra qualche ora o contatta l\'amministratore.';
+  } else if(code === 'no_active_template'){
+    title = 'Template contratto non ancora attivo';
+    sub   = 'Il template legale per questo tipo di operazione è in revisione. Verrà attivato a breve dall\'amministratore.';
+  } else {
+    title = 'Impossibile preparare il contratto';
+    sub   = 'Si è verificato un errore (' + escHtml(err && (err.message||err.code) || 'unknown') + '). Riprova più tardi o contatta l\'assistenza.';
+  }
+  var html =
+    '<div class="ctr-autoprep error" id="ctrAutoPrepBanner">'
+    +   '<div class="ctr-autoprep-icon">!</div>'
+    +   '<div class="ctr-autoprep-body">'
+    +     '<div class="ctr-autoprep-title">' + title + '</div>'
+    +     '<div class="ctr-autoprep-sub">' + sub + '</div>'
+    +   '</div>'
+    + '</div>';
+  var bn = document.getElementById('ctrAutoPrepBanner');
+  if(bn){
+    bn.outerHTML = html;
+  } else {
+    list.insertAdjacentHTML('afterbegin', html);
   }
 }
 
