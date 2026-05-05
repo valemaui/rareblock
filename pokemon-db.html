@@ -6854,22 +6854,17 @@ async function appStart(){
       var uid = prof.id || (window._rbSession && window._rbSession.user && window._rbSession.user.id);
       var kycLevel = parseInt(prof.kyc_level || 0);
       var isAdmin = prof.role === 'admin';
-      console.log('[onb soft trigger]', { uid:uid, kycLevel:kycLevel, isAdmin:isAdmin, role:prof.role, profileLoaded:!!window._rbProfile, onbAvailable:typeof window.onbOpen });
       if(uid && kycLevel === 0 && !isAdmin){
         var flagKey = 'rb_onb_seen:' + uid;
         var alreadySeen = false;
         try{ alreadySeen = localStorage.getItem(flagKey) === '1'; }catch(_){}
-        console.log('[onb soft trigger] flag check:', { flagKey:flagKey, alreadySeen:alreadySeen });
         if(!alreadySeen){
           // Set flag PRIMA dell'apertura per evitare doppio trigger
           // su refresh accidentale durante il wizard
           try{ localStorage.setItem(flagKey, '1'); }catch(_){}
-          console.log('[onb soft trigger] OPENING wizard in 800ms...');
           setTimeout(function(){ window.onbOpen(); }, 800);
         }
       }
-    } else {
-      console.log('[onb soft trigger] skipped:', { profileLoaded:!!window._rbProfile, onbAvailable:typeof window.onbOpen });
     }
   }catch(e){ console.warn('auto-onboarding:', e); }
 }
@@ -15575,17 +15570,29 @@ function rbHandleRecoveryCallback(){
     token_type: 'bearer',
     user: null
   };
-  // Recupera info utente
-  fetch(RB_AUTH_URL+'/user', {
-    headers:{'apikey':RB_ANON_KEY,'Authorization':'Bearer '+session.access_token}
-  }).then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(u){ if(u){ session.user = u; rbSaveSession(session); } })
-    .catch(function(){});
   rbSaveSession(session);
   // Pulisci il fragment dall'URL
   try{ history.replaceState(null,'', window.location.pathname + window.location.search); }catch(e){}
 
-  if(t === 'recovery' || t === 'invite'){
+  // Avvio del flow async: PRIMA fetch /user, POI lancia handle dei branch.
+  // Questo assicura che window._rbSession.user sia popolato prima di
+  // chiamare appStart() (che fa loadUserProfile e pre-popola _rbProfile,
+  // necessario per il soft trigger onboarding PR4c).
+  (async function _continueFlow(){
+    try{
+      var r = await fetch(RB_AUTH_URL+'/user', {
+        headers:{'apikey':RB_ANON_KEY,'Authorization':'Bearer '+session.access_token}
+      });
+      if(r.ok){
+        var u = await r.json();
+        if(u){
+          session.user = u;
+          rbSaveSession(session);
+        }
+      }
+    }catch(e){ console.warn('[recovery] fetch user:', e); }
+
+    if(t === 'recovery' || t === 'invite'){
     // Reset password / nuovo invito: forza form newpwd nell overlay
     setTimeout(function(){
       var ov = document.getElementById('authOverlay');
@@ -15627,7 +15634,8 @@ function rbHandleRecoveryCallback(){
         try { appStart(); } catch(e){}
       }
     }, 100);
-  }
+    } // chiusura else
+  })(); // chiusura IIFE _continueFlow
   return true;
 }
 
