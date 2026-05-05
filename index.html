@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>RareBlock</title>
+<meta name="robots" content="noindex,nofollow"/>
+<!--
+  Bridge file. La home dell'app è pokemon-db.html (entry point unico
+  Investor + Collector). Questo file:
+
+  1. Intercetta tutti i fragment Supabase Auth nel hash:
+     #access_token=...&type=signup|magiclink|recovery|invite|email_change
+     #error=...&error_code=otp_expired (link scaduti/usati)
+     E li passa intatti a /pokemon-db.html dove rbHandleRecoveryCallback
+     li gestisce.
+
+  2. Preserva eventuali query string (es. ?return=...) per altri use case.
+
+  3. Fallback: se non c'è hash né query speciale, redirect normale a
+     pokemon-db.html.
+
+  4. Safety net contro Site URL/Redirect URLs di Supabase mal configurati
+     che possono atterrare l'utente sulla root anziché su /pokemon-db.html.
+-->
+<script>
+(function(){
+  try{
+    var h = window.location.hash || '';   // include il '#'
+    var s = window.location.search || ''; // include il '?'
+    var target = '/pokemon-db.html';
+    if(s) target += s;
+    if(h) target += h;
+    // Usa replace per non lasciare la root nella history (back funziona meglio)
+    window.location.replace(target);
+  }catch(e){
+    // Fallback hard: location.href se replace fallisce
+    window.location.href = '/pokemon-db.html';
+  }
+})();
+</script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:#0d1117;color:#e6edf3;
+    font-family:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+    display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:24px;padding:40px;text-align:center;
+  }
+  .logo{
+    font-family:'Montserrat',system-ui,sans-serif;
+    font-size:18px;font-weight:300;
+    letter-spacing:.18em;text-transform:uppercase;
+    color:#f0ead8;
+  }
+  .logo .b{color:#c9a84c}
+  .spinner{
+    width:18px;height:18px;
+    border:2px solid #30363d;border-top-color:#c9a84c;
+    border-radius:50%;
+    animation:spin .8s linear infinite;
+    display:inline-block;vertical-align:middle;margin-right:8px;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .msg{color:#7d8590;font-size:13px;letter-spacing:.02em}
+  .fallback{
+    margin-top:8px;color:#c9a84c;text-decoration:none;
+    font-size:11px;font-family:'IBM Plex Mono',ui-monospace,monospace;
+    letter-spacing:.04em;border-bottom:.5px solid rgba(201,168,76,.3);
+    padding-bottom:1px;transition:border-color .15s;
+  }
+  .fallback:hover{border-bottom-color:#c9a84c}
+</style>
+<!-- Fallback meta-refresh (no JS) -->
+<meta http-equiv="refresh" content="2; url=/pokemon-db.html"/>
+</head>
+<body>
+  <div class="logo">Rare<span class="b">Block</span></div>
+  <div class="msg"><span class="spinner"></span>Caricamento in corso...</div>
+  <a href="/pokemon-db.html" class="fallback">Apri RareBlock manualmente →</a>
+</body>
+</html>
