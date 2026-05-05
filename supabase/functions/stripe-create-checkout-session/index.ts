@@ -117,13 +117,14 @@ Deno.serve(async (req) => {
 
     if (prodErr || !product) return json({ error: 'prodotto non trovato' }, 404);
 
-    // Defense in depth: richeck payout_mode anche dal prodotto (potrebbe
-    // essere stato cambiato dopo l'INSERT order, raro ma possibile)
-    if (product.payout_mode === 'vendor_direct') {
-      return json({
-        error: 'Per questo prodotto è disponibile solo il bonifico bancario.',
-      }, 400);
-    }
+    // NOTA: NON ricontrolliamo product.payout_mode qui.
+    // L'order ha già il suo snapshot (order.payout_mode) catturato dal
+    // trigger inv_orders_set_payment_metadata di PR5a al momento del
+    // checkout — è la fonte di verità per QUEL specifico ordine.
+    // Il prodotto può essere stato cambiato dall'admin dopo (es. da
+    // vendor_direct a rareblock o viceversa), ma gli ordini esistenti
+    // restano consistenti col bonifico atteso al momento della creazione.
+    // Il check su order.payout_mode (sopra) è già defense sufficient.
 
     // ── Costruisce URLs success/cancel ──
     const SITE_URL = Deno.env.get('SITE_URL') || 'https://www.rareblock.eu';
