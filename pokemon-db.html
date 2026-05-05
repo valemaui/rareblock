@@ -13936,34 +13936,25 @@ window.authDoRegister = async function(){
   authBtn('authRegBtn',true,'Registrati');
   try{
     var hdrs={'Content-Type':'application/json','apikey':RB_ANON_KEY};
-    var r=await fetch(RB_AUTH_URL+'/signup',{method:'POST',headers:hdrs,body:JSON.stringify({email:email,password:pwd})});
+    // Passiamo i consensi GDPR come raw_user_meta_data nel signup payload.
+    // Verranno letti dal trigger handle_new_user lato DB e persistiti in
+    // gdpr_consent_log atomicamente alla creazione user — anche se il signup
+    // richiede email_confirmation (in quel caso data.access_token è null e
+    // non potremmo chiamare edge functions auth-only).
+    var nowIso = new Date().toISOString();
+    var signupBody = {
+      email: email,
+      password: pwd,
+      data: {
+        gdpr_privacy_accepted_at: nowIso,
+        gdpr_privacy_version: '1.0',
+        gdpr_tos_accepted_at: nowIso,
+        gdpr_tos_version: '1.0'
+      }
+    };
+    var r=await fetch(RB_AUTH_URL+'/signup',{method:'POST',headers:hdrs,body:JSON.stringify(signupBody)});
     var data=await r.json().catch(function(){return{};});
     if(!r.ok) throw new Error(data.error_description||data.msg||data.error||('HTTP '+r.status));
-
-    // Post-signup: persisti consensi GDPR per audit forense (best-effort, non blocca UX)
-    // Supabase signup ritorna access_token immediato anche con email_confirmation pending,
-    // quindi il JWT è valido per chiamare la edge function signup-consent-log.
-    if(data && data.access_token){
-      try{
-        var supaBase = RB_AUTH_URL.replace(/\/auth\/v1\/?$/, '');
-        await fetch(supaBase+'/functions/v1/signup-consent-log', {
-          method:'POST',
-          headers:{
-            'Content-Type':'application/json',
-            'apikey':RB_ANON_KEY,
-            'Authorization':'Bearer '+data.access_token
-          },
-          body: JSON.stringify({
-            consents: { privacy: true, tos: true },
-            privacy_version: '1.0',
-            tos_version: '1.0'
-          })
-        });
-        // Non controlliamo il response: se la edge function fallisce, l'utente
-        // rivedrà il prompt consensi al prossimo login (gestito altrove). Il
-        // consenso UX è già stato dato esplicitamente, non bloccare l'iscrizione.
-      }catch(e){ console.warn('signup-consent-log:', e && e.message); }
-    }
 
     authMsg('authRegMsg','Account creato. Controlla la tua email per confermare.','ok');
   }catch(e){
