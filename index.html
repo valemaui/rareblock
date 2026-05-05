@@ -2,405 +2,82 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
-<title>RareBlock — Custodire ciò che il tempo rende raro</title>
-<meta name="description" content="Il club privato per il collezionismo e l'investimento in Pokémon sealed. Su invito."/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>RareBlock</title>
 <meta name="robots" content="noindex,nofollow"/>
+<!--
+  Bridge file. La home dell'app è pokemon-db.html (entry point unico
+  Investor + Collector). Questo file:
 
-<!-- ═══════════════════════════════════════════════════════════════════════
-     RareBlock · index.html (landing pubblica del dominio)
-     ─────────────────────────────────────────────────────────────────────
-     Questa pagina è la prima cosa che vede un visitatore non autenticato
-     che apre www.rareblock.eu. Funge da:
+  1. Intercetta tutti i fragment Supabase Auth nel hash:
+     #access_token=...&type=signup|magiclink|recovery|invite|email_change
+     #error=...&error_code=otp_expired (link scaduti/usati)
+     E li passa intatti a /pokemon-db.html dove rbHandleRecoveryCallback
+     li gestisce.
 
-       1. VETRINA — logo + tagline + 2 CTA (Accedi / Richiedi accesso).
-          Estetica luxury editoriale, coerente con #authOverlay (vedi
-          pokemon-db.html righe 1180-1916), che era de facto la
-          "landing storica" del progetto integrata nel modulo login.
+  2. Preserva eventuali query string (es. ?return=...) per altri use case.
 
-       2. FRAGMENT-HANDLER (safety net Supabase Auth) — quando un utente
-          clicca un link email Supabase (signup confirm, magic link,
-          recovery, invite, email change) il provider può atterrarlo
-          sulla root del dominio invece che sulla pagina applicativa,
-          a causa di Site URL / Redirect URLs mal configurati o cache
-          email vecchie. In quel caso l'URL contiene un fragment del
-          tipo:
-              #access_token=...&type=signup|magiclink|recovery|invite
-              #error=access_denied&error_code=otp_expired
-          oppure un query param tipo:
-              ?recovery=1
-          Il blocco JS di sotto rileva questi pattern e re-instrada il
-          browser preservando hash + query, in modo che la sessione non
-          si perda. La destinazione è pokemon-db.html dove vive
-          rbHandleRecoveryCallback (sarà spostata in rareblock-login.html
-          alla Tappa 2 di questo refactor; per ora puntiamo lì per
-          continuità con il comportamento esistente).
+  3. Fallback: se non c'è hash né query speciale, redirect normale a
+     pokemon-db.html.
 
-     PRINCIPI DI DESIGN
-       • Single-file (no CSS/JS esterni eccetto Google Fonts)
-       • Stesso linguaggio visivo di #authOverlay: noise SVG + glow gold
-         radiale, palette #0c0c0b/#c9a84c/#f0ead8, font Fraunces
-         (italic, serif editoriale) + Figtree (sans body) + Montserrat
-         (wordmark)
-       • Nessuna animazione "marketing" (no parallax, no pop-up): è una
-         soglia silenziosa, non un funnel
-       • Mobile-first responsive: il logo + tagline + CTA scendono in
-         colonna sotto i 480px
-     ═══════════════════════════════════════════════════════════════════════ -->
-
-<!-- Preconnect e load font (stessa lista di pokemon-db.html per evitare
-     re-fetch al cambio pagina: il browser usa cache condivisa) -->
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300;1,9..144,400&family=Figtree:wght@300;400;500&display=swap" rel="stylesheet"/>
-
-<style>
-/* ─── DESIGN TOKENS ─── identici a #authOverlay per coerenza assoluta ─── */
-:root{
-  --ao-bg:#0c0c0b;
-  --ao-bg-2:#131310;
-  --ao-bg-3:#1a1a16;
-  --ao-gold:#c9a84c;
-  --ao-gold-light:#e8c96a;
-  --ao-gold-dim:rgba(201,168,76,.12);
-  --ao-cream:#f0ead8;
-  --ao-cream-dim:rgba(240,234,216,.55);
-  --ao-cream-faint:rgba(240,234,216,.18);
-  --ao-border:rgba(201,168,76,.18);
-  --ao-serif:'Fraunces',Georgia,serif;
-  --ao-sans:'Figtree',system-ui,sans-serif;
-  --ao-display:'Montserrat',system-ui,sans-serif;
-}
-
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{height:100%}
-body{
-  background:var(--ao-bg);
-  color:var(--ao-cream);
-  font-family:var(--ao-sans);
-  font-weight:300;
-  line-height:1.7;
-  min-height:100dvh;
-  display:flex;
-  flex-direction:column;
-  overflow-x:hidden;
-}
-
-/* ─── BACKGROUND LAYERS ─── noise SVG + glow gold (stessa formula authOverlay) */
-body::before{
-  content:'';
-  position:fixed;inset:0;
-  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-  pointer-events:none;
-  z-index:0;
-  opacity:.4;
-}
-.glow{
-  position:fixed;
-  top:30%;left:50%;
-  transform:translateX(-50%);
-  width:560px;height:440px;
-  background:radial-gradient(ellipse,rgba(201,168,76,.07) 0%,transparent 70%);
-  pointer-events:none;
-  z-index:0;
-}
-
-/* ─── HEADER (nav minimale top) ─── */
-.lp-nav{
-  position:relative;
-  z-index:2;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  padding:22px 36px;
-  font-family:var(--ao-sans);
-}
-.lp-nav-mark{
-  font-family:var(--ao-display);
-  font-size:13px;
-  font-weight:300;
-  letter-spacing:.22em;
-  text-transform:uppercase;
-  color:var(--ao-cream);
-  text-decoration:none;
-  user-select:none;
-}
-.lp-nav-mark span{color:var(--ao-gold)}
-.lp-nav-link{
-  font-size:11px;
-  letter-spacing:.18em;
-  text-transform:uppercase;
-  color:rgba(240,234,216,.35);
-  text-decoration:none;
-  transition:color .2s;
-  font-weight:400;
-}
-.lp-nav-link:hover{color:var(--ao-cream)}
-
-/* ─── HERO (corpo principale) ─── */
-.lp-hero{
-  position:relative;
-  z-index:1;
-  flex:1;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  padding:60px 24px 80px;
-  text-align:center;
-  animation:lpFadeUp 1s ease forwards;
-  opacity:0;
-}
-@keyframes lpFadeUp{
-  from{opacity:0;transform:translateY(24px)}
-  to{opacity:1;transform:translateY(0)}
-}
-
-/* Wordmark grande sopra al titolo */
-.lp-wordmark{
-  font-family:var(--ao-display);
-  font-size:22px;
-  font-weight:300;
-  letter-spacing:.32em;
-  text-transform:uppercase;
-  color:var(--ao-cream);
-  margin-bottom:14px;
-}
-.lp-wordmark span{color:var(--ao-gold)}
-
-/* Eyebrow piccolo (Collector & Investor Portal) sotto wordmark */
-.lp-eyebrow{
-  font-family:var(--ao-sans);
-  font-size:10.5px;
-  font-weight:400;
-  letter-spacing:.32em;
-  text-transform:uppercase;
-  color:rgba(240,234,216,.32);
-  margin-bottom:64px;
-}
-
-/* Hairline gold sopra al titolo (dettaglio editoriale) */
-.lp-rule{
-  width:48px;
-  height:.5px;
-  background:rgba(201,168,76,.5);
-  margin:0 auto 28px;
-}
-
-/* Tagline editoriale */
-.lp-tagline{
-  font-family:var(--ao-serif);
-  font-style:italic;
-  font-weight:300;
-  font-size:clamp(28px, 5.2vw, 48px);
-  line-height:1.18;
-  letter-spacing:-.005em;
-  color:var(--ao-cream);
-  max-width:720px;
-  margin:0 auto 28px;
-}
-.lp-tagline em{
-  font-style:italic;
-  color:var(--ao-gold);
-  font-weight:400;
-}
-
-/* Sub-tagline esplicativa, Figtree */
-.lp-subtagline{
-  font-family:var(--ao-sans);
-  font-size:14.5px;
-  font-weight:300;
-  line-height:1.65;
-  color:var(--ao-cream-dim);
-  max-width:520px;
-  margin:0 auto 56px;
-  letter-spacing:.005em;
-}
-
-/* Coppia di CTA */
-.lp-ctas{
-  display:flex;
-  gap:14px;
-  justify-content:center;
-  flex-wrap:wrap;
-}
-.lp-cta{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  min-width:220px;
-  padding:15px 32px;
-  border-radius:2px;
-  font-family:var(--ao-sans);
-  font-size:11.5px;
-  font-weight:500;
-  letter-spacing:.18em;
-  text-transform:uppercase;
-  text-decoration:none;
-  cursor:pointer;
-  transition:background .2s,border-color .2s,color .2s,transform .15s;
-  border:.5px solid transparent;
-}
-.lp-cta-primary{
-  background:var(--ao-gold);
-  color:var(--ao-bg);
-  border-color:var(--ao-gold);
-}
-.lp-cta-primary:hover{
-  background:var(--ao-gold-light);
-  border-color:var(--ao-gold-light);
-  transform:translateY(-1px);
-}
-.lp-cta-primary:active{transform:translateY(0)}
-.lp-cta-secondary{
-  background:transparent;
-  color:var(--ao-cream);
-  border-color:rgba(240,234,216,.18);
-}
-.lp-cta-secondary:hover{
-  border-color:rgba(201,168,76,.55);
-  color:var(--ao-gold);
-}
-
-/* ─── FOOTER ─── */
-.lp-foot{
-  position:relative;
-  z-index:1;
-  text-align:center;
-  font-family:var(--ao-sans);
-  font-size:10.5px;
-  letter-spacing:.12em;
-  text-transform:uppercase;
-  color:rgba(240,234,216,.16);
-  padding:26px 24px 32px;
-  font-weight:400;
-}
-.lp-foot a{
-  color:rgba(240,234,216,.32);
-  text-decoration:none;
-  margin:0 10px;
-  transition:color .2s;
-}
-.lp-foot a:hover{color:var(--ao-gold)}
-.lp-foot-sep{color:rgba(240,234,216,.12);margin:0 6px}
-
-/* ─── RESPONSIVE ─── */
-@media (max-width:600px){
-  .lp-nav{padding:18px 20px}
-  .lp-nav-mark{font-size:12px;letter-spacing:.2em}
-  .lp-nav-link{font-size:10px}
-  .lp-hero{padding:40px 20px 60px}
-  .lp-eyebrow{margin-bottom:48px}
-  .lp-subtagline{font-size:13.5px;margin-bottom:42px}
-  .lp-cta{min-width:0;width:100%;padding:14px 20px}
-  .lp-ctas{flex-direction:column;width:100%;max-width:320px;margin:0 auto}
-  .glow{width:360px;height:300px}
-}
-
-/* ─── HONORS PREFERS-REDUCED-MOTION ─── */
-@media (prefers-reduced-motion:reduce){
-  .lp-hero{animation:none;opacity:1}
-  .lp-cta-primary:hover{transform:none}
-}
-</style>
-
-<!-- ───────────────────────────────────────────────────────────────────────
-     FRAGMENT HANDLER (Supabase Auth safety net)
-     ─────────────────────────────────────────────────────────────────────
-     Questo blocco gira PRIMA del rendering del body. Se l'URL contiene
-     un fragment Supabase Auth (utente che torna da link email) o il
-     query param ?recovery=1, redireziona immediatamente alla pagina
-     applicativa preservando tutti i parametri. Altrimenti non fa nulla
-     e lascia caricare la landing normalmente.
-
-     Pattern riconosciuti nel hash:
-       access_token=          (sessione concessa: signup confirm, magic,
-                              invite, email_change confirm, OAuth)
-       refresh_token=         (idem, accompagna access_token)
-       error=                 (link scaduto / invalidato / OTP expired)
-       error_code=
-       provider_token=        (callback OAuth Google)
-       type=                  (qualifica il tipo: signup/recovery/...)
-
-     Pattern riconosciuti nella query string:
-       recovery=1             (legacy: alcuni vecchi link puntano qui)
-
-     Destinazione: /pokemon-db.html (dove rbHandleRecoveryCallback è
-     attualmente definita). Sarà spostata su /rareblock-login.html alla
-     Tappa 2 del refactor — al momento del cambio basterà cambiare la
-     stringa 'AUTH_TARGET' qui sotto.
-     ─────────────────────────────────────────────────────────────────── -->
+  4. Safety net contro Site URL/Redirect URLs di Supabase mal configurati
+     che possono atterrare l'utente sulla root anziché su /pokemon-db.html.
+-->
 <script>
 (function(){
   try{
-    var AUTH_TARGET = '/pokemon-db.html';
-    var h = window.location.hash || '';
-    var s = window.location.search || '';
-
-    // Marker Supabase nel fragment
-    var hasAuthHash = h && /(?:^|[#&])(access_token|refresh_token|error|error_code|provider_token|type)=/.test(h);
-    // Marker legacy nella query
-    var hasAuthQuery = s && /[?&]recovery=1\b/.test(s);
-
-    if(hasAuthHash || hasAuthQuery){
-      var target = AUTH_TARGET;
-      if(s) target += s;
-      if(h) target += h;
-      // replace per non lasciare la root nella history (back funziona meglio)
-      window.location.replace(target);
-    }
-    // Altrimenti: nessuna redirect, la landing si carica normalmente
+    var h = window.location.hash || '';   // include il '#'
+    var s = window.location.search || ''; // include il '?'
+    var target = '/pokemon-db.html';
+    if(s) target += s;
+    if(h) target += h;
+    // Usa replace per non lasciare la root nella history (back funziona meglio)
+    window.location.replace(target);
   }catch(e){
-    // Se qualcosa va storto nel parsing, fallback: lascia caricare la
-    // landing. Meglio mostrare la landing che far girare l'utente in
-    // tondo con redirect rotti.
+    // Fallback hard: location.href se replace fallisce
+    window.location.href = '/pokemon-db.html';
   }
 })();
 </script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:#0d1117;color:#e6edf3;
+    font-family:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+    display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:24px;padding:40px;text-align:center;
+  }
+  .logo{
+    font-family:'Montserrat',system-ui,sans-serif;
+    font-size:18px;font-weight:300;
+    letter-spacing:.18em;text-transform:uppercase;
+    color:#f0ead8;
+  }
+  .logo .b{color:#c9a84c}
+  .spinner{
+    width:18px;height:18px;
+    border:2px solid #30363d;border-top-color:#c9a84c;
+    border-radius:50%;
+    animation:spin .8s linear infinite;
+    display:inline-block;vertical-align:middle;margin-right:8px;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .msg{color:#7d8590;font-size:13px;letter-spacing:.02em}
+  .fallback{
+    margin-top:8px;color:#c9a84c;text-decoration:none;
+    font-size:11px;font-family:'IBM Plex Mono',ui-monospace,monospace;
+    letter-spacing:.04em;border-bottom:.5px solid rgba(201,168,76,.3);
+    padding-bottom:1px;transition:border-color .15s;
+  }
+  .fallback:hover{border-bottom-color:#c9a84c}
+</style>
+<!-- Fallback meta-refresh (no JS) -->
+<meta http-equiv="refresh" content="2; url=/pokemon-db.html"/>
 </head>
-
 <body>
-
-<!-- Background layers (visibili dietro tutti i contenuti) -->
-<div class="glow" aria-hidden="true"></div>
-
-<!-- ───── NAV TOP ───── minimale: wordmark a sinistra, link Accedi a destra ───── -->
-<nav class="lp-nav">
-  <a href="/" class="lp-nav-mark" aria-label="RareBlock home">
-    Rare<span>Block</span>
-  </a>
-  <a href="/rareblock-login.html" class="lp-nav-link">Accedi</a>
-</nav>
-
-<!-- ───── HERO ───── elemento centrale della landing ───── -->
-<main class="lp-hero">
-  <div class="lp-wordmark">Rare<span>Block</span></div>
-  <div class="lp-eyebrow">Collector &amp; Investor Portal</div>
-
-  <div class="lp-rule" aria-hidden="true"></div>
-
-  <h1 class="lp-tagline">
-    Custodire ciò che<br/>il tempo rende <em>raro.</em>
-  </h1>
-
-  <p class="lp-subtagline">
-    Il club privato per il collezionismo e l'investimento<br/>
-    in Pokémon sealed. <em style="color:var(--ao-gold);font-style:normal">Su invito.</em>
-  </p>
-
-  <div class="lp-ctas">
-    <a href="/rareblock-login.html" class="lp-cta lp-cta-primary">Accedi</a>
-    <a href="/rareblock-login.html?mode=register" class="lp-cta lp-cta-secondary">Richiedi accesso</a>
-  </div>
-</main>
-
-<!-- ───── FOOTER ───── piccoli link legali, cifra discreta ───── -->
-<footer class="lp-foot">
-  <span>© 2026 RareBlock</span>
-  <span class="lp-foot-sep">·</span>
-  <a href="/privacy.html">Privacy</a>
-  <a href="/terms.html">Termini</a>
-</footer>
-
+  <div class="logo">Rare<span class="b">Block</span></div>
+  <div class="msg"><span class="spinner"></span>Caricamento in corso...</div>
+  <a href="/pokemon-db.html" class="fallback">Apri RareBlock manualmente →</a>
 </body>
 </html>
