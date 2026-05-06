@@ -2938,15 +2938,6 @@ function showTab(t){
   try{ if(t==='anl'&&window.anlInitTab)  window.anlInitTab(); }catch(e){}
   try{ if(t==='dash') dashLoad();        }catch(e){ console.error('dashLoad:',e); }
   try{ if(t==='vend') vendInit();        }catch(e){ console.error('vendInit:',e); }
-  try{ if(t==='wish'){
-    // Lazy-load del frame wishlist al primo accesso. L'iframe è in
-    // frames/wishlist.html: contenuto standalone, condivide auth via
-    // localStorage (rb_auth_session) — same-origin, niente CORS.
-    var wf = document.getElementById('wishFrame');
-    if(wf && wf.dataset.src && (wf.src === 'about:blank' || wf.src.endsWith('about:blank'))){
-      wf.src = wf.dataset.src;
-    }
-  } }catch(e){ console.error('wishFrame:',e); }
   try{ if(t==='hunt') huntInit();        }catch(e){ console.error('huntInit:',e); }
 }
 
@@ -11047,7 +11038,7 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
      TAB WISHLIST — Carte da acquisire / watchlist prezzi
      ═══════════════════════════════════════════════════════════ -->
 <div class="tab" id="tab-wish" style="display:none;flex-direction:column;overflow:hidden">
-  <iframe id="wishFrame" data-src="frames/wishlist.html" src="about:blank"
+  <iframe id="wishFrame" src="frames/wishlist.html"
           title="Wishlist"
           style="flex:1;width:100%;border:0;background:var(--bg);display:block"></iframe>
 </div>
