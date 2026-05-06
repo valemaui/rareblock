@@ -665,7 +665,7 @@ function anlSourcesScaffold(card){
   var pcUrl='https://www.pricecharting.com/search-products?q='+encodeURIComponent(pcQ)+'&type=prices';
 
   // CM URL
-  var cmUrl=buildCMDirectUrl(card.name,setId,card.number,cond,lang,'Normal',is1st,setNm);
+  var cmUrl=(rbParentFn("buildCMDirectUrl")||function(){return"#"})(card.name,setId,card.number,cond,lang,'Normal',is1st,setNm);
 
   // Tag/titolo CM neutri — ora il box mostra dati gradati reali se disponibili,
   // quindi non ha senso dire "riferimento raw" anche in mode graded.
@@ -1620,7 +1620,7 @@ async function anlStartLiveFetches(card){
       var lang = document.getElementById('anlLang').value;
       var is1st= document.getElementById('anl1st').value==='yes';
       var setId= card.set?card.set.id:null;
-      var cmUrl = buildCMDirectUrl(card.name, setId, card.number, cond, lang, 'Normal', is1st, setNm);
+      var cmUrl = (rbParentFn("buildCMDirectUrl")||function(){return"#"})(card.name, setId, card.number, cond, lang, 'Normal', is1st, setNm);
       // In graded mode forziamo minCondition a NM per non perdere listings (anche
       // i venditori di carte gradate spesso non impostano la condizione raw).
       // Per non interferire col link "apri →" esterno costruisco un URL parallelo.
