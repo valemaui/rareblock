@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Vendite</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../shared/rareblock-shared.css"/>
+<style>
+html,body{height:100%;overflow:hidden}
+body{display:flex;flex-direction:column}
+
+/* Vendite styles (estratto 1:1 da pokemon-db.html L1649-1678) */
+.vend-layout{display:flex;flex:1;overflow:hidden}
+.vend-sidebar{width:320px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--surface);overflow:hidden}
+.vend-sidebar-top{padding:14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.vend-sidebar-top h3{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
+.vend-form-field{margin-bottom:8px}
+.vend-form-field label{display:block;font-size:11px;color:var(--text-muted);margin-bottom:3px;font-family:var(--mono)}
+.vend-form-field input,.vend-form-field select,.vend-form-field textarea{width:100%;font-size:13px}
+.vend-form-field textarea{resize:none;height:52px}
+.vend-stats-bar{display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0}
+.vend-stat{flex:1;padding:10px 12px;text-align:center;border-right:1px solid var(--border)}
+.vend-stat:last-child{border-right:none}
+.vend-stat-val{font-size:15px;font-weight:600;font-family:var(--mono)}
+.vend-stat-lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px}
+.vend-main{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+.vend-toolbar{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0}
+.vend-table{width:100%;border-collapse:collapse;font-size:13px}
+.vend-table th{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-family:var(--mono);padding:8px 12px;border-bottom:1px solid var(--border);text-align:left;background:var(--surface);position:sticky;top:0;z-index:1}
+.vend-table td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.vend-table tr:hover td{background:rgba(255,255,255,.03)}
+.vend-table .pl-pos{color:var(--success);font-weight:600}
+.vend-table .pl-neg{color:var(--danger);font-weight:600}
+.vend-del-btn{background:none;border:none;cursor:pointer;color:var(--text-subtle);padding:2px 5px;border-radius:3px;font-size:13px;transition:color .12s}
+.vend-del-btn:hover{color:var(--danger)}
+.vend-search-wrap{position:relative}
+.vend-search-results{position:absolute;top:100%;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r) var(--r);max-height:200px;overflow-y:auto;z-index:10;display:none}
+.vend-search-item{padding:8px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border)}
+.vend-search-item:hover{background:var(--surface3)}
+.vend-search-item:last-child{border-bottom:none}
+.vend-empty{text-align:center;padding:40px 16px;color:var(--text-muted);font-size:13px}
+
+</style>
+</head>
+<body>
+
+  <!-- Stats bar -->
+    <div class="vend-stats-bar" id="vendStatsBar">
+      <div class="vend-stat"><div class="vend-stat-val" id="vsRevenue">—</div><div class="vend-stat-lbl">Ricavi totali</div></div>
+      <div class="vend-stat"><div class="vend-stat-val" id="vsCost">—</div><div class="vend-stat-lbl">Costo acquisto</div></div>
+      <div class="vend-stat"><div class="vend-stat-val" id="vsProfit">—</div><div class="vend-stat-lbl">Profitto netto</div></div>
+      <div class="vend-stat"><div class="vend-stat-val" id="vsROI">—</div><div class="vend-stat-lbl">ROI %</div></div>
+      <div class="vend-stat"><div class="vend-stat-val" id="vsCount">—</div><div class="vend-stat-lbl">Vendite totali</div></div>
+    </div>
+    <div class="vend-layout">
+      <!-- Sidebar: form nuova vendita -->
+      <div class="vend-sidebar">
+        <div class="vend-sidebar-top">
+          <h3>Registra vendita</h3>
+          <!-- Cerca carta dalla collezione -->
+          <div class="vend-form-field">
+            <label>Cerca carta (dalla collezione)</label>
+            <div class="vend-search-wrap">
+              <input type="text" id="vendSearch" placeholder="Nome carta..." oninput="vendSearchCards()" autocomplete="off"/>
+              <div class="vend-search-results" id="vendSearchResults"></div>
+            </div>
+          </div>
+          <div id="vendSelectedCard" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px;margin-bottom:8px;font-size:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span id="vendSelName" style="font-weight:500"></span>
+              <button onclick="vendClearCard()" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:12px"><span class="rb-i rb-i-x"></span></button>
+            </div>
+            <div style="color:var(--text-muted);font-family:var(--mono);font-size:11px" id="vendSelMeta"></div>
+            <div style="font-family:var(--mono);font-size:11px;margin-top:2px">Costo acquisto: <span id="vendSelBuy" style="color:var(--warning)">—</span></div>
+          </div>
+          <!-- Oppure inserimento manuale -->
+          <div class="vend-form-field">
+            <label>Nome carta (manuale)</label>
+            <input type="text" id="vendName" placeholder="es. Charizard Base Set"/>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <div class="vend-form-field">
+              <label>Qtà venduta</label>
+              <input type="number" id="vendQty" value="1" min="1" style="width:100%"/>
+            </div>
+            <div class="vend-form-field">
+              <label>Prezzo acquisto €</label>
+              <input type="number" id="vendBuyPrice" placeholder="0.00" step="0.01" style="width:100%"/>
+            </div>
+          </div>
+          <div class="vend-form-field">
+            <label>Prezzo vendita € <span style="color:var(--success)" id="vendPLPreview"></span></label>
+            <input type="number" id="vendSellPrice" placeholder="0.00" step="0.01" oninput="vendUpdatePL()"/>
+          </div>
+          <div class="vend-form-field">
+            <label>Data vendita</label>
+            <input type="date" id="vendDate"/>
+          </div>
+          <div class="vend-form-field">
+            <label>Note (acquirente, canale…)</label>
+            <textarea id="vendNotes" placeholder="eBay, privato, fiera…"></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="vendSave()" style="width:100%;margin-top:4px"><span class="rb-i rb-i-banknote"></span> Registra vendita</button>
+          <div id="vendStatus" class="status" style="margin-top:8px;padding:4px 0;font-size:12px"></div>
+        </div>
+      </div>
+  
+      <!-- Main: lista vendite -->
+      <div class="vend-main">
+        <div class="vend-toolbar">
+          <input type="text" placeholder="Filtra per nome..." id="vendFilter" oninput="vendRender()" style="max-width:200px"/>
+          <select id="vendFilterMonth" onchange="vendRender()" style="max-width:140px">
+            <option value="">Tutti i mesi</option>
+          </select>
+          <button class="btn" onclick="vendExportCSV()" style="margin-left:auto;font-size:12px">Esporta CSV</button>
+        </div>
+        <div style="overflow-y:auto;flex:1">
+          <table class="vend-table" id="vendTable">
+            <thead><tr>
+              <th>Carta</th><th>Qtà</th><th>Acquisto</th><th>Vendita</th><th>P&amp;L</th><th>ROI</th><th>Data</th><th>Note</th><th></th>
+            </tr></thead>
+            <tbody id="vendTbody"></tbody>
+          </table>
+          <div class="vend-empty" id="vendEmpty" style="display:none">Nessuna vendita registrata.<br>Aggiungi la prima usando il pannello a sinistra.</div>
+        </div>
+      </div>
+    </div>
+
+<script src="../shared/rareblock-shared.js" defer></script>
+<script defer>
+var _vendSales = [];
+var _vendColCards = [];
+var _vendSelectedCard = null;
+var _vendInited = false;
+
+async function vendInit(){
+  if(!_vendInited){ _vendInited=true; await vendLoad(); }
+  // Default date to today
+  var today = new Date().toISOString().slice(0,10);
+  if(!document.getElementById('vendDate').value) document.getElementById('vendDate').value = today;
+}
+
+async function vendLoad(){
+  try {
+    var uid = getCurrentUserId();
+    var qs = uid ? '?user_id=eq.'+uid+'&order=sold_at.desc&limit=10000' : '?order=sold_at.desc&limit=10000';
+    _vendSales = (await supa('GET','sales'+qs)) || [];
+  } catch(e) { _vendSales = []; }
+  // Load collection for search
+  try {
+    var uid2 = getCurrentUserId();
+    var qs2 = uid2 ? '?user_id=eq.'+uid2+'&order=name.asc&limit=10000' : '?order=name.asc&limit=10000';
+    _vendColCards = (await supa('GET','cards'+qs2)) || [];
+  } catch(e){ _vendColCards = []; }
+  vendRender();
+  vendPopulateMonthFilter();
+}
+
+function vendSearchCards(){
+  var q = document.getElementById('vendSearch').value.trim().toLowerCase();
+  var box = document.getElementById('vendSearchResults');
+  if(!q||q.length<2){ box.style.display='none'; return; }
+  var results = _vendColCards.filter(function(c){ return c.name.toLowerCase().indexOf(q)>-1; }).slice(0,8);
+  if(!results.length){ box.style.display='none'; return; }
+  box.innerHTML = results.map(function(c){
+    return '<div class="vend-search-item" onclick="vendSelectCard('+c.id+')">'
+      +'<strong>'+esc(c.name)+'</strong> <span style="color:var(--text-muted);font-size:11px">'+esc(c.set_name||'')+'·'+c.condition+' ·€'+(c.buy_price||0).toFixed(2)+'</span>'
+    +'</div>';
+  }).join('');
+  box.style.display = 'block';
+}
+
+function vendSelectCard(id){
+  var c = _vendColCards.find(function(x){ return x.id===id; });
+  if(!c) return;
+  _vendSelectedCard = c;
+  document.getElementById('vendSearch').value = '';
+  document.getElementById('vendSearchResults').style.display='none';
+  document.getElementById('vendSelectedCard').style.display='block';
+  document.getElementById('vendSelName').textContent = c.name;
+  document.getElementById('vendSelMeta').textContent = (c.set_name||'')+(c.card_number?' #'+c.card_number:'')+' · '+c.condition+' · '+(c.language||'');
+  document.getElementById('vendSelBuy').textContent = '€'+(c.buy_price||0).toFixed(2);
+  document.getElementById('vendName').value = c.name;
+  document.getElementById('vendBuyPrice').value = (c.buy_price||0).toFixed(2);
+  document.getElementById('vendQty').value = 1;
+  vendUpdatePL();
+}
+
+function vendClearCard(){
+  _vendSelectedCard = null;
+  document.getElementById('vendSelectedCard').style.display='none';
+  document.getElementById('vendName').value = '';
+  document.getElementById('vendBuyPrice').value = '';
+}
+
+function vendUpdatePL(){
+  var buy = parseFloat(document.getElementById('vendBuyPrice').value)||0;
+  var sell = parseFloat(document.getElementById('vendSellPrice').value)||0;
+  var qty = parseInt(document.getElementById('vendQty').value)||1;
+  if(!sell){ document.getElementById('vendPLPreview').textContent=''; return; }
+  var pl = (sell-buy)*qty;
+  var pct = buy>0 ? ((pl/(buy*qty))*100) : 0;
+  var el = document.getElementById('vendPLPreview');
+  el.textContent = (pl>=0?'▲':'▼')+' P&L: '+(pl>=0?'+':'')+pl.toFixed(2)+'€ ('+pct.toFixed(0)+'%)';
+  el.style.color = pl>=0 ? 'var(--success)' : 'var(--danger)';
+}
+
+async function vendSave(){
+  var name = document.getElementById('vendName').value.trim();
+  var qty = parseInt(document.getElementById('vendQty').value)||1;
+  var buy = parseFloat(document.getElementById('vendBuyPrice').value)||0;
+  var sell = parseFloat(document.getElementById('vendSellPrice').value)||0;
+  var date = document.getElementById('vendDate').value;
+  var notes = document.getElementById('vendNotes').value.trim();
+  if(!name){ vendSt('Inserisci il nome carta','error'); return; }
+  if(!sell){ vendSt('Inserisci il prezzo di vendita','error'); return; }
+  if(!date){ vendSt('Inserisci la data','error'); return; }
+  var uid = getCurrentUserId();
+  var body = { name:name, qty:qty, buy_price:buy, sell_price_actual:sell, sold_at:date, notes:notes };
+  if(uid) body.user_id = uid;
+  if(_vendSelectedCard) body.card_id = _vendSelectedCard.id;
+  try {
+    await supa('POST','sales',body);
+    vendSt('<span class="rb-i rb-i-check"></span> Vendita registrata!','success');
+    // Reset form
+    document.getElementById('vendName').value='';
+    document.getElementById('vendBuyPrice').value='';
+    document.getElementById('vendSellPrice').value='';
+    document.getElementById('vendNotes').value='';
+    document.getElementById('vendPLPreview').textContent='';
+    vendClearCard();
+    _vendInited = false;
+    await vendLoad();
+  } catch(e) {
+    if(e.message&&e.message.indexOf('does not exist')>-1){
+      vendSt('Tabella "sales" non trovata — esegui la migrazione SQL','error');
+    } else {
+      vendSt('Errore: '+e.message,'error');
+    }
+  }
+}
+
+function vendSt(msg,type){
+  var el = document.getElementById('vendStatus');
+  el.textContent = msg;
+  el.className = 'status '+(type||'info');
+}
+
+function vendPopulateMonthFilter(){
+  var months = {};
+  _vendSales.forEach(function(s){ var m=(s.sold_at||'').slice(0,7); if(m) months[m]=1; });
+  var sel = document.getElementById('vendFilterMonth');
+  var cur = sel.value;
+  sel.innerHTML = '<option value="">Tutti i mesi</option>'
+    + Object.keys(months).sort().reverse().map(function(m){
+        return '<option'+(m===cur?' selected':'')+' value="'+m+'">'+m+'</option>';
+      }).join('');
+}
+
+function vendRender(){
+  var q = (document.getElementById('vendFilter').value||'').toLowerCase();
+  var month = document.getElementById('vendFilterMonth').value||'';
+  var rows = _vendSales.filter(function(s){
+    if(q && s.name.toLowerCase().indexOf(q)===-1) return false;
+    if(month && (s.sold_at||'').slice(0,7)!==month) return false;
+    return true;
+  });
+
+  var totalRev=0, totalCost=0;
+  rows.forEach(function(s){
+    totalRev  += (s.sell_price_actual||0)*(s.qty||1);
+    totalCost += (s.buy_price||0)*(s.qty||1);
+  });
+  var totalPL = totalRev - totalCost;
+  var roi = totalCost>0 ? ((totalPL/totalCost)*100) : 0;
+
+  document.getElementById('vsRevenue').textContent = '€'+totalRev.toFixed(2);
+  document.getElementById('vsCost').textContent    = '€'+totalCost.toFixed(2);
+  var prEl = document.getElementById('vsProfit');
+  prEl.textContent = (totalPL>=0?'+':'')+'€'+Math.abs(totalPL).toFixed(2);
+  prEl.style.color = totalPL>=0 ? 'var(--success)' : 'var(--danger)';
+  var roiEl = document.getElementById('vsROI');
+  roiEl.textContent = (roi>=0?'+':'')+roi.toFixed(1)+'%';
+  roiEl.style.color = roi>=0 ? 'var(--success)' : 'var(--danger)';
+  document.getElementById('vsCount').textContent = rows.length;
+
+  var empty = document.getElementById('vendEmpty');
+  var tbody = document.getElementById('vendTbody');
+  if(!rows.length){
+    empty.style.display='';
+    tbody.innerHTML='';
+    return;
+  }
+  empty.style.display='none';
+  tbody.innerHTML = rows.map(function(s){
+    var pl = ((s.sell_price_actual||0)-(s.buy_price||0))*(s.qty||1);
+    var roi2 = (s.buy_price&&s.buy_price>0) ? ((pl/((s.buy_price)*(s.qty||1)))*100) : null;
+    var cls = pl>=0 ? 'pl-pos' : 'pl-neg';
+    return '<tr>'
+      +'<td style="font-weight:500">'+esc(s.name)+'</td>'
+      +'<td style="font-family:var(--mono)">'+s.qty+'</td>'
+      +'<td style="font-family:var(--mono)">€'+(s.buy_price||0).toFixed(2)+'</td>'
+      +'<td style="font-family:var(--mono)">€'+(s.sell_price_actual||0).toFixed(2)+'</td>'
+      +'<td class="'+cls+'" style="font-family:var(--mono)">'+(pl>=0?'+':'')+'€'+Math.abs(pl).toFixed(2)+'</td>'
+      +'<td class="'+cls+'" style="font-family:var(--mono)">'+(roi2!==null?(roi2>=0?'+':'')+roi2.toFixed(0)+'%':'—')+'</td>'
+      +'<td style="font-family:var(--mono);color:var(--text-muted)">'+(s.sold_at||'—')+'</td>'
+      +'<td style="color:var(--text-muted);font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(s.notes||'')+'">'+esc(s.notes||'')+'</td>'
+      +'<td><button class="vend-del-btn" onclick="vendDel('+s.id+',\''+esc(s.name)+'\')"><span class="rb-i rb-i-x"></span></button></td>'
+    +'</tr>';
+  }).join('');
+}
+
+async function vendDel(id, name){
+  if(!confirm('Rimuovere la vendita di "'+name+'"?')) return;
+  try{
+    await supa('DELETE','sales?id=eq.'+id);
+    _vendSales = _vendSales.filter(function(s){ return s.id!==id; });
+    vendRender();
+    vendPopulateMonthFilter();
+  }catch(e){ alert('Errore: '+e.message); }
+}
+
+function vendExportCSV(){
+  if(!_vendSales.length){ alert('Nessuna vendita'); return; }
+  var cols = ['id','name','qty','buy_price','sell_price_actual','sold_at','notes'];
+  var csv = [cols.join(',')].concat(_vendSales.map(function(r){
+    return cols.map(function(k){ return '"'+String(r[k]||'').replace(/"/g,'""')+'"'; }).join(',');
+  })).join('\n');
+  var a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='vendite_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+
+// Bootstrap
+document.addEventListener("DOMContentLoaded", function(){
+  vendInit().catch(function(e){ console.error("[vend frame]", e); });
+});
+</script>
+</body>
+</html>

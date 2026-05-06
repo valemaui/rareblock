@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../shared/rareblock-shared.css"/>
+<style>
+html,body{height:100%;overflow:hidden}
+body{display:flex;flex-direction:column}
+
+/* Dashboard styles (estratto 1:1 da pokemon-db.html L1607-1648) */
+.dash-wrap{padding:24px 28px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:22px}
+.dash-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+.dash-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;display:flex;flex-direction:column;gap:4px;transition:border-color var(--t-fast)}
+.dash-kpi:hover{border-color:var(--border-strong)}
+.dash-kpi-label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-family:var(--mono)}
+.dash-kpi-val{font-size:22px;font-weight:600;font-family:var(--mono);line-height:1.2;color:var(--text)}
+.dash-kpi-sub{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
+.dash-kpi-val.pos{color:var(--success)}
+.dash-kpi-val.neg{color:var(--danger)}
+.dash-kpi-val.warn{color:var(--warning)}
+.dash-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:900px){.dash-row{grid-template-columns:1fr}}
+.dash-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px}
+.dash-card-title{font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.dash-bar-row{display:flex;align-items:center;gap:10px;font-size:12px;margin-bottom:8px}
+.dash-bar-name{flex:0 0 120px;color:var(--text);font-family:var(--mono);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-bar-track{flex:1;height:8px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.dash-bar-fill{height:100%;background:var(--accent);border-radius:4px;transition:width .4s ease}
+.dash-bar-val{flex:0 0 60px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-muted)}
+.dash-empty{text-align:center;padding:24px 16px;color:var(--text-muted);font-size:12px}
+.dash-activity{font-size:12px;display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto}
+.dash-activity-row{display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface2);border-radius:4px;font-family:var(--mono)}
+.dash-activity-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-activity-date{color:var(--text-subtle);font-size:11px;flex-shrink:0;margin-left:8px}
+.dash-cond-grid{display:flex;gap:6px;flex-wrap:wrap}
+.dash-cond-pill{padding:6px 12px;border-radius:20px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);display:flex;align-items:center;gap:6px}
+.dash-cond-pill-count{font-weight:600;color:var(--text)}
+.dash-cond-pill-pct{color:var(--text-muted);font-size:11px}
+.dash-refresh{font-size:11px;color:var(--text-muted);background:none;border:1px solid var(--border);padding:5px 12px;border-radius:var(--r);cursor:pointer;font-family:var(--mono);transition:all .12s}
+.dash-refresh:hover{border-color:var(--accent);color:var(--accent)}
+</style>
+</head>
+<body>
+
+<div class="dash-wrap" id="dashWrap">
+  <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+    <div class="section-title" style="margin:0">Dashboard Portfolio</div>
+    <button class="dash-refresh" onclick="dashLoad()">Aggiorna</button>
+    <span id="dashLastUpdate" style="font-size:11px;color:var(--text-muted);font-family:var(--mono)"></span>
+  </div>
+
+  <div class="dash-kpis" id="dashKpis">
+    <div class="dash-kpi"><div class="dash-kpi-label">Capitale investito</div><div class="dash-kpi-val" id="dkInvested">—</div><div class="dash-kpi-sub">buy_price × qty</div></div>
+    <div class="dash-kpi"><div class="dash-kpi-label">Valore di mercato</div><div class="dash-kpi-val warn" id="dkMarket">—</div><div class="dash-kpi-sub">cm_price × qty</div></div>
+    <div class="dash-kpi"><div class="dash-kpi-label">P&amp;L non realizzato</div><div class="dash-kpi-val" id="dkUnreal">—</div><div class="dash-kpi-sub" id="dkUnrealPct">—</div></div>
+    <div class="dash-kpi"><div class="dash-kpi-label">P&amp;L realizzato</div><div class="dash-kpi-val" id="dkReal">—</div><div class="dash-kpi-sub">da vendite chiuse</div></div>
+    <div class="dash-kpi"><div class="dash-kpi-label">Carte totali</div><div class="dash-kpi-val" id="dkCards">—</div><div class="dash-kpi-sub" id="dkUniq">—</div></div>
+    <div class="dash-kpi"><div class="dash-kpi-label">Preventivi attivi</div><div class="dash-kpi-val" id="dkPrev">—</div><div class="dash-kpi-sub" id="dkPrevVal">—</div></div>
+  </div>
+
+  <div class="dash-row">
+    <div class="dash-card">
+      <div class="dash-card-title">Top 5 Carte per Valore</div>
+      <div id="dashTopCards"><div class="dash-empty">Caricamento...</div></div>
+    </div>
+    <div class="dash-card">
+      <div class="dash-card-title">Distribuzione Condizione</div>
+      <div id="dashCondChart"><div class="dash-empty">Caricamento...</div></div>
+    </div>
+  </div>
+
+  <div class="dash-row">
+    <div class="dash-card">
+      <div class="dash-card-title">Top Set per Valore di Mercato</div>
+      <div id="dashSetChart"><div class="dash-empty">Caricamento...</div></div>
+    </div>
+    <div class="dash-card">
+      <div class="dash-card-title">Aggiunte Recenti</div>
+      <div class="dash-activity" id="dashActivity"><div class="dash-empty">Caricamento...</div></div>
+    </div>
+  </div>
+
+  <div class="dash-row" id="dashSalesRow" style="display:none">
+    <div class="dash-card" id="dashSalesCard">
+      <div class="dash-card-title">Riepilogo Vendite (ultimi 30 gg)</div>
+      <div id="dashSalesChart"></div>
+    </div>
+    <div class="dash-card">
+      <div class="dash-card-title">Wishlist — Budget necessario</div>
+      <div id="dashWishSummary"></div>
+    </div>
+  </div>
+</div>
+
+<script src="../shared/rareblock-shared.js" defer></script>
+<script defer>
+var _dashData = null;
+var _dashSales = null;
+var _dashWish = null;
+var _dashPrev = null;
+
+async function dashLoad(){
+  var wrap = document.getElementById('dashWrap');
+  if(!wrap) return;
+  document.getElementById('dashLastUpdate').textContent = 'Caricamento...';
+  try {
+    var uid = getCurrentUserId();
+    var qs = uid ? '?user_id=eq.'+uid+'&order=created_at.desc&limit=10000' : '?order=created_at.desc&limit=10000';
+    var cards = await supa('GET','cards'+qs);
+    _dashData = cards || [];
+
+    // Load sales
+    try { _dashSales = await supa('GET','sales'+(uid?'?user_id=eq.'+uid+'&order=sold_at.desc&limit=10000':'?order=sold_at.desc&limit=10000')); }
+    catch(e){ _dashSales = []; }
+
+    // Load wishlist
+    try { _dashWish = await supa('GET','wishlist'+(uid?'?user_id=eq.'+uid+'&limit=10000':'?limit=10000')); }
+    catch(e){ _dashWish = []; }
+    // Load preventivi (per il KPI "Preventivi attivi")
+    try { _dashPrev = await supa('GET','preventivi'+(uid?'?user_id=eq.'+uid+'&limit=10000':'?limit=10000')); }
+    catch(e){ _dashPrev = []; }
+
+    dashRender(_dashData, _dashSales||[], _dashWish||[]);
+    document.getElementById('dashLastUpdate').textContent = 'Aggiornato '+new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+  } catch(e) {
+    document.getElementById('dashLastUpdate').textContent = 'Errore: '+e.message;
+  }
+}
+
+function dashRender(cards, sales, wish){
+  // ── KPIs ──
+  var invested = cards.reduce(function(a,c){ return a+((c.buy_price||0)*(c.qty||1)); },0);
+  var market   = cards.reduce(function(a,c){ return a+(((c.cm_avg30||c.sell_price)||0)*(c.qty||1)); },0);
+  var unreal   = market - invested;
+  var unrealPct = invested>0 ? ((unreal/invested)*100) : 0;
+  var totCards = cards.reduce(function(a,c){ return a+(c.qty||1); },0);
+
+  // Realized P&L from sales
+  var realPL = (sales||[]).reduce(function(a,s){
+    return a + (((s.sell_price_actual||0)-(s.buy_price||0))*(s.qty||1));
+  },0);
+
+  // Preventivi count
+  var prevCount = (_dashPrev||[]).length;
+  var prevVal = (_dashPrev||[]).reduce(function(a,p){
+    return a + (p.items||[]).reduce(function(b,i){ return b+(i.price||0); },0);
+  },0);
+
+  function fmt(v){ return (v>=0?'+':'')+v.toFixed(2); }
+  function fmtE(v){ return '€'+Math.abs(v).toFixed(0); }
+
+  document.getElementById('dkInvested').textContent = '€'+invested.toFixed(2);
+  document.getElementById('dkMarket').textContent   = '€'+market.toFixed(2);
+  var urEl = document.getElementById('dkUnreal');
+  urEl.textContent = (unreal>=0?'+':'')+'€'+Math.abs(unreal).toFixed(2);
+  urEl.className = 'dash-kpi-val '+(unreal>=0?'pos':'neg');
+  document.getElementById('dkUnrealPct').textContent = fmt(unrealPct)+'% vs investito';
+  var rlEl = document.getElementById('dkReal');
+  rlEl.textContent = (realPL>=0?'+':'')+'€'+Math.abs(realPL).toFixed(2);
+  rlEl.className = 'dash-kpi-val '+(realPL>=0?'pos':'neg');
+  document.getElementById('dkCards').textContent = totCards;
+  document.getElementById('dkUniq').textContent = cards.length+' voci uniche';
+  document.getElementById('dkPrev').textContent = prevCount;
+  document.getElementById('dkPrevVal').textContent = '€'+prevVal.toFixed(2)+' totale';
+
+  // ── Top 5 carte per valore mercato ──
+  var sorted = cards.slice().sort(function(a,b){
+    return ((b.cm_avg30||b.sell_price||0)*(b.qty||1)) - ((a.cm_avg30||a.sell_price||0)*(a.qty||1));
+  }).slice(0,5);
+  var topHtml = sorted.length ? sorted.map(function(c){
+    var val = ((c.cm_avg30||c.sell_price)||0)*(c.qty||1);
+    return '<div class="dash-top-card">'
+      +(c.image_url?'<img class="dash-top-img" src="'+c.image_url+'" loading="lazy"/>'
+        :'<div class="dash-top-img-ph">🃏</div>')
+      +'<div style="flex:1;min-width:0">'
+        +'<div class="dash-top-name">'+esc(c.name)+'</div>'
+        +'<div class="dash-top-set">'+(c.set_name||'—')+' · '+c.condition+'</div>'
+      +'</div>'
+      +'<div class="dash-top-price">€'+val.toFixed(2)+'</div>'
+    +'</div>';
+  }).join('')
+  : '<div class="dash-empty">Nessuna carta con prezzo</div>';
+  document.getElementById('dashTopCards').innerHTML = topHtml;
+
+  // ── Condizione distribution ──
+  var condMap = {};
+  cards.forEach(function(c){
+    var k = c.condition||'?';
+    condMap[k] = (condMap[k]||0) + (c.qty||1);
+  });
+  var condOrder = ['MINT','NM','EX','GD','LP','PL','PO','INK/ALT'];
+  var condEntries = condOrder.filter(function(k){ return condMap[k]; }).map(function(k){ return [k,condMap[k]]; });
+  var condMax = Math.max.apply(null, condEntries.map(function(e){ return e[1]; }).concat([1]));
+  document.getElementById('dashCondChart').innerHTML = condEntries.map(function(e){
+    var pct = Math.round((e[1]/condMax)*100);
+    var colors = {MINT:'green',NM:'green',EX:'',GD:'warn',LP:'warn',PL:'warn',PO:'warn'};
+    return '<div class="dash-bar-row">'
+      +'<div class="dash-bar-label">'+e[0]+'</div>'
+      +'<div class="dash-bar-track"><div class="dash-bar-fill '+(colors[e[0]]||'')+'" style="width:'+pct+'%"></div></div>'
+      +'<div class="dash-bar-val">'+e[1]+'</div>'
+    +'</div>';
+  }).join('') || '<div class="dash-empty">Nessun dato</div>';
+
+  // ── Top set per valore ──
+  var setMap = {};
+  cards.forEach(function(c){
+    var k = c.set_name||'Senza set';
+    setMap[k] = (setMap[k]||0) + ((c.cm_avg30||c.sell_price||0)*(c.qty||1));
+  });
+  var setEntries = Object.entries(setMap).sort(function(a,b){ return b[1]-a[1]; }).slice(0,8);
+  var setMax = Math.max.apply(null, setEntries.map(function(e){ return e[1]; }).concat([1]));
+  document.getElementById('dashSetChart').innerHTML = setEntries.map(function(e){
+    var pct = Math.round((e[1]/setMax)*100);
+    return '<div class="dash-bar-row">'
+      +'<div class="dash-bar-label" title="'+esc(e[0])+'">'+esc(e[0])+'</div>'
+      +'<div class="dash-bar-track"><div class="dash-bar-fill gold" style="width:'+pct+'%"></div></div>'
+      +'<div class="dash-bar-val">€'+e[1].toFixed(0)+'</div>'
+    +'</div>';
+  }).join('') || '<div class="dash-empty">Nessun dato</div>';
+
+  // ── Attività recente ──
+  var recent = cards.slice().sort(function(a,b){ return new Date(b.created_at)-new Date(a.created_at); }).slice(0,8);
+  document.getElementById('dashActivity').innerHTML = recent.map(function(c){
+    var d = c.created_at ? new Date(c.created_at).toLocaleDateString('it-IT',{day:'2-digit',month:'short'}) : '—';
+    return '<div class="dash-act-row">'
+      +'<div class="dash-act-dot"></div>'
+      +'<div class="dash-act-name">'+esc(c.name)+'</div>'
+      +'<div class="dash-act-date">'+d+'</div>'
+    +'</div>';
+  }).join('') || '<div class="dash-empty">Nessuna carta</div>';
+
+  // ── Sales & Wish summary row ──
+  var showExtra = (sales&&sales.length>0)||(wish&&wish.length>0);
+  document.getElementById('dashSalesRow').style.display = showExtra ? '' : 'none';
+  if(showExtra){
+    // Sales chart (ultimi 6 mesi)
+    if(sales&&sales.length){
+      var monthMap = {};
+      sales.forEach(function(s){
+        var m = (s.sold_at||s.created_at||'').slice(0,7);
+        if(!m)return;
+        monthMap[m] = (monthMap[m]||0) + (((s.sell_price_actual||0)-(s.buy_price||0))*(s.qty||1));
+      });
+      var monthEntries = Object.entries(monthMap).sort().slice(-6);
+      var mMax = Math.max.apply(null, monthEntries.map(function(e){ return Math.abs(e[1]); }).concat([1]));
+      document.getElementById('dashSalesChart').innerHTML = monthEntries.map(function(e){
+        var pct = Math.round((Math.abs(e[1])/mMax)*100);
+        var col = e[1]>=0 ? 'green' : 'warn';
+        return '<div class="dash-bar-row">'
+          +'<div class="dash-bar-label">'+e[0].slice(5)+'</div>'
+          +'<div class="dash-bar-track"><div class="dash-bar-fill '+col+'" style="width:'+pct+'%"></div></div>'
+          +'<div class="dash-bar-val '+(e[1]>=0?'':'')+'">€'+e[1].toFixed(0)+'</div>'
+        +'</div>';
+      }).join('') || '<div class="dash-empty">Nessuna vendita</div>';
+    } else {
+      document.getElementById('dashSalesChart').innerHTML = '<div class="dash-empty">Nessuna vendita ancora</div>';
+    }
+    // Wishlist summary
+    if(wish&&wish.length){
+      var wBudget = wish.reduce(function(a,w){ return a+(w.max_price||0); },0);
+      var wMarket = wish.reduce(function(a,w){ return a+(w.cm_price||0); },0);
+      var wBuyable = wish.filter(function(w){ return w.cm_price>0&&w.max_price>0&&w.cm_price<=w.max_price; }).length;
+      document.getElementById('dashWishSummary').innerHTML =
+        '<div style="display:flex;gap:16px;margin-bottom:12px">'
+        +'<div><div style="font-size:18px;font-weight:600;font-family:var(--mono)">'+wish.length+'</div><div style="font-size:11px;color:var(--text-muted)">Carte cercate</div></div>'
+        +'<div><div style="font-size:18px;font-weight:600;font-family:var(--mono);color:var(--success)">'+wBuyable+'</div><div style="font-size:11px;color:var(--text-muted)">Comprabili ora</div></div>'
+        +'<div><div style="font-size:18px;font-weight:600;font-family:var(--mono)">€'+wBudget.toFixed(0)+'</div><div style="font-size:11px;color:var(--text-muted)">Budget max</div></div>'
+        +'</div>'
+        +'<button class="btn btn-primary" onclick="rbNav(\'wish\')" style="font-size:12px">Vai alla Wishlist →</button>';
+    } else {
+      document.getElementById('dashWishSummary').innerHTML = '<div class="dash-empty">Nessuna carta in wishlist</div>';
+    }
+  }
+}
+
+// Bootstrap
+document.addEventListener("DOMContentLoaded", function(){
+  dashLoad().catch(function(e){ console.error("[dash frame]", e); });
+});
+</script>
+</body>
+</html>
