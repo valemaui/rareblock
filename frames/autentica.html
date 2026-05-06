@@ -613,7 +613,10 @@ window.auDebugSets=function(){
       {c:'anlCardName-setpicker',i:'anlCardName-setpicker-input',p:'Scegli set'}
     ];
     mounts.forEach(function(m){
-      try{ rbMountSetPicker({containerId:m.c, inputId:m.i, placeholder:m.p}); }catch(e){}
+      try{
+        var mountFn = rbParentFn('rbMountSetPicker');
+        if(mountFn) mountFn({containerId:m.c, inputId:m.i, placeholder:m.p});
+      }catch(e){}
     });
   },100);
 })();
@@ -632,7 +635,10 @@ window.auDoSearch=async function(){
   var sr=document.getElementById('au-sresults');sr.style.display='none';sr.innerHTML='';
   document.getElementById('au-btn-s1next').disabled=true;S.card=null;
   try{
-    var parsed=q?parseQuery(q):{name:'',number:null};
+    var parseFn = rbParentFn('parseQuery');
+    var fetchTCGFn = rbParentFn('_fetchTCGDirect');
+    var fetchCardsFn = rbParentFn('fetchCards');
+    var parsed=q?(parseFn?parseFn(q):{name:q,number:null}):{name:'',number:null};
     var pName=parsed.name,pNum=parsed.number;
     var cards=[];
     if(setSel && setSel.id){
@@ -641,19 +647,19 @@ window.auDoSearch=async function(){
       if(pName) qParts.push('name:"'+pName.replace(/"/g,'')+'"');
       if(pNum) qParts.push('number:'+pNum);
       try{
-        cards=await _fetchTCGDirect(qParts.join(' '),250);
+        if(fetchTCGFn) cards=await fetchTCGFn(qParts.join(' '),250);
       }catch(e){}
       // Fallback wildcard se esatto fallisce e c'è nome
-      if(!cards.length && pName){
+      if(!cards.length && pName && fetchTCGFn){
         try{
           var qp2=['set.id:'+setSel.id,'name:*'+pName.split(' ')[0].replace(/"/g,'')+'*'];
           if(pNum) qp2.push('number:'+pNum);
-          cards=await _fetchTCGDirect(qp2.join(' '),250);
+          cards=await fetchTCGFn(qp2.join(' '),250);
         }catch(e){}
       }
     } else {
       // Senza set: comportamento classico via fetchCards
-      var all=await fetchCards(pName, pNum||null);
+      var all=fetchCardsFn ? await fetchCardsFn(pName, pNum||null) : [];
       cards=all;
       if(pNum&&all.length){
         var ex=all.filter(function(c){return c.number===pNum;});

@@ -34,6 +34,21 @@
   // Carica sessione subito al boot
   window._rbSession = rbLoadSession();
 
+  // ── Bridge verso funzioni del parent (pokemon-db.html) ────────────────
+  // Alcune funzioni globali (rbSearchCards, fetchCards, rbMountSetPicker,
+  // rbResolveSetFromInput, ...) sono definite SOLO nel parent perché
+  // dipendono da set traduzioni / cache / TCG client che vivono lì.
+  // Gli iframe le chiamano via parent. Helper centralizzato.
+  window.rbParentFn = function(name){
+    try {
+      if(window.parent && window.parent !== window && typeof window.parent[name] === 'function'){
+        return window.parent[name];
+      }
+    } catch(e){ /* cross-origin: ignore */ }
+    if(typeof window[name] === 'function') return window[name];
+    return null;
+  };
+
   // ── API helpers ───────────────────────────────────────────────────────
   // getHDR rilegge la sessione SEMPRE da localStorage per non usare
   // un JWT stale dopo refresh token avvenuto nel parent.

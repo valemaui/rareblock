@@ -464,7 +464,8 @@ function anlRerender(){
 window.anlSearch = async function(){
   var raw = (document.getElementById('anlCardName').value||'').trim();
   var setInp=document.getElementById('anlCardName-setpicker-input');
-  var setSel=setInp?rbResolveSetFromInput(setInp):null;
+  var resolveFn = rbParentFn('rbResolveSetFromInput');
+  var setSel = (setInp && resolveFn) ? resolveFn(setInp) : null;
   if((!raw && !setSel) || anlSearching) return;
   if(setSel&&setSel.unresolved){ anlShowMsg('Set "'+setSel.name+'" non riconosciuto'); return; }
 
@@ -480,7 +481,9 @@ window.anlSearch = async function(){
   if(btn){ btn.disabled=true; btn.innerHTML='<span class="anl-spin"></span>Ricerca…'; }
 
   try{
-    var cards = await rbSearchCards(cardName, cardNum||null, setSel?setSel.id:null);
+    var searchFn = rbParentFn('rbSearchCards');
+    if(!searchFn) throw new Error('rbSearchCards non disponibile');
+    var cards = await searchFn(cardName, cardNum||null, setSel?setSel.id:null);
     if(!cards||!cards.length){
       anlShowMsg('Nessuna carta trovata'+(setSel?' in "'+setSel.name+'"':' per "'+raw+'"'));
       return;
