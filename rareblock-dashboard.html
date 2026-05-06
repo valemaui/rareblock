@@ -5859,6 +5859,13 @@ select.prof-input{cursor:pointer}
             <div class="prof-step-hint">Privacy &amp; T&amp;C</div>
           </div>
         </div>
+        <div class="prof-step" data-step="abbonamento" onclick="profGoStep('abbonamento')">
+          <div class="prof-step-num">6</div>
+          <div class="prof-step-meta">
+            <div class="prof-step-label">Abbonamento</div>
+            <div class="prof-step-hint">Tier &amp; fee</div>
+          </div>
+        </div>
       </div>
 
       <!-- ── STEP 1: ANAGRAFICA ────────────────────────────────── -->
@@ -6103,6 +6110,101 @@ select.prof-input{cursor:pointer}
             <button class="btn sm primary" onclick="profSave('consensi')">Salva consensi</button>
           </div>
         </div>
+      </div>
+
+      <!-- ── STEP 6: ABBONAMENTO ────────────────────────────────── -->
+      <div class="prof-section" id="profSec-abbonamento" style="display:none">
+
+        <!-- Card 1: Tier corrente con fee + AUM -->
+        <div class="prof-card">
+          <div class="prof-card-head">
+            <div class="prof-card-title"><span class="prof-card-title-dot"></span> Il tuo tier</div>
+            <div class="prof-card-sub">Membership RareBlock corrente, con fee applicate e AUM verso la soglia GOLD.</div>
+          </div>
+          <div class="prof-card-body">
+            <div style="display:flex;flex-direction:column;gap:13px">
+
+              <div class="tier-modal-tier-row" id="profSubTopRow">
+                <div style="flex:1;min-width:0">
+                  <div class="tier-modal-tier-name" id="profSubTierName">—</div>
+                  <div class="tier-modal-tier-since" id="profSubTierSince">—</div>
+                </div>
+                <div id="profSubStatusPill" style="font-size:9.5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;font-weight:600;padding:3px 8px;border-radius:20px;background:var(--surface);color:var(--text-muted);border:1px solid var(--border);white-space:nowrap">attivo</div>
+              </div>
+
+              <div id="profSubEligibleBanner" style="display:none"></div>
+              <div id="profSubAtRiskBanner"  style="display:none"></div>
+
+              <div class="tier-modal-fees">
+                <div class="tier-fee-card">
+                  <div class="tier-fee-label">Buyer fee</div>
+                  <div class="tier-fee-value" id="profSubBuyerFee">—</div>
+                  <div class="tier-fee-hint">Su ogni acquisto</div>
+                </div>
+                <div class="tier-fee-card">
+                  <div class="tier-fee-label">Success fee</div>
+                  <div class="tier-fee-value" id="profSubSuccessFee">—</div>
+                  <div class="tier-fee-hint">Su upside fractional</div>
+                </div>
+              </div>
+
+              <div class="tier-aum-row">
+                <div class="tier-aum-head">
+                  <span class="tier-aum-label">AUM corrente</span>
+                  <span class="tier-aum-target" id="profSubAumTarget">— / —</span>
+                </div>
+                <div class="tier-aum-val" id="profSubAumVal">€ —</div>
+                <div class="tier-aum-bar"><div class="tier-aum-bar-fill" id="profSubAumFill" style="width:0%"></div></div>
+                <div class="tier-aum-target" id="profSubAumNote" style="font-size:11px">—</div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2: Benefit del tier -->
+        <div class="prof-card">
+          <div class="prof-card-head">
+            <div class="prof-card-title"><span class="prof-card-title-dot"></span> <span id="profSubBenefitsTitle">Inclusi nel tuo tier</span></div>
+            <div class="prof-card-sub">Le voci grigie sono privilegi che si sbloccano salendo di tier.</div>
+          </div>
+          <div class="prof-card-body">
+            <div class="tier-benefits" id="profSubBenefits"></div>
+          </div>
+        </div>
+
+        <!-- Card 3: Storico cambi tier (visibile solo se ci sono entry) -->
+        <div class="prof-card" id="profSubHistoryCard" style="display:none">
+          <div class="prof-card-head">
+            <div class="prof-card-title"><span class="prof-card-title-dot"></span> Storico cambi tier</div>
+            <div class="prof-card-sub">Ultime variazioni del tuo abbonamento RareBlock.</div>
+          </div>
+          <div class="prof-card-body">
+            <div id="profSubHistoryList" style="display:flex;flex-direction:column;gap:10px"></div>
+          </div>
+        </div>
+
+        <!-- Card 4: CTA upgrade / downgrade -->
+        <div class="prof-card">
+          <div class="prof-card-head">
+            <div class="prof-card-title"><span class="prof-card-title-dot"></span> Cambia tier</div>
+            <div class="prof-card-sub">L'attivazione e il cambio tier avvengono tramite chiamata di onboarding curata da un advisor RareBlock.</div>
+          </div>
+          <div class="prof-card-body">
+            <div class="tier-cta-row" id="profSubCtaRow" style="border-top:none;padding-top:0"></div>
+          </div>
+        </div>
+
+        <div class="prof-savebar">
+          <span class="prof-savebar-status">—</span>
+          <div class="prof-savebar-actions">
+            <button class="btn sm" onclick="profGoStep('consensi')">← Indietro</button>
+            <button class="btn sm" onclick="profRenderSubscription()" title="Ricarica dati abbonamento">
+              <span class="rb-i rb-i-refresh"></span> Aggiorna
+            </button>
+          </div>
+        </div>
+
       </div>
 
     </div>
@@ -8879,13 +8981,191 @@ function getProfVal(id){
 
 function profGoStep(step){
   _prof.currentStep = step;
-  ['anagrafica','indirizzo','telefono','documento','consensi'].forEach(function(s){
+  ['anagrafica','indirizzo','telefono','documento','consensi','abbonamento'].forEach(function(s){
     var sec = document.getElementById('profSec-'+s);
     if(sec) sec.style.display = (s===step) ? '' : 'none';
   });
   document.querySelectorAll('.prof-step').forEach(function(el){
     el.classList.toggle('active', el.dataset.step === step);
   });
+  // Quando si entra nello step Abbonamento, ricalcola i dati tier
+  if(step === 'abbonamento'){
+    try { profRenderSubscription(); } catch(e){ console.warn('subscription render:', e && e.message); }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  STEP 6: ABBONAMENTO — render inline nel tab profilo
+//  Riusa _tierState (popolato da loadTierStatus, vedi end of file).
+//  Se non ancora caricato, lo carica al volo.
+// ═══════════════════════════════════════════════════════════
+async function profRenderSubscription(){
+  // 1) Refresh dati tier (forzato per garantire freschezza all'apertura)
+  try { await loadTierStatus(); } catch(_){}
+
+  var s = (typeof _tierState !== 'undefined') ? _tierState : null;
+  if(!s){ return; }
+
+  var t = s.tier || 'basic';
+
+  // ── Top row: tier name + scadenza/dataInizio ──
+  var topRow = document.getElementById('profSubTopRow');
+  if(topRow){
+    topRow.classList.remove('gold-row','pro-row');
+    if(t==='gold') topRow.classList.add('gold-row');
+    else if(t==='pro') topRow.classList.add('pro-row');
+  }
+  var nameEl = document.getElementById('profSubTierName');
+  if(nameEl){
+    nameEl.textContent = t.toUpperCase();
+    nameEl.classList.remove('gold','pro');
+    if(t==='gold') nameEl.classList.add('gold');
+    else if(t==='pro') nameEl.classList.add('pro');
+  }
+  var sinceEl = document.getElementById('profSubTierSince');
+  if(sinceEl){
+    if(s.tier_started_at){
+      var d = _fmtDate(s.tier_started_at);
+      if(t==='pro' && s.tier_expires_at) sinceEl.textContent = 'Attivo dal '+d+' · scade il '+_fmtDate(s.tier_expires_at);
+      else if(t==='gold') sinceEl.textContent = 'Membro GOLD dal '+d;
+      else sinceEl.textContent = 'Tier base';
+    } else {
+      sinceEl.textContent = (t==='basic' ? 'Tier base' : '—');
+    }
+  }
+
+  // ── Status pill ──
+  var pill = document.getElementById('profSubStatusPill');
+  if(pill){
+    if(t==='gold' && s.gold_at_risk_since){
+      pill.textContent = 'AT-RISK · '+(_daysSince(s.gold_at_risk_since)||0)+'gg';
+      pill.style.background='rgba(210,153,34,.15)'; pill.style.color='var(--warning,#d29922)'; pill.style.borderColor='rgba(210,153,34,.4)';
+    } else if(t!=='gold' && s.gold_eligible_since){
+      pill.textContent = 'ELEGGIBILE GOLD · '+(_daysSince(s.gold_eligible_since)||0)+'gg';
+      pill.style.background='rgba(201,168,76,.12)'; pill.style.color='var(--gold,#c9a84c)'; pill.style.borderColor='rgba(201,168,76,.4)';
+    } else {
+      pill.textContent='ATTIVO';
+      pill.style.background='var(--surface)'; pill.style.color='var(--text-muted)'; pill.style.borderColor='var(--border)';
+    }
+  }
+
+  // ── Banners ──
+  var elig = document.getElementById('profSubEligibleBanner');
+  var atrisk = document.getElementById('profSubAtRiskBanner');
+  if(elig){
+    if(t!=='gold' && s.gold_eligible_since){
+      elig.className = 'tier-eligible-banner';
+      elig.innerHTML = '<div>Hai raggiunto la soglia AUM richiesta per <b>GOLD</b>. La promozione è discrezionale e curata dall\'amministrazione: verrai contattato. Puoi anche richiederla tramite il bottone qui sotto.</div>';
+      elig.style.display='flex';
+    } else { elig.style.display='none'; }
+  }
+  if(atrisk){
+    if(t==='gold' && s.gold_at_risk_since){
+      atrisk.className='tier-atrisk-banner';
+      atrisk.innerHTML='<div>Il tuo AUM è temporaneamente sotto soglia GOLD. Il tier resta attivo: l\'amministrazione interviene caso per caso e ti contatterà per qualsiasi cambio.</div>';
+      atrisk.style.display='flex';
+    } else { atrisk.style.display='none'; }
+  }
+
+  // ── Fees ──
+  var bf = document.getElementById('profSubBuyerFee');   if(bf) bf.textContent = _fmtPct(s.buyer_fee_pct);
+  var sf = document.getElementById('profSubSuccessFee'); if(sf) sf.textContent = _fmtPct(s.success_fee_pct);
+
+  // ── AUM bar ──
+  var aumVal = document.getElementById('profSubAumVal');
+  if(aumVal) aumVal.textContent = '€ '+_fmtEur(s.aum);
+  var aumTarget = document.getElementById('profSubAumTarget');
+  var aumFill = document.getElementById('profSubAumFill');
+  var aumNote = document.getElementById('profSubAumNote');
+  if(t==='gold'){
+    if(aumTarget) aumTarget.textContent = 'Soglia GOLD: € '+_fmtEur(s.threshold_eur);
+    if(aumFill){ aumFill.style.width='100%'; aumFill.classList.add('complete'); }
+    if(aumNote) aumNote.textContent = (s.aum >= s.threshold_eur)
+      ? 'Sopra soglia — tutti i privilegi GOLD attivi.'
+      : 'Sotto soglia ma tier mantenuto a discrezione admin.';
+  } else {
+    var pct = s.threshold_eur > 0 ? Math.min(100, (s.aum/s.threshold_eur)*100) : 0;
+    if(aumTarget) aumTarget.textContent = '€ '+_fmtEur(s.aum)+' / € '+_fmtEur(s.threshold_eur);
+    if(aumFill){ aumFill.classList.remove('complete'); aumFill.style.width = pct.toFixed(1)+'%'; }
+    var missing = Math.max(0, s.threshold_eur - s.aum);
+    if(aumNote) aumNote.textContent = (missing > 0)
+      ? 'Mancano € '+_fmtEur(missing)+' per essere eleggibili a GOLD.'
+      : 'Hai raggiunto la soglia AUM per GOLD.';
+  }
+
+  // ── Benefits ──
+  var benefits = TIER_BENEFITS[t] || TIER_BENEFITS.basic;
+  var benTitle = document.getElementById('profSubBenefitsTitle');
+  if(benTitle){
+    benTitle.textContent = (t==='basic' ? 'Inclusi · sblocca con PRO/GOLD' :
+                            t==='pro'   ? 'Inclusi nel tuo PRO · sblocca con GOLD' :
+                                           'Inclusi nel tuo GOLD');
+  }
+  var benList = document.getElementById('profSubBenefits');
+  if(benList){
+    benList.innerHTML = benefits.map(function(b){
+      if(!b.has) return '<div class="tier-benefit locked">'+_esc(b.txt)+'</div>';
+      var cls = b.t ? (' '+b.t) : '';
+      return '<div class="tier-benefit'+cls+'">'+_esc(b.txt)+'</div>';
+    }).join('');
+  }
+
+  // ── CTA ──
+  var ctaRow = document.getElementById('profSubCtaRow');
+  if(ctaRow){
+    if(t==='basic'){
+      ctaRow.innerHTML =
+        '<a href="https://cal.com/rareblock/30-minuti-rareblock" target="_blank" rel="noopener" class="tier-cta-btn pro">Passa a PRO — € '+_fmtEur(s.pro_price_eur)+' / anno</a>'+
+        '<div class="tier-cta-hint">L\'attivazione PRO avviene tramite chiamata di onboarding di 30 minuti.</div>';
+    } else if(t==='pro'){
+      if(s.gold_eligible_since){
+        ctaRow.innerHTML =
+          '<a href="https://cal.com/rareblock/30-minuti-rareblock" target="_blank" rel="noopener" class="tier-cta-btn gold">Richiedi promozione GOLD</a>'+
+          '<div class="tier-cta-hint">Sei eleggibile da '+(_daysSince(s.gold_eligible_since)||0)+' giorni. La promozione è curata: contatta l\'advisor.</div>';
+      } else {
+        ctaRow.innerHTML =
+          '<a href="https://cal.com/rareblock/30-minuti-rareblock" target="_blank" rel="noopener" class="tier-cta-btn ghost">Parla con un advisor</a>'+
+          '<div class="tier-cta-hint">GOLD è invitation-only o auto-attivabile sopra € '+_fmtEur(s.threshold_eur)+' di AUM.</div>';
+      }
+    } else {
+      ctaRow.innerHTML =
+        '<a href="https://cal.com/rareblock/30-minuti-rareblock" target="_blank" rel="noopener" class="tier-cta-btn ghost">Contatta il tuo advisor</a>'+
+        '<div class="tier-cta-hint">Tier GOLD attivo. Per servizi off-market o operazioni dedicate, contatta direttamente.</div>';
+    }
+  }
+
+  // ── Storico cambi tier (ultimi 10) ──
+  // RLS su inv_tier_history consente self-select via tier_history_self.
+  var historyCard = document.getElementById('profSubHistoryCard');
+  var historyList = document.getElementById('profSubHistoryList');
+  if(historyCard && historyList && _session && _session.user){
+    try {
+      var rows = await supa('GET', 'inv_tier_history?user_id=eq.'+_session.user.id+'&select=from_tier,to_tier,changed_at,reason,manual_override,source&order=changed_at.desc&limit=10');
+      if(rows && rows.length){
+        historyCard.style.display = '';
+        historyList.innerHTML = rows.map(function(h){
+          var from = h.from_tier ? '<span class="tier-badge '+h.from_tier+'" style="cursor:default">'+h.from_tier.toUpperCase()+'</span>' : '<span style="color:var(--text-subtle)">—</span>';
+          var to   = '<span class="tier-badge '+h.to_tier+'" style="cursor:default">'+h.to_tier.toUpperCase()+'</span>';
+          var srcLabel = ({admin:'Admin', system:'Sistema', self_signup:'Auto-iscrizione', expired:'Scadenza'})[h.source] || (h.source || '—');
+          var override = h.manual_override
+            ? '<span style="font-size:9px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;padding:1px 6px;border-radius:3px;color:var(--danger,#f85149);border:1px solid rgba(248,81,73,.35);background:rgba(248,81,73,.08);margin-left:6px">Override</span>'
+            : '';
+          return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-size:12px;flex-wrap:wrap">'+
+            '<div style="font-family:var(--mono);font-size:11px;color:var(--text-muted);min-width:110px">'+_fmtDate(h.changed_at)+'</div>'+
+            '<div style="display:flex;align-items:center;gap:7px;flex-shrink:0">'+from+'<span style="color:var(--text-subtle);font-size:11px">→</span>'+to+'</div>'+
+            '<div style="flex:1;min-width:140px;color:var(--text-muted);font-size:11.5px">'+_esc(h.reason||'')+'</div>'+
+            '<div style="font-size:9.5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--text-subtle);padding:2px 6px;border:1px solid var(--border);border-radius:3px">'+_esc(srcLabel)+'</div>'+
+            override+
+          '</div>';
+        }).join('');
+      } else {
+        historyCard.style.display = 'none';
+      }
+    } catch(e){
+      console.warn('tier history:', e && e.message);
+      historyCard.style.display = 'none';
+    }
+  }
 }
 
 // ───── KYC strip (live) ─────
