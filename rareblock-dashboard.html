@@ -6561,6 +6561,7 @@ select.prof-input{cursor:pointer}
       <button class="admin-side-btn" onclick="adminSection('drop')"><span class="rb-i rb-i-clock"></span> Drop Countdown</button>
       <button class="admin-side-btn" onclick="adminSection('submissions')"><span class="rb-i rb-i-package"></span> Richieste</button>
       <button class="admin-side-btn" onclick="adminSection('users')"><span class="rb-i rb-i-user"></span> Utenti</button>
+      <button class="admin-side-btn" onclick="adminSection('tiers')"><span class="rb-i rb-i-coin" style="color:var(--gold)"></span> Membership</button>
       <button class="admin-side-btn" onclick="adminSection('contracts')"><span class="rb-i rb-i-file"></span> Contratti <span id="adminSideContractsCount" class="admin-side-badge" style="display:none">0</span></button>
       <button class="admin-side-btn" onclick="adminSection('kyc')"><span class="rb-i rb-i-shield"></span> KYC Review <span id="adminSideKycCount" class="admin-side-badge" style="display:none">0</span></button>
       <button class="admin-side-btn" onclick="adminSection('settings')"><span class="rb-i rb-i-gear"></span> Settings</button>
@@ -7200,6 +7201,15 @@ select.prof-input{cursor:pointer}
         <iframe id="adminUsersIframe"
                 src="about:blank"
                 title="Gestione utenti"></iframe>
+      </div>
+
+      <!-- MEMBERSHIP & TIER — embed di rareblock-admin-tiers.html via iframe lazy.
+           Gestione tier BASIC/PRO/GOLD: candidati eleggibili, GOLD at-risk,
+           promozioni manuali con override soglia, storico cambi. -->
+      <div class="admin-section admin-section-users" id="admin-tiers">
+        <iframe id="adminTiersIframe"
+                src="about:blank"
+                title="Membership &amp; Tier"></iframe>
       </div>
 
       <!-- SETTINGS — embed di rareblock-admin-settings.html via iframe lazy.
@@ -15509,6 +15519,7 @@ function adminSection(s){
   if(s==='drop')        dropAdminLoad();
   if(s==='submissions') submLoadAll();
   if(s==='users')       adminLoadUsers();
+  if(s==='tiers')       adminLoadTiers();
   if(s==='settings')    adminLoadSettings();
   if(s==='vendor-payouts') adminLoadVendorPayouts();
   if(s==='contracts')   admCtrLoad();
@@ -15788,6 +15799,17 @@ function adminLoadSettings(){
   if(!iframe) return;
   if(iframe.dataset.loaded !== '1'){
     iframe.src = 'rareblock-admin-settings.html?embed=1';
+    iframe.dataset.loaded = '1';
+  }
+}
+
+// Lazy-load dell'iframe Membership & Tier — stesso pattern.
+// Carica candidati GOLD, GOLD at-risk e storico tier dalla view admin.
+function adminLoadTiers(){
+  var iframe = document.getElementById('adminTiersIframe');
+  if(!iframe) return;
+  if(iframe.dataset.loaded !== '1'){
+    iframe.src = 'rareblock-admin-tiers.html?embed=1';
     iframe.dataset.loaded = '1';
   }
 }

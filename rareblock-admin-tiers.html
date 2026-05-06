@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RareBlock — Admin · Membership & Tier</title>
+<meta name="robots" content="noindex,nofollow"/>
+<!-- v1.0.0 — Buyer tiers BASIC/PRO/GOLD + GOLD candidates + GOLD at-risk + tier history -->
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Montserrat:wght@200;300&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#0d1117;
+  --surface:#161b22;
+  --surface2:#21262d;
+  --surface3:#2d333b;
+  --border:#30363d;
+  --border-strong:#3d444d;
+  --border-focus:#58a6ff;
+  --text:#e6edf3;
+  --text-muted:#7d8590;
+  --text-subtle:#484f58;
+  --accent:#58a6ff;
+  --accent-hover:#388bfd;
+  --accent-soft:rgba(88,166,255,.10);
+  --accent-border:rgba(88,166,255,.28);
+  --danger:#f85149;
+  --danger-soft:rgba(248,81,73,.10);
+  --success:#3fb950;
+  --success-soft:rgba(63,185,80,.10);
+  --warning:#d29922;
+  --warning-soft:rgba(210,153,34,.10);
+  --gold:#c9a84c;
+  --gold-soft:rgba(201,168,76,.10);
+  --gold-border:rgba(201,168,76,.35);
+  --font:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",monospace;
+  --display:"Montserrat",system-ui,sans-serif;
+  --serif:"Fraunces",Georgia,serif;
+  --r:6px;
+  --r-lg:8px;
+  --t-fast:.12s;
+}
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;line-height:1.5;display:flex;flex-direction:column;min-height:100vh}
+
+/* HEADER */
+.header{height:52px;flex-shrink:0;display:flex;align-items:center;padding:0 20px;border-bottom:1px solid var(--border);gap:20px;background:var(--surface)}
+.logo{font-family:var(--display);font-size:14px;font-weight:300;letter-spacing:.18em;text-transform:uppercase;color:var(--text);text-decoration:none;display:flex;align-items:center;gap:8px}
+.logo .b{color:var(--gold)}
+.logo-divider{font-size:11px;font-family:var(--mono);color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase;border-left:1px solid var(--border);padding-left:14px;margin-left:6px}
+.logo-divider .danger-pill{background:rgba(201,168,76,.1);color:var(--gold);border:1px solid rgba(201,168,76,.35);padding:2px 8px;border-radius:20px;font-weight:600;letter-spacing:.08em}
+.crumbs{flex:1;display:flex;align-items:center;gap:14px;font-size:11.5px;font-family:var(--mono);color:var(--text-muted);letter-spacing:.04em}
+.crumbs a{color:var(--text-muted);text-decoration:none;transition:color var(--t-fast)}
+.crumbs a:hover{color:var(--gold)}
+.crumbs .sep{color:var(--text-subtle)}
+.user-badge{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.user-email{font-size:11px;font-family:var(--mono);color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-logout{font-size:11px;font-family:var(--mono);color:var(--text-muted);background:none;border:1px solid var(--border);border-radius:var(--r);padding:3px 8px;cursor:pointer;transition:all var(--t-fast)}
+.user-logout:hover{color:var(--danger);border-color:var(--danger)}
+
+/* MAIN */
+main{flex:1;padding:28px 32px;max-width:1280px;width:100%;margin:0 auto}
+.page-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:24px;gap:20px;flex-wrap:wrap}
+.page-title{font-family:var(--serif);font-size:26px;font-weight:300;font-style:italic;letter-spacing:-.01em;line-height:1.15}
+.page-sub{font-size:12.5px;color:var(--text-muted);margin-top:4px;line-height:1.6;max-width:620px}
+
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:22px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;display:flex;flex-direction:column;gap:4px}
+.stat-label{font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);font-weight:500}
+.stat-value{font-size:22px;font-weight:300;color:var(--text);font-family:var(--display);letter-spacing:-.01em}
+.stat-value.gold{color:var(--gold)}
+.stat-value.accent{color:var(--accent)}
+.stat-value.warning{color:var(--warning)}
+.stat-value.success{color:var(--success)}
+.stat .stat-meta{font-size:10.5px;font-family:var(--mono);color:var(--text-subtle);margin-top:2px}
+
+/* SECTION TABS */
+.section-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:18px;overflow-x:auto}
+.section-tab{background:none;border:none;color:var(--text-muted);padding:10px 16px;font-family:var(--font);font-size:12.5px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;transition:all var(--t-fast);white-space:nowrap;display:inline-flex;align-items:center;gap:8px}
+.section-tab:hover{color:var(--text)}
+.section-tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.section-tab .count{font-family:var(--mono);font-size:10.5px;background:var(--surface2);color:var(--text-muted);padding:1px 7px;border-radius:20px;font-weight:500;border:1px solid var(--border)}
+.section-tab.active .count{color:var(--accent);border-color:var(--accent-border);background:var(--accent-soft)}
+.section-tab.gold-tab.active .count{color:var(--gold);border-color:var(--gold-border);background:var(--gold-soft)}
+.section-tab.warn-tab.active .count{color:var(--warning);border-color:rgba(210,153,34,.4);background:var(--warning-soft)}
+
+/* TOOLBAR */
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.search-box{flex:1;min-width:220px;position:relative}
+.search-box input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--font);font-size:13px;padding:8px 12px 8px 32px;outline:none;transition:border-color var(--t-fast),box-shadow var(--t-fast)}
+.search-box input:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px var(--accent-soft)}
+.search-box::before{content:'';position:absolute;left:11px;top:50%;width:13px;height:13px;border:1.5px solid var(--text-muted);border-radius:50%;transform:translateY(-60%)}
+.search-box::after{content:'';position:absolute;left:21px;top:24px;width:6px;height:1.5px;background:var(--text-muted);transform:rotate(45deg)}
+
+select{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--font);font-size:13px;padding:7px 11px;outline:none;cursor:pointer}
+select:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px var(--accent-soft)}
+
+.btn{padding:7px 14px;border-radius:var(--r);font-size:12.5px;font-family:var(--font);cursor:pointer;font-weight:500;transition:all var(--t-fast);border:1px solid var(--border);background:var(--surface2);color:var(--text);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:var(--surface3);border-color:var(--border-strong)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-primary{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600}
+.btn-primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn-gold{background:var(--gold);color:var(--bg);border-color:var(--gold);font-weight:600}
+.btn-gold:hover{filter:brightness(1.08)}
+.btn-warn{background:var(--warning);color:var(--bg);border-color:var(--warning);font-weight:600}
+.btn-warn:hover{filter:brightness(1.08)}
+.btn-danger{background:var(--danger);color:var(--bg);border-color:var(--danger);font-weight:600}
+.btn-danger:hover{filter:brightness(1.08)}
+.btn-ghost{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:4px 8px;border-radius:var(--r)}
+.btn-ghost:hover{color:var(--text);background:var(--surface2)}
+.btn-cron{background:var(--surface2);color:var(--text-muted);border:1px dashed var(--border-strong);font-family:var(--mono);font-size:11px;letter-spacing:.04em}
+.btn-cron:hover{color:var(--gold);border-color:var(--gold-border);border-style:solid}
+
+/* TABLE */
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;font-family:var(--mono);padding:10px 14px;border-bottom:1px solid var(--border);text-align:left;background:var(--surface);position:sticky;top:0;z-index:1;white-space:nowrap}
+tbody td{padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:rgba(255,255,255,.02)}
+
+td.email{font-family:var(--mono);font-size:12.5px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td.name{color:var(--text);font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td.name.empty{color:var(--text-subtle);font-style:italic;font-weight:400}
+td.date{font-family:var(--mono);font-size:11.5px;color:var(--text-muted);white-space:nowrap}
+td.num{font-family:var(--mono);font-size:12.5px;color:var(--text);text-align:right;white-space:nowrap}
+td.num .currency{color:var(--text-subtle);font-size:10.5px;margin-right:2px}
+td.num.muted{color:var(--text-muted)}
+td.num.gold{color:var(--gold);font-weight:500}
+
+/* TIER BADGES */
+.tier-pill{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-family:var(--mono);font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);white-space:nowrap}
+.tier-pill::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.tier-pill.basic{color:var(--text-muted)}
+.tier-pill.pro{color:var(--accent);border-color:var(--accent-border);background:var(--accent-soft)}
+.tier-pill.gold{color:var(--gold);border-color:var(--gold-border);background:var(--gold-soft)}
+.tier-pill.gold::before{box-shadow:0 0 6px currentColor}
+
+.eligible-pill{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-family:var(--mono);font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:20px;color:var(--gold);border:1px solid var(--gold-border);background:var(--gold-soft);white-space:nowrap}
+
+.atrisk-pill{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-family:var(--mono);font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:20px;color:var(--warning);border:1px solid rgba(210,153,34,.4);background:var(--warning-soft);white-space:nowrap}
+
+.override-pill{display:inline-flex;align-items:center;font-size:9.5px;font-family:var(--mono);font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border-radius:3px;color:var(--danger);border:1px solid rgba(248,81,73,.35);background:var(--danger-soft);margin-left:6px}
+
+/* TOAST */
+#toast{position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:11px 16px;font-size:12.5px;color:var(--text);box-shadow:0 6px 24px rgba(0,0,0,.4);z-index:1000;display:none;align-items:center;gap:8px;animation:tIn .25s ease;max-width:420px}
+#toast.ok{border-left:3px solid var(--success)}
+#toast.err{border-left:3px solid var(--danger)}
+#toast.info{border-left:3px solid var(--accent)}
+#toast.show{display:flex}
+@keyframes tIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* EMPTY / LOADING */
+.empty{padding:48px 20px;text-align:center;color:var(--text-muted);font-size:13px}
+.empty .empty-title{font-family:var(--serif);font-size:16px;font-style:italic;color:var(--text);margin-bottom:6px;font-weight:300}
+.loading-shimmer{padding:24px;text-align:center;color:var(--text-subtle);font-family:var(--mono);font-size:11.5px;letter-spacing:.04em}
+.loading-shimmer::after{content:'...';animation:dots 1.4s steps(4,end) infinite}
+@keyframes dots{0%,20%{content:''}40%{content:'.'}60%{content:'..'}80%,100%{content:'...'}}
+
+/* ACCESS DENIED */
+#deniedScreen{position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center;z-index:9999}
+#deniedScreen.show{display:flex}
+#deniedScreen h1{font-family:var(--serif);font-size:26px;font-weight:300;font-style:italic;margin-bottom:14px;color:var(--text)}
+#deniedScreen p{font-size:13px;color:var(--text-muted);max-width:420px;margin-bottom:18px;line-height:1.6}
+#deniedScreen a{color:var(--gold);text-decoration:none;font-size:12px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;border:1px solid rgba(201,168,76,.35);padding:9px 18px;border-radius:var(--r);transition:all var(--t-fast)}
+#deniedScreen a:hover{background:rgba(201,168,76,.08);border-color:var(--gold)}
+
+/* ACTION CELL */
+.action-cell{display:flex;gap:6px;justify-content:flex-end;flex-wrap:nowrap}
+.row-action{font-size:11px;font-family:var(--mono);background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);padding:4px 9px;border-radius:var(--r);cursor:pointer;transition:all var(--t-fast);letter-spacing:.04em;text-transform:uppercase;font-weight:500;white-space:nowrap}
+.row-action:hover{color:var(--text);border-color:var(--border-strong);background:var(--surface3)}
+.row-action.promote{color:var(--gold);border-color:var(--gold-border);background:var(--gold-soft)}
+.row-action.promote:hover{color:var(--bg);background:var(--gold);border-color:var(--gold)}
+.row-action.demote{color:var(--danger)}
+.row-action.demote:hover{color:var(--bg);background:var(--danger);border-color:var(--danger)}
+
+/* MODAL */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:200;padding:20px;animation:mFade .2s ease}
+.modal-backdrop.show{display:flex}
+@keyframes mFade{from{opacity:0}to{opacity:1}}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);width:100%;max-width:560px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;animation:mUp .25s ease}
+.modal.gold-modal{border-top:2px solid var(--gold)}
+.modal.warn-modal{border-top:2px solid var(--warning)}
+.modal.danger-modal{border-top:2px solid var(--danger)}
+@keyframes mUp{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.modal-title{font-family:var(--serif);font-size:17px;font-weight:300;font-style:italic}
+.modal.gold-modal .modal-title{color:var(--gold)}
+.modal.warn-modal .modal-title{color:var(--warning)}
+.modal.danger-modal .modal-title{color:var(--danger)}
+.modal-close{background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;padding:0;width:28px;height:28px;border-radius:var(--r);transition:all var(--t-fast);font-family:var(--mono);line-height:1}
+.modal-close:hover{background:var(--surface2);color:var(--text)}
+.modal-body{padding:18px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+.modal-footer{padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;background:var(--surface)}
+
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);font-weight:500}
+.field input,.field textarea,.field select{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--font);font-size:13px;padding:8px 11px;outline:none;transition:border-color var(--t-fast),box-shadow var(--t-fast);width:100%}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px var(--accent-soft)}
+.field textarea{min-height:84px;resize:vertical;font-family:var(--font)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field-hint{font-size:10.5px;color:var(--text-subtle);font-family:var(--mono);margin-top:2px;line-height:1.55}
+.field-hint.warn{color:var(--warning)}
+.field-checkbox{display:flex;gap:9px;align-items:flex-start;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);cursor:pointer;transition:all var(--t-fast)}
+.field-checkbox:hover{border-color:var(--border-strong)}
+.field-checkbox input[type="checkbox"]{margin-top:2px;cursor:pointer;flex-shrink:0;width:14px;height:14px;accent-color:var(--danger)}
+.field-checkbox-text{font-size:12px;color:var(--text);line-height:1.55}
+.field-checkbox-text strong{color:var(--danger);display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;font-family:var(--mono);margin-bottom:3px;font-weight:600}
+
+.modal-info{font-size:12.5px;color:var(--text-muted);line-height:1.6;background:var(--surface2);padding:11px 13px;border-radius:var(--r);border-left:2px solid var(--accent)}
+.modal-info.gold{border-left-color:var(--gold)}
+.modal-info.warn{border-left-color:var(--warning);color:var(--warning)}
+.modal-info.danger{border-left-color:var(--danger);color:var(--danger)}
+.modal-info b{color:var(--text)}
+.modal-info.warn b,.modal-info.danger b{color:inherit}
+.modal-info-grid{display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;font-size:12px;font-family:var(--mono)}
+.modal-info-grid dt{color:var(--text-muted);text-transform:uppercase;font-size:10px;letter-spacing:.06em;align-self:center}
+.modal-info-grid dd{color:var(--text);align-self:center}
+.modal-info-grid dd.gold{color:var(--gold);font-weight:500}
+
+/* HISTORY ROW */
+tr.history-row td{font-family:var(--mono);font-size:11.5px}
+.tier-arrow{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--text-muted);white-space:nowrap}
+.tier-arrow .arr{color:var(--text-subtle)}
+.history-source{font-size:9.5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--text-subtle);padding:1px 6px;border:1px solid var(--border);border-radius:3px}
+.history-source.admin{color:var(--accent);border-color:var(--accent-border)}
+.history-source.system{color:var(--text-muted)}
+.history-source.expired{color:var(--warning);border-color:rgba(210,153,34,.35)}
+
+td.reason{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--text-muted);font-family:var(--font)}
+
+/* ── EMBED MODE ────────────────────────────────────────────── */
+body.embed-mode{ background:transparent }
+body.embed-mode .header{ display:none !important }
+body.embed-mode #deniedScreen{ background:transparent }
+body.embed-mode main{
+  padding: 20px 24px !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+body.embed-mode .page-head{
+  padding-top: 0;
+  margin-bottom: 16px;
+  align-items: flex-start;
+}
+body.embed-mode .page-title{
+  font-family: var(--font, Inter, system-ui, sans-serif);
+  font-size: 15px;
+  font-weight: 600;
+  font-style: normal;
+  letter-spacing: .005em;
+  line-height: 1.3;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+body.embed-mode .page-title::before{
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  background-color: var(--gold);
+  -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 13L2 9z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/></svg>');
+          mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 13L2 9z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/></svg>');
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-position:center;mask-position:center;
+  -webkit-mask-size:contain;mask-size:contain;
+}
+body.embed-mode .page-sub{
+  font-size: 12px;
+  margin-top: 3px;
+  max-width: none;
+}
+body.embed-mode .page-head .btn{
+  font-size: 12px;
+  padding: 5px 12px;
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a href="pokemon-db.html" class="logo">
+    <span>Rare</span><span class="b">Block</span>
+  </a>
+  <span class="logo-divider"><span class="danger-pill">Admin</span></span>
+  <div class="crumbs">
+    <a href="pokemon-db.html">Collector</a>
+    <span class="sep">/</span>
+    <a href="rareblock-dashboard.html">Investor</a>
+    <span class="sep">/</span>
+    <a href="rareblock-dashboard.html#admin">Admin</a>
+    <span class="sep">/</span>
+    <span style="color:var(--text)">Membership &amp; Tier</span>
+  </div>
+  <div class="user-badge">
+    <span class="user-email" id="adminEmail">—</span>
+    <button class="user-logout" onclick="doLogout()">Esci</button>
+  </div>
+</header>
+
+<main>
+  <div class="page-head">
+    <div>
+      <div class="page-title">Membership &amp; Tier</div>
+      <div class="page-sub">Promozioni manuali a GOLD su candidati eleggibili o con override sotto soglia. Le fee buyer si applicano automaticamente al checkout in base al tier corrente del cliente.</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-cron" onclick="runEligibilityScan()" id="scanBtn" title="Esegue il cron scanner — non promuove, solo flagga eleggibilità e at-risk">⟳ Esegui scan eleggibilità</button>
+      <button class="btn" onclick="loadAll()" id="reloadBtn">Aggiorna</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">Tier BASIC</div>
+      <div class="stat-value" id="statBasic">—</div>
+      <div class="stat-meta" id="statBasicAum">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Tier PRO</div>
+      <div class="stat-value accent" id="statPro">—</div>
+      <div class="stat-meta" id="statProAum">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Tier GOLD</div>
+      <div class="stat-value gold" id="statGold">—</div>
+      <div class="stat-meta" id="statGoldAum">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Candidati GOLD</div>
+      <div class="stat-value gold" id="statCandidates">—</div>
+      <div class="stat-meta">In attesa di promozione</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">GOLD at-risk</div>
+      <div class="stat-value warning" id="statAtRisk">—</div>
+      <div class="stat-meta">Sotto soglia AUM</div>
+    </div>
+  </div>
+
+  <div class="section-tabs">
+    <button class="section-tab gold-tab active" data-tab="candidates" onclick="switchTab('candidates')">
+      Candidati GOLD <span class="count" id="tabCountCandidates">0</span>
+    </button>
+    <button class="section-tab warn-tab" data-tab="atrisk" onclick="switchTab('atrisk')">
+      GOLD at-risk <span class="count" id="tabCountAtRisk">0</span>
+    </button>
+    <button class="section-tab" data-tab="all" onclick="switchTab('all')">
+      Tutti i tier <span class="count" id="tabCountAll">0</span>
+    </button>
+    <button class="section-tab" data-tab="history" onclick="switchTab('history')">
+      Storico cambi <span class="count" id="tabCountHistory">0</span>
+    </button>
+  </div>
+
+  <!-- ── TAB: CANDIDATI GOLD ── -->
+  <div class="tab-pane" data-pane="candidates">
+    <div class="toolbar">
+      <div class="search-box">
+        <input type="text" id="searchCandidates" placeholder="Cerca per email o nome..." oninput="renderCandidates()"/>
+      </div>
+      <button class="btn btn-gold" onclick="openForceModal()" title="Promuovi un utente sotto soglia AUM">+ Override sotto soglia</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Nome</th>
+            <th>Tier attuale</th>
+            <th style="text-align:right">AUM corrente</th>
+            <th style="text-align:right">Ordini</th>
+            <th>Eleggibile da</th>
+            <th>KYC</th>
+            <th style="width:1%"></th>
+          </tr>
+        </thead>
+        <tbody id="candidatesBody">
+          <tr><td colspan="8" class="loading-shimmer">Caricamento candidati</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── TAB: GOLD AT-RISK ── -->
+  <div class="tab-pane" data-pane="atrisk" style="display:none">
+    <div class="toolbar">
+      <div class="search-box">
+        <input type="text" id="searchAtRisk" placeholder="Cerca per email o nome..." oninput="renderAtRisk()"/>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Nome</th>
+            <th style="text-align:right">AUM corrente</th>
+            <th style="text-align:right">Soglia</th>
+            <th>Promosso il</th>
+            <th>At-risk da</th>
+            <th style="width:1%"></th>
+          </tr>
+        </thead>
+        <tbody id="atriskBody">
+          <tr><td colspan="7" class="loading-shimmer">Caricamento</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── TAB: TUTTI I TIER ── -->
+  <div class="tab-pane" data-pane="all" style="display:none">
+    <div class="toolbar">
+      <div class="search-box">
+        <input type="text" id="searchAll" placeholder="Cerca per email o nome..." oninput="renderAll()"/>
+      </div>
+      <select id="filterTier" onchange="renderAll()">
+        <option value="">Tutti i tier</option>
+        <option value="basic">BASIC</option>
+        <option value="pro">PRO</option>
+        <option value="gold">GOLD</option>
+      </select>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Nome</th>
+            <th>Tier</th>
+            <th style="text-align:right">AUM</th>
+            <th>Tier dal</th>
+            <th>Scadenza</th>
+            <th>Eleggibilità GOLD</th>
+            <th style="width:1%"></th>
+          </tr>
+        </thead>
+        <tbody id="allBody">
+          <tr><td colspan="8" class="loading-shimmer">Caricamento</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── TAB: STORICO ── -->
+  <div class="tab-pane" data-pane="history" style="display:none">
+    <div class="toolbar">
+      <div class="search-box">
+        <input type="text" id="searchHistory" placeholder="Cerca per email o nome..." oninput="renderHistory()"/>
+      </div>
+      <select id="filterHistorySource" onchange="renderHistory()">
+        <option value="">Tutte le sorgenti</option>
+        <option value="admin">Admin</option>
+        <option value="system">Sistema</option>
+        <option value="self_signup">Auto-iscrizione</option>
+        <option value="expired">Scadenza</option>
+      </select>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Quando</th>
+            <th>Utente</th>
+            <th>Cambio</th>
+            <th>Sorgente</th>
+            <th>Operatore</th>
+            <th style="text-align:right">AUM</th>
+            <th>Motivazione</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody">
+          <tr><td colspan="7" class="loading-shimmer">Caricamento</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<!-- ── MODAL: PROMUOVI A GOLD (candidato eleggibile) ── -->
+<div class="modal-backdrop" id="modalPromote" onclick="if(event.target===this)closeModal('modalPromote')">
+  <div class="modal gold-modal">
+    <div class="modal-header">
+      <div class="modal-title">Promuovi a GOLD</div>
+      <button class="modal-close" onclick="closeModal('modalPromote')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-info gold">L'utente passa da tier corrente a <b>GOLD</b>. Le fee future saranno 0,5% buyer / 7% success. Tutto registrato in storico.</div>
+
+      <dl class="modal-info-grid" id="promoteInfo">
+        <dt>Utente</dt><dd id="promoteEmail">—</dd>
+        <dt>Tier corrente</dt><dd id="promoteCurrentTier">—</dd>
+        <dt>AUM corrente</dt><dd class="gold" id="promoteAum">—</dd>
+        <dt>Eleggibile da</dt><dd id="promoteSince">—</dd>
+      </dl>
+
+      <div class="field">
+        <label>Nota di promozione (opzionale)</label>
+        <textarea id="promoteNote" placeholder="Es. Cliente premium dal 2024, soglia raggiunta su volumi crescenti, referral di X..."></textarea>
+        <div class="field-hint">La nota è visibile in admin nello storico tier dell'utente.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal('modalPromote')">Annulla</button>
+      <button class="btn btn-gold" onclick="confirmPromote()" id="promoteBtn">Conferma promozione</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: FORZA GOLD SOTTO SOGLIA ── -->
+<div class="modal-backdrop" id="modalForce" onclick="if(event.target===this)closeModal('modalForce')">
+  <div class="modal warn-modal">
+    <div class="modal-header">
+      <div class="modal-title">Forza promozione sotto soglia</div>
+      <button class="modal-close" onclick="closeModal('modalForce')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-info warn">L'utente <b>non ha raggiunto</b> la soglia AUM. La promozione sarà tracciata come <b>override manuale</b> nello storico — usala per casi VIP, referral strategici, business reasons.</div>
+
+      <div class="field">
+        <label>Email utente</label>
+        <input type="email" id="forceEmail" placeholder="utente@esempio.com" autocomplete="off"/>
+        <div class="field-hint">Inserisci l'email esatta. Verrà cercato il profilo corrispondente.</div>
+      </div>
+
+      <div class="field">
+        <label>Motivo override (obbligatorio, min 5 caratteri)</label>
+        <textarea id="forceNote" placeholder="Es. Cliente VIP referral di X, accordo commerciale dedicato, founding member, ..."></textarea>
+        <div class="field-hint warn">Questa nota è obbligatoria e verrà mostrata nello storico tier per audit/compliance.</div>
+      </div>
+
+      <label class="field-checkbox">
+        <input type="checkbox" id="forceConfirm"/>
+        <span class="field-checkbox-text">
+          <strong>Conferma override</strong>
+          Sto promuovendo questo utente a GOLD <b>sotto la soglia AUM</b> richiesta. La decisione è tracciata e revocabile.
+        </span>
+      </label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal('modalForce')">Annulla</button>
+      <button class="btn btn-warn" onclick="confirmForce()" id="forceBtn">Forza promozione</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: CAMBIO TIER GENERICO (basic/pro) ── -->
+<div class="modal-backdrop" id="modalSetTier" onclick="if(event.target===this)closeModal('modalSetTier')">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Cambia tier</div>
+      <button class="modal-close" onclick="closeModal('modalSetTier')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-info" id="setTierInfo">—</div>
+      <dl class="modal-info-grid">
+        <dt>Utente</dt><dd id="setTierEmail">—</dd>
+        <dt>Tier attuale</dt><dd id="setTierCurrent">—</dd>
+        <dt>Nuovo tier</dt><dd id="setTierNew">—</dd>
+      </dl>
+      <div class="field">
+        <label>Nota (opzionale)</label>
+        <textarea id="setTierNote" placeholder="Motivo del cambio tier..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal('modalSetTier')">Annulla</button>
+      <button class="btn btn-primary" onclick="confirmSetTier()" id="setTierBtn">Conferma</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: REVOCA GOLD ── -->
+<div class="modal-backdrop" id="modalRevoke" onclick="if(event.target===this)closeModal('modalRevoke')">
+  <div class="modal danger-modal">
+    <div class="modal-header">
+      <div class="modal-title">Revoca tier GOLD</div>
+      <button class="modal-close" onclick="closeModal('modalRevoke')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-info danger">L'utente verrà retrocesso a <b>BASIC</b>. Le fee future saranno 2,5% / 10%. Il cambio è tracciato in storico ed è reversibile.</div>
+      <dl class="modal-info-grid">
+        <dt>Utente</dt><dd id="revokeEmail">—</dd>
+        <dt>AUM corrente</dt><dd id="revokeAum">—</dd>
+        <dt>At-risk da</dt><dd id="revokeAtRisk">—</dd>
+      </dl>
+      <div class="field">
+        <label>Motivo revoca (obbligatorio)</label>
+        <textarea id="revokeNote" placeholder="Es. AUM sotto soglia da 6 mesi e nessuna risposta a contatti commerciali..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal('modalRevoke')">Annulla</button>
+      <button class="btn btn-danger" onclick="confirmRevoke()" id="revokeBtn">Revoca GOLD</button>
+    </div>
+  </div>
+</div>
+
+<div id="deniedScreen">
+  <h1>Accesso non autorizzato</h1>
+  <p>Questa pagina è riservata agli amministratori di RareBlock.</p>
+  <a href="pokemon-db.html">&larr; Torna al Collector</a>
+</div>
+
+<script>
+const SUPA_URL='https://rbjaaeyjeeqfpbzyavag.supabase.co';
+const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
+const RB_SESSION_KEY='rb_auth_session';
+const ADMIN_EMAILS=['admin@rareblock.eu','valemaui@gmail.com'];
+
+// Embed mode (iframe dalla dashboard admin)
+var IS_EMBED = (function(){
+  try {
+    if(/[?&]embed=1\b/.test(window.location.search)) return true;
+    if(window.parent && window.parent !== window) return true;
+  } catch(e){}
+  return false;
+})();
+if(IS_EMBED){
+  if(document.body) document.body.classList.add('embed-mode');
+  else document.addEventListener('DOMContentLoaded', function(){
+    document.body.classList.add('embed-mode');
+  });
+}
+
+var _session=null;
+var _candidates=[];
+var _atrisk=[];
+var _all=[];
+var _history=[];
+var _activeTab='candidates';
+var _settings={};
+var _selectedUser=null;        // utente selezionato per promote/revoke/set
+var _selectedTargetTier=null;  // tier target per modale generico
+
+function getHDR(prefer){
+  var token=(_session&&_session.access_token)||SUPA_KEY;
+  return{
+    'Content-Type':'application/json',
+    'apikey':SUPA_KEY,
+    'Authorization':'Bearer '+token,
+    'Prefer':prefer||'return=representation'
+  };
+}
+
+async function supa(method,path,body){
+  var prefer=(method==='PATCH'||method==='DELETE')?'return=minimal':'return=representation';
+  var r=await fetch(SUPA_URL+'/rest/v1/'+path,{method,headers:getHDR(prefer),body:body?JSON.stringify(body):undefined});
+  if(!r.ok){ var e=await r.text(); throw new Error(e); }
+  var t=await r.text();
+  return t?JSON.parse(t):null;
+}
+
+async function rpc(name, args){
+  var r=await fetch(SUPA_URL+'/rest/v1/rpc/'+name,{
+    method:'POST',
+    headers:getHDR('return=representation'),
+    body: JSON.stringify(args||{})
+  });
+  if(!r.ok){
+    var e = await r.text();
+    var msg = e;
+    try { var p=JSON.parse(e); if(p.message) msg=p.message; } catch(_){}
+    throw new Error(msg);
+  }
+  var t=await r.text();
+  return t?JSON.parse(t):null;
+}
+
+function loadSession(){
+  try{ var raw=localStorage.getItem(RB_SESSION_KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; }
+}
+function clearSession(){
+  try{ localStorage.removeItem(RB_SESSION_KEY); localStorage.removeItem('rbJWT'); }catch(e){}
+  try {
+    var keysToRemove = [];
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (k && k.indexOf('sb-') === 0) keysToRemove.push(k);
+    }
+    keysToRemove.forEach(function(k){ try { localStorage.removeItem(k); } catch(e){} });
+  } catch(e){}
+  try { sessionStorage.clear(); } catch(e){}
+}
+
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtDate(d){ if(!d)return '—'; try{ return new Date(d).toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'numeric'}); }catch(e){ return '—'; } }
+function fmtDateTime(d){ if(!d)return '—'; try{ return new Date(d).toLocaleString('it-IT',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){ return '—'; } }
+function fmtEur(v){
+  if(v==null) return '—';
+  var n = Number(v);
+  if(!isFinite(n)) return '—';
+  return n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+function fmtDays(d){
+  if(d==null) return '—';
+  var n = Number(d);
+  if(!isFinite(n)) return '—';
+  if(n<1) return 'oggi';
+  if(n===1) return '1 giorno';
+  return n + ' giorni';
+}
+function tierPill(tier){
+  var t = String(tier||'basic').toLowerCase();
+  var label = t.toUpperCase();
+  return '<span class="tier-pill '+t+'">'+label+'</span>';
+}
+
+function toast(msg, kind){
+  var t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className=(kind||'ok')+' show';
+  clearTimeout(window._toastT);
+  window._toastT=setTimeout(function(){ t.classList.remove('show'); }, 3200);
+}
+
+function showDenied(){
+  document.getElementById('deniedScreen').classList.add('show');
+}
+
+function doLogout(){
+  try {
+    var token = _session && _session.access_token;
+    if (token) {
+      fetch(SUPA_URL + '/auth/v1/logout?scope=local', {
+        method: 'POST',
+        headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + token },
+        keepalive: true,
+      }).catch(function(){});
+    }
+  } catch(e){}
+  clearSession();
+  location.href='pokemon-db.html';
+}
+
+function openModal(id){ document.getElementById(id).classList.add('show'); }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+
+function switchTab(tab){
+  _activeTab = tab;
+  document.querySelectorAll('.section-tab').forEach(function(b){
+    b.classList.toggle('active', b.dataset.tab===tab);
+  });
+  document.querySelectorAll('.tab-pane').forEach(function(p){
+    p.style.display = (p.dataset.pane===tab) ? '' : 'none';
+  });
+}
+
+// ── BOOTSTRAP ──
+async function init(){
+  _session=loadSession();
+  if(!_session || !_session.access_token || !_session.user){
+    location.href='pokemon-db.html?return='+encodeURIComponent('rareblock-admin-tiers.html');
+    return;
+  }
+  var now=Math.floor(Date.now()/1000);
+  if(_session.expires_at && now > _session.expires_at - 60){
+    location.href='pokemon-db.html?return='+encodeURIComponent('rareblock-admin-tiers.html');
+    return;
+  }
+
+  document.getElementById('adminEmail').textContent=_session.user.email||'—';
+
+  // Verifica admin
+  try{
+    var profiles=await supa('GET','profiles?id=eq.'+_session.user.id+'&select=id,role');
+    var p=profiles&&profiles[0];
+    var isAdmin = (p && p.role==='admin') || ADMIN_EMAILS.indexOf(_session.user.email)>-1;
+    if(!isAdmin){ showDenied(); return; }
+  }catch(e){
+    if(ADMIN_EMAILS.indexOf(_session.user.email)<=-1){ showDenied(); return; }
+  }
+
+  await loadAll();
+}
+
+async function loadSettings(){
+  try{
+    var rows = await supa('GET', 'platform_settings?key=in.(gold_aum_threshold_eur,tier_basic_buyer_fee_pct,tier_pro_buyer_fee_pct,tier_gold_buyer_fee_pct)&select=key,value');
+    _settings = {};
+    (rows||[]).forEach(function(r){ _settings[r.key] = r.value; });
+  }catch(e){
+    _settings = {};
+  }
+}
+
+async function loadAll(){
+  var btn=document.getElementById('reloadBtn');
+  if(btn){ btn.disabled=true; btn.textContent='Caricamento...'; }
+  try{
+    await loadSettings();
+    await Promise.all([
+      loadCandidates(),
+      loadAtRisk(),
+      loadAllProfiles(),
+      loadHistory()
+    ]);
+    updateStats();
+  }catch(e){
+    console.error(e);
+    toast('Errore caricamento: '+(e.message||e), 'err');
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent='Aggiorna'; }
+  }
+}
+
+async function loadCandidates(){
+  try{
+    _candidates = await supa('GET','v_gold_candidates?select=*&order=gold_eligible_since.asc') || [];
+    document.getElementById('tabCountCandidates').textContent = _candidates.length;
+    renderCandidates();
+  }catch(e){
+    _candidates = [];
+    document.getElementById('candidatesBody').innerHTML =
+      '<tr><td colspan="8" class="empty"><div class="empty-title">Errore di caricamento</div><div>'+esc(e.message||e)+'</div></td></tr>';
+  }
+}
+
+async function loadAtRisk(){
+  try{
+    _atrisk = await supa('GET','v_gold_at_risk?select=*&order=at_risk_days.desc') || [];
+    document.getElementById('tabCountAtRisk').textContent = _atrisk.length;
+    renderAtRisk();
+  }catch(e){
+    _atrisk = [];
+    document.getElementById('atriskBody').innerHTML =
+      '<tr><td colspan="7" class="empty"><div class="empty-title">Errore di caricamento</div><div>'+esc(e.message||e)+'</div></td></tr>';
+  }
+}
+
+async function loadAllProfiles(){
+  try{
+    // Join profiles + auth user email via auth.users non è esposto direttamente, usiamo v_admin_users se c'è.
+    // Cascade: tentativo 1 v_admin_users, fallback profiles.
+    var data = null;
+    try {
+      data = await supa('GET',
+        'v_admin_users?select=id,email,full_name,tier,tier_started_at,tier_expires_at,gold_eligible_since,gold_eligible_aum,gold_at_risk_since' +
+        '&order=created_at.desc&limit=1000');
+    } catch(_){
+      data = await supa('GET',
+        'profiles?select=id,full_name,tier,tier_started_at,tier_expires_at,gold_eligible_since,gold_eligible_aum,gold_at_risk_since' +
+        '&order=created_at.desc.nullslast&limit=1000');
+    }
+
+    // Calcolo AUM batch (in MVP semplice: uso le viste candidates/atrisk per lookup veloce + fallback 0)
+    var aumMap = {};
+    _candidates.forEach(function(c){ aumMap[c.user_id] = c.current_aum; });
+    _atrisk.forEach(function(c){ aumMap[c.user_id] = c.current_aum; });
+
+    _all = (data||[]).map(function(r){
+      return {
+        user_id: r.id,
+        email: r.email || '—',
+        display_name: r.full_name || r.email || '—',
+        tier: r.tier || 'basic',
+        tier_started_at: r.tier_started_at,
+        tier_expires_at: r.tier_expires_at,
+        gold_eligible_since: r.gold_eligible_since,
+        gold_eligible_aum: r.gold_eligible_aum,
+        gold_at_risk_since: r.gold_at_risk_since,
+        aum: aumMap[r.id]
+      };
+    });
+    document.getElementById('tabCountAll').textContent = _all.length;
+    renderAll();
+  }catch(e){
+    _all = [];
+    document.getElementById('allBody').innerHTML =
+      '<tr><td colspan="8" class="empty"><div class="empty-title">Errore di caricamento</div><div>'+esc(e.message||e)+'</div></td></tr>';
+  }
+}
+
+async function loadHistory(){
+  try{
+    _history = await supa('GET','v_tier_history_admin?select=*&order=changed_at.desc&limit=300') || [];
+    document.getElementById('tabCountHistory').textContent = _history.length;
+    renderHistory();
+  }catch(e){
+    _history = [];
+    document.getElementById('historyBody').innerHTML =
+      '<tr><td colspan="7" class="empty"><div class="empty-title">Errore di caricamento</div><div>'+esc(e.message||e)+'</div></td></tr>';
+  }
+}
+
+function updateStats(){
+  var b=0,p=0,g=0;
+  var aumB=0, aumP=0, aumG=0;
+  _all.forEach(function(r){
+    var a = Number(r.aum)||0;
+    if(r.tier==='gold'){ g++; aumG += a; }
+    else if(r.tier==='pro'){ p++; aumP += a; }
+    else { b++; aumB += a; }
+  });
+  document.getElementById('statBasic').textContent = b;
+  document.getElementById('statPro').textContent   = p;
+  document.getElementById('statGold').textContent  = g;
+  document.getElementById('statBasicAum').textContent = '€ ' + fmtEur(aumB) + ' AUM';
+  document.getElementById('statProAum').textContent   = '€ ' + fmtEur(aumP) + ' AUM';
+  document.getElementById('statGoldAum').textContent  = '€ ' + fmtEur(aumG) + ' AUM';
+  document.getElementById('statCandidates').textContent = _candidates.length;
+  document.getElementById('statAtRisk').textContent     = _atrisk.length;
+}
+
+// ── RENDER: CANDIDATI ──
+function renderCandidates(){
+  var q = (document.getElementById('searchCandidates').value||'').toLowerCase().trim();
+  var rows = _candidates.filter(function(r){
+    if(!q) return true;
+    return (r.email||'').toLowerCase().indexOf(q)>-1 ||
+           (r.display_name||'').toLowerCase().indexOf(q)>-1;
+  });
+  var body = document.getElementById('candidatesBody');
+  if(rows.length===0){
+    body.innerHTML = '<tr><td colspan="8" class="empty"><div class="empty-title">Nessun candidato</div><div>Il cron non ha ancora flaggato utenti sopra soglia, oppure tutti i candidati sono stati promossi.</div></td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(function(r){
+    var nameCls = r.display_name ? 'name' : 'name empty';
+    var nameTxt = r.display_name || 'Senza nome';
+    var kycTxt = r.kyc_status ? esc(String(r.kyc_status).toUpperCase()) + ' L' + (r.kyc_level||0) : '—';
+    var elig = '<span class="eligible-pill">' + fmtDays(r.eligible_days) + '</span>';
+    return '<tr>'+
+      '<td class="email">'+esc(r.email||'—')+'</td>'+
+      '<td class="'+nameCls+'">'+esc(nameTxt)+'</td>'+
+      '<td>'+tierPill(r.current_tier)+'</td>'+
+      '<td class="num gold"><span class="currency">€</span>'+fmtEur(r.current_aum)+'</td>'+
+      '<td class="num muted">'+(r.completed_orders||0)+'</td>'+
+      '<td>'+elig+'</td>'+
+      '<td><span class="history-source">'+kycTxt+'</span></td>'+
+      '<td><div class="action-cell"><button class="row-action promote" onclick="openPromoteModal(\''+r.user_id+'\')">Promuovi</button></div></td>'+
+    '</tr>';
+  }).join('');
+}
+
+// ── RENDER: AT-RISK ──
+function renderAtRisk(){
+  var q = (document.getElementById('searchAtRisk').value||'').toLowerCase().trim();
+  var rows = _atrisk.filter(function(r){
+    if(!q) return true;
+    return (r.email||'').toLowerCase().indexOf(q)>-1 ||
+           (r.display_name||'').toLowerCase().indexOf(q)>-1;
+  });
+  var body = document.getElementById('atriskBody');
+  if(rows.length===0){
+    body.innerHTML = '<tr><td colspan="7" class="empty"><div class="empty-title">Nessun GOLD a rischio</div><div>Tutti i GOLD attuali hanno AUM sopra soglia.</div></td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(function(r){
+    var nameCls = r.display_name ? 'name' : 'name empty';
+    var nameTxt = r.display_name || 'Senza nome';
+    return '<tr>'+
+      '<td class="email">'+esc(r.email||'—')+'</td>'+
+      '<td class="'+nameCls+'">'+esc(nameTxt)+'</td>'+
+      '<td class="num"><span class="currency">€</span>'+fmtEur(r.current_aum)+'</td>'+
+      '<td class="num muted"><span class="currency">€</span>'+fmtEur(r.threshold_eur)+'</td>'+
+      '<td class="date">'+fmtDate(r.gold_promoted_at)+'</td>'+
+      '<td><span class="atrisk-pill">'+fmtDays(r.at_risk_days)+'</span></td>'+
+      '<td><div class="action-cell">'+
+        '<button class="row-action" onclick="openSetTierModal(\''+r.user_id+'\',\''+esc(r.email||'')+'\',\'gold\',\'pro\')">Retrocedi a PRO</button>'+
+        '<button class="row-action demote" onclick="openRevokeModal(\''+r.user_id+'\')">Revoca</button>'+
+      '</div></td>'+
+    '</tr>';
+  }).join('');
+}
+
+// ── RENDER: TUTTI I TIER ──
+function renderAll(){
+  var q = (document.getElementById('searchAll').value||'').toLowerCase().trim();
+  var f = document.getElementById('filterTier').value;
+  var rows = _all.filter(function(r){
+    if(f && r.tier!==f) return false;
+    if(!q) return true;
+    return (r.email||'').toLowerCase().indexOf(q)>-1 ||
+           (r.display_name||'').toLowerCase().indexOf(q)>-1;
+  });
+  var body = document.getElementById('allBody');
+  if(rows.length===0){
+    body.innerHTML = '<tr><td colspan="8" class="empty"><div class="empty-title">Nessun utente</div></td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(function(r){
+    var nameCls = r.display_name ? 'name' : 'name empty';
+    var nameTxt = r.display_name || 'Senza nome';
+    var elig = '—';
+    if(r.tier!=='gold' && r.gold_eligible_since){
+      elig = '<span class="eligible-pill">Eleggibile</span>';
+    } else if(r.tier==='gold' && r.gold_at_risk_since){
+      elig = '<span class="atrisk-pill">At-risk</span>';
+    } else if(r.tier==='gold'){
+      elig = '<span class="tier-pill gold">Attivo</span>';
+    }
+    var actions = [];
+    if(r.tier==='basic'){
+      actions.push('<button class="row-action" onclick="openSetTierModal(\''+r.user_id+'\',\''+esc(r.email||'')+'\',\'basic\',\'pro\')">→ PRO</button>');
+      actions.push('<button class="row-action promote" onclick="openSetTierModal(\''+r.user_id+'\',\''+esc(r.email||'')+'\',\'basic\',\'gold\')">→ GOLD</button>');
+    } else if(r.tier==='pro'){
+      actions.push('<button class="row-action" onclick="openSetTierModal(\''+r.user_id+'\',\''+esc(r.email||'')+'\',\'pro\',\'basic\')">→ BASIC</button>');
+      actions.push('<button class="row-action promote" onclick="openSetTierModal(\''+r.user_id+'\',\''+esc(r.email||'')+'\',\'pro\',\'gold\')">→ GOLD</button>');
+    } else if(r.tier==='gold'){
+      actions.push('<button class="row-action demote" onclick="openRevokeModal(\''+r.user_id+'\')">Revoca</button>');
+    }
+    return '<tr>'+
+      '<td class="email">'+esc(r.email||'—')+'</td>'+
+      '<td class="'+nameCls+'">'+esc(nameTxt)+'</td>'+
+      '<td>'+tierPill(r.tier)+'</td>'+
+      '<td class="num">'+(r.aum!=null ? '<span class="currency">€</span>'+fmtEur(r.aum) : '<span class="muted">—</span>')+'</td>'+
+      '<td class="date">'+fmtDate(r.tier_started_at)+'</td>'+
+      '<td class="date">'+(r.tier==='pro'? fmtDate(r.tier_expires_at) : '<span style="color:var(--text-subtle)">—</span>')+'</td>'+
+      '<td>'+elig+'</td>'+
+      '<td><div class="action-cell">'+actions.join('')+'</div></td>'+
+    '</tr>';
+  }).join('');
+}
+
+// ── RENDER: STORICO ──
+function renderHistory(){
+  var q = (document.getElementById('searchHistory').value||'').toLowerCase().trim();
+  var f = document.getElementById('filterHistorySource').value;
+  var rows = _history.filter(function(r){
+    if(f && r.source!==f) return false;
+    if(!q) return true;
+    return (r.email||'').toLowerCase().indexOf(q)>-1 ||
+           (r.display_name||'').toLowerCase().indexOf(q)>-1 ||
+           (r.reason||'').toLowerCase().indexOf(q)>-1;
+  });
+  var body = document.getElementById('historyBody');
+  if(rows.length===0){
+    body.innerHTML = '<tr><td colspan="7" class="empty"><div class="empty-title">Nessun cambio registrato</div></td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(function(r){
+    var arr = '<span class="tier-arrow">'+
+      tierPill(r.from_tier||'basic')+
+      '<span class="arr">→</span>'+
+      tierPill(r.to_tier)+
+      (r.manual_override ? '<span class="override-pill">Override</span>' : '')+
+    '</span>';
+    var srcClass = 'history-source ' + (r.source||'system');
+    var srcLabel = ({admin:'Admin',system:'Sistema',self_signup:'Auto-iscr.',expired:'Scaduto'})[r.source] || (r.source||'—');
+    return '<tr class="history-row">'+
+      '<td class="date">'+fmtDateTime(r.changed_at)+'</td>'+
+      '<td><div style="font-family:var(--mono);font-size:11.5px"><div style="color:var(--text)">'+esc(r.email||'—')+'</div>'+
+        (r.display_name && r.display_name!==r.email ? '<div style="color:var(--text-subtle);font-size:10.5px">'+esc(r.display_name)+'</div>' : '') +
+      '</div></td>'+
+      '<td>'+arr+'</td>'+
+      '<td><span class="'+srcClass+'">'+esc(srcLabel)+'</span></td>'+
+      '<td style="font-family:var(--mono);font-size:11.5px;color:var(--text-muted)">'+esc(r.changed_by_name||'—')+'</td>'+
+      '<td class="num muted">'+(r.aum_at_change!=null ? '<span class="currency">€</span>'+fmtEur(r.aum_at_change) : '—')+'</td>'+
+      '<td class="reason" title="'+esc(r.reason||'')+'">'+esc(r.reason||'—')+'</td>'+
+    '</tr>';
+  }).join('');
+}
+
+// ── ACTION: PROMUOVI CANDIDATO ──
+function openPromoteModal(userId){
+  var c = _candidates.find(function(x){ return x.user_id===userId; });
+  if(!c){ toast('Candidato non trovato','err'); return; }
+  _selectedUser = c;
+  document.getElementById('promoteEmail').textContent = c.email || '—';
+  document.getElementById('promoteCurrentTier').innerHTML = tierPill(c.current_tier);
+  document.getElementById('promoteAum').textContent = '€ ' + fmtEur(c.current_aum);
+  document.getElementById('promoteSince').textContent = fmtDate(c.gold_eligible_since) + ' (' + fmtDays(c.eligible_days) + ')';
+  document.getElementById('promoteNote').value = '';
+  openModal('modalPromote');
+}
+
+async function confirmPromote(){
+  if(!_selectedUser) return;
+  var note = document.getElementById('promoteNote').value.trim();
+  var btn = document.getElementById('promoteBtn');
+  btn.disabled = true; btn.textContent = 'Promozione in corso...';
+  try{
+    await rpc('admin_set_user_tier', {
+      p_target_user_id: _selectedUser.user_id,
+      p_target_tier: 'gold',
+      p_note: note || 'Promozione GOLD da candidato eleggibile',
+      p_override_threshold: false
+    });
+    closeModal('modalPromote');
+    toast('Utente promosso a GOLD ✓', 'ok');
+    _selectedUser = null;
+    await loadAll();
+  }catch(e){
+    toast('Errore: '+(e.message||e), 'err');
+  }finally{
+    btn.disabled=false; btn.textContent='Conferma promozione';
+  }
+}
+
+// ── ACTION: FORZA SOTTO SOGLIA ──
+function openForceModal(){
+  document.getElementById('forceEmail').value = '';
+  document.getElementById('forceNote').value = '';
+  document.getElementById('forceConfirm').checked = false;
+  openModal('modalForce');
+}
+
+async function confirmForce(){
+  var email = document.getElementById('forceEmail').value.trim().toLowerCase();
+  var note = document.getElementById('forceNote').value.trim();
+  var conf = document.getElementById('forceConfirm').checked;
+  if(!email){ toast('Email obbligatoria','err'); return; }
+  if(note.length<5){ toast('Motivo override min 5 caratteri','err'); return; }
+  if(!conf){ toast('Conferma il checkbox di override','err'); return; }
+
+  var btn = document.getElementById('forceBtn');
+  btn.disabled = true; btn.textContent = 'Ricerca utente...';
+  try{
+    // Trova user_id dall'email via v_admin_users (preferito) o fallback a profiles join
+    var users = null;
+    try{
+      users = await supa('GET', 'v_admin_users?email=eq.'+encodeURIComponent(email)+'&select=id,email,full_name,tier&limit=1');
+    }catch(_){
+      users = [];
+    }
+    if(!users || users.length===0){
+      throw new Error('Utente con email "'+email+'" non trovato');
+    }
+    var u = users[0];
+    if(u.tier==='gold'){
+      throw new Error('L\'utente è già GOLD');
+    }
+    btn.textContent = 'Forzatura in corso...';
+    await rpc('admin_set_user_tier', {
+      p_target_user_id: u.id,
+      p_target_tier: 'gold',
+      p_note: note,
+      p_override_threshold: true
+    });
+    closeModal('modalForce');
+    toast('Override applicato — '+(u.email||email)+' → GOLD ✓', 'ok');
+    await loadAll();
+  }catch(e){
+    toast('Errore: '+(e.message||e), 'err');
+  }finally{
+    btn.disabled=false; btn.textContent='Forza promozione';
+  }
+}
+
+// ── ACTION: SET TIER GENERICO (basic/pro) ──
+function openSetTierModal(userId, email, fromTier, toTier){
+  _selectedUser = { user_id: userId, email: email };
+  _selectedTargetTier = toTier;
+  document.getElementById('setTierEmail').textContent = email || '—';
+  document.getElementById('setTierCurrent').innerHTML = tierPill(fromTier);
+  document.getElementById('setTierNew').innerHTML = tierPill(toTier);
+  var info = '';
+  if(toTier==='gold'){
+    info = 'Promozione diretta a GOLD. Richiede AUM ≥ soglia oppure override (in tal caso aggiungere nota dettagliata).';
+    document.querySelector('#modalSetTier .modal-info').className = 'modal-info gold';
+  } else if(toTier==='pro'){
+    info = 'Imposta tier PRO con scadenza 1 anno. Le fee future saranno 1,5% buyer / 10% success.';
+    document.querySelector('#modalSetTier .modal-info').className = 'modal-info';
+  } else {
+    info = 'Retrocede l\'utente a BASIC. Le fee future saranno 2,5% buyer / 10% success.';
+    document.querySelector('#modalSetTier .modal-info').className = 'modal-info warn';
+  }
+  document.getElementById('setTierInfo').innerHTML = info;
+  document.getElementById('setTierNote').value = '';
+  openModal('modalSetTier');
+}
+
+async function confirmSetTier(){
+  if(!_selectedUser || !_selectedTargetTier) return;
+  var note = document.getElementById('setTierNote').value.trim();
+  var btn = document.getElementById('setTierBtn');
+  btn.disabled = true; btn.textContent = 'In corso...';
+  try{
+    var args = {
+      p_target_user_id: _selectedUser.user_id,
+      p_target_tier: _selectedTargetTier,
+      p_note: note || ('Tier change → '+_selectedTargetTier.toUpperCase()),
+      p_override_threshold: false
+    };
+    try {
+      await rpc('admin_set_user_tier', args);
+    } catch(e1){
+      // Se la promozione a GOLD fallisce per soglia, suggerisco di passare via Override modal
+      if(_selectedTargetTier==='gold' && /threshold/i.test(e1.message||'')){
+        throw new Error('AUM sotto soglia GOLD. Usa il pulsante "Override sotto soglia" nei Candidati per forzare con nota.');
+      }
+      throw e1;
+    }
+    closeModal('modalSetTier');
+    toast('Tier aggiornato ✓', 'ok');
+    _selectedUser = null; _selectedTargetTier = null;
+    await loadAll();
+  }catch(e){
+    toast('Errore: '+(e.message||e), 'err');
+  }finally{
+    btn.disabled=false; btn.textContent='Conferma';
+  }
+}
+
+// ── ACTION: REVOCA GOLD ──
+function openRevokeModal(userId){
+  var r = _atrisk.find(function(x){ return x.user_id===userId; }) ||
+          _all.find(function(x){ return x.user_id===userId; });
+  if(!r){ toast('Utente non trovato','err'); return; }
+  _selectedUser = { user_id: userId, email: r.email };
+  document.getElementById('revokeEmail').textContent = r.email || '—';
+  document.getElementById('revokeAum').textContent = '€ ' + fmtEur(r.current_aum != null ? r.current_aum : r.aum);
+  document.getElementById('revokeAtRisk').textContent = r.at_risk_days != null ? fmtDays(r.at_risk_days) : '—';
+  document.getElementById('revokeNote').value = '';
+  openModal('modalRevoke');
+}
+
+async function confirmRevoke(){
+  if(!_selectedUser) return;
+  var note = document.getElementById('revokeNote').value.trim();
+  if(note.length<3){ toast('Motivo revoca obbligatorio','err'); return; }
+  var btn = document.getElementById('revokeBtn');
+  btn.disabled = true; btn.textContent = 'Revoca in corso...';
+  try{
+    await rpc('admin_set_user_tier', {
+      p_target_user_id: _selectedUser.user_id,
+      p_target_tier: 'basic',
+      p_note: 'Revoca GOLD: ' + note,
+      p_override_threshold: false
+    });
+    closeModal('modalRevoke');
+    toast('Tier GOLD revocato ✓', 'ok');
+    _selectedUser = null;
+    await loadAll();
+  }catch(e){
+    toast('Errore: '+(e.message||e), 'err');
+  }finally{
+    btn.disabled=false; btn.textContent='Revoca GOLD';
+  }
+}
+
+// ── ACTION: ESEGUI CRON SCAN ──
+async function runEligibilityScan(){
+  var btn = document.getElementById('scanBtn');
+  btn.disabled = true;
+  var orig = btn.textContent;
+  btn.textContent = '⟳ Scan in corso...';
+  try{
+    var result = await rpc('cron_scan_gold_eligibility', {});
+    var msg = 'Scan completato — '+
+              'eleggibili: '+(result&&result.newly_flagged_eligible||0)+', '+
+              'persi: '+(result&&result.lost_eligibility||0)+', '+
+              'at-risk: '+(result&&result.gold_at_risk_new||0);
+    toast(msg, 'info');
+    await loadAll();
+  }catch(e){
+    toast('Errore scan: '+(e.message||e), 'err');
+  }finally{
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
+// ── KICKOFF ──
+init();
+</script>
+
+</body>
+</html>
