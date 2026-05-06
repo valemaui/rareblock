@@ -1677,40 +1677,6 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .vend-search-item:last-child{border-bottom:none}
 .vend-empty{text-align:center;padding:40px 16px;color:var(--text-muted);font-size:13px}
 
-/* ═══ WISHLIST ═══ */
-.wish-layout{display:flex;flex:1;overflow:hidden}
-.wish-sidebar{width:300px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--surface);overflow:hidden}
-.wish-sidebar-top{padding:14px;border-bottom:1px solid var(--border);flex-shrink:0}
-.wish-sidebar-top h3{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
-.wish-form-field{margin-bottom:8px}
-.wish-form-field label{display:block;font-size:11px;color:var(--text-muted);margin-bottom:3px;font-family:var(--mono)}
-.wish-form-field input,.wish-form-field select{width:100%;font-size:13px}
-.wish-sidebar-bottom{padding:10px 14px;border-top:1px solid var(--border);flex-shrink:0}
-.wish-main{flex:1;overflow-y:auto;display:flex;flex-direction:column}
-.wish-toolbar{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0}
-.wish-stats{display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0}
-.wish-stat{flex:1;padding:10px 12px;text-align:center;border-right:1px solid var(--border)}
-.wish-stat:last-child{border-right:none}
-.wish-stat-val{font-size:15px;font-weight:600;font-family:var(--mono)}
-.wish-stat-lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px}
-.wish-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;padding:16px}
-.wish-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:8px;position:relative;transition:border-color .15s}
-.wish-item.buyable{border-color:var(--success);background:rgba(122,154,110,.04)}
-.wish-item-name{font-size:13px;font-weight:600}
-.wish-item-meta{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
-.wish-item-prices{display:flex;gap:12px;align-items:center}
-.wish-item-max{font-size:12px;color:var(--text-muted)}
-.wish-item-max span{font-family:var(--mono);color:var(--text)}
-.wish-item-mkt{font-size:12px}
-.wish-item-mkt span{font-family:var(--mono);font-weight:600}
-.wish-item-badge{font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:10px;font-weight:600}
-.wish-item-badge.ok{background:rgba(122,154,110,.15);color:var(--success);border:1px solid rgba(122,154,110,.3)}
-.wish-item-badge.wait{background:rgba(184,151,96,.1);color:var(--warning);border:1px solid rgba(184,151,96,.25)}
-.wish-item-badge.np{background:rgba(125,133,144,.1);color:var(--text-muted);border:1px solid var(--border)}
-.wish-item-actions{display:flex;gap:6px;margin-top:2px}
-.wish-del-btn{background:none;border:none;cursor:pointer;color:var(--text-subtle);font-size:12px;padding:2px 6px;border-radius:3px;transition:color .12s;margin-left:auto}
-.wish-del-btn:hover{color:var(--danger)}
-.wish-empty{text-align:center;padding:40px 16px;color:var(--text-muted);font-size:13px}
 </style>
 
 </head>
@@ -2242,7 +2208,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
     <button class="nav-btn" onclick="showTab('anl')">Analizza</button>
     <button class="nav-btn" onclick="showTab('dash')"><span class="rb-i rb-i-chart"></span> Dashboard</button>
     <button class="nav-btn" onclick="showTab('vend')"><span class="rb-i rb-i-banknote"></span> Vendite</button>
-    <button class="nav-btn" onclick="showTab('wish')"><span class="rb-i rb-i-star"></span> Wishlist</button>
+    <a class="nav-btn" href="rareblock-wishlist.html" style="text-decoration:none"><span class="rb-i rb-i-star"></span> Wishlist</a>
     <button class="nav-btn" onclick="showTab('hunt')"><span class="rb-i rb-i-radar"></span> Radar</button>
   </nav>
   <div class="led-wrap">
@@ -2950,7 +2916,6 @@ function showTab(t){
   try{ if(t==='anl'&&window.anlInitTab)  window.anlInitTab(); }catch(e){}
   try{ if(t==='dash') dashLoad();        }catch(e){ console.error('dashLoad:',e); }
   try{ if(t==='vend') vendInit();        }catch(e){ console.error('vendInit:',e); }
-  try{ if(t==='wish') wishInit();        }catch(e){ console.error('wishInit:',e); }
   try{ if(t==='hunt') huntInit();        }catch(e){ console.error('huntInit:',e); }
 }
 
@@ -6841,6 +6806,40 @@ async function appStart(){
 
   setTimeout(checkApiStatus, 800);
   loadCollection();
+
+  // Fragment-handler: deep-link da pagine sub-feature (es. wishlist).
+  // Format: #tab=<id>  oppure  #tab=prev&q=<nomeCarta>.
+  // Whitelist dei tab ammessi: solo quelli ancora presenti come tab interni.
+  try{
+    var hashRaw = (window.location.hash||'').replace(/^#/,'');
+    if(hashRaw){
+      var hp = new URLSearchParams(hashRaw);
+      var tab = hp.get('tab');
+      var validTabs = ['col','prev','imp','scan','ms','auth','anl','dash','vend','hunt'];
+      if(tab && validTabs.indexOf(tab) > -1){
+        setTimeout(function(){
+          try{ showTab(tab); }catch(_){}
+          // Pre-fill input ricerca Preventivi se q= presente.
+          // Nel tab Preventivi non esiste un singolo "search box" globale:
+          // proviamo gli id reali in cascata (filtra lista, poi ricerca carta).
+          var q = hp.get('q');
+          if(q && tab === 'prev'){
+            setTimeout(function(){
+              var inp = document.getElementById('prevListSearch')
+                     || document.getElementById('prevFilterName');
+              if(inp){
+                inp.value = q;
+                try{ inp.dispatchEvent(new Event('input', {bubbles:true})); }catch(_){}
+                try{ inp.focus(); }catch(_){}
+              }
+            }, 250);
+          }
+          // Pulisci l'hash dall'URL per evitare loop su refresh
+          try{ history.replaceState(null,'', window.location.pathname); }catch(_){}
+        }, 300);
+      }
+    }
+  }catch(e){ console.warn('[appStart] fragment-handler:', e); }
 
   // PR4c — Apertura automatica wizard onboarding
   // Due trigger:
@@ -11047,83 +11046,6 @@ if(document.getElementById('tab-auth')&&document.getElementById('tab-auth').clas
 </div>
 
 
-<!-- ═══════════════════════════════════════════════════════════
-     TAB WISHLIST — Carte da acquisire / watchlist prezzi
-     ═══════════════════════════════════════════════════════════ -->
-<div class="tab" id="tab-wish" style="display:none;flex-direction:column;overflow:hidden">
-  <!-- Stats -->
-  <div class="wish-stats" id="wishStats">
-    <div class="wish-stat"><div class="wish-stat-val" id="wsTotal">—</div><div class="wish-stat-lbl">Carte cercate</div></div>
-    <div class="wish-stat"><div class="wish-stat-val" id="wsBuyable" style="color:var(--success)">—</div><div class="wish-stat-lbl"><span class="rb-dot rb-dot-on"></span> Comprabili ora</div></div>
-    <div class="wish-stat"><div class="wish-stat-val" id="wsBudget">—</div><div class="wish-stat-lbl">Budget max totale</div></div>
-    <div class="wish-stat"><div class="wish-stat-val" id="wsMarketTotal">—</div><div class="wish-stat-lbl">Valore di mercato</div></div>
-  </div>
-  <div class="wish-layout">
-    <!-- Sidebar: aggiungi carta -->
-    <div class="wish-sidebar">
-      <div class="wish-sidebar-top">
-        <h3>Aggiungi alla wishlist</h3>
-        <div class="wish-form-field">
-          <label>Nome carta *</label>
-          <input type="text" id="wishName" placeholder="es. Charizard"/>
-        </div>
-        <div class="wish-form-field">
-          <label>Set</label>
-          <input type="text" id="wishSet" placeholder="es. Base Set"/>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-          <div class="wish-form-field">
-            <label>Condizione</label>
-            <select id="wishCond" style="width:100%">
-              <option>NM</option><option>EX</option><option>GD</option><option>MINT</option><option>LP</option>
-            </select>
-          </div>
-          <div class="wish-form-field">
-            <label>Lingua</label>
-            <select id="wishLang" style="width:100%">
-              <option>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option>
-            </select>
-          </div>
-        </div>
-        <div class="wish-form-field">
-          <label>Prezzo max (€)</label>
-          <input type="number" id="wishMaxPrice" placeholder="0.00" step="0.01"/>
-        </div>
-        <div class="wish-form-field">
-          <label>Note</label>
-          <input type="text" id="wishNotes" placeholder="Motivo, priorità…"/>
-        </div>
-        <button class="btn btn-primary" onclick="wishAdd()" style="width:100%;margin-top:6px"><span class="rb-i rb-i-star"></span> Aggiungi</button>
-        <div id="wishStatus" class="status" style="margin-top:8px;padding:4px 0;font-size:12px"></div>
-      </div>
-      <div class="wish-sidebar-bottom">
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;font-family:var(--mono)">Import da testo (una riga = una carta)</div>
-        <textarea id="wishBulkText" placeholder="Charizard Base Set NM&#10;Blastoise Base Set EX&#10;Pikachu Promo NM" style="width:100%;height:72px;font-size:11px;resize:none"></textarea>
-        <button class="btn" onclick="wishBulkImport()" style="width:100%;margin-top:6px;font-size:12px">Import bulk</button>
-      </div>
-    </div>
-    <!-- Main: griglia wishlist -->
-    <div class="wish-main">
-      <div class="wish-toolbar">
-        <input type="text" placeholder="Cerca nella wishlist..." id="wishFilter" oninput="wishRender()" style="max-width:200px"/>
-        <select id="wishFilterStatus" onchange="wishRender()" style="max-width:130px">
-          <option value="">Tutti</option>
-          <option value="buyable"><span class="rb-dot rb-dot-on"></span> Comprabili</option>
-          <option value="wait"><span class="rb-dot rb-dot-warn"></span> In attesa</option>
-          <option value="np"><span class="rb-dot rb-dot-off"></span> Senza prezzo</option>
-        </select>
-        <button class="btn" onclick="wishRefreshPrices()" style="margin-left:auto;font-size:12px"><span class="rb-i rb-i-refresh"></span> Aggiorna prezzi</button>
-        <button class="btn" onclick="wishExport()" style="font-size:12px">Esporta</button>
-      </div>
-      <div class="wish-grid" id="wishGrid"></div>
-      <div class="wish-empty" id="wishEmpty" style="display:none;padding:60px 24px">
-        <div style="font-size:32px;margin-bottom:12px"><span class="rb-i rb-i-star"></span></div>
-        <div style="font-size:14px;font-weight:500;margin-bottom:6px">La tua wishlist è vuota</div>
-        <div style="font-size:12px">Aggiungi carte che vuoi acquisire per monitorare i prezzi</div>
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- ════════════════════════════════════════════════════════════
      <span class="rb-i rb-i-radar"></span> TAB RADAR — scouting inserzioni multi-portale
@@ -15809,7 +15731,6 @@ window.authLogout = async function(){
   rbClearSession();
   // Reset stale state per sessioni cross-utente
   _vendInited = false;
-  _wishInited = false;
   _dashData = null;
   preventivi = [];
   activePrev = null;
@@ -16277,212 +16198,6 @@ function vendExportCSV(){
 }
 
 
-// ═══════════════════════════════════════════════════════════
-//  TAB WISHLIST  — Carte da acquisire / watchlist prezzi
-// ═══════════════════════════════════════════════════════════
-
-var _wishItems = [];
-var _wishInited = false;
-
-async function wishInit(){
-  if(!_wishInited){ _wishInited=true; await wishLoad(); }
-}
-
-async function wishLoad(){
-  try {
-    var uid = getCurrentUserId();
-    var qs = uid ? '?user_id=eq.'+uid+'&order=created_at.desc&limit=10000' : '?order=created_at.desc&limit=10000';
-    _wishItems = (await supa('GET','wishlist'+qs)) || [];
-  } catch(e) { _wishItems = []; }
-  wishRender();
-}
-
-async function wishAdd(){
-  var name = document.getElementById('wishName').value.trim();
-  if(!name){ wishSt('Inserisci il nome carta','error'); return; }
-  var uid = getCurrentUserId();
-  var body = {
-    name: name,
-    set_name: document.getElementById('wishSet').value.trim()||null,
-    condition: document.getElementById('wishCond').value,
-    language: document.getElementById('wishLang').value,
-    max_price: parseFloat(document.getElementById('wishMaxPrice').value)||null,
-    notes: document.getElementById('wishNotes').value.trim()||null
-  };
-  if(uid) body.user_id = uid;
-  try {
-    var inserted = await supa('POST','wishlist',body);
-    wishSt('<span class="rb-i rb-i-check"></span> Aggiunta!','success');
-    document.getElementById('wishName').value='';
-    document.getElementById('wishSet').value='';
-    document.getElementById('wishMaxPrice').value='';
-    document.getElementById('wishNotes').value='';
-    // add to local array
-    if(inserted&&inserted[0]) _wishItems.unshift(inserted[0]);
-    else _wishInited=false, await wishLoad();
-    wishRender();
-  } catch(e) {
-    if(e.message&&e.message.indexOf('does not exist')>-1){
-      wishSt('Tabella "wishlist" non trovata — esegui la migrazione SQL','error');
-    } else {
-      wishSt('Errore: '+e.message,'error');
-    }
-  }
-}
-
-function wishSt(msg,type){
-  var el=document.getElementById('wishStatus');
-  el.textContent=msg;
-  el.className='status '+(type||'info');
-}
-
-async function wishDel(id){
-  if(!confirm('Rimuovere questa carta dalla wishlist?')) return;
-  try{
-    await supa('DELETE','wishlist?id=eq.'+id);
-    _wishItems = _wishItems.filter(function(w){ return w.id!==id; });
-    wishRender();
-  }catch(e){ alert('Errore: '+e.message); }
-}
-
-async function wishBulkImport(){
-  var text = document.getElementById('wishBulkText').value.trim();
-  if(!text) return;
-  var lines = text.split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
-  if(!lines.length) return;
-  var uid = getCurrentUserId();
-  var success=0, fail=0;
-  for(var i=0;i<lines.length;i++){
-    var parts = lines[i].split(/\s+/);
-    var name = parts.slice(0,-2).join(' ');
-    // Try to detect pattern: Name [Set] [Condition]
-    // Simple: last token could be condition, second last could be set word
-    var conds = ['MINT','NM','EX','GD','LP','PL','PO'];
-    var cond = 'NM';
-    if(conds.indexOf(parts[parts.length-1].toUpperCase())>-1){
-      cond = parts.pop().toUpperCase();
-    }
-    name = parts.join(' ');
-    if(!name) continue;
-    var body = { name:name, condition:cond, language:'ITA' };
-    if(uid) body.user_id = uid;
-    try{ await supa('POST','wishlist',body); success++; }
-    catch(e){ fail++; }
-  }
-  document.getElementById('wishBulkText').value='';
-  wishSt('Importate '+success+' carte'+(fail?' ('+fail+' errori)':''),'success');
-  _wishInited=false; await wishLoad();
-}
-
-async function wishRefreshPrices(){
-  wishSt('Aggiornamento prezzi...','info');
-  var updated=0;
-  for(var i=0;i<_wishItems.length;i++){
-    var w = _wishItems[i];
-    try{
-      var q = w.name+(w.set_name?' '+w.set_name:'');
-      var res = await fetch(TCG_URL+'?q=name:"'+encodeURIComponent(w.name)+'"&pageSize=1',{headers:{'X-Api-Key':TCG_KEY}});
-      var data = await res.json();
-      if(data.data&&data.data[0]){
-        var card = data.data[0];
-        var prices = card.cardmarket&&card.cardmarket.prices;
-        if(prices){
-          var mktPrice = prices.trendPrice||prices.avg30||prices.averageSellPrice||null;
-          if(mktPrice&&mktPrice>0){
-            await supa('PATCH','wishlist?id=eq.'+w.id,{cm_avg30:mktPrice});
-            w.cm_price = mktPrice;
-            updated++;
-          }
-        }
-      }
-    }catch(e){}
-  }
-  wishSt('Aggiornati '+updated+' prezzi','success');
-  wishRender();
-}
-
-function wishRender(){
-  var q = (document.getElementById('wishFilter').value||'').toLowerCase();
-  var statusF = document.getElementById('wishFilterStatus').value||'';
-  var rows = _wishItems.filter(function(w){
-    if(q && w.name.toLowerCase().indexOf(q)===-1) return false;
-    if(statusF==='buyable' && !(w.cm_price>0&&w.max_price>0&&w.cm_price<=w.max_price)) return false;
-    if(statusF==='wait' && !(w.cm_price>0&&(!w.max_price||w.cm_price>w.max_price))) return false;
-    if(statusF==='np' && w.cm_price>0) return false;
-    return true;
-  });
-
-  // Stats
-  var buyable = _wishItems.filter(function(w){ return w.cm_price>0&&w.max_price>0&&w.cm_price<=w.max_price; }).length;
-  var budget = _wishItems.reduce(function(a,w){ return a+(w.max_price||0); },0);
-  var mktTotal = _wishItems.reduce(function(a,w){ return a+(w.cm_price||0); },0);
-  document.getElementById('wsTotal').textContent = _wishItems.length;
-  document.getElementById('wsBuyable').textContent = buyable;
-  document.getElementById('wsBudget').textContent = '€'+budget.toFixed(0);
-  document.getElementById('wsMarketTotal').textContent = '€'+mktTotal.toFixed(0);
-
-  var empty = document.getElementById('wishEmpty');
-  var grid = document.getElementById('wishGrid');
-  if(!rows.length){
-    empty.style.display='';
-    grid.innerHTML='';
-    return;
-  }
-  empty.style.display='none';
-
-  grid.innerHTML = rows.map(function(w){
-    var buyable2 = w.cm_price>0&&w.max_price>0&&w.cm_price<=w.max_price;
-    var hasMkt = w.cm_price>0;
-    var badge = buyable2
-      ? '<span class="wish-item-badge ok"><span class="rb-dot rb-dot-on"></span> Comprabile</span>'
-      : hasMkt
-        ? '<span class="wish-item-badge wait"><span class="rb-dot rb-dot-warn"></span> In attesa</span>'
-        : '<span class="wish-item-badge np"><span class="rb-dot rb-dot-off"></span> No prezzo</span>';
-    var diff = hasMkt&&w.max_price ? w.cm_price-w.max_price : null;
-    var diffStr = diff!==null ? ('<span style="color:'+(diff<=0?'var(--success)':'var(--danger)')+'">('+(diff>=0?'+':'')+diff.toFixed(2)+'€)</span>') : '';
-    return '<div class="wish-item'+(buyable2?' buyable':'')+'">'
-      +'<div style="display:flex;align-items:flex-start;justify-content:space-between">'
-        +'<div class="wish-item-name">'+esc(w.name)+'</div>'
-        +badge
-      +'</div>'
-      +'<div class="wish-item-meta">'+(w.set_name?esc(w.set_name)+' · ':'')+w.condition+' · '+(w.language||'ITA')+'</div>'
-      +'<div class="wish-item-prices">'
-        +(w.max_price?'<div class="wish-item-max">Max: <span>€'+w.max_price.toFixed(2)+'</span></div>':'<div class="wish-item-max" style="color:var(--text-subtle)">Nessun limite</div>')
-        +'<div class="wish-item-mkt">Mkt: <span style="color:'+(hasMkt?'var(--warning)':'var(--text-subtle)')+'">'+(hasMkt?'€'+w.cm_price.toFixed(2):'—')+'</span></div>'
-        +diffStr
-      +'</div>'
-      +(w.notes?'<div style="font-size:11px;color:var(--text-muted)">'+esc(w.notes)+'</div>':'')
-      +'<div class="wish-item-actions">'
-        +'<button class="btn" onclick="wishToPrev('+w.id+')" style="font-size:11px;padding:3px 9px">→ Preventivo</button>'
-        +'<button class="wish-del-btn" onclick="wishDel('+w.id+')"><span class="rb-i rb-i-x"></span></button>'
-      +'</div>'
-    +'</div>';
-  }).join('');
-}
-
-function wishToPrev(id){
-  var w = _wishItems.find(function(x){ return x.id===id; });
-  if(!w) return;
-  // Switch to preventivi tab and optionally pre-fill
-  showTab('prev');
-  // Try to trigger a search in the preventivi tab if possible
-  setTimeout(function(){
-    var inp = document.getElementById('prevSearchInput');
-    if(inp){ inp.value=w.name; }
-  }, 200);
-}
-
-function wishExport(){
-  if(!_wishItems.length){ alert('Wishlist vuota'); return; }
-  var cols = ['id','name','set_name','condition','language','max_price','cm_price','notes'];
-  var csv = [cols.join(',')].concat(_wishItems.map(function(r){
-    return cols.map(function(k){ return '"'+String(r[k]||'').replace(/"/g,'""')+'"'; }).join(',');
-  })).join('\n');
-  var a=document.createElement('a');
-  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download='wishlist_'+new Date().toISOString().slice(0,10)+'.csv';
-  a.click();
-}
 
 // ═══════════════════════════════════════════════════════════════════════
 //  🎯 HUNTER — scouting inserzioni multi-portale
