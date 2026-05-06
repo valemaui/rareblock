@@ -36,15 +36,48 @@ ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS gold_promoted_at      TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS gold_promotion_note   TEXT;
 
--- Constraint: tier valido
+-- Constraint: tier valido.
+-- Self-healing: droppa eventuali check preesistenti su `tier` con dominio
+-- diverso (es. profiles_tier_check creato manualmente fuori dalle migration),
+-- normalizza i valori, poi applica il constraint canonico.
 DO $$
+DECLARE
+  c RECORD;
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'profiles_tier_chk'
-  ) THEN
-    ALTER TABLE public.profiles
-      ADD CONSTRAINT profiles_tier_chk CHECK (tier IN ('basic','pro','gold'));
-  END IF;
+  -- Drop di tutti i check constraint che riferiscono la colonna tier
+  FOR c IN
+    SELECT con.conname
+      FROM pg_constraint con
+      JOIN pg_class      cls ON cls.oid = con.conrelid
+      JOIN pg_namespace  nsp ON nsp.oid = cls.relnamespace
+     WHERE nsp.nspname = 'public'
+       AND cls.relname = 'profiles'
+       AND con.contype = 'c'
+       AND EXISTS (
+         SELECT 1 FROM unnest(con.conkey) k
+           JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = k
+          WHERE att.attname = 'tier'
+       )
+  LOOP
+    EXECUTE format('ALTER TABLE public.profiles DROP CONSTRAINT %I', c.conname);
+  END LOOP;
+
+  -- Normalizza valori
+  UPDATE public.profiles
+     SET tier = 'basic'
+   WHERE tier IS NULL
+      OR LOWER(TRIM(tier)) NOT IN ('basic','pro','gold');
+  UPDATE public.profiles
+     SET tier = LOWER(TRIM(tier))
+   WHERE tier <> LOWER(TRIM(tier));
+
+  -- DEFAULT + NOT NULL (idempotenti)
+  ALTER TABLE public.profiles ALTER COLUMN tier SET DEFAULT 'basic';
+  ALTER TABLE public.profiles ALTER COLUMN tier SET NOT NULL;
+
+  -- Apply constraint canonico
+  ALTER TABLE public.profiles
+    ADD CONSTRAINT profiles_tier_chk CHECK (tier IN ('basic','pro','gold'));
 END $$;
 
 CREATE INDEX IF NOT EXISTS idx_profiles_tier
