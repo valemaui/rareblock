@@ -146,9 +146,19 @@ function dashRender(cards, sales, wish){
   },0);
 
   // Preventivi count
+  // Helper: items può arrivare come array, stringa JSON, o null. Normalizziamo.
+  function _prevItems(p){
+    if(!p) return [];
+    if(Array.isArray(p.items)) return p.items;
+    if(typeof p.items === 'string'){
+      try{ var arr = JSON.parse(p.items); return Array.isArray(arr) ? arr : []; }
+      catch(e){ return []; }
+    }
+    return [];
+  }
   var prevCount = (_dashPrev||[]).length;
   var prevVal = (_dashPrev||[]).reduce(function(a,p){
-    return a + (p.items||[]).reduce(function(b,i){ return b+(i.price||0); },0);
+    return a + _prevItems(p).reduce(function(b,i){ return b+(i.price||0); },0);
   },0);
 
   function fmt(v){ return (v>=0?'+':'')+v.toFixed(2); }
