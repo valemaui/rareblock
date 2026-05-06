@@ -1872,6 +1872,20 @@ window.rbAuthInit = function(){
 
 // NOTA: rbAuthInit viene chiamato UNA SOLA VOLTA da DOMContentLoaded
 // handler sopra (riga ~3237). Non ri-chiamare qui per evitare race conditions.
+
+// T2a fix: in pokemon-db.html il bootstrap di rbAuthInit veniva fatto
+// da un DOMContentLoaded handler che vive fuori dal blocco auth (riga
+// ~6884). Quando ho estratto il modulo in rareblock-login.html quel
+// listener e' rimasto in pokemon-db. Senza di esso rbAuthInit qui non
+// parte mai e l'utente vede sempre il form login anche con sessione
+// valida in localStorage. Lo aggancio adesso, idempotente come l'init.
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', function(){
+    if(typeof window.rbAuthInit === 'function') window.rbAuthInit();
+  });
+} else {
+  if(typeof window.rbAuthInit === 'function') window.rbAuthInit();
+}
 </script>
 
 <script src="config.js" defer onerror="console.warn('config.js non trovato')"></script>
