@@ -35,7 +35,10 @@
   window._rbSession = rbLoadSession();
 
   // ── API helpers ───────────────────────────────────────────────────────
+  // getHDR rilegge la sessione SEMPRE da localStorage per non usare
+  // un JWT stale dopo refresh token avvenuto nel parent.
   window.getHDR = function(){
+    window._rbSession = rbLoadSession();
     var token = (window._rbSession && window._rbSession.access_token) || window.SUPA_KEY;
     return {
       'Content-Type':  'application/json',
@@ -46,6 +49,7 @@
   };
 
   window.getCurrentUserId = function(){
+    if(!window._rbSession) window._rbSession = rbLoadSession();
     return (window._rbSession && window._rbSession.user && window._rbSession.user.id) || null;
   };
 
