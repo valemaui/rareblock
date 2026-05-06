@@ -8588,6 +8588,13 @@ function doLogout(){
 //  TAB NAVIGATION
 // ═══════════════════════════════════════════════════════════
 function showTab(t){
+  // Se l'overlay del prodotto-dettaglio è aperto (Marketplace), chiudilo
+  // prima di cambiare tab — altrimenti resta sopra (z-index:90) e blocca
+  // la nuova schermata. Stesso comportamento del bottone "Chiudi" interno.
+  var pdv = document.getElementById('productDetailView');
+  if(pdv && pdv.classList.contains('show') && typeof closeProductDetail === 'function'){
+    try{ closeProductDetail(); }catch(_){}
+  }
   document.querySelectorAll('.nav-btn').forEach(function(b){
     b.classList.toggle('active', (b.getAttribute('onclick')||'').indexOf("'"+t+"'")>-1);
   });
