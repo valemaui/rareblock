@@ -343,6 +343,11 @@ body.embed-mode .page-head .btn{
       <div class="stat-value warning" id="statAtRisk">—</div>
       <div class="stat-meta">Sotto soglia AUM</div>
     </div>
+    <div class="stat" id="cronStatusCard" title="Stato del job pg_cron rb_gold_eligibility_scan">
+      <div class="stat-label">Cron eligibility</div>
+      <div class="stat-value" id="cronStatusValue" style="font-size:14px;font-weight:500">—</div>
+      <div class="stat-meta" id="cronStatusMeta">—</div>
+    </div>
   </div>
 
   <div class="section-tabs">
@@ -807,7 +812,8 @@ async function loadAll(){
       loadCandidates(),
       loadAtRisk(),
       loadAllProfiles(),
-      loadHistory()
+      loadHistory(),
+      loadCronStatus()
     ]);
     updateStats();
   }catch(e){
@@ -816,6 +822,74 @@ async function loadAll(){
   }finally{
     if(btn){ btn.disabled=false; btn.textContent='Aggiorna'; }
   }
+}
+
+async function loadCronStatus(){
+  var valEl  = document.getElementById('cronStatusValue');
+  var metaEl = document.getElementById('cronStatusMeta');
+  var card   = document.getElementById('cronStatusCard');
+  if(!valEl || !metaEl) return;
+  try{
+    var r = await rpc('admin_get_gold_cron_status', {});
+    if(!r){
+      valEl.textContent = 'sconosciuto';
+      valEl.style.color = 'var(--text-muted)';
+      metaEl.textContent = '—';
+      return;
+    }
+    if(!r.installed){
+      valEl.textContent = 'Non installato';
+      valEl.style.color = 'var(--warning)';
+      metaEl.textContent = 'Abilita pg_cron in Supabase Dashboard';
+      if(card) card.title = r.message || '';
+      return;
+    }
+    if(!r.scheduled){
+      valEl.textContent = 'Non schedulato';
+      valEl.style.color = 'var(--warning)';
+      metaEl.textContent = 'Esegui migration 062';
+      return;
+    }
+    if(r.last_run_status === 'failed'){
+      valEl.textContent = 'Errore ultimo run';
+      valEl.style.color = 'var(--danger)';
+      metaEl.textContent = (r.last_run_at ? _fmtRelTime(r.last_run_at) : '—') + (r.last_run_message ? ' · '+r.last_run_message.substring(0,40) : '');
+      if(card) card.title = r.last_run_message || '';
+      return;
+    }
+    if(r.runs_total === 0){
+      valEl.textContent = 'In attesa';
+      valEl.style.color = 'var(--text-muted)';
+      metaEl.textContent = r.schedule + ' (UTC)';
+      return;
+    }
+    valEl.textContent = 'Attivo';
+    valEl.style.color = 'var(--success)';
+    var dur = r.last_run_duration_sec ? ' · '+Number(r.last_run_duration_sec).toFixed(1)+'s' : '';
+    metaEl.textContent = (r.last_run_at ? 'Last: '+_fmtRelTime(r.last_run_at) : '—') + dur;
+    if(card){
+      card.title = 'Schedule: '+r.schedule+' (UTC) · '+r.runs_ok+'/'+r.runs_total+' OK';
+    }
+  }catch(e){
+    valEl.textContent = 'errore';
+    valEl.style.color = 'var(--danger)';
+    metaEl.textContent = (e.message || '').substring(0,60);
+  }
+}
+
+function _fmtRelTime(ts){
+  try{
+    var d = new Date(ts);
+    var diff = Date.now() - d.getTime();
+    var min = Math.floor(diff/60000);
+    if(min < 1) return 'ora';
+    if(min < 60) return min+' min fa';
+    var h = Math.floor(min/60);
+    if(h < 24) return h+'h fa';
+    var dd = Math.floor(h/24);
+    if(dd < 30) return dd+'gg fa';
+    return d.toLocaleDateString('it-IT',{day:'2-digit',month:'short'});
+  }catch(_){ return '—'; }
 }
 
 async function loadCandidates(){
@@ -1258,6 +1332,7 @@ async function runEligibilityScan(){
               'at-risk: '+(result&&result.gold_at_risk_new||0);
     toast(msg, 'info');
     await loadAll();
+    await loadCronStatus();
   }catch(e){
     toast('Errore scan: '+(e.message||e), 'err');
   }finally{
