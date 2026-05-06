@@ -1,0 +1,2969 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Analizza</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../shared/rareblock-shared.css"/>
+<style>
+html,body{height:100%;overflow:hidden}
+body{display:flex;flex-direction:column}
+
+/* Analizza styles (estratto 1:1 da pokemon-db.html L857-1062) */
+/* ── TAB ANALIZZA — v4 compact & data-driven ── */
+#tab-anl{background:var(--bg);flex-direction:column;min-height:0;overflow:hidden}
+#tab-anl.active{display:flex}
+
+.anl-wrap{flex:1;display:flex;flex-direction:column;min-height:0;overflow-y:auto}
+
+/* Top bar compatta — form su UNA riga */
+.anl-topbar{padding:10px 20px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px}
+.anl-tt{display:flex;flex-direction:column;gap:1px;min-width:0}
+.anl-tt-title{font-size:13px;font-weight:600;letter-spacing:-0.01em}
+.anl-tt-sub{font-size:10px;color:var(--text-muted);font-family:var(--mono);letter-spacing:0.04em}
+
+.anl-f{display:flex;flex-direction:column;gap:3px}
+.anl-f > label{font-size:9px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:500}
+.anl-f input, .anl-f select{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12px;padding:5px 8px;outline:none;font-family:var(--font);height:28px;transition:border-color 0.12s}
+.anl-f input:focus, .anl-f select:focus{border-color:var(--border-focus)}
+.anl-f-name{min-width:160px;max-width:200px}
+.anl-f-set{min-width:140px;max-width:170px}
+.anl-f-lang{max-width:80px}
+.anl-f-cond{max-width:90px}
+.anl-f-1st{max-width:70px}
+.anl-f-house{max-width:110px}
+.anl-f-grade{max-width:70px}
+
+/* Toggle segmentato Raw/Gradata */
+.anl-seg{display:inline-flex;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:2px;gap:2px;height:28px}
+.anl-seg-btn{font-size:11px;padding:0 12px;border:none;background:transparent;color:var(--text-muted);cursor:pointer;border-radius:4px;font-family:var(--mono);font-weight:500;letter-spacing:0.04em;transition:all 0.12s;min-width:62px}
+.anl-seg-btn.active{background:var(--accent);color:var(--bg);font-weight:600}
+.anl-seg-btn:not(.active):hover{color:var(--text)}
+
+.anl-btn{padding:0 16px;height:28px;background:var(--accent);color:var(--bg);font-weight:600;font-size:12px;letter-spacing:0.02em;border:none;border-radius:var(--r);cursor:pointer;transition:background 0.15s;white-space:nowrap;font-family:var(--font)}
+.anl-btn:hover{background:var(--accent-hover)}
+.anl-btn:disabled{opacity:0.45;cursor:not-allowed}
+.anl-btn-ghost{padding:0 12px;height:28px;background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-size:11px;transition:all 0.12s;font-family:var(--font)}
+.anl-btn-ghost:hover{color:var(--text);border-color:var(--border-focus)}
+
+.anl-spacer{flex:1}
+
+/* Body */
+.anl-head{padding:20px 24px 0;display:flex;flex-direction:column;gap:16px}
+.anl-head:empty{display:none}
+.anl-body{flex:1;padding:20px 24px;min-height:0;display:flex;flex-direction:column;gap:16px}
+
+.anl-empty{flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;font-family:var(--mono);text-align:center;padding:80px 20px;letter-spacing:0.03em}
+
+/* Meta strip */
+.anl-card-head{display:flex;align-items:center;gap:14px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px}
+.anl-card-img{width:46px;height:auto;border-radius:3px;flex-shrink:0;border:1px solid var(--border)}
+.anl-card-main{flex:1;min-width:0}
+.anl-card-title{font-size:14px;font-weight:600;letter-spacing:-0.005em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.anl-card-sub{font-size:11px;color:var(--text-muted);font-family:var(--mono);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.anl-card-badges{display:flex;gap:5px;flex-shrink:0;flex-wrap:wrap}
+.anl-card-badge{font-size:10px;font-family:var(--mono);padding:3px 8px;border-radius:3px;background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);letter-spacing:0.04em;white-space:nowrap}
+.anl-card-badge.hi{color:var(--text);border-color:var(--text-subtle)}
+.anl-card-badge.ac{color:var(--accent);border-color:rgba(201,169,110,0.35);background:rgba(201,169,110,0.06)}
+
+/* Zona 1: Valore oggi */
+.anl-today{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px 24px}
+.anl-today-label{font-size:10px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;font-weight:500}
+.anl-today-hero{display:flex;align-items:baseline;gap:14px;margin-top:8px;flex-wrap:wrap}
+.anl-today-price{font-size:38px;font-weight:600;letter-spacing:-0.03em;font-family:var(--mono);color:var(--text);line-height:1}
+.anl-today-price.mute{color:var(--text-subtle);font-size:28px}
+.anl-today-method{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
+
+.anl-sources{display:flex;gap:2px;margin-top:16px;flex-wrap:wrap}
+.anl-src{flex:1;min-width:180px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;gap:3px}
+.anl-src.anl-src-dim{opacity:0.62;background:transparent}
+.anl-src-head{display:flex;align-items:center;gap:6px;font-size:9px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:500}
+.anl-src-tag{border:1px solid var(--border);padding:1px 5px;border-radius:2px;font-size:8.5px;letter-spacing:0.06em}
+.anl-src-dot{margin-left:auto;line-height:1;font-size:10px;color:var(--text-subtle)}
+.anl-src-price{font-size:16px;font-family:var(--mono);font-weight:600;color:var(--text);line-height:1.3}
+.anl-src-price.loading{color:var(--text-subtle);font-weight:400;font-size:13px}
+.anl-src-price.na{color:var(--text-subtle);font-weight:400;font-size:13px}
+.anl-src-note{font-size:10px;color:var(--text-muted);font-family:var(--mono);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.anl-src-link{font-size:9px;color:var(--text-subtle);text-decoration:none;letter-spacing:0.08em;text-transform:uppercase;transition:color 0.12s;margin-top:2px;font-family:var(--mono)}
+.anl-src-link:hover{color:var(--accent)}
+
+/* Tabella raggruppata gradate (CM) — mostrata in graded mode con multipli grade match */
+.anl-cm-grade-table{margin-top:6px;font-family:var(--mono);font-size:10px;border-radius:4px;overflow:hidden;border:1px solid var(--border)}
+.anl-cm-grade-table table{width:100%;border-collapse:collapse;background:var(--surface-2,rgba(255,255,255,0.02))}
+.anl-cm-grade-table th,.anl-cm-grade-table td{padding:3px 6px;text-align:left;border-bottom:1px solid var(--border)}
+.anl-cm-grade-table th{color:var(--text-muted);font-weight:500;font-size:9px;text-transform:uppercase;letter-spacing:0.06em;background:var(--surface-2,rgba(255,255,255,0.04))}
+.anl-cm-grade-table tr:last-child td{border-bottom:none}
+.anl-cm-grade-table td.col-grade{color:var(--text);font-weight:500}
+.anl-cm-grade-table td.col-price{color:var(--accent);text-align:right;font-weight:600}
+.anl-cm-grade-table td.col-count{color:var(--text-subtle);text-align:center}
+.anl-cm-grade-table tr.match-target td.col-grade::after{content:" ◀";color:var(--success);font-weight:700}
+.anl-cm-grade-table tr.match-target{background:rgba(16,185,129,0.06)}
+
+/* Zona 2: Proiezione */
+.anl-fwd{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px 24px;display:flex;flex-direction:column;gap:12px}
+.anl-fwd-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.anl-fwd-label{font-size:10px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;font-weight:500}
+.anl-fwd-sub{font-size:10px;color:var(--text-subtle);font-family:var(--mono);letter-spacing:0.04em}
+
+.anl-fwd-hero{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.anl-fwd-price{font-size:30px;font-weight:600;letter-spacing:-0.025em;font-family:var(--mono);line-height:1}
+.anl-fwd-price.pos{color:var(--success)}
+.anl-fwd-price.neg{color:var(--danger)}
+.anl-fwd-price.mute{color:var(--text-subtle);font-size:22px}
+.anl-fwd-delta{font-size:14px;font-family:var(--mono);font-weight:500}
+.anl-fwd-delta.pos{color:var(--success)}
+.anl-fwd-delta.neg{color:var(--danger)}
+.anl-fwd-delta.mute{color:var(--text-muted)}
+
+.anl-fwd-desc{font-size:12px;color:var(--text-muted);line-height:1.6}
+
+.anl-fwd-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-top:4px}
+.anl-fwd-kv{padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;gap:2px}
+.anl-fwd-kv-k{font-size:9px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em}
+.anl-fwd-kv-v{font-size:13px;font-family:var(--mono);font-weight:500;color:var(--text)}
+.anl-fwd-kv-v.pos{color:var(--success)}
+.anl-fwd-kv-v.neg{color:var(--danger)}
+.anl-fwd-kv-v.mute{color:var(--text-subtle)}
+
+/* ── REDESIGN UI v2 ─────────────────────────────────────────────────── */
+/* Card head con riepilogo valore mercato a destra */
+.anl-card-head-v2{display:flex;align-items:stretch;gap:0;padding:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.anl-card-head-v2 .anl-card-info{flex:1;display:flex;align-items:center;gap:14px;padding:14px 16px;min-width:0}
+.anl-card-head-v2 .anl-card-img{width:54px;height:auto;border-radius:3px;flex-shrink:0;border:1px solid var(--border)}
+.anl-card-head-v2 .anl-card-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+.anl-card-head-v2 .anl-card-title{font-size:15px;font-weight:600;letter-spacing:-0.005em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2}
+.anl-card-head-v2 .anl-card-sub{font-size:11px;color:var(--text-muted);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3}
+.anl-card-head-v2 .anl-card-meta-row{display:flex;gap:5px;flex-wrap:wrap;margin-top:2px}
+.anl-card-head-v2 .anl-card-meta-row .anl-card-badge{font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:3px;background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);letter-spacing:0.04em;white-space:nowrap}
+.anl-card-head-v2 .anl-card-badge.hi{color:var(--text);border-color:var(--text-subtle)}
+.anl-card-head-v2 .anl-card-badge.ac{color:var(--accent);border-color:rgba(201,169,110,0.35);background:rgba(201,169,110,0.06)}
+/* Riepilogo valore mercato - mezza colonna destra */
+.anl-card-summary{flex:0 0 38%;min-width:200px;padding:14px 18px;background:var(--surface2);border-left:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;gap:4px}
+.anl-card-summary-label{font-size:9px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;font-weight:500}
+.anl-card-summary-price{font-size:30px;font-weight:600;letter-spacing:-0.025em;font-family:var(--mono);color:var(--text);line-height:1;margin-top:2px}
+.anl-card-summary-price.mute{color:var(--text-subtle);font-size:22px}
+.anl-card-summary-method{font-size:10px;color:var(--text-muted);font-family:var(--mono);line-height:1.4;margin-top:3px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+
+/* Sources con toggle pill in cima */
+.anl-sources-v2{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.anl-sources-v2-head{font-size:10px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;font-weight:500;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.anl-sources-v2-grid{display:flex;gap:8px;flex-wrap:wrap}
+.anl-sources-v2-grid .anl-src{flex:1;min-width:200px}
+.anl-src-toggle{display:flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--surface);border:1.5px solid var(--border-focus);cursor:pointer;transition:all 0.12s;flex-shrink:0;padding:0}
+.anl-src-toggle:hover{border-color:var(--accent)}
+.anl-src-toggle.active{background:var(--accent);border-color:var(--accent)}
+.anl-src-toggle.active::after{content:'';width:8px;height:8px;background:var(--bg);border-radius:50%}
+.anl-src-toggle:not(.active)::after{content:'';width:0;height:0}
+.anl-src.disabled{opacity:0.42;background:transparent}
+.anl-src.disabled .anl-src-price,.anl-src.disabled .anl-src-note{filter:grayscale(1)}
+
+/* Box interesse di mercato (BOX 3 ridisegnato) */
+.anl-interest{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px 22px;display:flex;flex-direction:column;gap:12px}
+.anl-interest-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.anl-interest-label{font-size:10px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;font-weight:500}
+.anl-interest-sub{font-size:10px;color:var(--text-subtle);font-family:var(--mono);letter-spacing:0.04em}
+.anl-interest-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.anl-interest-cell{padding:11px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;gap:3px;min-width:0}
+.anl-interest-cell-k{font-size:9px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em}
+.anl-interest-cell-v{font-size:18px;font-family:var(--mono);font-weight:600;color:var(--text);line-height:1.2}
+.anl-interest-cell-v.mute{color:var(--text-subtle);font-weight:400;font-size:14px}
+.anl-interest-cell-v.pos{color:var(--success)}
+.anl-interest-cell-v.neg{color:var(--danger)}
+.anl-interest-cell-v.warn{color:var(--accent)}
+.anl-interest-cell-note{font-size:10px;color:var(--text-muted);font-family:var(--mono);line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+/* Spread asks vs sold */
+.anl-interest-spread{font-size:11px;color:var(--text-muted);font-family:var(--mono);padding:8px 12px;background:var(--surface2);border-left:2px solid var(--accent);border-radius:3px;line-height:1.5}
+.anl-interest-spread strong{color:var(--text);font-weight:600}
+/* Strategia grading: NM raw vs gradata target */
+.anl-strategy{margin-top:6px;padding:14px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;gap:10px}
+.anl-strategy-head{font-size:10px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;font-weight:500;display:flex;align-items:center;gap:8px}
+.anl-strategy-head::before{content:'⇄';color:var(--accent);font-size:13px;letter-spacing:0}
+.anl-strategy-flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:8px;align-items:stretch}
+.anl-strategy-step{padding:9px 11px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;gap:2px;min-width:0}
+.anl-strategy-step-k{font-size:9px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em}
+.anl-strategy-step-v{font-size:15px;font-family:var(--mono);font-weight:600;color:var(--text);line-height:1.2}
+.anl-strategy-step-v.pos{color:var(--success)}
+.anl-strategy-step-v.neg{color:var(--danger)}
+.anl-strategy-step-v.warn{color:var(--accent)}
+.anl-strategy-step-sub{font-size:10px;color:var(--text-muted);font-family:var(--mono);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.anl-strategy-arrow{display:flex;align-items:center;justify-content:center;color:var(--text-subtle);font-family:var(--mono);font-size:14px;font-weight:600}
+.anl-strategy-verdict{font-size:11px;color:var(--text-muted);font-family:var(--mono);padding:8px 12px;background:var(--surface);border-left:2px solid;border-radius:3px;line-height:1.5}
+.anl-strategy-verdict.pos{border-left-color:var(--success)}
+.anl-strategy-verdict.neg{border-left-color:var(--danger)}
+.anl-strategy-verdict.warn{border-left-color:var(--accent)}
+.anl-strategy-verdict.mute{border-left-color:var(--text-subtle)}
+.anl-strategy-verdict strong{color:var(--text);font-weight:600}
+@media (max-width:760px){
+  .anl-strategy-flow{grid-template-columns:1fr;gap:6px}
+  .anl-strategy-arrow{display:none}
+}
+@media (max-width:760px){
+  .anl-card-head-v2{flex-direction:column}
+  .anl-card-summary{flex:1;border-left:none;border-top:1px solid var(--border);min-width:0}
+}
+
+/* Multi-match picker */
+.anl-multi{padding:8px 0}
+.anl-multi-title{font-size:11px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px}
+.anl-multi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px}
+.anl-multi-item{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;transition:border-color 0.12s;min-width:0}
+.anl-multi-item:hover{border-color:var(--accent)}
+.anl-multi-item img{width:32px;border-radius:2px;flex-shrink:0;border:1px solid var(--border)}
+.anl-multi-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.anl-multi-name{font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.anl-multi-meta{font-size:10px;color:var(--text-muted);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.anl-multi-price{font-size:11px;font-family:var(--mono);color:var(--text);flex-shrink:0}
+
+/* Spinner */
+.anl-spin{display:inline-block;width:10px;height:10px;border:1.5px solid var(--surface3);border-top-color:var(--accent);border-radius:50%;animation:anlSpin 0.6s linear infinite;vertical-align:middle;margin-right:5px}
+
+/* Override frame: il tab-anl qui e\' la view diretta. */
+#tab-anl{display:flex !important;flex-direction:column;flex:1;overflow:hidden}
+</style>
+</head>
+<body>
+
+<div class="tab" id="tab-anl">
+  <div class="anl-wrap">
+
+    <!-- Form bar compatta su una riga -->
+    <div class="anl-topbar">
+      <div class="anl-tt" style="margin-right:6px">
+        <span class="anl-tt-title">Analizza</span>
+        <span class="anl-tt-sub">valore di mercato + proiezione</span>
+      </div>
+
+      <div class="anl-f anl-f-name">
+        <label for="anlCardName">Carta</label>
+        <input type="text" id="anlCardName" placeholder="nome + numero"
+          onkeydown="if(event.key==='Enter')anlSearch()"/>
+      </div>
+
+      <div class="anl-f anl-f-set">
+        <label for="anlCardName-setpicker-input">Set</label>
+        <div id="anlCardName-setpicker" style="position:relative"></div>
+      </div>
+
+      <div class="anl-f anl-f-lang">
+        <label for="anlLang">Lingua</label>
+        <select id="anlLang">
+          <option value="ITA">ITA</option>
+          <option value="ENG" selected>ENG</option>
+          <option value="JPN">JPN</option>
+          <option value="FRA">FRA</option>
+          <option value="DEU">DEU</option>
+          <option value="ESP">ESP</option>
+          <option value="POR">POR</option>
+          <option value="KOR">KOR</option>
+        </select>
+      </div>
+
+      <div class="anl-f">
+        <label id="anlSegLabel">Tipo</label>
+        <div class="anl-seg" role="tablist" aria-labelledby="anlSegLabel">
+          <button class="anl-seg-btn active" id="anlSegRaw" role="tab" aria-selected="true" onclick="anlSetMode('raw')">Raw</button>
+          <button class="anl-seg-btn" id="anlSegGr" role="tab" aria-selected="false" onclick="anlSetMode('graded')">Gradata</button>
+        </div>
+      </div>
+
+      <!-- Fields RAW -->
+      <div class="anl-f anl-f-cond" id="anlFCond">
+        <label for="anlCond">Condizione</label>
+        <select id="anlCond">
+          <option>MINT</option>
+          <option selected>NM</option>
+          <option>EX</option>
+          <option>GD</option>
+          <option>LP</option>
+          <option>PL</option>
+          <option>PO</option>
+          <option>INK/ALT</option>
+        </select>
+      </div>
+      <div class="anl-f anl-f-1st" id="anlF1st">
+        <label for="anl1st">1ª Ed</label>
+        <select id="anl1st">
+          <option value="no" selected>No</option>
+          <option value="yes">Sì</option>
+        </select>
+      </div>
+
+      <!-- Fields GRADED -->
+      <div class="anl-f anl-f-house" id="anlFHouse" style="display:none">
+        <label for="anlHouse">Casa</label>
+        <select id="anlHouse" onchange="anlOnHouseChange()">
+          <option value="PSA" selected>PSA</option>
+          <option value="BGS">BGS</option>
+          <option value="CGC">CGC</option>
+          <option value="SGC">SGC</option>
+          <option value="HGA">HGA</option>
+          <option value="GMA">GMA</option>
+          <option value="TAG">TAG</option>
+          <option value="ARS">ARS</option>
+          <option value="GG">GetGraded</option>
+          <option value="OTHER">Altra</option>
+        </select>
+      </div>
+      <div class="anl-f anl-f-grade" id="anlFGrade" style="display:none">
+        <label for="anlGradeScore">Grado</label>
+        <select id="anlGradeScore" onchange="anlOnScoreChange()"></select>
+      </div>
+
+      <button class="anl-btn" id="anlBtn" onclick="anlSearch()">Analizza</button>
+      <button class="anl-btn-ghost" id="anlBtnReset" onclick="anlReset()" style="display:none">Reset</button>
+
+      <span class="anl-spacer"></span>
+    </div>
+
+    <!-- Header carta (separato da body per sopravvivere a rerender) -->
+    <div class="anl-head" id="anlHead"></div>
+
+    <!-- Body -->
+    <div class="anl-body" id="anlBody">
+      <div class="anl-empty">Inserisci una carta e premi Analizza</div>
+    </div>
+
+  </div>
+</div>
+
+<script src="../shared/rareblock-shared.js" defer></script>
+<script defer>
+//  Valore oggi (eBay + PC + CM) + Proiezione (gradata→futuro trend PC,
+//  raw→valore se gradata)
+// ═══════════════════════════════════════════════════════════
+
+var ANL_COND_FACTOR = { MINT:1.15, NM:1.0, EX:0.85, GD:0.70, LP:0.60, PL:0.40, PO:0.20, 'INK/ALT':0 };
+var ANL_FIRST_ED_MULT = 1.8;
+var ANL_USD_EUR_FALLBACK = 0.92;
+
+// Costi import US/UK → IT per carte da gioco
+// Codice TARIC: 9504400000 (Carte da gioco)
+// - Spedizione: 20€ standard tracked
+// - IVA italiana: 22% su (valore carta + spedizione + dazio)
+// - Dazio ERGA OMNES paesi terzi: 2.70% (verificato dazi.it, base R2261/98)
+// - Sdoganamento corriere: 15€ fisso (DHL/UPS/FedEx tipico)
+// - Franchigia dazio: <€150 valore intrinseco esente (Reg. 1186/2009 art. 23)
+//   IVA dovuta sempre dal 01/07/2021 (franchigia €22 abolita).
+//   ATTENZIONE: dal 01/07/2026 franchigia €150 sarà soppressa (Reg. 2026/382).
+//   Sostituita probabilmente da dazio fisso €3 o tariffe a categorie semplificate.
+//   Aggiornare quando entra in vigore.
+var ANL_IMPORT_SHIPPING        = 20;
+var ANL_IMPORT_VAT             = 0.22;
+var ANL_IMPORT_DUTY            = 0.027;
+var ANL_IMPORT_DUTY_THRESHOLD  = 150;   // valore intrinseco sotto cui dazio = 0
+var ANL_IMPORT_CUSTOMS_FEE     = 15;
+
+// Costo totale import dato prezzo carta in EUR
+function anlImportTotal(priceEur){
+  if(priceEur == null || isNaN(priceEur)) return null;
+  var base = priceEur + ANL_IMPORT_SHIPPING;
+  // Soglia €150 si applica al VALORE INTRINSECO (solo merce, esclusa spedizione)
+  var dutyApplies = priceEur > ANL_IMPORT_DUTY_THRESHOLD;
+  var duty = dutyApplies ? base * ANL_IMPORT_DUTY : 0;
+  var vat  = (base + duty) * ANL_IMPORT_VAT;
+  return priceEur + ANL_IMPORT_SHIPPING + duty + vat + ANL_IMPORT_CUSTOMS_FEE;
+}
+
+// Case di grading riconosciute (PSA è quella con prezzi PC/eBay più liquidi;
+// le altre usano PSA come benchmark con una leggera correzione di liquidità)
+var ANL_HOUSES = {
+  PSA:  { label:'PSA',       liq:1.00 },
+  BGS:  { label:'BGS',       liq:0.90 },
+  CGC:  { label:'CGC',       liq:0.85 },
+  SGC:  { label:'SGC',       liq:0.70 },
+  HGA:  { label:'HGA',       liq:0.55 },
+  GMA:  { label:'GMA',       liq:0.50 },
+  TAG:  { label:'TAG',       liq:0.60 },
+  ARS:  { label:'ARS',       liq:0.55 },
+  GG:   { label:'GetGraded', liq:0.50 },
+  OTHER:{ label:'Altra',     liq:0.45 },
+};
+
+// Grado atteso da condizione RAW → utile per proiezione "se gradata"
+var ANL_EXPECTED_GRADE = {
+  MINT: 9,
+  NM:   8,
+  EX:   7,
+  GD:   6,
+  LP:   5,
+  PL:   4,
+  PO:   3,
+  'INK/ALT': null,
+};
+
+// ─── STATO ───────────────────────────────────────────────────────────────────
+var anlMode = 'raw';              // 'raw' | 'graded'
+var anlCurrentCard = null;
+var anlSearching = false;
+var anlLiveData = {};             // { ebay (sold), ebayActive (asks live), pc, cm, usdEur }
+var anlSourceEnabled = {eb:true, pc:true, cm:true};  // toggle per inclusione media in BOX 2
+var anlPcShowDetail = false;                          // toggle vista PC: aggregata vs dettaglio sold target grade
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+function anlInitTab(){
+  anlPopulateGradeSelect();
+  var el = document.getElementById('anlCardName');
+  if(el) el.focus();
+}
+window.anlInitTab = anlInitTab;
+
+function anlPopulateGradeSelect(){
+  var sel=document.getElementById('anlGradeScore');
+  if(!sel) return;
+  var house=document.getElementById('anlHouse').value;
+  var scores = house==='PSA' || house==='SGC'
+    ? [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+    : [10, 9.5, 9, 8.5, 8, 7.5, 7, 6.5, 6, 5.5, 5, 4.5, 4];
+  var current = sel.value || (house==='PSA'||house==='SGC' ? '9' : '9.5');
+  sel.innerHTML='';
+  scores.forEach(function(s){
+    var o=document.createElement('option');
+    o.value=s; o.textContent=s;
+    if(String(s)===String(current)) o.selected=true;
+    sel.appendChild(o);
+  });
+  if(!sel.value) sel.value = house==='PSA'||house==='SGC' ? '9' : '9.5';
+}
+
+function anlSetMode(m){
+  anlMode = m;
+  var rawBtn=document.getElementById('anlSegRaw');
+  var grBtn =document.getElementById('anlSegGr');
+  rawBtn.classList.toggle('active', m==='raw');
+  grBtn.classList.toggle('active',  m==='graded');
+  rawBtn.setAttribute('aria-selected', m==='raw' ? 'true':'false');
+  grBtn.setAttribute('aria-selected',  m==='graded' ? 'true':'false');
+  document.getElementById('anlFCond').style.display  = m==='raw'?'':'none';
+  document.getElementById('anlF1st').style.display   = m==='raw'?'':'none';
+  document.getElementById('anlFHouse').style.display = m==='graded'?'':'none';
+  document.getElementById('anlFGrade').style.display = m==='graded'?'':'none';
+  if(anlCurrentCard) anlRerender();
+}
+window.anlSetMode = anlSetMode;
+
+function anlOnHouseChange(){
+  anlPopulateGradeSelect();
+  if(anlCurrentCard) anlRerender();
+}
+window.anlOnHouseChange = anlOnHouseChange;
+
+function anlOnScoreChange(){
+  if(anlCurrentCard) anlRerender();
+}
+window.anlOnScoreChange = anlOnScoreChange;
+
+function anlRerender(){
+  if(!anlCurrentCard) return;
+  anlRenderAll(anlCurrentCard);
+}
+
+// ─── SEARCH ──────────────────────────────────────────────────────────────────
+window.anlSearch = async function(){
+  var raw = (document.getElementById('anlCardName').value||'').trim();
+  var setInp=document.getElementById('anlCardName-setpicker-input');
+  var setSel=setInp?rbResolveSetFromInput(setInp):null;
+  if((!raw && !setSel) || anlSearching) return;
+  if(setSel&&setSel.unresolved){ anlShowMsg('Set "'+setSel.name+'" non riconosciuto'); return; }
+
+  var pm = raw?raw.match(/^(.+?)\s+(\d+[\/\d]*)$/):null;
+  var cardName = pm ? pm[1].trim() : raw;
+  var cardNum  = pm ? pm[2] : null;
+
+  // Memorizza input utente — usato per cascata query eBay/PC quando il nome ufficiale API è troppo specifico (es. "Groudon-EX" mentre l'utente cerca "Groudon")
+  window._anlUserInput = { raw: raw, name: cardName, number: cardNum, setName: setSel?setSel.name:null };
+
+  anlSearching = true;
+  var btn = document.getElementById('anlBtn');
+  if(btn){ btn.disabled=true; btn.innerHTML='<span class="anl-spin"></span>Ricerca…'; }
+
+  try{
+    var cards = await rbSearchCards(cardName, cardNum||null, setSel?setSel.id:null);
+    if(!cards||!cards.length){
+      anlShowMsg('Nessuna carta trovata'+(setSel?' in "'+setSel.name+'"':' per "'+raw+'"'));
+      return;
+    }
+    var filtered = cards;
+    if(cardNum && !setSel){
+      var nc = cardNum.split('/')[0];
+      var byNum = cards.filter(function(c){ return (c.number||'').split('/')[0]===nc; });
+      if(byNum.length) filtered = byNum;
+    }
+    if(filtered.length===1){ anlSelectCard(filtered[0]); }
+    else { anlShowMulti(filtered.slice(0,30)); }
+  }catch(e){
+    anlShowMsg('Errore ricerca: '+e.message);
+  }finally{
+    anlSearching = false;
+    if(btn){ btn.disabled=false; btn.innerHTML='Analizza'; }
+  }
+};
+
+function anlShowMsg(msg){
+  var headEl = document.getElementById('anlHead');
+  if(headEl) headEl.innerHTML='';
+  document.getElementById('anlBody').innerHTML='<div class="anl-empty">'+anlEsc(msg)+'</div>';
+  document.getElementById('anlBtnReset').style.display='none';
+}
+
+function anlShowMulti(cards){
+  window._anlMulti={};
+  cards.forEach(function(c){ window._anlMulti[c.id]=c; });
+  var h='<div class="anl-multi">'
+    +'<div class="anl-multi-title">'+cards.length+' risultati — seleziona la carta corretta</div>'
+    +'<div class="anl-multi-grid">';
+  cards.forEach(function(c){
+    var img=(c.images&&c.images.small)||'';
+    var setN=c.set?c.set.name:'';
+    var pr=c.cardmarket&&c.cardmarket.prices
+      ?'€'+((c.cardmarket.prices.trendPrice||c.cardmarket.prices.avg30||0).toFixed(2)):'';
+    h+='<div class="anl-multi-item" onclick="anlPickCard(\''+c.id+'\')">'
+      +(img?'<img src="'+img+'" alt="">':'')
+      +'<div class="anl-multi-info">'
+      +'<div class="anl-multi-name">'+anlEsc(c.name)+' <span style="color:var(--text-muted);font-family:var(--mono);font-size:10px">#'+anlEsc(c.number)+'</span></div>'
+      +'<div class="anl-multi-meta">'+anlEsc(setN)+'</div>'
+      +'</div>'
+      +(pr?'<span class="anl-multi-price">'+pr+'</span>':'')
+      +'</div>';
+  });
+  h+='</div></div>';
+  var headEl_mm = document.getElementById('anlHead');
+  if(headEl_mm) headEl_mm.innerHTML='';
+  document.getElementById('anlBody').innerHTML=h;
+  document.getElementById('anlBtnReset').style.display='';
+}
+window.anlPickCard = function(id){
+  var c=window._anlMulti&&window._anlMulti[id];
+  if(c) anlSelectCard(c);
+};
+
+function anlSelectCard(card){
+  anlCurrentCard = card;
+  anlLiveData = {};
+  anlPcShowDetail = false;  // reset toggle su nuova carta
+  anlRenderAll(card);
+}
+
+window.anlReset = function(){
+  anlCurrentCard=null;
+  anlLiveData={};
+  document.getElementById('anlBtnReset').style.display='none';
+  var headEl = document.getElementById('anlHead');
+  if(headEl) headEl.innerHTML='';
+  document.getElementById('anlBody').innerHTML='<div class="anl-empty">Inserisci una carta e premi Analizza</div>';
+  var inp=document.getElementById('anlCardName');
+  if(inp){inp.value='';inp.focus();}
+};
+
+function anlEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+// ─── RENDER COMPLETO ─────────────────────────────────────────────────────────
+// Architettura split: BOX 1 va in #anlHead (mai sovrascritto da fetch),
+// BOX 2/3 vanno in #anlBody. Garantisce che il riepilogo non scompaia
+// mai a causa di rerender accidentali del body durante fetch async.
+function anlRenderAll(card){
+  var graded = anlMode==='graded';
+  var lang = document.getElementById('anlLang').value;
+
+  var img=(card.images&&card.images.small)||'';
+  var setN=card.set?card.set.name:'';
+
+  // BOX 1: Card head v2 con riepilogo valore mercato a destra
+  var badges='';
+  if(graded){
+    var house=document.getElementById('anlHouse').value;
+    var score=document.getElementById('anlGradeScore').value;
+    badges+='<span class="anl-card-badge ac">'+ANL_HOUSES[house].label+' '+score+'</span>';
+    badges+='<span class="anl-card-badge hi">'+lang+'</span>';
+  } else {
+    var cond=document.getElementById('anlCond').value;
+    var is1st=document.getElementById('anl1st').value==='yes';
+    badges+='<span class="anl-card-badge hi">'+cond+'</span>';
+    badges+='<span class="anl-card-badge hi">'+lang+'</span>';
+    if(is1st) badges+='<span class="anl-card-badge ac">1ª Ed</span>';
+  }
+
+  var headHtml='<div class="anl-card-head-v2">'
+    +'<div class="anl-card-info">'
+    +(img?'<img class="anl-card-img" src="'+img+'" alt="">':'')
+    +'<div class="anl-card-main">'
+    +  '<div class="anl-card-title">'+anlEsc(card.name)+' <span style="color:var(--text-muted);font-family:var(--mono);font-size:12px;font-weight:400">#'+anlEsc(card.number)+'</span></div>'
+    +  '<div class="anl-card-sub">'+anlEsc(setN)+(card.rarity?' · '+anlEsc(card.rarity):'')+'</div>'
+    +  '<div class="anl-card-meta-row">'+badges+'</div>'
+    +'</div>'
+    +'</div>'
+    +'<div class="anl-card-summary">'
+    +  '<div class="anl-card-summary-label">Valore mercato · oggi</div>'
+    +  '<div class="anl-card-summary-price mute" id="anlTodayPrice">—</div>'
+    +  '<div class="anl-card-summary-method" id="anlTodayMethod">caricamento sorgenti…</div>'
+    +'</div>'
+    +'</div>';
+
+  // BOX 2: Sorgenti con toggle on/off
+  var bodyHtml='<div class="anl-sources-v2">'
+    +'<div class="anl-sources-v2-head">Sorgenti per il calcolo · click sul pallino per escludere/includere</div>'
+    +'<div class="anl-sources-v2-grid" id="anlSources">'+anlSourcesScaffold(card)+'</div>'
+    +'</div>';
+
+  // BOX 3: Interesse di mercato
+  var fwdSub = graded ? 'spread asks vs sold · liquidità · volatilità' : 'spread asks vs sold · liquidità';
+  bodyHtml+='<div class="anl-interest" id="anlFwd">'
+    +'<div class="anl-interest-head">'
+    +  '<span class="anl-interest-label">Interesse di mercato</span>'
+    +  '<span class="anl-interest-sub">'+fwdSub+'</span>'
+    +'</div>'
+    +'<div class="anl-interest-row" id="anlInterestRow"></div>'
+    +'<div class="anl-interest-spread" id="anlInterestSpread" style="display:none"></div>'
+    +'</div>';
+
+  // Render: BOX 1 in #anlHead, BOX 2+3 in #anlBody
+  // Se #anlHead non esiste (fallback su file vecchi cached), usa anlBody
+  var headEl = document.getElementById('anlHead');
+  var bodyEl = document.getElementById('anlBody');
+  if(headEl){
+    headEl.innerHTML = headHtml;
+    bodyEl.innerHTML = bodyHtml;
+  } else {
+    // Fallback compat: tutto in body se anlHead manca
+    bodyEl.innerHTML = headHtml + bodyHtml;
+  }
+  document.getElementById('anlBtnReset').style.display='';
+
+  // Avvia fetch live
+  anlStartLiveFetches(card);
+}
+
+function anlSourcesScaffold(card){
+  var setNm=card.set?card.set.name:'';
+  var graded = anlMode==='graded';
+  var cond = document.getElementById('anlCond').value;
+  var lang = document.getElementById('anlLang').value;
+  var is1st= document.getElementById('anl1st').value==='yes';
+  var house= document.getElementById('anlHouse').value;
+  var score= document.getElementById('anlGradeScore').value;
+  var setId= card.set?card.set.id:null;
+
+  // eBay query → URL "apri →" usa la stessa query SEMPLICE del cascade
+  // (nome + voto se graded, nome + numero se raw). Stringhe lunghe con set
+  // name + 'pokemon' degradano fuzzy match eBay (user feedback).
+  // sort by recent (_sop=13) + 240 items/page (_ipg=240) per sample ricco
+  var ebQ;
+  if(graded){
+    ebQ = (card.name + ' ' + house + ' ' + score).trim();
+  } else {
+    ebQ = (card.name + (card.number ? ' ' + card.number : '')).trim();
+  }
+  var ebUrl='https://www.ebay.it/sch/i.html?_nkw='+encodeURIComponent(ebQ)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_sop=13&_ipg=240';
+
+  // PC query — link iniziale a search, verrà sostituito con productUrl risolto dopo la fetch
+  var pcQ=(card.name+(setNm?' '+setNm:'')).trim();
+  var pcUrl='https://www.pricecharting.com/search-products?q='+encodeURIComponent(pcQ)+'&type=prices';
+
+  // CM URL
+  var cmUrl=buildCMDirectUrl(card.name,setId,card.number,cond,lang,'Normal',is1st,setNm);
+
+  // Tag/titolo CM neutri — ora il box mostra dati gradati reali se disponibili,
+  // quindi non ha senso dire "riferimento raw" anche in mode graded.
+  var cmTag = 'CM';
+  var cmTitle = graded ? 'CardMarket' : 'CardMarket (trend)';
+  var cmClass = 'anl-src';
+
+  return ''
+  +'<div class="anl-src'+(anlSourceEnabled.eb?'':' disabled')+'" id="anlSrcEbBox">'
+  +  '<div class="anl-src-head"><span class="anl-src-toggle'+(anlSourceEnabled.eb?' active':'')+'" onclick="anlToggleSource(\'eb\')" title="Includi/escludi nella media"></span><span class="anl-src-tag">EB</span><span>eBay Sold'+(graded?' '+ANL_HOUSES[house].label+' '+score:'')+'</span><span class="anl-src-dot" id="anlSrcEbDot"></span></div>'
+  +  '<div class="anl-src-price loading" id="anlSrcEb">—</div>'
+  +  '<div class="anl-src-note" id="anlSrcEbNote">caricamento venduti…</div>'
+  +  '<div id="anlSrcEbTable" class="anl-cm-grade-table" style="display:none"></div>'
+  +  '<a class="anl-src-link" id="anlSrcEbLink" href="'+ebUrl+'" target="_blank" rel="noopener">apri →</a>'
+  +'</div>'
+  +'<div class="anl-src'+(anlSourceEnabled.pc?'':' disabled')+'" id="anlSrcPcBox">'
+  +  '<div class="anl-src-head"><span class="anl-src-toggle'+(anlSourceEnabled.pc?' active':'')+'" onclick="anlToggleSource(\'pc\')" title="Includi/escludi nella media"></span><span class="anl-src-tag">PC</span><span>PriceCharting'+(graded?' '+ANL_HOUSES[house].label+' '+score:''  )+'</span><span class="anl-src-dot" id="anlSrcPcDot"></span></div>'
+  +  '<div class="anl-src-price loading" id="anlSrcPc">—</div>'
+  +  '<div class="anl-src-note" id="anlSrcPcNote">caricamento…</div>'
+  +  '<div id="anlSrcPcTable" class="anl-cm-grade-table" style="display:none"></div>'
+  +  '<a class="anl-src-link" id="anlSrcPcLink" href="'+pcUrl+'" target="_blank" rel="noopener">apri →</a>'
+  +'</div>'
+  +'<div class="'+cmClass+(anlSourceEnabled.cm?'':' disabled')+'" id="anlSrcCmBox">'
+  +  '<div class="anl-src-head"><span class="anl-src-toggle'+(anlSourceEnabled.cm?' active':'')+'" onclick="anlToggleSource(\'cm\')" title="Includi/escludi nella media"></span><span class="anl-src-tag">'+cmTag+'</span><span>'+cmTitle+'</span><span class="anl-src-dot" id="anlSrcCmDot"></span></div>'
+  +  '<div class="anl-src-price loading" id="anlSrcCm">'+(function(){
+        var p=card.cardmarket&&card.cardmarket.prices;
+        var nm=p?(p.trendPrice||p.avg30||null):null;
+        return nm?'€'+nm.toFixed(2):'—';
+     })()+'</div>'
+  +  '<div class="anl-src-note" id="anlSrcCmNote">'+(function(){
+        var p=card.cardmarket&&card.cardmarket.prices;
+        if(!p) return 'caricamento listings…';
+        var parts=['caricamento listings…'];
+        if(p.trendPrice) parts.push('trend €'+p.trendPrice.toFixed(2));
+        return parts.join(' · ');
+     })()+'</div>'
+  +  '<div id="anlSrcCmTable" class="anl-cm-grade-table" style="display:none"></div>'
+  +  '<a class="anl-src-link" id="anlSrcCmLink" href="'+cmUrl+'" target="_blank" rel="noopener">apri →</a>'
+  +'</div>';
+}
+
+// Toggle on/off di una sorgente per inclusione nella media
+function anlToggleSource(key){
+  if(!(key in anlSourceEnabled)) return;
+  anlSourceEnabled[key] = !anlSourceEnabled[key];
+  // Update visual senza rerender completo
+  var box = document.getElementById('anlSrc'+key.charAt(0).toUpperCase()+key.slice(1)+'Box');
+  var toggle = box ? box.querySelector('.anl-src-toggle') : null;
+  if(box) box.classList.toggle('disabled', !anlSourceEnabled[key]);
+  if(toggle) toggle.classList.toggle('active', anlSourceEnabled[key]);
+  // Ricalcola
+  anlRenderToday();
+  anlRenderProjection();
+}
+window.anlToggleSource = anlToggleSource;
+
+// ─── CONSOLIDA VALORE OGGI ──────────────────────────────────────────────────
+// Strategia: se abbiamo eBay sold affidabile (≥3 vendite) è la fonte primaria.
+// Altrimenti PC se disponibile. Altrimenti CM (meno affidabile per gradate).
+function anlComputeToday(){
+  var graded = anlMode==='graded';
+  var ebay = anlLiveData.ebay;
+  var pc   = anlLiveData.pc;
+  var cm   = anlLiveData.cm;
+  var rate = anlLiveData.usdEur || ANL_USD_EUR_FALLBACK;
+
+  // eBay: converti in EUR se currency è USD/GBP
+  var ebP = null, ebNote = '';
+  if(ebay && ebay.count>=3 && ebay.median){
+    var rawMed = ebay.median;
+    if(ebay.currency==='USD')      { ebP = rawMed * rate;       ebNote = 'conv USD→EUR'; }
+    else if(ebay.currency==='GBP') { ebP = rawMed * 1.17 * rate; ebNote = 'conv GBP→EUR approx'; }
+    else                           { ebP = rawMed; }
+  }
+
+  // PC lookup con priorità ai sold listings specifici per casa+grade
+  var pcP = null, pcCount = null, pcSrc = 'PriceCharting', pcConfidence = null;
+  // PC può ora servire EUR (cookie geografico): rispetta pc.currency per la conversione
+  var pcCurrency = (pc && pc.currency) || 'USD';
+  var pcToEur = function(v, symbolOverride){
+    // symbolOverride: se presente, prevale su pc.currency (usato per grades_from_listings)
+    var sym = symbolOverride || (pcCurrency==='EUR'?'€':(pcCurrency==='GBP'?'£':'$'));
+    if(sym==='€') return v;
+    if(sym==='£') return v * 1.17 * rate;
+    return v * rate;  // $ → EUR
+  };
+  if(pc){
+    if(graded){
+      var house = document.getElementById('anlHouse').value;
+      var score = document.getElementById('anlGradeScore').value;
+      var listingKey = house + '_' + score;
+
+      // PRIORITÀ 1: sold listings eBay specifici per questa casa+grade (fonte migliore)
+      if(pc.grades_from_listings && pc.grades_from_listings[listingKey]){
+        var L = pc.grades_from_listings[listingKey];
+        pcP = pcToEur(L.median, L.currency_symbol);
+        pcCount = L.count;
+        pcConfidence = L.confidence || (L.count>=10?'high':(L.count>=3?'medium':'low'));
+        var confLabel = pcConfidence==='high'?'':(pcConfidence==='medium'?' · campione medio':' · campione piccolo');
+        pcSrc = 'PC Sold ' + house + ' ' + score + ' (' + L.count + ' vend.' + confLabel + ')';
+      } else {
+        // PRIORITÀ 2: fallback campi aggregati (ungraded, grade7/8/9/9_5, psa10/bgs10/cgc10)
+        var key = anlPcKey(house, parseFloat(score));
+        if(key && pc[key]!=null) pcP = pcToEur(pc[key]);
+      }
+    } else {
+      if(pc.ungraded!=null) pcP = pcToEur(pc.ungraded);
+    }
+  }
+  // PC è valore US/UK aggregato — applica costi import (spedizione+IVA+dazio+sdoganamento)
+  // per riflettere il costo REALE di acquisire la carta dall'estero. Senza questo
+  // adjustment, il prezzo PC sembra molto più basso di CM/eBay IT che sono già lordi.
+  var pcPnetto = pcP;  // prezzo base (senza spese) salvato per source label
+  if(pcP != null) pcP = anlImportTotal(pcP);
+  var cmP = cm || null;   // per raw applichiamo condizione
+
+  // Consolida: mediana tra le fonti disponibili, con pesatura semplice
+  // Peso PC modulato da confidence (ad alto sample è attendibile quanto eBay, basso è solo hint)
+  // Toggle utente (anlSourceEnabled) può escludere singole sorgenti dalla media
+  var sources = [];
+  if(ebP && anlSourceEnabled.eb) sources.push({v:ebP, w:3, src:'eBay Sold'+(ebNote?' ['+ebNote+']':''), n:ebay.count});
+  if(pcP && anlSourceEnabled.pc){
+    var pcWeight;
+    if(pcConfidence==='high')      pcWeight = 3;
+    else if(pcConfidence==='medium') pcWeight = 2;
+    else if(pcConfidence==='low')    pcWeight = 1;
+    else                              pcWeight = 2;  // default per fallback aggregati
+    sources.push({v:pcP, w:pcWeight, src:pcSrc, n:pcCount});
+  }
+  if(cmP && anlSourceEnabled.cm) sources.push({v:cmP, w:1, src:'CardMarket'});
+  if(!sources.length){
+    // Verifica se ci sono dati ma sono tutti disabilitati dal toggle
+    var hasAny = (ebP || pcP || cmP);
+    var allOff = !anlSourceEnabled.eb && !anlSourceEnabled.pc && !anlSourceEnabled.cm;
+    var msg = allOff ? 'tutte le sorgenti escluse · attiva almeno una'
+            : (hasAny ? 'tutte le sorgenti disponibili sono escluse' : 'dati insufficienti');
+    return { price:null, method: msg, sources:sources };
+  }
+
+  var totW=0, totV=0;
+  sources.forEach(function(s){ totW+=s.w; totV+=s.v*s.w; });
+  var price = totV/totW;
+  var method;
+  if(sources.length===1) method = 'solo '+sources[0].src+(sources[0].n&&sources[0].src.indexOf('(')<0?' ('+sources[0].n+' vend.)':'');
+  else method = 'media pesata · '+sources.map(function(s){return s.src.replace(/ \[.*?\]/,'');}).join(' + ');
+
+  return { price: Math.round(price*100)/100, method: method, sources: sources };
+}
+
+function anlPcKey(house, score){
+  // mapping casa+grado → chiave PCPrices
+  // PC espone: ungraded, grade7/8/9/9_5, psa10, bgs10, cgc10
+  if(score===10){
+    if(house==='PSA') return 'psa10';
+    if(house==='BGS') return 'bgs10';
+    if(house==='CGC') return 'cgc10';
+    return 'psa10'; // fallback per case minori — usa PSA10 come riferimento
+  }
+  if(score===9.5) return 'grade9_5';
+  if(score===9)   return 'grade9';
+  if(score===8.5) return 'grade9';   // interpolazione grossolana
+  if(score===8)   return 'grade8';
+  if(score===7)   return 'grade7';
+  if(score<7)     return 'grade7';   // PC non espone meno di 7 → fallback
+  return null;
+}
+
+function anlRenderToday(){
+  var res = anlComputeToday();
+  var priceEl = document.getElementById('anlTodayPrice');
+  var methEl  = document.getElementById('anlTodayMethod');
+  if(!priceEl || !methEl) return;
+  if(res.price){
+    priceEl.textContent = '€'+res.price.toFixed(2);
+    priceEl.classList.remove('mute');
+    methEl.textContent = res.method;
+  } else {
+    priceEl.textContent = '—';
+    priceEl.classList.add('mute');
+    methEl.textContent = res.method;
+  }
+}
+
+// ─── BOX 3 · INTERESSE DI MERCATO ────────────────────────────────────────────
+// Sostituisce la vecchia "proiezione". Mostra metric di interesse senza
+// duplicare il valore di mercato (già mostrato in BOX 1 summary).
+// Metric:
+//   • Mediano inserzioni eBay LIVE (asks) — quanto viene CHIESTO oggi
+//   • Spread asks vs sold — gap tra prezzo chiesto e prezzo realmente pagato
+//   • Liquidità — basata su totale vendite recenti (sold + asks count)
+//   • Volatilità — range prezzi sold (solo se dati sufficienti)
+function anlRenderProjection(){
+  var rowEl    = document.getElementById('anlInterestRow');
+  var spreadEl = document.getElementById('anlInterestSpread');
+  if(!rowEl) return;
+
+  var today = anlComputeToday();
+  var pc    = anlLiveData.pc;
+  var ebay  = anlLiveData.ebay;
+  var ebayActive = anlLiveData.ebayActive;
+  var graded = anlMode==='graded';
+
+  // Caso: nessun dato → placeholder
+  if(!today.price && !ebay && !ebayActive){
+    rowEl.innerHTML = '<div class="anl-interest-cell"><span class="anl-interest-cell-k">In attesa</span><span class="anl-interest-cell-v mute">—</span><span class="anl-interest-cell-note">caricamento sorgenti…</span></div>';
+    spreadEl.style.display='none';
+    return;
+  }
+
+  // ── Dati per metriche ──
+  var sold = ebay && ebay.count ? {median:ebay.median, count:ebay.count, currency:ebay.currency} : null;
+  var asks = ebayActive && ebayActive.count ? ebayActive : null;
+  // Convert sold currency to EUR per coerenza display
+  var rate = anlLiveData.usdEur || ANL_USD_EUR_FALLBACK;
+  var soldEur = null;
+  if(sold){
+    if(sold.currency==='USD')      soldEur = sold.median * rate;
+    else if(sold.currency==='GBP') soldEur = sold.median * 1.17 * rate;
+    else                           soldEur = sold.median;
+  }
+
+  // PC sold listings count (storico)
+  var pcCount = 0;
+  if(pc && pc.grades_from_listings && graded){
+    var house = document.getElementById('anlHouse').value;
+    var score = document.getElementById('anlGradeScore').value;
+    var L = pc.grades_from_listings[house+'_'+score];
+    if(L) pcCount = L.count || 0;
+  }
+  var totalSales = (sold ? sold.count : 0) + pcCount;
+
+  // Liquidità
+  var liq;
+  if(totalSales >= 20)     liq = {label:'alta',         cls:'pos',  note:'carta molto scambiata'};
+  else if(totalSales >= 8) liq = {label:'media',        cls:'warn', note:'mercato attivo'};
+  else if(totalSales >= 3) liq = {label:'bassa',        cls:'mute', note:'poche vendite registrate'};
+  else                     liq = {label:'molto bassa', cls:'neg',  note:'carta illiquida'};
+
+  // ── Cella 1: prezzo mediano inserzioni LIVE (asks) ──
+  var cells = [];
+  if(asks){
+    cells.push({
+      k:'Inserzioni live · mediana',
+      v:'€'+asks.median.toFixed(2),
+      cls:'',
+      note: asks.count+' offerte attive'+(asks.min&&asks.max?' · range €'+Math.round(asks.min)+'–€'+Math.round(asks.max):'')
+    });
+  } else {
+    cells.push({
+      k:'Inserzioni live · mediana',
+      v:'—',
+      cls:'mute',
+      note:'nessuna offerta attiva trovata'
+    });
+  }
+
+  // ── Cella 2: ultimo venduto mediano (riepilogo) ──
+  if(sold && soldEur){
+    cells.push({
+      k:'Ultimi venduti · mediana',
+      v:'€'+soldEur.toFixed(2),
+      cls:'',
+      note: sold.count+' vendite analizzate'
+    });
+  } else {
+    cells.push({
+      k:'Ultimi venduti · mediana',
+      v:'—',
+      cls:'mute',
+      note:'nessuna vendita recente'
+    });
+  }
+
+  // ── Cella 3: liquidità ──
+  cells.push({
+    k:'Liquidità',
+    v: liq.label,
+    cls: liq.cls,
+    note: liq.note + (totalSales>0 ? ' · '+totalSales+' vendite analizzate' : '')
+  });
+
+  // ── Cella 4: volatilità (solo se dati graded da PC) ──
+  if(graded && pc && pc.grades_from_listings){
+    var house2 = document.getElementById('anlHouse').value;
+    var score2 = document.getElementById('anlGradeScore').value;
+    var L2 = pc.grades_from_listings[house2+'_'+score2];
+    if(L2 && L2.max && L2.min && L2.median){
+      var vol = (L2.max - L2.min) / L2.median;
+      var volCls, volLbl;
+      if(vol < 0.3)      { volCls='pos';  volLbl='bassa'; }
+      else if(vol < 0.6) { volCls='warn'; volLbl='media'; }
+      else if(vol < 1.2) { volCls='mute'; volLbl='alta'; }
+      else               { volCls='neg';  volLbl='molto alta'; }
+      cells.push({
+        k:'Volatilità prezzi',
+        v: volLbl,
+        cls: volCls,
+        note:'range '+(vol*100).toFixed(0)+'% sui sold storici'
+      });
+    }
+  }
+
+  rowEl.innerHTML = cells.map(function(c){
+    return '<div class="anl-interest-cell">'
+      +'<span class="anl-interest-cell-k">'+c.k+'</span>'
+      +'<span class="anl-interest-cell-v '+c.cls+'">'+c.v+'</span>'
+      +(c.note?'<span class="anl-interest-cell-note">'+c.note+'</span>':'')
+      +'</div>';
+  }).join('');
+
+  // ── Spread asks vs sold (se entrambi disponibili) ──
+  if(asks && soldEur){
+    var spread = asks.median - soldEur;
+    var spreadPct = (spread / soldEur) * 100;
+    var spreadSign = spread>=0?'+':'';
+    var verdict;
+    if(spreadPct > 30)       verdict = '<strong>Asks sopravvalutati</strong>: i venditori chiedono molto di più di quanto pagato di recente. Tratta al ribasso.';
+    else if(spreadPct > 10)  verdict = '<strong>Asks moderatamente sopra</strong>: spread normale di mercato.';
+    else if(spreadPct > -10) verdict = '<strong>Asks allineati ai sold</strong>: prezzo di mercato stabile.';
+    else                     verdict = '<strong>Asks sotto i sold</strong>: opportunità d\'acquisto, possibili saldi.';
+    spreadEl.innerHTML = 'Spread <strong>'+spreadSign+'€'+spread.toFixed(2)+' ('+spreadSign+spreadPct.toFixed(0)+'%)</strong> · asks €'+asks.median.toFixed(2)+' vs sold €'+soldEur.toFixed(2)+'. '+verdict;
+    spreadEl.style.display='';
+  } else {
+    spreadEl.style.display='none';
+  }
+
+  // ── Strategia grading: confronto NM raw vs gradata target ──
+  // Visibile solo in mode graded quando abbiamo: prezzo gradata target +
+  // listings raw NM su CM. Mostra costo+upside del path "compra NM e gradalo".
+  var strategyEl = document.getElementById('anlInterestStrategy');
+  if(!strategyEl){
+    // crea contenitore on-demand (non era nel scaffold originale)
+    var fwd = document.getElementById('anlFwd');
+    if(fwd){
+      strategyEl = document.createElement('div');
+      strategyEl.id = 'anlInterestStrategy';
+      strategyEl.style.display = 'none';
+      fwd.appendChild(strategyEl);
+    }
+  }
+  if(strategyEl){
+    var rawNm = anlLiveData.cmRawNm;
+    var rawAll = anlLiveData.cmRawAll;
+    if(graded && today.price && rawNm && rawNm.median > 0){
+      var deltaG = today.price - rawNm.median;
+      var deltaPct = (deltaG / rawNm.median) * 100;
+      // Costo grading PSA Italia (regular tier) + spedizione a/r
+      var gradingCost;
+      if(today.price < 500)        gradingCost = 35;
+      else if(today.price < 1500)  gradingCost = 95;
+      else if(today.price < 5000)  gradingCost = 180;
+      else                         gradingCost = 280;
+      var netUpside = deltaG - gradingCost;
+      var netSign = netUpside>=0?'+':'';
+      var deltaSign = deltaG>=0?'+':'';
+
+      var verdictCls, verdictTxt;
+      if(netUpside > 50){
+        verdictCls = 'pos';
+        verdictTxt = '<strong>Strategia conviene</strong>: comprare NM raw a €'+rawNm.median.toFixed(2)+' e gradare PSA '+score+' può rendere '+netSign+'€'+netUpside.toFixed(2)+' netti dopo costi. Reperibilità OK ('+rawNm.count+' NM su CM).';
+      } else if(netUpside > 0){
+        verdictCls = 'warn';
+        verdictTxt = '<strong>Strategia marginale</strong>: upside netto solo '+netSign+'€'+netUpside.toFixed(2)+'. Considera rischio downgrade (PSA potrebbe assegnare grado inferiore al target).';
+      } else if(netUpside > -30){
+        verdictCls = 'mute';
+        verdictTxt = '<strong>Strategia in pari</strong>: gradare non aggiunge valore significativo ('+netSign+'€'+netUpside.toFixed(2)+'). Conviene comprare già gradata per evitare rischio + tempo.';
+      } else {
+        verdictCls = 'neg';
+        verdictTxt = '<strong>Strategia sconsigliata</strong>: gradare costa più di quanto rende ('+netSign+'€'+netUpside.toFixed(2)+'). Compra direttamente gradata.';
+      }
+      // Warning se reperibilità bassa
+      if(rawNm.count < 3){
+        verdictTxt += ' <strong>⚠ Reperibilità bassa</strong>: solo '+rawNm.count+' NM raw su CM.';
+      }
+
+      var house2 = document.getElementById('anlHouse').value;
+      strategyEl.className = 'anl-strategy';
+      strategyEl.innerHTML = ''
+        +'<div class="anl-strategy-head">Strategia: compra NM raw e mandala a gradare</div>'
+        +'<div class="anl-strategy-flow">'
+        +  '<div class="anl-strategy-step">'
+        +    '<span class="anl-strategy-step-k">NM raw oggi</span>'
+        +    '<span class="anl-strategy-step-v">€'+rawNm.median.toFixed(2)+'</span>'
+        +    '<span class="anl-strategy-step-sub">'+rawNm.count+' su CM'+(rawNm.count!==(rawAll?rawAll.count:rawNm.count)?' / '+rawAll.count+' raw totali':'')+'</span>'
+        +  '</div>'
+        +  '<div class="anl-strategy-arrow">+</div>'
+        +  '<div class="anl-strategy-step">'
+        +    '<span class="anl-strategy-step-k">Costo grading</span>'
+        +    '<span class="anl-strategy-step-v warn">€'+gradingCost+'</span>'
+        +    '<span class="anl-strategy-step-sub">PSA + spedizione a/r</span>'
+        +  '</div>'
+        +  '<div class="anl-strategy-arrow">→</div>'
+        +  '<div class="anl-strategy-step">'
+        +    '<span class="anl-strategy-step-k">Target '+house2+' '+score+'</span>'
+        +    '<span class="anl-strategy-step-v '+(netUpside>0?'pos':'neg')+'">€'+today.price.toFixed(2)+'</span>'
+        +    '<span class="anl-strategy-step-sub">netto '+netSign+'€'+netUpside.toFixed(2)+' ('+deltaSign+deltaPct.toFixed(0)+'% lordo)</span>'
+        +  '</div>'
+        +'</div>'
+        +'<div class="anl-strategy-verdict '+verdictCls+'">'+verdictTxt+'</div>';
+      strategyEl.style.display='';
+    } else {
+      strategyEl.style.display='none';
+    }
+  }
+}
+
+// Mantengo le vecchie funzioni per evitare break su chiamate esterne (no-op delegano a anlRenderProjection)
+function anlRenderProjectionGraded(priceEl, deltaEl, descEl, gridEl){
+  var today = anlComputeToday();
+  var pc = anlLiveData.pc;
+  var ebay = anlLiveData.ebay;
+  var house = document.getElementById('anlHouse').value;
+  var score = document.getElementById('anlGradeScore').value;
+  var listingKey = house + '_' + score;
+
+  if(!today.price){
+    priceEl.textContent='—'; priceEl.className='anl-fwd-price mute';
+    deltaEl.textContent=''; deltaEl.className='anl-fwd-delta mute';
+    descEl.textContent='Serve almeno una sorgente valida per analizzare il mercato.';
+    gridEl.innerHTML='';
+    return;
+  }
+
+  // Per le carte gradate, PC non espone trend 12M nella pagina base.
+  // Invece di mostrare una previsione inventata, analizziamo il mercato REALE:
+  // - volumi: quante vendite eBay nel campione di PC + nella cascata eBay Sold
+  // - dispersione: range min-max come indicatore di liquidità/volatilità del prezzo
+  // - rarità: count totale di vendite (alto = carta liquida, basso = carta illiquida)
+  var rate = anlLiveData.usdEur || ANL_USD_EUR_FALLBACK;
+  var pcListing = (pc && pc.grades_from_listings) ? pc.grades_from_listings[listingKey] : null;
+
+  // Totale vendite storiche (PC) + vendite recenti (eBay cascata)
+  var pcCount = pcListing ? pcListing.count : 0;
+  var ebayCount = ebay && ebay.count ? ebay.count : 0;
+  var totalSales = pcCount + ebayCount;
+
+  // Volatilità: (max - min) / mediana. Se >0.8 il mercato è molto volatile.
+  var volatility = null;
+  if(pcListing && pcListing.max && pcListing.min && pcListing.median){
+    volatility = (pcListing.max - pcListing.min) / pcListing.median;
+  }
+
+  // Classificazione liquidità
+  var liquidity;
+  if(totalSales >= 20)       liquidity = {label:'alta', cls:'pos', note:'carta molto scambiata, prezzo affidabile'};
+  else if(totalSales >= 8)   liquidity = {label:'media', cls:'mute', note:'mercato attivo ma non sovrabbondante'};
+  else if(totalSales >= 3)   liquidity = {label:'bassa', cls:'mute', note:'poche vendite registrate, prezzo indicativo'};
+  else                       liquidity = {label:'molto bassa', cls:'neg', note:'carta illiquida, difficile valutare'};
+
+  // Classificazione volatilità
+  var volatilityClass = null;
+  if(volatility != null){
+    if(volatility < 0.3)      volatilityClass = {label:'bassa', cls:'pos', note:'prezzi stabili, mercato maturo'};
+    else if(volatility < 0.6) volatilityClass = {label:'media', cls:'mute', note:'escursioni normali'};
+    else if(volatility < 1.2) volatilityClass = {label:'alta', cls:'mute', note:'prezzo variabile tra vendite'};
+    else                      volatilityClass = {label:'molto alta', cls:'neg', note:'attenzione: range prezzi molto ampio'};
+  }
+
+  // Hero: prezzo corrente (già calcolato in anlComputeToday)
+  priceEl.textContent = '€'+today.price.toFixed(2);
+  priceEl.className = 'anl-fwd-price';
+  deltaEl.textContent = 'mercato ' + liquidity.label;
+  deltaEl.className = 'anl-fwd-delta ' + liquidity.cls;
+
+  // Descrizione
+  var descParts = ['Valore di mercato attuale per '+house+' '+score+': €'+today.price.toFixed(2)+'.'];
+  if(totalSales > 0){
+    descParts.push(totalSales+' vendite analizzate (PC Sold Listings + eBay cascata).');
+  }
+  descParts.push('Liquidità '+liquidity.label+' · '+liquidity.note+'.');
+  if(volatilityClass){
+    descParts.push('Volatilità '+volatilityClass.label+' · '+volatilityClass.note+'.');
+  }
+  descEl.textContent = descParts.join(' ');
+
+  // Grid KV con dettagli di mercato
+  var rows=[
+    {k:'Valore mediano', v:'€'+today.price.toFixed(2)},
+    {k:'Vendite totali', v: totalSales>0 ? (totalSales + ' (' + pcCount + ' storiche + ' + ebayCount + ' recenti)') : '—', cls:'mute'},
+  ];
+  if(pcListing){
+    var sym = pcListing.currency_symbol || '$';
+    rows.push({k:'Range prezzi', v: sym+Math.round(pcListing.min)+'–'+sym+Math.round(pcListing.max), cls:'mute'});
+  }
+  rows.push({k:'Liquidità', v:liquidity.label, cls:liquidity.cls});
+  if(volatilityClass){
+    rows.push({k:'Volatilità', v:volatilityClass.label + (volatility!=null?' ('+(volatility*100).toFixed(0)+'%)':''), cls:volatilityClass.cls});
+  }
+  // Suggerimento operativo
+  var advice = null;
+  if(liquidity.label==='alta' && volatilityClass && volatilityClass.label==='bassa'){
+    advice = {k:'Consiglio', v:'Mercato solido, prezzo affidabile', cls:'pos'};
+  } else if(liquidity.label==='molto bassa'){
+    advice = {k:'Consiglio', v:'Prezzo solo indicativo, negozia', cls:'neg'};
+  } else if(volatilityClass && volatilityClass.label==='molto alta'){
+    advice = {k:'Consiglio', v:'Aspetta o verifica su più fonti', cls:'neg'};
+  }
+  if(advice) rows.push(advice);
+
+  gridEl.innerHTML = rows.map(function(r){
+    return '<div class="anl-fwd-kv"><span class="anl-fwd-kv-k">'+r.k+'</span><span class="anl-fwd-kv-v '+(r.cls||'')+'">'+r.v+'</span></div>';
+  }).join('');
+}
+
+function anlRenderProjectionRaw(priceEl, deltaEl, descEl, gridEl){
+  var cond = document.getElementById('anlCond').value;
+  var expGrade = ANL_EXPECTED_GRADE[cond];
+  var ebay = anlLiveData.ebay;
+  var pc   = anlLiveData.pc;
+  var rate = anlLiveData.usdEur || ANL_USD_EUR_FALLBACK;
+  var today = anlComputeToday();
+
+  if(expGrade==null){
+    priceEl.textContent='—'; priceEl.className='anl-fwd-price mute';
+    deltaEl.textContent=''; deltaEl.className='anl-fwd-delta mute';
+    descEl.textContent='Condizione non gradabile.';
+    gridEl.innerHTML='';
+    return;
+  }
+
+  // Valore target: PSA (house più liquida per PC). Priorità listings specifici PSA+expGrade.
+  var pcGradedEur = null;
+  var listingKey = 'PSA_' + expGrade;
+  if(pc && pc.grades_from_listings && pc.grades_from_listings[listingKey]){
+    var L = pc.grades_from_listings[listingKey];
+    if(L.currency_symbol==='€')      pcGradedEur = L.median;
+    else if(L.currency_symbol==='£') pcGradedEur = L.median * 1.17 * rate;
+    else                             pcGradedEur = L.median * rate;
+  } else {
+    // Fallback campi aggregati con currency-aware conversion
+    var pcKey = anlPcKey('PSA', expGrade);
+    var pcGraded = pc && pcKey ? pc[pcKey] : null;
+    if(pcGraded!=null){
+      var pcCur = (pc && pc.currency) || 'USD';
+      if(pcCur==='EUR')      pcGradedEur = pcGraded;
+      else if(pcCur==='GBP') pcGradedEur = pcGraded * 1.17 * rate;
+      else                   pcGradedEur = pcGraded * rate;
+    }
+  }
+
+  // Se eBay ha un sotto-dataset graded, sarebbe ideale — al momento l'edge non separa raw/graded
+  // Usa PC come fonte primaria per il valore potenziale graded
+  if(pcGradedEur==null){
+    priceEl.textContent='—'; priceEl.className='anl-fwd-price mute';
+    deltaEl.textContent=''; deltaEl.className='anl-fwd-delta mute';
+    descEl.textContent='Non ci sono dati PriceCharting per stimare il valore in grado '+expGrade+'. Prova con eBay manualmente.';
+    gridEl.innerHTML='';
+    return;
+  }
+
+  // Trovato pcGradedEur — arricchiamo con metadati del listing source
+  var listingData = (pc && pc.grades_from_listings) ? pc.grades_from_listings[listingKey] : null;
+  var listingCount = listingData ? listingData.count : null;
+  var listingConfidence = listingData ? listingData.confidence : null;
+
+  var delta = today.price ? pcGradedEur - today.price : null;
+  var cls = delta==null ? 'mute' : (delta>=0 ? 'pos' : 'neg');
+
+  // Stima costo grading PSA (regular tier) + shipping a/r
+  // PSA "Value" tier ~$25 (carte sotto $499), "Regular" ~$75 (sotto $1499), "Express" ~$150+
+  // In EUR includendo spedizione a/r dall'Italia: ~€35 value, ~€95 regular
+  var gradingCost;
+  if(pcGradedEur < 500)        gradingCost = 35;
+  else if(pcGradedEur < 1500)  gradingCost = 95;
+  else if(pcGradedEur < 5000)  gradingCost = 180;
+  else                         gradingCost = 280;
+
+  var netUpside = delta != null ? delta - gradingCost : null;
+  var netCls = netUpside==null ? 'mute' : (netUpside>=0 ? 'pos' : 'neg');
+
+  priceEl.textContent='€'+pcGradedEur.toFixed(2);
+  priceEl.className='anl-fwd-price '+cls;
+  deltaEl.textContent = delta!=null ? (delta>=0?'+':'')+'€'+delta.toFixed(2)+' vs raw' : '';
+  deltaEl.className='anl-fwd-delta '+cls;
+
+  var descParts=[
+    'Condizione '+cond+' → grado atteso PSA '+expGrade+'.',
+  ];
+  if(listingData){
+    var confTxt = listingConfidence==='high' ? '' : (listingConfidence==='medium' ? ' (campione medio)' : ' (campione piccolo)');
+    descParts.push('Valore di mercato PSA '+expGrade+': €'+pcGradedEur.toFixed(2)+' (mediana su '+listingCount+' vendite eBay reali'+confTxt+').');
+  } else {
+    descParts.push('Valore di mercato PSA '+expGrade+' (stima PriceCharting): €'+pcGradedEur.toFixed(2)+'.');
+  }
+  if(today.price && netUpside!=null){
+    var verdict = netUpside > 20 ? 'Gradare conviene' : (netUpside > -20 ? 'Economicamente in pari' : 'Gradare non conviene');
+    descParts.push(verdict + ': upside netto ' + (netUpside>=0?'+':'') + '€' + netUpside.toFixed(2) + ' (dopo ~€' + gradingCost + ' di grading + spedizione).');
+  }
+  descEl.textContent = descParts.join(' ');
+
+  var rows=[
+    {k:'Grado atteso', v:'PSA '+expGrade},
+    {k:'Valore raw oggi', v: today.price ? '€'+today.price.toFixed(2) : '—', cls:'mute'},
+    {k:'Valore graded PSA '+expGrade, v:'€'+pcGradedEur.toFixed(2), cls:'pos'},
+  ];
+  if(listingCount) rows.push({k:'Fonte dato graded', v: listingCount+' vendite eBay' + (listingConfidence==='low'?' (campione piccolo)':''), cls:'mute'});
+  if(delta!=null)     rows.push({k:'Upside lordo', v:(delta>=0?'+':'')+'€'+delta.toFixed(2), cls:cls});
+  if(gradingCost)     rows.push({k:'Costo grading stimato', v:'-€'+gradingCost, cls:'mute'});
+  if(netUpside!=null) rows.push({k:'Upside netto', v:(netUpside>=0?'+':'')+'€'+netUpside.toFixed(2), cls:netCls});
+  if(pc && pc.trend_grade9_12m!=null) rows.push({k:'Trend 12M grade 9', v:(pc.trend_grade9_12m>=0?'+':'')+pc.trend_grade9_12m.toFixed(1)+'%', cls: pc.trend_grade9_12m>=0?'pos':'neg'});
+
+  gridEl.innerHTML = rows.map(function(r){
+    return '<div class="anl-fwd-kv"><span class="anl-fwd-kv-k">'+r.k+'</span><span class="anl-fwd-kv-v '+(r.cls||'')+'">'+r.v+'</span></div>';
+  }).join('');
+}
+
+// ─── LIVE FETCH ──────────────────────────────────────────────────────────────
+async function anlGetUsdEur(){
+  if(window._anlUsdEur) return window._anlUsdEur;
+  try{
+    var cached=sessionStorage.getItem('anl_usd_eur');
+    var cachedT=sessionStorage.getItem('anl_usd_eur_t');
+    if(cached&&cachedT&&Date.now()-parseInt(cachedT)<3600000){
+      window._anlUsdEur=parseFloat(cached);
+      return window._anlUsdEur;
+    }
+  }catch(e){}
+  // Cascade di sorgenti — alcune potrebbero bloccare CORS in certi momenti.
+  // Ordine: fonti CORS-friendly per primo, poi frankfurter come ultima chance.
+  var sources = [
+    {url:'https://open.er-api.com/v6/latest/USD', extract:function(d){ return d&&d.rates&&d.rates.EUR; }},
+    {url:'https://api.exchangerate-api.com/v4/latest/USD', extract:function(d){ return d&&d.rates&&d.rates.EUR; }},
+    {url:'https://api.frankfurter.app/latest?from=USD&to=EUR', extract:function(d){ return d&&d.rates&&d.rates.EUR; }},
+  ];
+  for(var i=0;i<sources.length;i++){
+    try{
+      var r=await fetch(sources[i].url);
+      if(!r.ok) continue;
+      var d=await r.json();
+      var rate=sources[i].extract(d);
+      if(rate && typeof rate==='number' && rate>0.5 && rate<2){
+        window._anlUsdEur=rate;
+        try{
+          sessionStorage.setItem('anl_usd_eur',String(rate));
+          sessionStorage.setItem('anl_usd_eur_t',String(Date.now()));
+        }catch(e){}
+        return rate;
+      }
+    }catch(e){
+      // CORS, network error, ecc — prova prossima sorgente
+    }
+  }
+  window._anlUsdEur=ANL_USD_EUR_FALLBACK;
+  return window._anlUsdEur;
+}
+
+async function anlFetchSmooth(body){
+  var sessionToken=window._rbSession&&window._rbSession.access_token;
+  var firstToken=sessionToken||SUPA_KEY;
+  async function doCall(bearer){
+    return fetch(SUPA_URL+'/functions/v1/smooth-endpoint',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+bearer},
+      body:JSON.stringify(body)
+    });
+  }
+  var res=await doCall(firstToken);
+  if(res.status===401 && sessionToken && firstToken!==SUPA_KEY){
+    res=await doCall(SUPA_KEY);
+  }
+  if(!res.ok){
+    var detail='';
+    try{ var t=await res.text(); detail=t?(' — '+t.substring(0,120)):''; }catch(e){}
+    throw new Error('HTTP '+res.status+detail);
+  }
+  return await res.json();
+}
+
+// Console helper: diagnostica automatica PC su carte campione
+// Uso: await anlDiag()                              → carte default
+//      await anlDiag([{name:'...', card_name:'...'}])
+window.anlDiag = async function(cards){
+  console.log('⏳ Diagnostica in corso…');
+  var body = cards ? {source:'diag', cards:cards} : {source:'diag'};
+  var diag = await anlFetchSmooth(body);
+  if(diag.error){ console.error('❌', diag.error); return diag; }
+  console.log('%c📊 Diagnostica smooth-endpoint · '+diag.generated_at, 'font-weight:bold;font-size:13px');
+  diag.cards.forEach(function(c){
+    console.group('▸ '+c.card+(c.card_name?' ('+c.card_name+')':''));
+    if(c.error){ console.warn('❌', c.error); console.groupEnd(); return; }
+    console.log('title:', c.product_title);
+    console.log('url:  ', c.product_url);
+    if(c.ids && Object.keys(c.ids).length){
+      console.group('ID HTML → prezzo + contesto');
+      var idTable = {};
+      Object.keys(c.ids).forEach(function(id){
+        idTable[id] = { price: c.ids[id].price, context: (c.ids[id].label_context||'').substring(0,60) };
+      });
+      console.table(idTable);
+      console.groupEnd();
+    }
+    if(c.labels && Object.keys(c.labels).length){
+      console.group('Label-based');
+      console.table(c.labels);
+      console.groupEnd();
+    }
+    if(c.extracted){
+      console.group('Prezzi finali');
+      console.table(c.extracted);
+      console.groupEnd();
+    }
+    if(c.anomalies && c.anomalies.length){
+      console.warn('⚠ ANOMALIE:', c.anomalies);
+    }
+    console.groupEnd();
+  });
+  return diag;
+};
+
+async function anlStartLiveFetches(card){
+  if(!card||!card.id) return;
+
+  // Cache per card.id + mode + condizione/house+grado (per evitare refetch inutili)
+  var sig = anlSigFor(card);
+  if(anlLiveData._sig === sig){
+    // già caricato: ridisegna solo
+    anlRenderToday();
+    anlRenderProjection();
+    return;
+  }
+  anlLiveData = { _sig: sig };
+
+  // Imposta CM subito (già nella card object)
+  var p = card.cardmarket && card.cardmarket.prices;
+  if(p){
+    var nm = p.trendPrice || p.avg30 || null;
+    if(nm){
+      // Per raw applica condition factor
+      if(anlMode==='raw'){
+        var cf = ANL_COND_FACTOR[document.getElementById('anlCond').value]||1.0;
+        var ef = document.getElementById('anl1st').value==='yes' ? ANL_FIRST_ED_MULT : 1.0;
+        anlLiveData.cm = Math.round(nm*cf*ef*100)/100;
+      } else {
+        anlLiveData.cm = null; // CM per gradate non è affidabile
+      }
+    }
+  }
+  anlLiveData.usdEur = await anlGetUsdEur();
+
+  // Avvia in parallelo
+  var setNm = card.set?card.set.name:'';
+  var graded = anlMode==='graded';
+
+  // eBay — cascata multi-query in MERGE mode (combina e dedup tutti i risultati)
+  (async function(){
+    var user = window._anlUserInput || {};
+    var houseLabel = graded ? ANL_HOUSES[document.getElementById('anlHouse').value].label : '';
+    var scoreVal   = graded ? document.getElementById('anlGradeScore').value : '';
+
+    var nameUser = user.name || card.name;
+    var nameApi  = card.name;
+    var num      = card.number || user.number || '';
+    // Variante "nome semplificato": rimuove suffix come -EX, -GX, -V, -VMAX, -VSTAR
+    // (es. "Groudon-EX" → "Groudon"). Spesso i venditori non includono il suffisso.
+    var nameSimple = nameUser ? nameUser.replace(/[-\s]?(EX|GX|V|VMAX|VSTAR|VUNION|TAG TEAM|BREAK|LEGEND)$/i,'').trim() : '';
+    if(nameSimple && nameSimple!==nameUser && nameSimple.length<3) nameSimple = ''; // troppo corto, scarta
+
+    // Varianti di scrittura del grade (molti venditori usano forme diverse)
+    var gradeVariants = graded
+      ? [' '+houseLabel+' '+scoreVal, ' '+houseLabel+'-'+scoreVal, ' '+houseLabel+scoreVal]
+      : [''];
+    var gradeSfx = gradeVariants[0];
+
+    var queries = [];
+    function addQ(s){ s=s.trim().replace(/\s+/g,' '); if(s && queries.indexOf(s)<0) queries.push(s); }
+
+    // ─── Query SEMPLICI prima (più match) → SPECIFICHE dopo (filtri fini) ───
+    // User report: "Tropical Wind PSA 9" trova 16 risultati,
+    //              "Tropical Wind 26 Nintendo Black Star Promos PSA 9 pokemon" trova 0.
+    // eBay già filtra _sacat=2611 (Pokemon) → "pokemon" parola spesso ridondante.
+    // Query lunghe con set name penalizzano il fuzzy matching di eBay.
+    // Edge function early-exit a 15 items: le prime query semplici dominano il sample.
+
+    if(graded){
+      // GRADED: priorità query corte con grade
+      // 1. Più semplice: nome + voto (stile user "Tropical Wind PSA 9")
+      if(nameUser)                 addQ(nameUser+gradeSfx);
+      // 2. Nome semplificato + voto (utile per "Groudon-EX" → "Groudon")
+      if(nameSimple && nameSimple!==nameUser) addQ(nameSimple+gradeSfx);
+      // 3. Nome + numero + voto
+      if(nameUser && num)          addQ(nameUser+' '+num+gradeSfx);
+      // 4. Nome + voto + "pokemon" (utile se categoria sbagliata)
+      if(nameUser)                 addQ(nameUser+gradeSfx+' pokemon');
+      // 5. Nome + numero + voto + "pokemon"
+      if(nameUser && num)          addQ(nameUser+' '+num+gradeSfx+' pokemon');
+      // 6. Nome semplificato + numero + voto
+      if(nameSimple && num)        addQ(nameSimple+' '+num+gradeSfx);
+      // 7. Nome API ufficiale (se diverso) + voto
+      if(nameApi && nameApi!==nameUser) addQ(nameApi+gradeSfx);
+      // 8. SPECIFICA: nome + numero + set + voto (last resort)
+      if(nameUser && num && setNm) addQ(nameUser+' '+num+' '+setNm+gradeSfx);
+    } else {
+      // RAW: priorità nome+numero (carta singola identificabile da numero)
+      if(nameUser && num)          addQ(nameUser+' '+num);
+      if(nameSimple && num && nameSimple!==nameUser) addQ(nameSimple+' '+num);
+      if(nameUser && num)          addQ(nameUser+' '+num+' pokemon');
+      if(nameUser)                 addQ(nameUser);
+      if(nameApi && nameApi!==nameUser && num) addQ(nameApi+' '+num);
+      if(nameUser && num && setNm) addQ(nameUser+' '+num+' '+setNm);
+    }
+
+    // URL su eBay IT (EUR) — valuta primaria
+    var urls = queries.map(function(q){
+      // _sop=13 = "Recently sold" — stessa ordinamento del link "apri →" così
+      // la fetch backend vede esattamente la stessa pagina del browser utente.
+      return 'https://www.ebay.it/sch/i.html?_nkw='+encodeURIComponent(q)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_sop=13&_ipg=240';
+    });
+
+    // Fallback eBay.de: query semplice (nome + voto, NO 'pokemon' NO setNm)
+    if(nameUser){
+      var deQ = graded ? (nameUser+gradeSfx) : (nameUser+(num?' '+num:''));
+      urls.push('https://www.ebay.de/sch/i.html?_nkw='+encodeURIComponent(deQ)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_sop=13&_ipg=240');
+    }
+    // Fallback eBay.com: query semplice (nome + voto)
+    if(nameUser && graded){
+      urls.push('https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(nameUser+gradeSfx)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_sop=13&_ipg=240');
+    }
+
+    // ─── DIAGNOSTICA: log queries effettivamente inviate ──
+    // User feedback: assicurarsi che la cascata non finisca con queries lunghe
+    // anche se UI link "apri →" mostra solo la prima.
+    try{
+      console.group('%c[Analizza] eBay sold cascade — '+queries.length+' queries + '+(urls.length-queries.length)+' fallbacks','color:#06b6d4;font-weight:bold');
+      console.log('Mode:', graded?'GRADED ('+houseLabel+' '+scoreVal+')':'RAW');
+      queries.forEach(function(q,i){ console.log((i+1)+'. ebay.it', q); });
+      urls.slice(queries.length).forEach(function(u,i){
+        var h = new URL(u).host;
+        var nkw = decodeURIComponent((u.match(/_nkw=([^&]+)/)||[])[1]||'');
+        console.log((queries.length+i+1)+'. '+h, nkw);
+      });
+      console.groupEnd();
+    }catch(e){}
+
+    try{
+      // MERGE MODE: combina tutti gli URL, dedup per (titleNormalized, price, currency).
+      // Restituisce items[] con titoli — usati dal client per filtri raw/graded e lingua.
+      var data=await anlFetchSmooth({source:'ebay_sold', urls:urls, url:urls[0], min_hits:3, merge:true});
+      if(data.error && (!data.items || !data.items.length)){ anlPopEbay(data,data.error); return; }
+      anlPopEbay(data);
+    }catch(e){ anlPopEbay(null,e.message||'errore rete'); }
+  })();
+
+  // eBay LIVE ASKS — inserzioni attive (non venduti) per stesso target
+  // Indicatore "interesse di mercato": prezzo richiesto vs prezzo realmente
+  // pagato (sold). Spread elevato → carta poco liquida o prezzata troppo alta.
+  (async function(){
+    var user = window._anlUserInput || {};
+    var houseLabel = graded ? ANL_HOUSES[document.getElementById('anlHouse').value].label : '';
+    var scoreVal   = graded ? document.getElementById('anlGradeScore').value : '';
+    var nameUser = user.name || card.name;
+    var num      = card.number || user.number || '';
+    var nameSimple = nameUser ? nameUser.replace(/[-\s]?(EX|GX|V|VMAX|VSTAR|VUNION|TAG TEAM|BREAK|LEGEND)$/i,'').trim() : '';
+    if(nameSimple && nameSimple.length<3) nameSimple = '';
+    var gradeSfx = graded ? ' '+houseLabel+' '+scoreVal : '';
+
+    // Stesso pattern del cascata sold: SEMPLICE prima, SPECIFICO dopo
+    var queries = [];
+    function addQ(s){ s=s.trim().replace(/\s+/g,' '); if(s && queries.indexOf(s)<0) queries.push(s); }
+    if(graded){
+      if(nameUser)                 addQ(nameUser+gradeSfx);
+      if(nameSimple && nameSimple!==nameUser) addQ(nameSimple+gradeSfx);
+      if(nameUser && num)          addQ(nameUser+' '+num+gradeSfx);
+      if(nameUser)                 addQ(nameUser+gradeSfx+' pokemon');
+      if(nameUser && num)          addQ(nameUser+' '+num+gradeSfx+' pokemon');
+      if(nameUser && num && setNm) addQ(nameUser+' '+num+' '+setNm+gradeSfx);
+    } else {
+      if(nameUser && num)          addQ(nameUser+' '+num);
+      if(nameSimple && num && nameSimple!==nameUser) addQ(nameSimple+' '+num);
+      if(nameUser)                 addQ(nameUser);
+      if(nameUser && num)          addQ(nameUser+' '+num+' pokemon');
+    }
+
+    var urls = queries.map(function(q){
+      return 'https://www.ebay.it/sch/i.html?_nkw='+encodeURIComponent(q)+'&_sacat=2611&_ipg=240';
+    });
+    if(nameUser && num){
+      urls.push('https://www.ebay.de/sch/i.html?_nkw='+encodeURIComponent(nameUser+' '+num+gradeSfx+' pokemon')+'&_sacat=2611&_ipg=240');
+      urls.push('https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(nameUser+' '+num+gradeSfx+' pokemon')+'&_sacat=2611&_ipg=240');
+    }
+
+    try{
+      var data = await anlFetchSmooth({source:'ebay_active', urls:urls, url:urls[0], min_hits:3, merge:true});
+      anlPopEbayActive(data);
+    }catch(e){ anlPopEbayActive(null, e.message||'errore rete'); }
+  })();
+
+  // PriceCharting — cascata multi-query
+  (async function(){
+    var user = window._anlUserInput || {};
+    var nameUser = user.name || card.name;
+    var nameApi  = card.name;
+    var num      = card.number || '';
+
+    var queries=[];
+    function addQ(s){ s=s.trim().replace(/\s+/g,' '); if(s && queries.indexOf(s)<0) queries.push(s); }
+    if(nameUser && setNm) addQ(nameUser+' '+setNm);
+    if(nameApi && setNm && nameApi!==nameUser) addQ(nameApi+' '+setNm);
+    if(nameUser && num)   addQ(nameUser+' '+num);
+    if(nameUser)          addQ(nameUser);
+
+    var urls = queries.map(function(q){
+      return 'https://www.pricecharting.com/search-products?q='+encodeURIComponent(q)+'&type=prices';
+    });
+    var cardNameFull = nameUser + (num ? ' '+num : '');
+    var pcFirstEdition = (anlMode==='raw' && document.getElementById('anl1st').value==='yes');
+
+    try{
+      var data=await anlFetchSmooth({source:'pricecharting', urls:urls, url:urls[0], card_name:cardNameFull, first_edition:pcFirstEdition});
+      if(data.error){ anlPopPc(null,data.error); return; }
+      anlLiveData.pc=data.prices;
+      anlLiveData.pcProductUrl=data.url||null;
+      anlLiveData.pcProductTitle=(data.prices&&data.prices.productTitle)||null;
+
+      // Diagnostica: log dei sold listings per grade (sample size) + se il
+      // merge da /recent-sales ha avuto effetto.
+      try{
+        console.group('%c[Analizza] PC sold listings per grade','color:#10b981;font-weight:bold');
+        if(data._recent_sales_merged){
+          console.log('✓ /recent-sales merged ('+data._recent_sales_hits+' total hits)');
+          console.log('  URL:', data._recent_sales_url);
+        } else {
+          console.warn('✗ /recent-sales non disponibile o vuoto');
+        }
+        var gfl = data.prices && data.prices.grades_from_listings;
+        if(gfl){
+          var rows = Object.keys(gfl).map(function(k){
+            return {
+              key: k,
+              count: gfl[k].count || 0,
+              median: gfl[k].median,
+              currency: gfl[k].currency_symbol,
+              min: gfl[k].min,
+              max: gfl[k].max,
+            };
+          }).sort(function(a,b){ return b.count - a.count; });
+          console.table(rows);
+        } else {
+          console.warn('Nessun grades_from_listings — solo aggregati API');
+        }
+        console.groupEnd();
+      }catch(e){}
+
+      anlPopPc(data.prices);
+    }catch(e){ anlPopPc(null,e.message||'errore rete'); }
+  })();
+
+  // Cardmarket — fetch listings reali, parse commenti per grading
+  // (sostituisce/integra il dato trend dalla TCG API)
+  (async function(){
+    try{
+      var cond = document.getElementById('anlCond').value;
+      var lang = document.getElementById('anlLang').value;
+      var is1st= document.getElementById('anl1st').value==='yes';
+      var setId= card.set?card.set.id:null;
+      var cmUrl = buildCMDirectUrl(card.name, setId, card.number, cond, lang, 'Normal', is1st, setNm);
+      // In graded mode forziamo minCondition a NM per non perdere listings (anche
+      // i venditori di carte gradate spesso non impostano la condizione raw).
+      // Per non interferire col link "apri →" esterno costruisco un URL parallelo.
+      var fetchUrl = cmUrl;
+      var data = await anlFetchSmooth({source:'cardmarket', url:fetchUrl, urls:[fetchUrl], debug:true});
+      anlPopCm(data, card);
+    }catch(e){ anlPopCm({error:e.message||'errore rete'}, card); }
+  })();
+
+  // Render CM già disponibile e sezioni
+  anlRenderToday();
+  anlRenderProjection();
+}
+
+function anlSigFor(card){
+  return [
+    card.id, anlMode,
+    document.getElementById('anlLang').value,
+    anlMode==='raw' ? document.getElementById('anlCond').value : '',
+    anlMode==='raw' ? document.getElementById('anl1st').value : '',
+    anlMode==='graded' ? document.getElementById('anlHouse').value : '',
+    anlMode==='graded' ? document.getElementById('anlGradeScore').value : '',
+  ].join('|');
+}
+
+// ─── HELPER condivise: parser grading + lingua su titoli/commenti ─────────────
+// Riconosce indicatori di grading in un testo (titolo eBay o commento CM).
+// Casi: "PSA 9", "PSA-9", "PSA9", "BGS 8.5", "BGS8.5", "CGC 10", "ACE MINT 9"
+// Ritorna {house, score} oppure null.
+function anlParseGrading(text){
+  if(!text) return null;
+  var s = String(text).replace(/\s+/g,' ').trim();
+  // Coppie (house canonica, regex name) — applichiamo il pattern completo
+  // direttamente, senza pre-test con \bHOUSE\b che fallisce su "BGS8" perché
+  // tra S e 8 non c'è word boundary (entrambi word char).
+  var houses = [
+    ['PSA','PSA'],
+    ['BGS','(?:BGS|Beckett)'],
+    ['CGC','CGC'],
+    ['SGC','SGC'],
+    ['HGA','HGA'],
+    ['GMA','GMA'],
+    ['TAG','TAG'],
+    ['ARS','ARS'],
+    ['GG','(?:GG|GetGraded)'],
+    ['ACE','ACE']
+  ];
+  for(var i=0;i<houses.length;i++){
+    var house = houses[i][0], houseStr = houses[i][1];
+    var rx = new RegExp(
+      '\\b'+houseStr+
+      '(?:\\s*[A-Za-z]{0,8})?'+
+      '\\s*[-:.\\s]?\\s*'+
+      '(10(?:\\.0)?|[1-9](?:\\.5)?)\\b',
+      'i'
+    );
+    var m = s.match(rx);
+    if(m){
+      var score = parseFloat(m[1]);
+      if(score>=1 && score<=10) return { house:house, score:score };
+    }
+  }
+  return null;
+}
+
+// Rileva la lingua dichiarata nel titolo eBay/CM. Marker espliciti hanno
+// priorità; assenza di marker = sconosciuto (NON assumiamo "EN by default").
+function anlDetectLang(text){
+  if(!text) return null;
+  var s = ' '+String(text).toLowerCase()+' ';
+  // Pattern ordinati: i più specifici prima
+  if(/\b(italian|italiana|italiano|ita)\b/.test(s) || /\bita\b/.test(s)) return 'ITA';
+  if(/\b(japanese|giapponese|japones|jpn|jap)\b/.test(s)) return 'JPN';
+  if(/\b(german|deutsch|tedesco|deu|ger)\b/.test(s)) return 'DEU';
+  if(/\b(french|francese|francais|français|fra|fr)\b/.test(s)) return 'FRA';
+  if(/\b(spanish|spagnolo|español|espanol|esp|spa)\b/.test(s)) return 'ESP';
+  if(/\b(portuguese|portoghese|português|portugues|por)\b/.test(s)) return 'POR';
+  if(/\b(korean|coreano|kor)\b/.test(s)) return 'KOR';
+  if(/\b(chinese|cinese|chs|cht)\b/.test(s)) return 'CHI';
+  if(/\b(english|inglese|eng)\b/.test(s)) return 'ENG';
+  return null; // unknown — non azzardiamo
+}
+
+// ─── HELPER: normalizza prezzi eBay usando CM come ancora di plausibilità ─
+// Converte tutto in EUR, filtra via banda [lo, hi] ancorata al CM trend (se disponibile),
+// poi applica una seconda passata MAD per gli outlier statistici residui.
+// Se data.items è presente, applica anche filtri raw/graded basati sul titolo
+// e calcola statistiche di lingua per warning di mismatch.
+function anlSanitizeEbay(data, cmRefEur, rate, graded, userLang){
+  if(!data || !data.prices || !data.prices.length) return data;
+
+  // ── PRE-FILTER per items con titolo (se disponibili) ──
+  // Quando abbiamo i titoli (data.items) possiamo:
+  //   • In graded mode: tenere SOLO items con grading nel titolo (esclude raw)
+  //   • In raw mode:    escludere items con grading nel titolo (esclude graded)
+  //   • Rilevare lingua e segnalare mismatch
+  var langStats = { ITA:0, ENG:0, JPN:0, DEU:0, FRA:0, ESP:0, POR:0, KOR:0, CHI:0, unknown:0 };
+  var rawCount = 0, gradedCount = 0;
+  var filteredItems = null;
+
+  if(data.items && data.items.length){
+    var keptItems = [];
+    var droppedByMode = 0;
+    data.items.forEach(function(it){
+      var g = anlParseGrading(it.title);
+      if(g) gradedCount++; else rawCount++;
+      var lang = anlDetectLang(it.title);
+      langStats[lang || 'unknown']++;
+
+      // Filtro per modalità
+      if(graded){
+        // Tieni solo items con grading nel titolo (qualsiasi casa+grado purché presente).
+        // Filtro più stretto sul match esatto avverrà nel sanitize a valle.
+        if(g) keptItems.push(Object.assign({}, it, {_grading:g, _lang:lang}));
+        else droppedByMode++;
+      } else {
+        if(!g) keptItems.push(Object.assign({}, it, {_grading:null, _lang:lang}));
+        else droppedByMode++;
+      }
+    });
+
+    // Se il filtro modalità lascia troppo poco (<3) e abbiamo abbastanza dati totali (>=6),
+    // disattiva il filtro e ritorna a tutti gli items con un warning.
+    if(keptItems.length < 3 && data.items.length >= 6){
+      // Manteniamo tutti gli items ma marchiamo come "filtro modalità inefficace"
+      filteredItems = data.items.map(function(it){
+        return Object.assign({}, it, {_grading:anlParseGrading(it.title), _lang:anlDetectLang(it.title)});
+      });
+      data._modeFilterAborted = true;
+    } else {
+      filteredItems = keptItems;
+      data._modeFilterDropped = droppedByMode;
+    }
+  }
+
+  // ── Normalizzazione prezzi in EUR ──
+  // Se abbiamo filteredItems usa quelli; altrimenti usa data.prices (legacy)
+  var inEur;
+  if(filteredItems){
+    inEur = filteredItems.map(function(it){
+      var c = it.currency || data.currency || 'EUR';
+      if(c==='USD') return it.price * rate;
+      if(c==='GBP') return it.price * 1.17 * rate;
+      return it.price;
+    });
+  } else {
+    inEur = data.prices.map(function(p){
+      if(data.currency==='USD')      return p * rate;
+      if(data.currency==='GBP')      return p * 1.17 * rate;
+      return p;
+    });
+  }
+
+  if(inEur.length === 0){
+    // Nessun item dopo il filtro modalità: ritorna struttura "vuota dopo filtro"
+    return Object.assign({}, data, {
+      pricesEur: [], medianEur: null, avgEur: null, minEur: null, maxEur: null,
+      countEur: 0, filteredOut: data.prices.length, cmAnchor: null,
+      confidenceLevel: 'none',
+      langStats: langStats, rawCount: rawCount, gradedCount: gradedCount,
+    });
+  }
+
+  // ── Filtro CM-anchored ──
+  var lo=null, hi=null, anchored=false;
+  if(cmRefEur && cmRefEur>0){
+    if(graded){ lo = cmRefEur * 0.5;  hi = cmRefEur * 80; }
+    else       { lo = cmRefEur * 0.3;  hi = cmRefEur * 4;  }
+    anchored = true;
+  }
+
+  var plausible = anchored ? inEur.filter(function(p){return p>=lo && p<=hi;}) : inEur.slice();
+  if(anchored && (plausible.length < 3 || plausible.length < inEur.length*0.4)){
+    plausible = inEur.slice();
+    anchored = false;
+  }
+
+  // ── MAD filter ──
+  plausible.sort(function(a,b){return a-b;});
+  var mid = Math.floor(plausible.length/2);
+  var med = plausible.length%2===0 ? (plausible[mid-1]+plausible[mid])/2 : plausible[mid];
+  var absDevs = plausible.map(function(p){return Math.abs(p-med);}).sort(function(a,b){return a-b;});
+  var mad = absDevs[Math.floor(absDevs.length/2)] || med*0.1;
+  var finalSet;
+  if(plausible.length >= 5 && mad > 0){
+    finalSet = plausible.filter(function(p){return Math.abs(p-med) <= 4*mad;});
+    if(finalSet.length < 3) finalSet = plausible;
+  } else {
+    finalSet = plausible;
+  }
+
+  finalSet.sort(function(a,b){return a-b;});
+  var n = finalSet.length;
+  var mid2 = Math.floor(n/2);
+  var median = n%2===0 ? (finalSet[mid2-1]+finalSet[mid2])/2 : finalSet[mid2];
+  var sum = finalSet.reduce(function(a,b){return a+b;},0);
+  var avg = sum/n;
+
+  var conf = n>=10 ? 'high' : (n>=5 ? 'medium' : (n>=3 ? 'low' : 'very-low'));
+
+  return Object.assign({}, data, {
+    pricesEur: finalSet,
+    medianEur: median,
+    avgEur: avg,
+    minEur: finalSet[0],
+    maxEur: finalSet[n-1],
+    countEur: n,
+    filteredOut: data.prices.length - n,
+    cmAnchor: anchored ? cmRefEur : null,
+    confidenceLevel: conf,
+    langStats: langStats,
+    rawCount: rawCount,
+    gradedCount: gradedCount,
+  });
+}
+
+// Set confidence dot (●) color basato su conteggio/qualità
+function anlSetDot(id, conf){
+  var el = document.getElementById(id); if(!el) return;
+  el.textContent = '●';
+  el.style.fontSize = '10px';
+  el.style.marginLeft = 'auto';
+  var color = {
+    'high':   'var(--success)',
+    'medium': 'var(--warning)',
+    'low':    'var(--danger)',
+    'very-low': 'var(--text-subtle)',
+    'none':   'var(--text-subtle)',
+  }[conf] || 'var(--text-subtle)';
+  el.style.color = color;
+  el.title = {
+    'high':   'alta confidenza (≥10 campioni)',
+    'medium': 'confidenza media (5-9 campioni)',
+    'low':    'bassa confidenza (3-4 campioni)',
+    'very-low': 'campione insufficiente (<3)',
+    'none':   'nessun dato',
+  }[conf] || '';
+}
+
+// ─── CARDMARKET — listings reali con split raw/graded da commenti ────────────
+// Parse delle listings restituite dall'edge function. Ogni listing può avere:
+//   • grading: { house, score } estratto dal commento
+//   • comment: testo originale del seller
+// Strategia:
+//   • Mode RAW: usa solo listings SENZA grading (raw), calcola mediana
+//     escludendo eventuali listing gradati che inquinerebbero la media
+//   • Mode GRADED: usa solo listings con grading match (house+score esatto),
+//     o gradate generiche se nessun match esatto + warning sul campione
+//   • Fallback: se troppo pochi listings dopo il filtro (<3) torna al trend
+//     dalla TCG API (che è il dato originale che avevamo)
+// ─── TABELLA eBay raggruppata per (house, score, lingua) ──
+// Logica analoga a CM: dato l'array di sold con grading parsato (e lingua
+// rilevata dal titolo), raggruppa e mostra mediana per ogni combo.
+// Differenza vs CM: i prezzi sono già normalizzati in EUR a livello di
+// anlSanitizeEbay, e arrivano dai TITOLI (non da commenti seller).
+function anlRenderEbGradeTable(items, targetHouse, targetScore, targetLang){
+  var tblEl = document.getElementById('anlSrcEbTable');
+  if(!tblEl) return;
+  if(!items || !items.length){
+    tblEl.style.display = 'none';
+    tblEl.innerHTML = '';
+    return;
+  }
+  // Filtra solo i sold con grading parsato (tabella ha senso solo per gradate)
+  var graded = items.filter(function(it){ return it._grading; });
+  if(!graded.length){
+    tblEl.style.display = 'none';
+    tblEl.innerHTML = '';
+    return;
+  }
+  // Raggruppa per (house, score, language)
+  var groups = {};
+  graded.forEach(function(it){
+    var lang = it._lang || '?';
+    var k = it._grading.house + '|' + it._grading.score + '|' + lang;
+    if(!groups[k]) groups[k] = {
+      house: it._grading.house,
+      score: it._grading.score,
+      language: lang,
+      prices: []
+    };
+    // Conversione in EUR (rate da anlLiveData)
+    var rate = anlLiveData.usdEur || ANL_USD_EUR_FALLBACK;
+    var p = it.price;
+    if(it.currency === 'USD')      p = it.price * rate;
+    else if(it.currency === 'GBP') p = it.price * 1.17 * rate;
+    groups[k].prices.push(p);
+  });
+  var rows = Object.keys(groups).map(function(k){
+    var g = groups[k];
+    g.prices.sort(function(a,b){return a-b;});
+    var mid = Math.floor(g.prices.length/2);
+    g.median = g.prices.length%2===0 ? (g.prices[mid-1]+g.prices[mid])/2 : g.prices[mid];
+    g.count = g.prices.length;
+    g.isTarget = (g.house === targetHouse && Math.abs(g.score - targetScore) < 0.01);
+    g.isPerfect = g.isTarget && (targetLang ? g.language === targetLang : true);
+    return g;
+  });
+  rows.sort(function(a,b){
+    // Primario: score discendente (10, 9.5, 9, 8.5, 8...)
+    if(a.score !== b.score) return b.score - a.score;
+    // Secondario: perfect match prima a parità di score
+    if(a.isPerfect !== b.isPerfect) return a.isPerfect ? -1 : 1;
+    if(a.isTarget !== b.isTarget) return a.isTarget ? -1 : 1;
+    // Terziario: casa alfabetica
+    if(a.house !== b.house) return a.house < b.house ? -1 : 1;
+    return 0;
+  });
+  var langIcon = {
+    ITA: '🇮🇹', ENG: '🇬🇧', JPN: '🇯🇵', DEU: '🇩🇪', FRA: '🇫🇷',
+    ESP: '🇪🇸', POR: '🇵🇹', KOR: '🇰🇷', CHI: '🇨🇳', RUS: '🇷🇺', NLD: '🇳🇱'
+  };
+  var html = '<table>'
+    + '<thead><tr><th></th><th>Casa</th><th>Voto</th><th>Lingua</th><th style="text-align:right">€</th><th style="text-align:center">N</th></tr></thead>'
+    + '<tbody>'
+    + rows.map(function(r){
+        var priceStr = r.count > 1
+          ? '€'+r.median.toFixed(0)+' <span style="opacity:0.5;font-size:9px">med</span>'
+          : '€'+r.prices[0].toFixed(0);
+        var langStr = r.language === '?'
+          ? '<span style="opacity:0.5">?</span>'
+          : (langIcon[r.language] || '') + ' ' + r.language;
+        var rowClass = r.isPerfect ? 'match-target' : (r.isTarget ? 'match-target' : '');
+        // Freccia ▸ solo su match al 100% (perfect: house+score+lingua)
+        var arrowCell = r.isPerfect
+          ? '<td class="col-arrow" style="color:var(--accent);font-weight:700;text-align:center;width:18px">▸</td>'
+          : '<td class="col-arrow" style="width:18px"></td>';
+        return '<tr'+(rowClass?' class="'+rowClass+'"':'')+'>'
+          + arrowCell
+          + '<td class="col-grade">'+r.house+'</td>'
+          + '<td class="col-grade">'+r.score+'</td>'
+          + '<td class="col-grade" style="font-size:10px">'+langStr+'</td>'
+          + '<td class="col-price">'+priceStr+'</td>'
+          + '<td class="col-count">'+r.count+'</td>'
+          + '</tr>';
+      }).join('')
+    + '</tbody></table>';
+  tblEl.innerHTML = html;
+  tblEl.style.display = '';
+}
+
+// ─── TABELLA PriceCharting per grade ──
+// PC è strutturalmente diverso: i grade sono nei CAMPI dell'API (psa10,
+// grade9, ecc), non nei commenti. La tabella mostra TUTTI i grade
+// disponibili, preferendo i prezzi da grades_from_listings (sold reali)
+// quando presenti, fallback ai campi aggregati.
+// PC è US-centric → lingua sempre ENG (PC non differenzia per lingua).
+function anlRenderPcGradeTable(prices, targetHouse, targetScore){
+  var tblEl = document.getElementById('anlSrcPcTable');
+  if(!tblEl) return;
+  if(!prices){
+    tblEl.style.display = 'none';
+    tblEl.innerHTML = '';
+    return;
+  }
+  var rate = anlLiveData.usdEur || ANL_USD_EUR_FALLBACK;
+  var pcCur = prices.currency || 'USD';
+  function toEur(v){
+    if(v == null) return null;
+    if(pcCur === 'EUR')      return v;
+    if(pcCur === 'GBP')      return v * 1.17 * rate;
+    return v * rate; // USD default
+  }
+
+  // Mappa campi aggregati PC → (house canonica, score)
+  // Da capire: PC usa "grade7", "grade8", "grade9", "grade9.5", "psa10" come
+  // scala generica (PSA-equivalent). Le case alternative (BGS, CGC) di
+  // solito non hanno endpoint dedicati nelle API PC pubbliche.
+  var aggregateMap = [
+    { key: 'grade7',  house: 'PSA', score: 7 },
+    { key: 'grade8',  house: 'PSA', score: 8 },
+    { key: 'grade9',  house: 'PSA', score: 9 },
+    { key: 'grade95', house: 'PSA', score: 9.5 },
+    { key: 'psa10',   house: 'PSA', score: 10 },
+    { key: 'bgs10',   house: 'BGS', score: 10 },
+    { key: 'cgc10',   house: 'CGC', score: 10 },
+  ];
+
+  var rowsMap = {}; // key = house|score → riga
+  function ensureRow(house, score){
+    var k = house+'|'+score;
+    if(!rowsMap[k]) rowsMap[k] = { house:house, score:score, eurFromListings:null, eurFromAggregate:null, count:0, min:null, max:null };
+    return rowsMap[k];
+  }
+
+  // 1) Da sold listings reali (preferito)
+  if(prices.grades_from_listings){
+    Object.keys(prices.grades_from_listings).forEach(function(lk){
+      var L = prices.grades_from_listings[lk];
+      if(!L || L.median == null) return;
+      var parts = lk.split('_');
+      if(parts.length !== 2) return;
+      var house = parts[0], score = parseFloat(parts[1]);
+      if(isNaN(score)) return;
+      var sym = L.currency_symbol || '$';
+      var conv = function(v){
+        if(v==null) return null;
+        if(sym==='€') return v;
+        if(sym==='£') return v*1.17*rate;
+        return v*rate;
+      };
+      var row = ensureRow(house, score);
+      row.eurFromListings = conv(L.median);
+      row.count = L.count || 0;
+      row.min = conv(L.min);
+      row.max = conv(L.max);
+    });
+  }
+
+  // 2) Da campi aggregati (fallback)
+  aggregateMap.forEach(function(am){
+    var v = prices[am.key];
+    if(v == null) return;
+    var row = ensureRow(am.house, am.score);
+    row.eurFromAggregate = toEur(v);
+  });
+
+  // Ungraded riga separata in raw mode (mostriamo tabella PC anche in raw
+  // se ci sono dati) — opzionale, per ora skip e tabella solo in graded
+  var rows = Object.keys(rowsMap).map(function(k){ return rowsMap[k]; });
+  rows = rows.filter(function(r){ return r.eurFromListings != null || r.eurFromAggregate != null; });
+  if(!rows.length){
+    tblEl.style.display = 'none';
+    tblEl.innerHTML = '';
+    return;
+  }
+  rows.forEach(function(r){
+    r.isTarget = (r.house === targetHouse && Math.abs(r.score - targetScore) < 0.01);
+    // Per ranking: usa eurFromListings se presente (dato real), altrimenti aggregate
+    r._sortPrice = r.eurFromListings != null ? r.eurFromListings : r.eurFromAggregate;
+  });
+  rows.sort(function(a,b){
+    // Primario: score discendente
+    if(a.score !== b.score) return b.score - a.score;
+    // Secondario: target prima a parità di score
+    if(a.isTarget !== b.isTarget) return a.isTarget ? -1 : 1;
+    // Terziario: casa alfabetica
+    if(a.house !== b.house) return a.house < b.house ? -1 : 1;
+    return 0;
+  });
+
+  // Trova riga target per detail view e accesso a listings dettagliati
+  var targetRow = rows.filter(function(r){ return r.isTarget; })[0] || null;
+  var targetListings = null;
+  if(targetRow && prices.grades_from_listings){
+    var lk = targetRow.house + '_' + targetRow.score;
+    var L = prices.grades_from_listings[lk];
+    if(L && L.listings && L.listings.length){
+      // Converti prezzi in EUR
+      var sym2 = L.currency_symbol || '$';
+      var convL = function(v){
+        if(v==null) return null;
+        if(sym2==='€') return v;
+        if(sym2==='£') return v*1.17*rate;
+        return v*rate;
+      };
+      targetListings = L.listings.map(function(it){
+        return { priceEur: convL(it.price), date: it.date || null };
+      });
+    }
+  }
+
+  // Header con toggle se ci sono listings dettagliati per il target
+  var headerHtml = '';
+  if(targetListings && targetListings.length){
+    var label = anlPcShowDetail
+      ? '◀ vista per grade'
+      : '▸ dettaglio venduti '+targetRow.house+' '+targetRow.score+' ('+targetListings.length+')';
+    headerHtml = '<div style="display:flex;justify-content:flex-end;padding:4px 6px;border-bottom:1px solid var(--border);background:var(--surface-2,rgba(255,255,255,0.02))">'
+      + '<a onclick="anlTogglePcDetail()" style="cursor:pointer;font-size:10px;color:var(--accent);font-family:var(--mono);text-decoration:none">'+label+'</a>'
+      + '</div>';
+  }
+
+  var html;
+  if(anlPcShowDetail && targetListings && targetListings.length){
+    // ─── VISTA DETTAGLIO: ultime vendite del target grade ──
+    // Ordina per data desc se disponibile, altrimenti mantieni ordine PC (recente prima)
+    var sorted = targetListings.slice();
+    if(sorted.some(function(l){ return l.date; })){
+      sorted.sort(function(a,b){
+        if(!a.date && !b.date) return 0;
+        if(!a.date) return 1;
+        if(!b.date) return -1;
+        // Confronto stringa funziona per ISO; per altri formati ordine PC originale
+        return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0);
+      });
+    }
+    // Calcola trend rispetto alla prima vendita
+    var prices_all = sorted.map(function(l){ return l.priceEur; }).filter(function(p){ return p!=null; });
+    var medianL = prices_all.slice().sort(function(a,b){return a-b;})[Math.floor(prices_all.length/2)];
+
+    html = headerHtml + '<table>'
+      + '<thead><tr><th>#</th><th>Data</th><th style="text-align:right">€</th><th style="text-align:right" title="Prezzo + spedizione 20€ + dazio 2.7% (solo se valore >€150) + IVA 22% + sdoganamento 15€">€+spese</th><th style="text-align:right">vs med</th></tr></thead>'
+      + '<tbody>'
+      + sorted.map(function(l, i){
+          var dateStr = l.date || '<span style="opacity:0.4">—</span>';
+          var deltaStr = '';
+          if(l.priceEur != null && medianL){
+            var d = ((l.priceEur - medianL) / medianL) * 100;
+            var cls = Math.abs(d) < 5 ? 'mute' : (d > 0 ? 'pos' : 'neg');
+            var col = cls==='pos' ? 'var(--success)' : (cls==='neg' ? 'var(--danger)' : 'var(--text-muted)');
+            deltaStr = '<span style="color:'+col+';font-size:9px">'+(d>=0?'+':'')+d.toFixed(0)+'%</span>';
+          }
+          var totalEur = anlImportTotal(l.priceEur);
+          var totalStr = totalEur != null
+            ? '<span style="color:var(--accent)">€'+totalEur.toFixed(0)+'</span>'
+            : '<span style="opacity:0.4">—</span>';
+          return '<tr>'
+            + '<td class="col-grade" style="opacity:0.5">'+(i+1)+'</td>'
+            + '<td class="col-grade" style="font-size:10px">'+dateStr+'</td>'
+            + '<td class="col-price">€'+(l.priceEur!=null?l.priceEur.toFixed(0):'?')+'</td>'
+            + '<td class="col-price" style="font-size:10px">'+totalStr+'</td>'
+            + '<td style="text-align:right;padding-right:6px">'+deltaStr+'</td>'
+            + '</tr>';
+        }).join('')
+      + '</tbody></table>';
+  } else {
+    // ─── VISTA AGGREGATA: tutti i grade (vista corrente) ──
+    html = headerHtml + '<table>'
+      + '<thead><tr><th></th><th>Casa</th><th>Voto</th><th>Lingua</th><th style="text-align:right">€</th><th style="text-align:right" title="Prezzo + spedizione 20€ + dazio 2.7% (solo se valore >€150) + IVA 22% + sdoganamento 15€">€+spese</th><th style="text-align:center">Sample</th></tr></thead>'
+      + '<tbody>'
+      + rows.map(function(r){
+          var priceVal, priceLabel;
+          if(r.eurFromListings != null){
+            priceVal = r.eurFromListings;
+            priceLabel = '€'+priceVal.toFixed(0);
+            if(r.count > 1) priceLabel += ' <span style="opacity:0.5;font-size:9px">med</span>';
+          } else {
+            priceVal = r.eurFromAggregate;
+            priceLabel = '€'+priceVal.toFixed(0)+' <span style="opacity:0.5;font-size:9px">agg</span>';
+          }
+          var totalEur = anlImportTotal(priceVal);
+          var totalLabel = totalEur != null
+            ? '<span style="color:var(--accent)">€'+totalEur.toFixed(0)+'</span>'
+            : '<span style="opacity:0.4">—</span>';
+          var sampleStr = r.eurFromListings != null
+            ? String(r.count || '?')
+            : '<span style="opacity:0.5">agg</span>';
+          var userLangPc = (document.getElementById('anlLang') || {}).value;
+          var isPerfectPc = r.isTarget && (userLangPc==='ENG' || !userLangPc);
+          var arrowCell = isPerfectPc
+            ? '<td class="col-arrow" style="color:var(--accent);font-weight:700;text-align:center;width:18px">▸</td>'
+            : '<td class="col-arrow" style="width:18px"></td>';
+          return '<tr'+(r.isTarget?' class="match-target"':'')+'>'
+            + arrowCell
+            + '<td class="col-grade">'+r.house+'</td>'
+            + '<td class="col-grade">'+r.score+'</td>'
+            + '<td class="col-grade" style="font-size:10px">🇬🇧 ENG</td>'
+            + '<td class="col-price">'+priceLabel+'</td>'
+            + '<td class="col-price" style="font-size:10px">'+totalLabel+'</td>'
+            + '<td class="col-count">'+sampleStr+'</td>'
+            + '</tr>';
+        }).join('')
+      + '</tbody></table>';
+  }
+  tblEl.innerHTML = html;
+  tblEl.style.display = '';
+}
+
+// Toggle vista PC: aggregata (tutti i grade) ↔ dettaglio (sold target grade)
+window.anlTogglePcDetail = function(){
+  anlPcShowDetail = !anlPcShowDetail;
+  var prices = anlLiveData.pc;
+  if(!prices) return;
+  var graded = anlMode==='graded';
+  if(!graded){ anlPcShowDetail = false; return; }
+  var house = document.getElementById('anlHouse').value;
+  var score = parseFloat(document.getElementById('anlGradeScore').value);
+  anlRenderPcGradeTable(prices, house, score);
+};
+
+// ─── TABELLA CM raggruppata per (house, score, language) ────────────────
+function anlRenderCmGradeTable(gradedListings, targetHouse, targetScore, targetLang){
+  var tblEl = document.getElementById('anlSrcCmTable');
+  if(!tblEl) return;
+  if(!gradedListings || !gradedListings.length){
+    tblEl.style.display = 'none';
+    tblEl.innerHTML = '';
+    return;
+  }
+  // Raggruppa per (house, score, language). Listing senza lingua → '?'
+  var groups = {};
+  gradedListings.forEach(function(l){
+    var lang = l.language || '?';
+    var k = l.grading.house + '|' + l.grading.score + '|' + lang;
+    if(!groups[k]) groups[k] = {
+      house: l.grading.house,
+      score: l.grading.score,
+      language: lang,
+      prices: []
+    };
+    groups[k].prices.push(l.price);
+  });
+  var rows = Object.keys(groups).map(function(k){
+    var g = groups[k];
+    g.prices.sort(function(a,b){return a-b;});
+    var mid = Math.floor(g.prices.length/2);
+    g.median = g.prices.length%2===0 ? (g.prices[mid-1]+g.prices[mid])/2 : g.prices[mid];
+    g.count = g.prices.length;
+    // Match esatto su house+score (la lingua è informativa, non match-critical
+    // perché spesso CM ha solo 1-2 listings per combo specifica)
+    g.isTarget = (g.house === targetHouse && Math.abs(g.score - targetScore) < 0.01);
+    // Match perfetto: anche la lingua coincide → priorità massima
+    g.isPerfect = g.isTarget && (targetLang ? g.language === targetLang : true);
+    return g;
+  });
+  // Ordine: score desc primario, poi perfect match a parità, poi house alfabetico
+  rows.sort(function(a,b){
+    if(a.score !== b.score) return b.score - a.score;
+    if(a.isPerfect !== b.isPerfect) return a.isPerfect ? -1 : 1;
+    if(a.isTarget !== b.isTarget) return a.isTarget ? -1 : 1;
+    if(a.house !== b.house) return a.house < b.house ? -1 : 1;
+    return 0;
+  });
+  // Bandiere/icone lingua compatte
+  var langIcon = {
+    ITA: '🇮🇹', ENG: '🇬🇧', JPN: '🇯🇵', DEU: '🇩🇪', FRA: '🇫🇷',
+    ESP: '🇪🇸', POR: '🇵🇹', KOR: '🇰🇷', CHI: '🇨🇳', RUS: '🇷🇺', NLD: '🇳🇱'
+  };
+  var html = '<table>'
+    + '<thead><tr><th></th><th>Casa</th><th>Voto</th><th>Lingua</th><th style="text-align:right">€</th><th style="text-align:center">N</th></tr></thead>'
+    + '<tbody>'
+    + rows.map(function(r){
+        var priceStr = r.count > 1
+          ? '€'+r.median.toFixed(2)+' <span style="opacity:0.5;font-size:9px">med</span>'
+          : '€'+r.prices[0].toFixed(2);
+        var langStr = r.language === '?'
+          ? '<span style="opacity:0.5">?</span>'
+          : (langIcon[r.language] || '') + ' ' + r.language;
+        var rowClass = r.isPerfect ? 'match-target' : (r.isTarget ? 'match-target' : '');
+        // Freccia ▸ solo su perfect match (house+score+lingua)
+        var arrowCell = r.isPerfect
+          ? '<td class="col-arrow" style="color:var(--accent);font-weight:700;text-align:center;width:18px">▸</td>'
+          : '<td class="col-arrow" style="width:18px"></td>';
+        return '<tr'+(rowClass?' class="'+rowClass+'"':'')+'>'
+          + arrowCell
+          + '<td class="col-grade">'+r.house+'</td>'
+          + '<td class="col-grade">'+r.score+'</td>'
+          + '<td class="col-grade" style="font-size:10px">'+langStr+'</td>'
+          + '<td class="col-price">'+priceStr+'</td>'
+          + '<td class="col-count">'+r.count+'</td>'
+          + '</tr>';
+      }).join('')
+    + '</tbody></table>';
+  tblEl.innerHTML = html;
+  tblEl.style.display = '';
+}
+
+function anlPopCm(data, card){
+  var priceEl=document.getElementById('anlSrcCm');
+  var noteEl =document.getElementById('anlSrcCmNote');
+  var tblEl  =document.getElementById('anlSrcCmTable');
+  var graded = anlMode==='graded';
+  var house  = graded ? document.getElementById('anlHouse').value : null;
+  var score  = graded ? parseFloat(document.getElementById('anlGradeScore').value) : null;
+  var userLang = document.getElementById('anlLang') ? document.getElementById('anlLang').value : null;
+
+  // ─── DIAGNOSTICA EDGE ──
+  // Logga sempre il _summary e il debug se presenti, così possiamo vedere
+  // cosa l'edge function ha estratto e dove l'extraction sta fallendo.
+  if(data && (data._summary || data.debug)){
+    try{
+      console.group('%c[Analizza] CM edge diagnostica','color:#10b981;font-weight:bold');
+      if(data._summary){
+        console.log('Summary:', data._summary);
+      }
+      if(data.debug){
+        var dbg = data.debug;
+        console.log('http_status:', dbg.http_status, '| html_len:', dbg.html_length);
+        console.log('article_row_matches:', dbg.article_row_matches, '| euro_symbol_matches:', dbg.euro_symbol_matches, '| price_json_matches:', dbg.price_json_matches);
+        console.log('has_consent_wall:', dbg.has_consent_wall, '| is_geo_block:', dbg.is_geo_block, '| has_next_data:', dbg.has_next_data);
+        if(dbg.next_data_info) console.log('NEXT_DATA info:', dbg.next_data_info);
+        if(dbg.article_row_sample){
+          console.log('%c--- Sample prima article-row (4000ch) ---','color:#f59e0b');
+          console.log(dbg.article_row_sample);
+        }
+        if(dbg.price_context_sample){
+          console.log('%c--- Sample HTML attorno al prezzo più alto (per vedere il commento) ---','color:#f59e0b');
+          console.log(dbg.price_context_sample);
+        }
+        if(dbg.grading_anchor_samples && dbg.grading_anchor_samples.length){
+          console.log('%c--- Grading marker trovati nel HTML grezzo (±400ch ognuno) ---','color:#10b981;font-weight:bold');
+          dbg.grading_anchor_samples.forEach(function(s, i){
+            console.log('%c['+s.marker+']','color:#10b981;font-weight:bold');
+            console.log(s.context);
+            console.log('---');
+          });
+        } else if(dbg.grading_anchor_samples){
+          console.warn('NESSUN grading marker trovato nel HTML grezzo — possibile che CM non li abbia restituiti, OR il pattern non li riconosce');
+        }
+      }
+      console.groupEnd();
+    }catch(e){}
+  }
+
+  // Fallback al trend TCG-API se errore o nessun listing
+  function fallbackTrend(reason){
+    var p = card && card.cardmarket && card.cardmarket.prices;
+    var trend = p ? (p.trendPrice || p.avg30 || null) : null;
+    if(priceEl){
+      priceEl.classList.remove('loading');
+      if(trend != null){
+        priceEl.textContent = '€'+trend.toFixed(2);
+        priceEl.classList.remove('na');
+      } else {
+        priceEl.textContent = '—';
+        priceEl.classList.add('na');
+      }
+    }
+    if(noteEl){
+      var bits = [];
+      if(reason) bits.push(reason);
+      if(p && p.trendPrice) bits.push('trend €'+p.trendPrice.toFixed(2));
+      if(p && p.avg30)      bits.push('30gg €'+p.avg30.toFixed(2));
+      if(p && p.lowPrice)   bits.push('low €'+p.lowPrice.toFixed(2));
+      noteEl.textContent = bits.length ? bits.join(' · ') : 'nessun dato';
+    }
+    anlSetDot('anlSrcCmDot','low');
+    // Pulisci tabella gradate (caso fallback = nessun graded utile)
+    anlRenderCmGradeTable(null);
+    // anlLiveData.cm già impostato in anlStartLiveFetches dal trend TCG (con condition factor per raw)
+    anlRenderToday();
+    anlRenderProjection();
+  }
+
+  if(!data || data.error){
+    fallbackTrend(data && data.error ? ('CM ' + String(data.error).substring(0,40)) : 'fetch fallito');
+    return;
+  }
+
+  var listings = (data.listings || []).filter(function(l){ return l && typeof l.price === 'number'; });
+  if(!listings.length){
+    fallbackTrend('nessun listing');
+    return;
+  }
+
+  // Normalizza il grading: se NON è già stato parsato dall'edge function
+  // (es. risultati da NEXT_DATA fallback) prova a parsare il commento ora.
+  // Se il commento è assente del tutto, prova a parsare grading da QUALSIASI
+  // campo di testo presente sul listing (es. seller note nascosta).
+  listings = listings.map(function(l){
+    if(!l.grading && l.comment) l.grading = anlParseGrading(l.comment);
+    // Last-resort: se ancora niente grading, prova a scansionare TUTTE le
+    // proprietà testuali del listing alla ricerca di un pattern grading.
+    if(!l.grading){
+      for(var k in l){
+        if(typeof l[k]==='string' && l[k].length>1 && l[k].length<300){
+          var g = anlParseGrading(l[k]);
+          if(g){ l.grading = g; if(!l.comment) l.comment = l[k]; break; }
+        }
+      }
+    }
+    return l;
+  });
+
+  var rawListings    = listings.filter(function(l){ return !l.grading; });
+  var gradedListings = listings.filter(function(l){ return  l.grading; });
+
+  // ─── Salva count/mediana raw NM/MT per BOX 3 (Strategia grading) ──
+  // Permette di mostrare "compra NM e gradala" anche in mode graded, dove
+  // anlLiveData.cm è sostituito col prezzo gradato.
+  var rawNmListings = rawListings.filter(function(l){
+    var cond = (l.condition || '').toUpperCase().replace(/[\s\-_]/g,'');
+    return cond==='MINT' || cond==='MT' || cond==='NM' || cond==='NEARMINT';
+  });
+  if(rawNmListings.length){
+    var rnPrices = rawNmListings.map(function(l){return l.price;}).sort(function(a,b){return a-b;});
+    var rnMid = Math.floor(rnPrices.length/2);
+    var rnMedian = rnPrices.length%2===0 ? (rnPrices[rnMid-1]+rnPrices[rnMid])/2 : rnPrices[rnMid];
+    anlLiveData.cmRawNm = {
+      count:  rawNmListings.length,
+      median: rnMedian,
+      min:    rnPrices[0],
+      max:    rnPrices[rnPrices.length-1],
+    };
+  } else {
+    anlLiveData.cmRawNm = null;
+  }
+  anlLiveData.cmRawAll = { count: rawListings.length };
+
+  // ─── DIAGNOSTICA CONSOLE: vedi cosa l'edge function ha estratto ──
+  try{
+    console.group('%c[Analizza] CM listings — '+listings.length+' totali ('+gradedListings.length+' gradate, '+rawListings.length+' raw)','color:#06b6d4;font-weight:bold');
+    console.log('Modalità: '+(graded?'GRADED ('+house+' '+score+')':'RAW'));
+    console.table(listings.map(function(l, i){
+      return {
+        '#': i+1,
+        price: '€'+l.price.toFixed(2),
+        cond: l.condition || '?',
+        lang: l.language || '—',
+        comment: l.comment ? l.comment.substring(0,80) : '—',
+        grading: l.grading ? (l.grading.house+' '+l.grading.score) : '—',
+      };
+    }));
+    console.groupEnd();
+  }catch(e){}
+
+  // Se in graded mode E ci sono gradate, mostra SEMPRE la tabella raggruppata
+  // (anche prima del calcolo finale, così l'utente vede subito cosa c'è)
+  if(graded && gradedListings.length > 0){
+    anlRenderCmGradeTable(gradedListings, house, score, userLang);
+  } else {
+    anlRenderCmGradeTable(null);
+  }
+
+  var selected, label, droppedNote = '';
+  if(graded){
+    // Match esatto house+score (con tolleranza ±0.5 per voti decimali).
+    // ABBASSATO il minimo da 2 a 1: anche un singolo PSA 8 ITA è MOLTO più
+    // accurato del trend o di una media generica — è proprio il dato cercato.
+    var exact = gradedListings.filter(function(l){
+      return l.grading.house === house && Math.abs(l.grading.score - score) < 0.01;
+    });
+    if(exact.length >= 1){
+      selected = exact;
+      label = 'CM '+house+' '+score;
+      if(exact.length === 1){
+        droppedNote = '1 listing esatto (campione minimo)';
+      }
+    } else {
+      var sameHouse = gradedListings.filter(function(l){ return l.grading.house === house; });
+      if(sameHouse.length >= 2){
+        selected = sameHouse;
+        label = 'CM '+house+' (grado misto)';
+        droppedNote = '⚠ pochi '+house+' '+score+', uso media '+house+' generica';
+      } else if(sameHouse.length === 1){
+        selected = sameHouse;
+        label = 'CM '+house+' (1 grado diverso)';
+        droppedNote = '⚠ niente '+house+' '+score+', uso 1 listing '+house+' '+sameHouse[0].grading.score;
+      } else if(gradedListings.length >= 2){
+        selected = gradedListings;
+        label = 'CM gradate (mix case)';
+        droppedNote = '⚠ niente '+house+', uso media gradate generica';
+      } else if(gradedListings.length === 1){
+        selected = gradedListings;
+        label = 'CM '+gradedListings[0].grading.house+' '+gradedListings[0].grading.score;
+        droppedNote = '⚠ unica gradata trovata: '+gradedListings[0].grading.house+' '+gradedListings[0].grading.score;
+      } else {
+        // 0 gradate: fallback trend (CM raw inaffidabile per gradate)
+        fallbackTrend('solo listings raw — CM inaffidabile per gradate');
+        return;
+      }
+    }
+  } else {
+    // Mode RAW: escludi qualsiasi listing con grading
+    if(rawListings.length >= 2){
+      selected = rawListings;
+      label = 'CM raw';
+      if(gradedListings.length > 0){
+        droppedNote = gradedListings.length+' gradate escluse';
+      }
+    } else {
+      fallbackTrend(rawListings.length+' raw, '+gradedListings.length+' gradate — uso trend');
+      return;
+    }
+  }
+
+  // ─── DIAGNOSTICA: log dei listing entrati nel selected ──
+  // Serve per debug rapido di disallineamenti tra la nota "X gradate" e la
+  // tabella raggruppata. Permette di vedere subito se un raw è stato
+  // erroneamente conteggiato come graded (ghost).
+  try{
+    console.group('%c[Analizza] CM selected ('+selected.length+' listings, label="'+label+'")','color:#a855f7;font-weight:bold');
+    console.table(selected.map(function(l, i){
+      return {
+        '#': i+1,
+        price: '€'+l.price.toFixed(2),
+        cond: l.condition || '?',
+        lang: l.language || '—',
+        comment: l.comment ? l.comment.substring(0,60) : '—',
+        grading: l.grading ? (l.grading.house+' '+l.grading.score) : '—',
+      };
+    }));
+    if(droppedNote) console.log('Note: '+droppedNote);
+    console.groupEnd();
+  }catch(e){}
+
+  // Calcola mediana sui prezzi selezionati
+  var prices = selected.map(function(l){ return l.price; }).sort(function(a,b){ return a-b; });
+  var mid = Math.floor(prices.length/2);
+  var median = prices.length%2===0 ? (prices[mid-1]+prices[mid])/2 : prices[mid];
+  var min = prices[0], max = prices[prices.length-1];
+
+  // Aggiorna anlLiveData.cm con il valore filtrato (sostituisce il trend TCG)
+  // Per raw applichiamo condition factor (la mediana CM è in NM Italian per default)
+  if(graded){
+    anlLiveData.cm = Math.round(median*100)/100;
+  } else {
+    var cf = ANL_COND_FACTOR[document.getElementById('anlCond').value]||1.0;
+    var ef = document.getElementById('anl1st').value==='yes' ? ANL_FIRST_ED_MULT : 1.0;
+    anlLiveData.cm = Math.round(median*cf*ef*100)/100;
+  }
+
+  // Confidence dal sample
+  var conf = prices.length>=10 ? 'high' : (prices.length>=5 ? 'medium' : (prices.length>=3 ? 'low' : 'very-low'));
+
+  if(priceEl){
+    priceEl.textContent = '€'+median.toFixed(2);
+    priceEl.classList.remove('loading','na');
+    // Se siamo in graded e abbiamo dati reali, rimuovi la classe dim dal wrapper
+    var wrapper = priceEl.closest('.anl-src');
+    if(wrapper) wrapper.classList.remove('anl-src-dim');
+  }
+  if(noteEl){
+    var noteParts = [prices.length+' '+(graded?'gradate':'raw')];
+    if(min !== max) noteParts.push('€'+Math.round(min)+'–€'+Math.round(max));
+
+    // Aggiunge breakdown lingua tra i listing usati per la mediana, ma solo
+    // se ci sono lingue note (almeno una). Aiuta a capire se €350 è una PSA8
+    // ITA (premium) o EN (sconto).
+    var langs = {};
+    selected.forEach(function(l){ if(l.language){ langs[l.language] = (langs[l.language]||0)+1; } });
+    var langKeys = Object.keys(langs);
+    if(langKeys.length === 1){
+      // Tutti la stessa lingua
+      noteParts.push(langKeys[0]);
+    } else if(langKeys.length > 1){
+      // Mix lingue: mostra ordinato per count desc
+      var langStr = langKeys.sort(function(a,b){return langs[b]-langs[a];})
+        .map(function(k){return k+':'+langs[k];}).join('/');
+      noteParts.push(langStr);
+    }
+    // Se l'utente ha selezionato una lingua e nessuno dei selected matcha → warning
+    if(graded && userLang && langKeys.length>0 && !langs[userLang]){
+      noteParts.push('⚠ niente '+userLang);
+    }
+
+    if(droppedNote) noteParts.push(droppedNote);
+    noteEl.textContent = noteParts.join(' · ');
+  }
+  anlSetDot('anlSrcCmDot', conf);
+
+  anlRenderToday();
+  anlRenderProjection();
+}
+
+function anlPopEbay(data, err){
+  var priceEl=document.getElementById('anlSrcEb');
+  var noteEl=document.getElementById('anlSrcEbNote');
+  if(err || !data || (!data.count && !(data.items && data.items.length))){
+    if(priceEl){ priceEl.textContent='—'; priceEl.classList.remove('loading'); priceEl.classList.add('na'); }
+    if(noteEl){
+      // Mostra diag riassuntivo inline (visibile senza DevTools)
+      var diagSummary = '';
+      if(data && data._diag && Array.isArray(data._diag) && data._diag.length){
+        var firstD = data._diag[0] && data._diag[0].diag;
+        if(firstD){
+          var flags = [];
+          if(firstD.has_cf_challenge)        flags.push('CF');
+          if(firstD.has_captcha)             flags.push('captcha');
+          if(firstD.has_signin_redirect)     flags.push('signin');
+          if(firstD.has_pardon_interruption) flags.push('pardon');
+          if(firstD.has_no_results)          flags.push('no_res');
+          if(firstD.itm_link_count > 0 && !flags.length) flags.push(firstD.itm_link_count+' link nessun price');
+          if(flags.length) diagSummary = ' · ['+flags.join('/')+']';
+        }
+      }
+      noteEl.textContent = (err ? ('errore: '+String(err).substring(0,60)) : 'nessun venduto trovato')+diagSummary;
+    }
+    anlSetDot('anlSrcEbDot', 'none');
+    anlRenderEbGradeTable(null);
+    // ─── DIAGNOSTICA CONSOLE ──
+    // Quando l'edge function fallisce a trovare venduti, l'edge ritorna _diag
+    // con info su cosa ha effettivamente ricevuto. Logghiamo tutto per debug.
+    try{
+      console.group('%c[Analizza] eBay sold — nessun venduto', 'color:#f59e0b;font-weight:bold');
+      if(err) console.warn('Messaggio errore:', err);
+      if(data){
+        console.log('attempts (per URL):', data.attempts);
+        console.log('per_query:', data.per_query);
+        if(data._diag && Array.isArray(data._diag)){
+          console.warn('Diagnostica per URL (cosa ha ricevuto l\'edge function):');
+          data._diag.forEach(function(d, i){
+            var diag = d.diag || {};
+            // Stampa inline tutti i campi rilevanti — niente Object refs da espandere
+            var summary = [
+              'len='+(diag.html_length||'?'),
+              'title="'+(diag.page_title||'').substring(0,60)+'"',
+              'cf='+(diag.has_cf_challenge?'Y':'n'),
+              'captcha='+(diag.has_captcha?'Y':'n'),
+              'no_results='+(diag.has_no_results?'Y':'n'),
+              'signin='+(diag.has_signin_redirect?'Y':'n'),
+              'pardon='+(diag.has_pardon_interruption?'Y':'n'),
+              'srp='+(diag.has_srp_results_marker?'Y':'n'),
+              'itm_links='+(diag.itm_link_count||0),
+            ].join(' · ');
+            console.log('%cURL #'+(i+1)+'%c '+summary, 'color:#06b6d4;font-weight:bold', 'color:#9ca3af');
+            console.log('  URL:', d.url);
+            if(diag.head_sample) console.log('  head_sample (first 800ch):', diag.head_sample);
+            if(diag.http_error) console.warn('  HTTP error:', diag.http_error);
+          });
+        }
+        console.log('full response:', data);
+      }
+      console.groupEnd();
+    }catch(e){console.warn('diag log error', e);}
+    anlRenderToday();
+    anlRenderProjection();
+    return;
+  }
+
+  // Applica normalizzazione CM-anchored + MAD + filtri raw/graded sui titoli (se items presenti)
+  var rate = anlLiveData.usdEur || ANL_USD_EUR_FALLBACK;
+  var graded = anlMode==='graded';
+  var cmRef = anlLiveData.cm || null;
+  var userLang = document.getElementById('anlLang').value;
+  var sane = anlSanitizeEbay(data, cmRef, rate, graded, userLang);
+
+  // Caso: dopo il filtro modalità (graded/raw) non rimangono campioni utili
+  if(!sane.countEur || sane.countEur===0){
+    if(priceEl){ priceEl.textContent='—'; priceEl.classList.remove('loading'); priceEl.classList.add('na'); }
+    if(noteEl){
+      var dropMsg = graded
+        ? (data.items&&data.items.length
+            ? data.items.length+' venduti trovati ma nessuno gradato nel titolo'
+            : 'nessun venduto gradato')
+        : (data.items&&data.items.length
+            ? data.items.length+' venduti trovati ma tutti gradati (cerco raw)'
+            : 'nessun venduto raw');
+      noteEl.textContent = dropMsg;
+    }
+    anlSetDot('anlSrcEbDot', 'none');
+    anlRenderEbGradeTable(null);
+    anlLiveData.ebay = null;
+    anlRenderToday();
+    anlRenderProjection();
+    return;
+  }
+
+  anlLiveData.ebay = Object.assign({}, data, {
+    median: sane.medianEur,
+    avg: sane.avgEur,
+    min: sane.minEur,
+    max: sane.maxEur,
+    count: sane.countEur,
+    currency: 'EUR',
+    prices: sane.pricesEur,
+    _originalCurrency: data.currency,
+    _originalCount: data.count,
+    _filteredOut: sane.filteredOut,
+    _cmAnchor: sane.cmAnchor,
+    _langStats: sane.langStats,
+    _rawCount: sane.rawCount,
+    _gradedCount: sane.gradedCount,
+    _modeFilterDropped: data._modeFilterDropped,
+    _modeFilterAborted: data._modeFilterAborted,
+  });
+
+  if(priceEl){
+    priceEl.textContent = '€'+sane.medianEur.toFixed(2);
+    priceEl.classList.remove('loading');
+    priceEl.classList.remove('na');
+  }
+
+  if(noteEl){
+    var parts = [sane.countEur+' venduti'];
+    parts.push('€'+Math.round(sane.minEur)+'–€'+Math.round(sane.maxEur));
+    // Indica se abbiamo filtrato per modalità (es. "raw esclusi" / "graded esclusi")
+    if(data._modeFilterDropped > 0){
+      parts.push((graded?'-':'-')+data._modeFilterDropped+(graded?' raw':' graded'));
+    }
+    // Outlier statistici scartati
+    if(sane.filteredOut > 0){
+      parts.push(sane.filteredOut+' outlier');
+    }
+    // Mercato originale se misto/non-EUR
+    if(data.currency && data.currency!=='EUR'){
+      parts.push(data.currency==='USD'?'US':'UK');
+    }
+    noteEl.textContent = parts.join(' · ');
+
+    // ─── Warning lingua: se l'utente ha selezionato una lingua e i venduti rilevati
+    //     sono predominantemente in un'altra lingua, mostra alert sotto la note.
+    if(sane.langStats){
+      var ls = sane.langStats;
+      var explicitTotal = ls.ITA+ls.ENG+ls.JPN+ls.DEU+ls.FRA+ls.ESP+ls.POR+ls.KOR+ls.CHI;
+      // Lingua dominante (se >=40% degli explicit) — usata per warning
+      var dominant = null, dominantCount = 0;
+      ['ITA','ENG','JPN','DEU','FRA','ESP','POR','KOR','CHI'].forEach(function(l){
+        if(ls[l] > dominantCount){ dominantCount = ls[l]; dominant = l; }
+      });
+      var warnHtml = null;
+      if(userLang && explicitTotal >= 3){
+        if(dominant && dominant !== userLang && dominantCount >= explicitTotal*0.4){
+          warnHtml = '⚠ titoli prevalenti in <b>'+dominant+'</b> ('+dominantCount+'/'+explicitTotal+'), hai selezionato '+userLang+' — i prezzi possono essere falsati';
+        } else if(userLang!=='ENG' && ls[userLang]===0 && ls.ENG>0){
+          warnHtml = '⚠ nessun venduto esplicitamente <b>'+userLang+'</b>; '+ls.ENG+' titoli ENG rilevati';
+        }
+      }
+      // Mostra/nascondi un secondo span sotto noteEl per il warning
+      var warnEl = document.getElementById('anlSrcEbWarn');
+      if(!warnEl){
+        warnEl = document.createElement('div');
+        warnEl.id = 'anlSrcEbWarn';
+        warnEl.style.cssText = 'font-size:10px;color:var(--warning);margin-top:3px;line-height:1.3';
+        if(noteEl.parentNode) noteEl.parentNode.insertBefore(warnEl, noteEl.nextSibling);
+      }
+      warnEl.innerHTML = warnHtml || '';
+      warnEl.style.display = warnHtml ? 'block' : 'none';
+    }
+  }
+
+  anlSetDot('anlSrcEbDot', sane.confidenceLevel);
+
+  // Tabella raggruppata in graded mode (analoga a CM): mostra distribuzione
+  // dei sold per (house, score, lingua). Filteredata.items è già normalizzata
+  // con _grading e _lang da anlSanitizeEbay.
+  if(anlMode==='graded'){
+    var graded_house = document.getElementById('anlHouse').value;
+    var graded_score = parseFloat(document.getElementById('anlGradeScore').value);
+    var graded_userLang = document.getElementById('anlLang') ? document.getElementById('anlLang').value : null;
+    // Items con _grading e _lang sono prodotti dal sanitize quando data.items
+    // è presente. Usa l'array filtrato (post mode-filter) se disponibile.
+    var itemsForTable = (data.items || []).map(function(it){
+      // Re-parse per sicurezza: alcuni item potrebbero non avere _grading se
+      // sono passati direttamente dall'edge senza passare dal sanitize-filter
+      if(!it._grading){
+        it._grading = anlParseGrading(it.title);
+        it._lang = anlDetectLang(it.title);
+      }
+      return it;
+    });
+    anlRenderEbGradeTable(itemsForTable, graded_house, graded_score, graded_userLang);
+  } else {
+    anlRenderEbGradeTable(null);
+  }
+
+  anlRenderToday();
+  anlRenderProjection();
+}
+
+// Parse risultati eBay LIVE (asks/inserzioni attive)
+// Salva mediano in anlLiveData.ebayActive per uso in BOX 3 (Interesse mercato).
+// Riusa anlSanitizeEbay per filtri raw/graded/lang sui titoli.
+function anlPopEbayActive(data, err){
+  if(err || !data || (!data.count && !(data.items && data.items.length))){
+    anlLiveData.ebayActive = null;
+    anlRenderProjection();
+    return;
+  }
+  var rate = anlLiveData.usdEur || ANL_USD_EUR_FALLBACK;
+  var graded = anlMode==='graded';
+  var cmRef = anlLiveData.cm || null;
+  var userLang = document.getElementById('anlLang').value;
+  var sane = anlSanitizeEbay(data, cmRef, rate, graded, userLang);
+
+  if(!sane.countEur || sane.countEur===0){
+    anlLiveData.ebayActive = null;
+  } else {
+    anlLiveData.ebayActive = {
+      median: sane.medianEur,
+      count:  sane.countEur,
+      currency: 'EUR',
+      min:    sane.minEur,
+      max:    sane.maxEur,
+    };
+  }
+  anlRenderProjection();
+}
+
+function anlPopPc(prices, err){
+  var priceEl=document.getElementById('anlSrcPc');
+  var noteEl=document.getElementById('anlSrcPcNote');
+  var linkEl=document.getElementById('anlSrcPcLink');
+
+  // Aggiorna link al prodotto specifico (se abbiamo risolto l'URL)
+  if(linkEl && anlLiveData.pcProductUrl){
+    linkEl.href = anlLiveData.pcProductUrl;
+    linkEl.textContent = 'apri prodotto →';
+  }
+
+  if(err || !prices){
+    if(priceEl){ priceEl.textContent='—'; priceEl.classList.remove('loading'); priceEl.classList.add('na'); }
+    if(noteEl){ noteEl.textContent = err ? ('errore: '+String(err).substring(0,60)) : 'nessun dato'; }
+    anlSetDot('anlSrcPcDot','none');
+    anlRenderPcGradeTable(null);
+    anlRenderToday();
+    anlRenderProjection();
+    return;
+  }
+  var rate = anlLiveData.usdEur || ANL_USD_EUR_FALLBACK;
+  var graded = anlMode==='graded';
+  var eurValue=null, srcLabel='', sourceNote='', confLevel='none', sampleCount=null;
+
+  if(graded){
+    var house = document.getElementById('anlHouse').value;
+    var score = document.getElementById('anlGradeScore').value;
+    var listingKey = house + '_' + score;
+
+    // Prefer: sold listings specifici
+    if(prices.grades_from_listings && prices.grades_from_listings[listingKey]){
+      var L = prices.grades_from_listings[listingKey];
+      if(L.currency_symbol==='€')      eurValue = L.median;
+      else if(L.currency_symbol==='£') eurValue = L.median * 1.17 * rate;
+      else                             eurValue = L.median * rate;
+      srcLabel = house+' '+score;
+      sampleCount = L.count || 0;
+      confLevel = sampleCount>=10 ? 'high' : (sampleCount>=5 ? 'medium' : (sampleCount>=3 ? 'low' : 'very-low'));
+      var rangeStr = (L.min!=null && L.max!=null)
+        ? ' · €'+Math.round((L.currency_symbol==='€'?L.min:(L.currency_symbol==='£'?L.min*1.17*rate:L.min*rate)))+'–€'+Math.round((L.currency_symbol==='€'?L.max:(L.currency_symbol==='£'?L.max*1.17*rate:L.max*rate)))
+        : '';
+      sourceNote = sampleCount+' vendite'+rangeStr;
+    } else {
+      // Fallback: campi aggregati (rispetta currency nativa PC)
+      var key = anlPcKey(house, parseFloat(score));
+      var rawVal = key ? prices[key] : null;
+      if(rawVal!=null){
+        var pcCur2 = prices.currency || 'USD';
+        if(pcCur2==='EUR')      eurValue = rawVal;
+        else if(pcCur2==='GBP') eurValue = rawVal * 1.17 * rate;
+        else                    eurValue = rawVal * rate;
+        srcLabel = 'stima '+house+' '+score;
+        sourceNote = 'aggregato PC';
+        confLevel = 'medium';
+      }
+    }
+  } else {
+    if(prices.ungraded!=null){
+      var pcCur3 = prices.currency || 'USD';
+      if(pcCur3==='EUR')      eurValue = prices.ungraded;
+      else if(pcCur3==='GBP') eurValue = prices.ungraded * 1.17 * rate;
+      else                    eurValue = prices.ungraded * rate;
+      srcLabel = 'ungraded';
+      confLevel = 'high'; // dato aggregato PC — generalmente affidabile
+    }
+  }
+
+  // Salva valore base prezzo (senza spese) per uso nella tabella e nel calcolo media.
+  // Vista PC source mostra valore +spese (costo reale per acquistare USA→IT).
+  var eurValueBase = eurValue;
+  var eurValueWithFees = eurValue != null ? anlImportTotal(eurValue) : null;
+  // anlLiveData.pc rimane il prezzo base; la media usa il prezzo +spese (vedi anlComputeToday)
+  if(eurValue != null){
+    anlLiveData.pcWithFees = eurValueWithFees;
+  }
+
+  if(priceEl){
+    if(eurValueWithFees!=null){
+      priceEl.textContent='€'+eurValueWithFees.toFixed(2);
+      priceEl.classList.remove('loading');
+      priceEl.classList.remove('na');
+    } else {
+      priceEl.textContent='—';
+      priceEl.classList.remove('loading');
+      priceEl.classList.add('na');
+      confLevel = 'none';
+    }
+  }
+  if(noteEl){
+    var parts=[];
+    if(srcLabel) parts.push(srcLabel);
+    if(sourceNote) parts.push(sourceNote);
+    // Mostra prezzo base (senza spese) come riferimento
+    if(eurValueBase != null){
+      parts.push('netto €'+eurValueBase.toFixed(2));
+    }
+    // PC = sold eBay US/UK aggregati, sempre lingua inglese.
+    parts.push('ENG');
+    // Trend 12M (solo il più rilevante per il tipo selezionato)
+    if(!graded && prices.trend_ungraded_12m!=null){
+      parts.push('12M '+(prices.trend_ungraded_12m>=0?'+':'')+prices.trend_ungraded_12m.toFixed(1)+'%');
+    } else if(graded && prices.trend_psa10_12m!=null){
+      parts.push('PSA10 12M '+(prices.trend_psa10_12m>=0?'+':'')+prices.trend_psa10_12m.toFixed(1)+'%');
+    } else if(graded && prices.trend_grade9_12m!=null){
+      parts.push('G9 12M '+(prices.trend_grade9_12m>=0?'+':'')+prices.trend_grade9_12m.toFixed(1)+'%');
+    }
+    noteEl.textContent = parts.join(' · ');
+
+    // ─── Warning 1st Edition / Unlimited mismatch + info titolo prodotto ──
+    // Wrappato in try/catch difensivo: se per qualunque ragione il DOM ha
+    // uno stato inatteso (cache stale, race condition, etc), non vogliamo
+    // che un'eccezione qui rompa il rendering del resto della pagina.
+    try {
+      var warnEl = document.getElementById('anlSrcPcWarn');
+      if(!warnEl){
+        warnEl = document.createElement('div');
+        warnEl.id = 'anlSrcPcWarn';
+        warnEl.style.cssText = 'font-size:10px;color:var(--warning);margin-top:3px;line-height:1.3';
+        // Inserisci dopo noteEl. Se parentNode null o nextSibling null, appendChild safe fallback.
+        if(noteEl && noteEl.parentNode){
+          if(noteEl.nextSibling){
+            noteEl.parentNode.insertBefore(warnEl, noteEl.nextSibling);
+          } else {
+            noteEl.parentNode.appendChild(warnEl);
+          }
+        }
+      }
+      var ptitle = (anlLiveData.pcProductTitle || prices.productTitle || '').toLowerCase();
+      var pUrl   = (anlLiveData.pcProductUrl || '').toLowerCase();
+      var ptxt   = ptitle + ' ' + pUrl;
+      var has1st = /1st[-\s]edition|first[-\s]edition/.test(ptxt);
+      var hasShadowless = /shadowless/.test(ptxt);
+      var hasUnlimited  = /unlimited/.test(ptxt);
+      var userWants1st = (anlMode==='raw' && document.getElementById('anl1st') && document.getElementById('anl1st').value==='yes');
+      var warnHtml = null;
+      var isWarning = false;
+      if(userWants1st && !has1st && (hasUnlimited || hasShadowless)){
+        var variant = hasShadowless ? 'Shadowless' : 'Unlimited';
+        warnHtml = '⚠ Hai indicato <b>1ª Edizione</b> ma PC ha risolto la variante <b>'+variant+'</b>. Prezzo potrebbe non corrispondere.';
+        isWarning = true;
+      } else if(!userWants1st && has1st){
+        warnHtml = '⚠ PC ha risolto la variante <b>1ª Edizione</b> mentre tu cerchi la versione standard. Prezzo potrebbe essere alto.';
+        isWarning = true;
+      } else if(ptitle){
+        warnHtml = '<span style="opacity:0.7">prodotto:</span> '+anlEsc(prices.productTitle || anlLiveData.pcProductTitle || '');
+      }
+      if(warnEl){
+        warnEl.style.cssText = isWarning
+          ? 'font-size:10px;color:var(--warning);margin-top:3px;line-height:1.3'
+          : 'font-size:10px;color:var(--text-subtle);margin-top:3px;line-height:1.3;font-family:var(--mono)';
+        warnEl.innerHTML = warnHtml || '';
+        warnEl.style.display = warnHtml ? 'block' : 'none';
+      }
+    } catch(e){
+      console.warn('[Analizza] PC warning render failed:', e.message);
+    }
+  }
+  anlSetDot('anlSrcPcDot', confLevel);
+
+  // Tabella PC: mostra TUTTI i grade disponibili (sold listings reali +
+  // aggregati). Aiuta a vedere il pricing complessivo e fare confronti
+  // (es. "PSA 9 €X vs PSA 10 €Y" per stimare il delta atteso al ri-grading).
+  if(graded){
+    var pc_house = document.getElementById('anlHouse').value;
+    var pc_score = parseFloat(document.getElementById('anlGradeScore').value);
+    anlRenderPcGradeTable(prices, pc_house, pc_score);
+  } else {
+    anlRenderPcGradeTable(null);
+  }
+
+  anlRenderToday();
+  anlRenderProjection();
+}
+
+
+</script>
+
+<script>
+
+
+// Bootstrap del frame
+document.addEventListener("DOMContentLoaded", function(){
+  if(typeof window.anlInitTab === 'function'){
+    try{ window.anlInitTab(); }catch(e){ console.error("[anl frame]", e); }
+  }
+});
+</script>
+</body>
+</html>
