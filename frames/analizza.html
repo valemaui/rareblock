@@ -1444,26 +1444,19 @@ async function anlStartLiveFetches(card){
     // Edge function early-exit a 15 items: le prime query semplici dominano il sample.
 
     if(graded){
-      // GRADED: priorità a query CON numero (carta singola identificabile)
-      // User feedback: "Charizard PSA 8" senza numero trova listings di
-      // Charizard di set diversi → statistiche inquinate. Il numero è la
-      // discriminante più forte sui titoli eBay.
-      // 1. Nome + numero + voto (più discriminante)
+      // GRADED: priorità a query CON numero (carta singola identificabile).
+      // CASCATA RIDOTTA per ottimizzare consumo crediti proxy (residential
+      // 25 crediti × N query). Con cache TTL 12h le 3 query sono cachate
+      // separatamente: prima esecuzione 75 crediti, ricerche successive 0.
+      // 1. Nome + numero + voto (la più discriminante, copre 80% dei casi)
       if(nameUser && num)          addQ(nameUser+' '+num+gradeSfx);
       // 2. Nome semplificato + numero + voto (per "Groudon-EX" → "Groudon")
       if(nameSimple && num && nameSimple!==nameUser) addQ(nameSimple+' '+num+gradeSfx);
-      // 3. Nome + numero + voto + "pokemon" (fallback su categoria mistakes)
-      if(nameUser && num)          addQ(nameUser+' '+num+gradeSfx+' pokemon');
-      // 4. SOLO se non c'è num: nome + voto (carta unica nel database)
+      // 3. Solo nome + voto (carta unica nel database o numero ambiguo)
       if(nameUser && !num)         addQ(nameUser+gradeSfx);
-      // 5. Nome + voto (senza numero) — per varianti dove eBay tag-fa il numero
-      if(nameUser)                 addQ(nameUser+gradeSfx);
-      // 6. Nome semplificato + voto (Groudon-EX → Groudon)
-      if(nameSimple && nameSimple!==nameUser) addQ(nameSimple+gradeSfx);
-      // 7. Nome API ufficiale (se diverso) + numero + voto
-      if(nameApi && nameApi!==nameUser && num) addQ(nameApi+' '+num+gradeSfx);
-      // 8. Last resort: nome + numero + set + voto
-      if(nameUser && num && setNm) addQ(nameUser+' '+num+' '+setNm+gradeSfx);
+      // 4. Last resort: nome + voto senza numero (per varianti dove eBay
+      //    indicizza male il numero nel titolo)
+      else if(nameUser)            addQ(nameUser+gradeSfx);
     } else {
       // RAW: priorità nome+numero (carta singola identificabile da numero)
       if(nameUser && num)          addQ(nameUser+' '+num);
@@ -1481,15 +1474,17 @@ async function anlStartLiveFetches(card){
       return 'https://www.ebay.it/sch/i.html?_nkw='+encodeURIComponent(q)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_sop=13&_ipg=240';
     });
 
-    // Fallback eBay.de: query semplice (nome + voto, NO 'pokemon' NO setNm)
-    if(nameUser){
-      var deQ = graded ? (nameUser+gradeSfx) : (nameUser+(num?' '+num:''));
+    // Fallback eBay.de: query semplice. SOLO in modalità raw, dove .de offre
+    // venduti ulteriori spesso non presenti su .it. Per graded il pubblico
+    // .de cerca con grade → trova listings cross-locale anche su .it.
+    // Skip in graded per non duplicare costi proxy residenziale (25 crediti).
+    if(nameUser && !graded){
+      var deQ = nameUser+(num?' '+num:'');
       urls.push('https://www.ebay.de/sch/i.html?_nkw='+encodeURIComponent(deQ)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_sop=13&_ipg=240');
     }
-    // Fallback eBay.com: query semplice (nome + voto)
-    if(nameUser && graded){
-      urls.push('https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(nameUser+gradeSfx)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_sop=13&_ipg=240');
-    }
+    // eBay.com: rimosso. Quando i listings sono in EUR su .it/.de bastano.
+    // Aggiungere .com USD richiederebbe conversione e il bot detection è
+    // più severo (extra crediti per pochi venduti utili).
 
     // ─── DIAGNOSTICA: log queries effettivamente inviate ──
     // User feedback: assicurarsi che la cascata non finisca con queries lunghe
@@ -2617,7 +2612,7 @@ function anlPopEbay(data, err){
             console.log('%cURL #'+(i+1)+'%c '+summary, 'color:#06b6d4;font-weight:bold', 'color:#9ca3af');
             console.log('  URL:', d.url);
             if(diag.head_sample) console.log('  head_sample (first 800ch):', diag.head_sample);
-            if(diag.http_error) console.warn('  HTTP error:', diag.http_error);
+            if(diag.http_error) console.warn('  HTTP error:', diag.http_error, '· via:', diag.via||'?');
           });
         }
         console.log('full response:', data);

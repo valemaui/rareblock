@@ -226,7 +226,7 @@ async function fetchWithRetry(url: string, maxRetries = 2, referer?: string): Pr
   // azzera costi proxy e accelera la response (4-5x più veloce).
   const cached = await cacheGet(url);
   if (cached) {
-    return { html: cached.html, ok: true, status: cached.status };
+    return { html: cached.html, ok: true, status: cached.status, via: 'cache_hit' } as any;
   }
 
   const isCm = url.includes('cardmarket.com');
@@ -282,18 +282,22 @@ async function fetchWithRetry(url: string, maxRetries = 2, referer?: string): Pr
           // Per eBay soft-block 451 anche datacenter proxy spesso basta.
           if (PROXY_AVAILABLE && (isCm || isEbay)) {
             console.log(`[fetchWithRetry] direct fetch blocked (status=${cfChallenge?403:451}), falling back to ScrapingBee for ${isCm ? 'CM' : 'eBay'}`);
-            const proxyOpts = { js: false, premium: isCm };  // CM richiede residential, eBay no
+            // CM richiede sempre residential (CF Enterprise blocca DC).
+            // eBay: blocca anche il pool DC ScrapingBee → forziamo residential
+            // anche qui. Costo 25 crediti vs 1, ma con cache TTL 12h una carta
+            // = 1 fetch/12h. Tradeoff accettabile per avere dati attendibili.
+            const proxyOpts = { js: false, premium: true };
             const proxied = await fetchViaProxy(url, proxyOpts);
             if (proxied.ok && proxied.html) {
-              console.log(`[fetchWithRetry] proxy success: ${proxied.html.length} chars`);
-              // CACHE WRITE: salva risposta proxy per evitare costi futuri
-              await cachePut(url, proxied.html, proxied.status, isCm ? 'proxy_premium' : 'proxy_dc');
-              return proxied;
+              console.log(`[fetchWithRetry] proxy success (${isCm?'CM':isEbay?'eBay':'other'} residential): ${proxied.html.length} chars`);
+              await cachePut(url, proxied.html, proxied.status, 'proxy_premium');
+              return { ...proxied, via: 'proxy_premium' } as any;
             }
             console.warn(`[fetchWithRetry] proxy also failed: status=${proxied.status} len=${proxied.html.length}`);
+            return { html, ok: false, status: cfChallenge ? 403 : (ebaySoftBlock ? 451 : 403), via: 'proxy_failed' } as any;
           }
           // Restituiamo comunque l'HTML per la diagnostica client
-          return { html, ok: false, status: cfChallenge ? 403 : (ebaySoftBlock ? 451 : 403) };
+          return { html, ok: false, status: cfChallenge ? 403 : (ebaySoftBlock ? 451 : 403), via: 'no_proxy' } as any;
         }
         continue;
       }
@@ -302,7 +306,7 @@ async function fetchWithRetry(url: string, maxRetries = 2, referer?: string): Pr
       if (resp.ok) {
         await cachePut(url, html, resp.status, 'direct');
       }
-      return { html, ok: resp.ok, status: resp.status };
+      return { html, ok: resp.ok, status: resp.status, via: 'direct' } as any;
     } catch (e) {
       if (attempt === maxRetries) return { html: '', ok: false, status: 0 };
     }
@@ -1942,20 +1946,18 @@ async function handleEbaySoldCascade(urls: string[], minHits: number, merge = fa
     type FetchResult = {
       url: string; html: string; ok: boolean; status: number;
       currency: string;
+      via?: string;          // 'cache_hit'|'direct'|'proxy_premium'|'proxy_failed'
     };
     const fetchTasks: Array<() => Promise<FetchResult>> = urlsCapped.map(url => async () => {
       let u = url;
       if (!/LH_Sold=1/.test(u))     u += (u.includes('?') ? '&' : '?') + 'LH_Sold=1';
       if (!/LH_Complete=1/.test(u)) u += '&LH_Complete=1';
       const host = new URL(u).host;
-      // maxRetries=2 (era 1): permette il fallback a m.ebay.* in caso di
-      // soft-block. Latency aggiuntiva tollerabile (con concorrenza 3 in
-      // parallelo l'overhead totale è ~+1.5s nei casi peggiori).
       const r = await fetchWithRetry(u, 2, `https://${host}/`);
       const currency = /ebay\.com\//.test(u) ? 'USD'
         : /ebay\.co\.uk/.test(u) ? 'GBP'
         : 'EUR';
-      return { url: u, html: r.html, ok: r.ok, status: r.status, currency };
+      return { url: u, html: r.html, ok: r.ok, status: r.status, currency, via: (r as any).via };
     });
 
     const fetchResults: FetchResult[] = [];
@@ -1975,9 +1977,9 @@ async function handleEbaySoldCascade(urls: string[], minHits: number, merge = fa
         continue;
       }
       if (!r.ok) {
-        attempts.push({ url: r.url, count: 0, error: `HTTP ${r.status}` });
+        attempts.push({ url: r.url, count: 0, error: `HTTP ${r.status} (${r.via||'?'})` });
         perQueryCounts.push({ url: r.url, raw: 0, new: 0 });
-        diagPerUrl.push({ url: r.url, diag: { http_error: r.status } });
+        diagPerUrl.push({ url: r.url, diag: { http_error: r.status, via: r.via } });
         continue;
       }
       if (!primaryCurrency) primaryCurrency = r.currency;
