@@ -1723,11 +1723,20 @@ function anlParseGrading(text){
 
 // Rileva la lingua dichiarata nel titolo eBay/CM. Marker espliciti hanno
 // priorità; assenza di marker = sconosciuto (NON assumiamo "EN by default").
+//
+// Riconosce:
+//  - Marker espliciti: "italian", "italiano", "ITA", "JPN", "ENG", etc.
+//  - Set italiani nativi: "esploratori oscuri", "bianco e nero",
+//    "esploratori delle tenebre" (BW Italian), "diamante e perla", etc.
+//    Anche carte SENZA la parola "italiano" sono ITA se hanno il nome
+//    italiano del set. Esempio:
+//      "Pokemon Groudon EX Esploratori Oscuri Full Art #106 PSA 8" → ITA
 function anlDetectLang(text){
   if(!text) return null;
   var s = ' '+String(text).toLowerCase()+' ';
-  // Pattern ordinati: i più specifici prima
-  if(/\b(italian|italiana|italiano|ita)\b/.test(s) || /\bita\b/.test(s)) return 'ITA';
+
+  // Pattern marker espliciti (priorità massima)
+  if(/\b(italian|italiana|italiano|italiani|ita)\b/.test(s)) return 'ITA';
   if(/\b(japanese|giapponese|japones|jpn|jap)\b/.test(s)) return 'JPN';
   if(/\b(german|deutsch|tedesco|deu|ger)\b/.test(s)) return 'DEU';
   if(/\b(french|francese|francais|français|fra|fr)\b/.test(s)) return 'FRA';
@@ -1736,6 +1745,40 @@ function anlDetectLang(text){
   if(/\b(korean|coreano|kor)\b/.test(s)) return 'KOR';
   if(/\b(chinese|cinese|chs|cht)\b/.test(s)) return 'CHI';
   if(/\b(english|inglese|eng)\b/.test(s)) return 'ENG';
+
+  // Set / espressioni italiane native (nome del set in italiano = ITA)
+  // Lista incrementale: aggiungere set quando emergono.
+  var italianSetTerms = [
+    'esploratori oscuri',          // Dark Explorers (xy era → BW)
+    'esploratori delle tenebre',   // varianti
+    'bianco e nero',               // Black & White (BW)
+    'bianco & nero',
+    'diamante e perla',            // Diamond & Pearl
+    'gioielli di lotta',           // Battle Styles
+    'astri lucenti',               // Brilliant Stars
+    'origini perdute',             // Lost Origin
+    'destini splendenti',          // Shining Fates
+    'destini incrociati',          // Cosmic Eclipse
+    'spada e scudo',               // Sword & Shield
+    'scarlatto e violetto',        // Scarlet & Violet
+    'forze temporali',             // Temporal Forces
+    'maschera del crepuscolo',     // Twilight Masquerade
+    'antiche origini',             // Ancient Origins
+    'fuoco e ghiaccio',            // Fire & Ice
+    'leggende celesti',            // Celestial Storm
+    'nebbia glaciale',             // ?
+    'tenebre incandescenti',       // Burning Shadows
+    'invasione scarlatta',         // Crimson Invasion
+    'maestri della furia',         // ?
+    'echi del passato',            // ?
+    'rivali predestinati',         // ?
+    'fiamma ossidiana',            // Obsidian Flames
+    'evoluzioni a paldea',         // Paldea Evolved
+  ];
+  for(var i=0; i<italianSetTerms.length; i++){
+    if(s.indexOf(italianSetTerms[i]) !== -1) return 'ITA';
+  }
+
   return null; // unknown — non azzardiamo
 }
 
@@ -2593,66 +2636,48 @@ function anlPopCm(data, card){
 }
 
 function anlPopEbay(data, err, card){
-  // ── SANITY FILTER MULTI-TOKEN ──
+  // ── SANITY FILTER MULTI-TOKEN (nome + numero) ──
   // Una search eBay come "Groudon-EX 106 PSA 8" ritorna spesso 240+ listings
-  // di cui solo 30-40 sono effettivamente la carta cercata. Il resto è
-  // contaminazione da:
-  //  • Carte con stesso nome di altri set (es. Groudon di Smeraldo #5/106)
-  //  • Promo/proxy/varianti (es. Primal Groudon di altre serie)
-  //  • Pagine di blocco con raccomandazioni casuali
+  // di cui molti sono carte DI ALTRI SET con stesso nome ma numero/serie
+  // diversi (es. Groudon di Smeraldo #5/106, Primal Groudon di altre serie).
   //
-  // Strategia: scoring multi-token. Il listing deve menzionare:
-  //  1. Il nome della carta (essential, almeno una keyword)
-  //  2. Il numero carta (importante per disambiguare set)
-  //  3. Per modalità graded: anche "PSA X"/"BGS X" (filtro forte)
+  // Il filtro tiene SOLO: stesso nome carta + stesso numero.
+  // NON filtra per grade: la grade table mostra deliberatamente PSA 7/8/9/...
+  // della stessa carta come riferimento comparativo per l'utente.
   //
-  // Ratio < 30% del totale = sospetto di pagina-blocco → scarto tutto.
-  // Altrimenti tieni il subset.
+  // Ratio < 5% del totale (con base >= 5) = pagina-blocco → scarto.
   if(card && data && Array.isArray(data.items) && data.items.length){
     var nameKeywords = (card.name||'').toLowerCase()
       .replace(/[-_]/g,' ')                              // 'Groudon-EX' → 'Groudon EX'
       .split(/\s+/)
       .filter(function(w){ return w.length>=3; });
     var primary = nameKeywords[0] || '';                 // es 'groudon'
-    var num = (card.number||'').toString().replace(/^0+/,''); // es '106' (dropping leading zeros)
-
-    // Modalità graded → houseLabel + score (es. 'PSA' + '8')
-    var graded = (document.getElementById('anlSegGr') || {}).getAttribute &&
-                 document.getElementById('anlSegGr').getAttribute('aria-selected') === 'true';
-    var house  = '', score = '';
-    if(graded){
-      var hSel = document.getElementById('anlHouse');
-      var sSel = document.getElementById('anlGradeScore');
-      if(hSel && hSel.value){
-        var H = (window.ANL_HOUSES || {})[hSel.value];
-        house = H ? (H.label || hSel.value) : hSel.value;     // es 'PSA'
-      }
-      if(sSel && sSel.value) score = sSel.value;              // es '8'
-    }
-
-    function matchesScore(t, scoreStr){
-      // "PSA 8" deve matchare PSA 8 / PSA8 / 8.0 / 8.5? No: solo intero o intero+0.
-      // Usiamo regex che accetta "PSA 8", "PSA-8", "PSA8" ma non "PSA 80" o "PSA 88"
-      var s = scoreStr.replace('.', '\\.');
-      return new RegExp('(?:psa|bgs|cgc|cgs|sgc|gma|ace|gem)\\s*-?\\s*' + s + '(?!\\d)', 'i').test(t);
-    }
+    var num = (card.number||'').toString().replace(/^0+/,''); // es '106'
 
     if(primary){
       var before = data.items.length;
+      // Match numero carta come NUMERATORE della frazione "N/M".
+      // KEEP: 'N' isolato (preceduto da #/spazio, seguito da non-digit/spazio/end)
+      //       oppure 'N/X' (numeratore della frazione card-of-set).
+      // REJECT: '/N' (denominatore = numero totale carte del set, es. 14/106
+      //          dove 14 è la carta e 106 è il totale di "EX Smeraldo").
+      function numberMatches(title, n){
+        if(!n) return true;
+        // 1. "N/X" → numeratore (carta N del set di X carte)
+        var asNum = new RegExp('(?:^|[^\\d])'+n+'\\s*/\\s*\\d');
+        if(asNum.test(title)) return true;
+        // 2. "N" isolato (con # o spazio prima, non-digit/punteggiatura/end dopo)
+        var isolated = new RegExp('(?:^|[\\s#])'+n+'(?:[\\s.,;:!?]|$)');
+        if(isolated.test(title)) return true;
+        return false;
+      }
+
       var filteredItems = data.items.filter(function(it){
         var t = (it.title||'').toLowerCase();
         // (1) nome carta obbligatorio
         if(t.indexOf(primary) === -1) return false;
-        // (2) numero carta: se presente, deve apparire nel titolo come token discreto
-        //     (evita "106" che matcha anche "1064", "21068" etc.)
-        if(num){
-          var numRe = new RegExp('(?:^|[^\\d])'+num+'(?:[^\\d]|$)');
-          if(!numRe.test(t)) return false;
-        }
-        // (3) graded: house + score (es. PSA 8) deve apparire
-        if(graded && score && house){
-          if(!matchesScore(t, score)) return false;
-        }
+        // (2) numero carta come numeratore (esclude denominatori "X/106")
+        if(num && !numberMatches(t, num)) return false;
         return true;
       });
       var ratio = filteredItems.length / before;
@@ -2662,8 +2687,7 @@ function anlPopEbay(data, err, card){
           console.warn(
             '[anl eBay] sanity filter: '+(before-filteredItems.length)+'/'+before+
             ' listings scartati (filtri: nome="'+primary+'"' +
-            (num ? ', numero="'+num+'"' : '') +
-            (graded && score ? ', grade="'+house+' '+score+'"' : '') + ')'
+            (num ? ', numero="'+num+'"' : '') + ')'
           );
         }
         data.items = filteredItems;
@@ -2672,19 +2696,14 @@ function anlPopEbay(data, err, card){
         }
         if(typeof data.count === 'number') data.count = filteredItems.length;
       } else if(before >= 5 && ratio < 0.05){
-        // Pochissimi match e tantissimi listing = pagina-blocco con raccomandazioni
         console.error('[anl eBay] BLOCK DETECTED: '+before+' listings ricevuti ma solo '+filteredItems.length+' coerenti → scarto tutto');
         data.items = [];
         data.prices = [];
         data.count = 0;
         err = 'troppi listing non correlati · pagina sospetta';
       } else if(filteredItems.length === 0 && before > 0){
-        // Filtri troppo aggressivi: nessun match. Logga ma NON scartare il dato:
-        // l'utente vede comunque la mediana grezza, sa che il filtro non ha funzionato.
-        console.warn('[anl eBay] sanity filter ha rimosso TUTTI i listing → mantengo dato non filtrato. Filtri: name="'+primary+'", num="'+num+'", grade="'+house+' '+score+'"');
+        console.warn('[anl eBay] sanity filter ha rimosso TUTTI i listing → mantengo dato non filtrato. Filtri: name="'+primary+'", num="'+num+'"');
       } else if(filteredItems.length > 0 && filteredItems.length < 3){
-        // Subset troppo piccolo per fidarsi della mediana ma non zero. Tieni il subset
-        // anche se piccolo: meglio 1-2 venduti accurati che 200 rumorosi.
         data.items = filteredItems;
         if(Array.isArray(data.prices)) data.prices = filteredItems.map(function(it){ return it.price; });
         if(typeof data.count === 'number') data.count = filteredItems.length;
