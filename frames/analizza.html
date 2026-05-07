@@ -2971,10 +2971,43 @@ function rbParentFn(name){
   } catch(_){ return null; }
 }
 
+// ── Pre-popola msSetsAll **del parent** prima di montare il setpicker.
+//    rbMountSetPicker è definito nel parent (pokemon-db.html); quando
+//    invocato da qui, il `window` dentro la funzione è quello del parent.
+//    Quindi anche window.msSetsAll che la mount controlla è del parent.
+//    Se vuoto, il picker mostra "Init..." e chiama auPopulateSets() che
+//    vive solo nel frame autentica.html (irraggiungibile da Analizza).
+//    Strategia: se parent.msSetsAll è vuoto, lo seedo da parent.SC_SETS_STATIC
+//    (sempre presente nel Collector).
+function anlSeedSetsFromParent(){
+  try {
+    var p = (window.parent && window.parent !== window) ? window.parent : window;
+    if(Array.isArray(p.msSetsAll) && p.msSetsAll.length) return true;
+    if(Array.isArray(p.SC_SETS_STATIC) && p.SC_SETS_STATIC.length){
+      p.msSetsAll = p.SC_SETS_STATIC.slice().sort(function(a,b){
+        return (b.releaseDate||'').localeCompare(a.releaseDate||'');
+      });
+      // Provo anche a triggerare msFetchSets del parent in background per
+      // upgrade asincrono ai set "live" dall'API (il listener su
+      // _msSetsListeners ridisegna il picker quando arriva).
+      try {
+        var fetchFn = p.msFetchSets;
+        if(typeof fetchFn==='function' && !p._auSetsLoading){
+          p._auSetsLoading = true;
+          fetchFn();
+        }
+      } catch(_){}
+      return true;
+    }
+  } catch(_){}
+  return false;
+}
+
 // Bootstrap del frame
 document.addEventListener("DOMContentLoaded", function(){
-  // Mount setpicker (richiede rbMountSetPicker dal parent)
+  // Mount setpicker (richiede rbMountSetPicker dal parent + msSetsAll seedato)
   try {
+    anlSeedSetsFromParent();
     var mountFn = rbParentFn('rbMountSetPicker');
     if(mountFn){
       mountFn({
