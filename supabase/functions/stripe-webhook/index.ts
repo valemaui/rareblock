@@ -183,8 +183,60 @@ Deno.serve(async (req) => {
       console.log(`[stripe-webhook] ordine ${orderNumber || orderId} confermato (${pmType || 'card'})`);
 
     } else if (eventType === 'charge.refunded') {
-      // Hook futuro: gestire rimborsi automatici
-      console.log(`[stripe-webhook] charge.refunded ricevuto (TODO):`, obj.id);
+      // Stripe invia charge.refunded sia per refund parziali che totali.
+      // obj qui è il Charge oggetto, con obj.refunds.data[] elenco refund.
+      // Prendiamo l'ULTIMO refund (più recente) per idempotency via refund.id.
+      const charge = obj;
+      const paymentIntentId = charge.payment_intent;
+      const refunds = charge.refunds?.data || [];
+      const lastRefund = refunds[refunds.length - 1];
+
+      if (!paymentIntentId) {
+        console.warn('[stripe-webhook] charge.refunded senza payment_intent, skip');
+      } else if (!lastRefund) {
+        console.warn('[stripe-webhook] charge.refunded senza refund nei dati, skip');
+      } else {
+        // Stripe esprime importi in cents → divido per 100 per EUR
+        const amountRefundedEur = (charge.amount_refunded || 0) / 100;
+        const reason = lastRefund.reason || lastRefund.metadata?.reason || null;
+
+        const { data: refundResult, error: refundErr } = await admin.rpc('apply_stripe_refund', {
+          p_payment_intent_id: paymentIntentId,
+          p_charge_id:         charge.id,
+          p_refund_id:         lastRefund.id,
+          p_amount_refunded:   amountRefundedEur,
+          p_reason:            reason,
+        });
+
+        if (refundErr) {
+          // P0002 = ordine non trovato. Logga ma NON fallire (Stripe potrebbe
+          // ritrasmettere refund di ordini extra-piattaforma o test).
+          if (refundErr.code === 'P0002') {
+            console.warn(`[stripe-webhook] refund su PI sconosciuto: ${paymentIntentId}`);
+          } else {
+            console.error('[stripe-webhook] apply_stripe_refund error:', refundErr);
+            throw refundErr;
+          }
+        } else {
+          orderIdFromEvent = refundResult?.order_id || null;
+          console.log(
+            `[stripe-webhook] refund applicato a ordine ${refundResult?.order_number || refundResult?.order_id}: € ${amountRefundedEur}`
+          );
+
+          // Email notifica refund (best-effort, non blocca)
+          if (refundResult?.order_id && !refundResult?.was_already) {
+            try {
+              const { error: emailErr } = await admin.rpc('enqueue_order_refunded_email', {
+                p_order_id: refundResult.order_id,
+              });
+              if (emailErr) console.warn('[stripe-webhook] refund email enqueue failed:', emailErr);
+            } catch (e) {
+              // RPC potrebbe non esistere ancora: log e continua
+              console.warn('[stripe-webhook] enqueue_order_refunded_email skip:', (e as Error).message);
+            }
+          }
+        }
+      }
 
     } else if (eventType === 'payment_intent.payment_failed') {
       const orderId = obj.metadata?.order_id;
