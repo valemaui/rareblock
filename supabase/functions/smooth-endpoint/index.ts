@@ -90,6 +90,91 @@ function buildHeaders(url: string, lang = 'it', referer?: string, opts?: { mobil
 }
 
 // ═════════════════════════════════════════════════════════════════════
+//  CACHE LAYER — riduce drasticamente costo proxy
+// ─────────────────────────────────────────────────────────────────────
+//  Prima di ogni fetch esterno, si controlla la tabella public.external_html_cache
+//  via PostgREST. Hit → ritorna HTML cachato. Miss → fetch reale + write.
+//  TTL configurato per source (CM/eBay change abbastanza spesso, PC è stabile).
+// ═════════════════════════════════════════════════════════════════════
+const SUPABASE_URL_ENV  = Deno.env.get('SUPABASE_URL') || '';
+const SUPABASE_SRV_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+const CACHE_AVAILABLE   = SUPABASE_URL_ENV.length > 10 && SUPABASE_SRV_ROLE.length > 10;
+
+const CACHE_TTL_SECONDS: Record<string, number> = {
+  cardmarket:     60 * 60 * 24,        // 24h: prezzi cambiano lentamente
+  ebay:           60 * 60 * 12,        // 12h: sold più dinamici
+  pricecharting:  60 * 60 * 24 * 3,    // 3 giorni: PC è molto stabile
+};
+
+async function _cacheKey(source: string, url: string): Promise<string> {
+  const data = new TextEncoder().encode(source + '||' + url);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function _cacheSourceFromUrl(url: string): string {
+  if (url.includes('cardmarket.com')) return 'cardmarket';
+  if (url.includes('ebay.'))           return 'ebay';
+  if (url.includes('pricecharting.com')) return 'pricecharting';
+  return 'other';
+}
+
+async function cacheGet(url: string): Promise<{ html: string; status: number } | null> {
+  if (!CACHE_AVAILABLE) return null;
+  try {
+    const key = await _cacheKey(_cacheSourceFromUrl(url), url);
+    const r = await fetch(`${SUPABASE_URL_ENV}/rest/v1/rpc/cache_get_external`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey':        SUPABASE_SRV_ROLE,
+        'Authorization': 'Bearer ' + SUPABASE_SRV_ROLE,
+      },
+      body: JSON.stringify({ p_key: key }),
+    });
+    if (!r.ok) return null;
+    const rows = await r.json();
+    if (!Array.isArray(rows) || !rows.length) return null;
+    const hit = rows[0];
+    if (!hit || !hit.html) return null;
+    console.log(`[cache] HIT ${_cacheSourceFromUrl(url)} age=${hit.age_seconds}s via=${hit.fetched_via||'?'}`);
+    return { html: hit.html, status: hit.status || 200 };
+  } catch (e) {
+    console.warn('[cache] get error:', String(e));
+    return null;
+  }
+}
+
+async function cachePut(url: string, html: string, status: number, via: string): Promise<void> {
+  if (!CACHE_AVAILABLE) return;
+  if (!html || html.length < 500 || status < 200 || status >= 400) return;
+  try {
+    const source = _cacheSourceFromUrl(url);
+    const key = await _cacheKey(source, url);
+    const ttl = CACHE_TTL_SECONDS[source] || 60 * 60 * 6;
+    await fetch(`${SUPABASE_URL_ENV}/rest/v1/rpc/cache_put_external`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey':        SUPABASE_SRV_ROLE,
+        'Authorization': 'Bearer ' + SUPABASE_SRV_ROLE,
+      },
+      body: JSON.stringify({
+        p_key:   key,
+        p_source: source,
+        p_url:   url,
+        p_html:  html,
+        p_status: status,
+        p_via:   via,
+        p_ttl_seconds: ttl,
+      }),
+    });
+  } catch (e) {
+    console.warn('[cache] put error:', String(e));
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════
 //  PROXY FALLBACK — ScrapingBee
 // ─────────────────────────────────────────────────────────────────────
 //  Strategia: il fetch diretto da Deno Deploy IP datacenter viene blocked
@@ -136,6 +221,14 @@ async function fetchViaProxy(url: string, opts?: { js?: boolean; premium?: boole
 }
 
 async function fetchWithRetry(url: string, maxRetries = 2, referer?: string): Promise<{ html: string; ok: boolean; status: number }> {
+  // ── CACHE READ ──
+  // Prima di qualsiasi network IO controlla cache. Se hit, ritorna subito:
+  // azzera costi proxy e accelera la response (4-5x più veloce).
+  const cached = await cacheGet(url);
+  if (cached) {
+    return { html: cached.html, ok: true, status: cached.status };
+  }
+
   const isCm = url.includes('cardmarket.com');
   const isEbay = url.includes('ebay.');
 
@@ -193,6 +286,8 @@ async function fetchWithRetry(url: string, maxRetries = 2, referer?: string): Pr
             const proxied = await fetchViaProxy(url, proxyOpts);
             if (proxied.ok && proxied.html) {
               console.log(`[fetchWithRetry] proxy success: ${proxied.html.length} chars`);
+              // CACHE WRITE: salva risposta proxy per evitare costi futuri
+              await cachePut(url, proxied.html, proxied.status, isCm ? 'proxy_premium' : 'proxy_dc');
               return proxied;
             }
             console.warn(`[fetchWithRetry] proxy also failed: status=${proxied.status} len=${proxied.html.length}`);
@@ -203,6 +298,10 @@ async function fetchWithRetry(url: string, maxRetries = 2, referer?: string): Pr
         continue;
       }
 
+      // CACHE WRITE: fetch diretto andato bene → salva per i prossimi 12-24h
+      if (resp.ok) {
+        await cachePut(url, html, resp.status, 'direct');
+      }
       return { html, ok: resp.ok, status: resp.status };
     } catch (e) {
       if (attempt === maxRetries) return { html: '', ok: false, status: 0 };
