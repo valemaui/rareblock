@@ -190,20 +190,28 @@ async function cachePut(url: string, html: string, status: number, via: string):
 const SCRAPINGBEE_KEY = Deno.env.get('SCRAPINGBEE_API_KEY') || '';
 const PROXY_AVAILABLE = SCRAPINGBEE_KEY.length > 10;
 
-async function fetchViaProxy(url: string, opts?: { js?: boolean; premium?: boolean }): Promise<{ html: string; ok: boolean; status: number }> {
+async function fetchViaProxy(url: string, opts?: { js?: boolean; premium?: boolean; stealth?: boolean }): Promise<{ html: string; ok: boolean; status: number }> {
   if (!PROXY_AVAILABLE) return { html: '', ok: false, status: 0 };
   try {
+    // stealth_proxy ha priorità: usa il pool "anti-bot extreme" e non si combina
+    // con premium_proxy. Costo 75 crediti, ma necessario per eBay sold pages
+    // che bloccano anche residential standard.
+    const stealth = !!opts?.stealth;
     const params = new URLSearchParams({
       api_key:     SCRAPINGBEE_KEY,
       url:         url,
       // render_js=false è gratuito. true costa 5x crediti ma necessario per
       // pagine con CF JS challenge. Per CM/eBay HTML statico false basta.
       render_js:   opts?.js ? 'true' : 'false',
-      // premium_proxy=true usa IP residenziali (1 chiamata = 25 crediti).
-      // Necessario quando datacenter IP sono blacklistati. Per CM Enterprise
-      // è probabile che serva.
-      premium_proxy: opts?.premium ? 'true' : 'false',
-      // country: 'it'/'de'/'us' può aiutare ma costa extra. Lasciamo default.
+      // ScrapingBee proxy modes:
+      //   • datacenter (default):       1 credito  — bloccato da CM/eBay
+      //   • premium_proxy=true:        25 crediti  — residential, basta per CM
+      //   • stealth_proxy=true:        75 crediti  — anti-bot extreme, eBay
+      //  stealth e premium sono mutuamente esclusivi: stealth wins.
+      ...(stealth
+        ? { stealth_proxy: 'true' }
+        : { premium_proxy: opts?.premium ? 'true' : 'false' }
+      ),
       block_resources: 'true',  // skip immagini/CSS/font, solo HTML
     });
     const proxyUrl = `https://app.scrapingbee.com/api/v1/?${params.toString()}`;
@@ -313,14 +321,22 @@ async function fetchWithRetry(url: string, maxRetries = 2, referer?: string): Pr
             // eBay: blocca anche il pool DC ScrapingBee → forziamo residential
             // anche qui. Costo 25 crediti vs 1, ma con cache TTL 12h una carta
             // = 1 fetch/12h. Tradeoff accettabile per avere dati attendibili.
-            const proxyOpts = { js: false, premium: true };
+            // CM: residential premium basta (CF Enterprise lo accetta).
+            // eBay: blocca anche residential premium → stealth_proxy obbligatorio
+            //       (75 crediti vs 25, ma è la differenza tra dati attendibili
+            //       e zero dati). Con cache TTL 12h, una carta = 1 fetch/12h.
+            const proxyOpts = isEbay
+              ? { js: false, stealth: true }
+              : { js: false, premium: true };
             const proxied = await fetchViaProxy(url, proxyOpts);
             if (proxied.ok && proxied.html) {
-              console.log(`[fetchWithRetry] proxy success (${isCm?'CM':isEbay?'eBay':'other'} residential): ${proxied.html.length} chars`);
-              await cachePut(url, proxied.html, proxied.status, 'proxy_premium');
-              return { ...proxied, via: 'proxy_premium' } as any;
+              const mode = isEbay ? 'eBay stealth' : 'CM residential';
+              console.log(`[fetchWithRetry] proxy success (${mode}): ${proxied.html.length} chars`);
+              await cachePut(url, proxied.html, proxied.status,
+                             isEbay ? 'proxy_stealth' : 'proxy_premium');
+              return { ...proxied, via: isEbay ? 'proxy_stealth' : 'proxy_premium' } as any;
             }
-            console.warn(`[fetchWithRetry] proxy also failed: status=${proxied.status} len=${proxied.html.length}`);
+            console.warn(`[fetchWithRetry] proxy also failed (${isEbay?'stealth':'premium'}): status=${proxied.status} len=${proxied.html.length}`);
             return { html, ok: false, status: cfChallenge ? 403 : (ebaySoftBlock ? 451 : 403), via: 'proxy_failed' } as any;
           }
           // Restituiamo comunque l'HTML per la diagnostica client
