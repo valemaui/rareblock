@@ -192,7 +192,17 @@ async function cachePut(url: string, html: string, status: number, via: string):
 //  bruciare retry inutili e accumulare logging warning.
 // ═════════════════════════════════════════════════════════════════════
 const SCRAPINGBEE_KEY = Deno.env.get('SCRAPINGBEE_API_KEY') || '';
-const PROXY_AVAILABLE = SCRAPINGBEE_KEY.length > 10;
+// Feature flag: di default proxy DISABILITATO. Strategia primaria è
+// l'estensione RareBlock Hunter v2.5+ che fornisce HTML via cookie utente
+// (gratis, illimitato, IP residenziale).
+//
+// Il proxy ScrapingBee resta nel codice come "ultima spiaggia" se serve
+// riattivarlo (es. utente senza extension che vuole pagare per coverage).
+// Per riattivarlo: settare env PROXY_ENABLED=true in Supabase Dashboard →
+// Edge Functions → Secrets, e assicurarsi che SCRAPINGBEE_API_KEY sia
+// valorizzata. Modifiche al codice NON necessarie.
+const PROXY_ENABLED = (Deno.env.get('PROXY_ENABLED') || '').toLowerCase() === 'true';
+const PROXY_AVAILABLE = PROXY_ENABLED && SCRAPINGBEE_KEY.length > 10;
 let _proxyCircuitOpenUntil = 0;  // timestamp epoch ms; se now()<questo, skip proxy
 const CIRCUIT_OPEN_MS = 60 * 60 * 1000;  // 1 ora
 
@@ -463,6 +473,15 @@ function detectSource(url: string, hint?: string): 'cardmarket'|'pricecharting'|
   if (/ebay\.(com|it|de|co\.uk|fr|es)/.test(url)) return 'ebay_sold';
   return 'unknown';
 }
+
+// Log boot config: utile per debug ("perché non sta passando dal proxy?")
+console.log(
+  `[smooth-endpoint] boot: ` +
+  `PROXY_ENABLED=${PROXY_ENABLED} ` +
+  `KEY_PRESENT=${SCRAPINGBEE_KEY.length > 10} ` +
+  `PROXY_AVAILABLE=${PROXY_AVAILABLE} ` +
+  `CACHE_AVAILABLE=${CACHE_AVAILABLE}`
+);
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });

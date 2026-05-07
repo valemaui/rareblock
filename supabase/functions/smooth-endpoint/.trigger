@@ -1,1 +1,1 @@
-2026-05-07T19:10:58Z extension-fetch-html-bridge
+2026-05-07T19:20:31Z disable-proxy-default
