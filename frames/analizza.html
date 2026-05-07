@@ -2593,43 +2593,102 @@ function anlPopCm(data, card){
 }
 
 function anlPopEbay(data, err, card){
-  // ── SANITY FILTER ──
-  // Se il proxy ScrapingBee restituisce una pagina di blocco eBay con
-  // listings di "raccomandazioni" (carte casuali), il parser estrae listings
-  // che non c'entrano nulla con la nostra carta. Filtriamo qui qualsiasi
-  // item il cui titolo non contiene il nome della carta. Se dopo il filtro
-  // resta meno del 30% dei risultati, scartiamo tutto (sicuro di blocco).
+  // ── SANITY FILTER MULTI-TOKEN ──
+  // Una search eBay come "Groudon-EX 106 PSA 8" ritorna spesso 240+ listings
+  // di cui solo 30-40 sono effettivamente la carta cercata. Il resto è
+  // contaminazione da:
+  //  • Carte con stesso nome di altri set (es. Groudon di Smeraldo #5/106)
+  //  • Promo/proxy/varianti (es. Primal Groudon di altre serie)
+  //  • Pagine di blocco con raccomandazioni casuali
+  //
+  // Strategia: scoring multi-token. Il listing deve menzionare:
+  //  1. Il nome della carta (essential, almeno una keyword)
+  //  2. Il numero carta (importante per disambiguare set)
+  //  3. Per modalità graded: anche "PSA X"/"BGS X" (filtro forte)
+  //
+  // Ratio < 30% del totale = sospetto di pagina-blocco → scarto tutto.
+  // Altrimenti tieni il subset.
   if(card && data && Array.isArray(data.items) && data.items.length){
-    var keywords = (card.name||'').toLowerCase()
-      .replace(/[-]/g,' ')                          // 'Groudon-EX' → 'Groudon EX'
+    var nameKeywords = (card.name||'').toLowerCase()
+      .replace(/[-_]/g,' ')                              // 'Groudon-EX' → 'Groudon EX'
       .split(/\s+/)
-      .filter(function(w){ return w.length>=3; });   // skip 'EX','GX' etc per il primo check
-    if(keywords.length){
-      var primary = keywords[0];                    // es 'groudon'
+      .filter(function(w){ return w.length>=3; });
+    var primary = nameKeywords[0] || '';                 // es 'groudon'
+    var num = (card.number||'').toString().replace(/^0+/,''); // es '106' (dropping leading zeros)
+
+    // Modalità graded → houseLabel + score (es. 'PSA' + '8')
+    var graded = (document.getElementById('anlSegGr') || {}).getAttribute &&
+                 document.getElementById('anlSegGr').getAttribute('aria-selected') === 'true';
+    var house  = '', score = '';
+    if(graded){
+      var hSel = document.getElementById('anlHouse');
+      var sSel = document.getElementById('anlGradeScore');
+      if(hSel && hSel.value){
+        var H = (window.ANL_HOUSES || {})[hSel.value];
+        house = H ? (H.label || hSel.value) : hSel.value;     // es 'PSA'
+      }
+      if(sSel && sSel.value) score = sSel.value;              // es '8'
+    }
+
+    function matchesScore(t, scoreStr){
+      // "PSA 8" deve matchare PSA 8 / PSA8 / 8.0 / 8.5? No: solo intero o intero+0.
+      // Usiamo regex che accetta "PSA 8", "PSA-8", "PSA8" ma non "PSA 80" o "PSA 88"
+      var s = scoreStr.replace('.', '\\.');
+      return new RegExp('(?:psa|bgs|cgc|cgs|sgc|gma|ace|gem)\\s*-?\\s*' + s + '(?!\\d)', 'i').test(t);
+    }
+
+    if(primary){
       var before = data.items.length;
       var filteredItems = data.items.filter(function(it){
         var t = (it.title||'').toLowerCase();
-        return t.indexOf(primary) !== -1;
+        // (1) nome carta obbligatorio
+        if(t.indexOf(primary) === -1) return false;
+        // (2) numero carta: se presente, deve apparire nel titolo come token discreto
+        //     (evita "106" che matcha anche "1064", "21068" etc.)
+        if(num){
+          var numRe = new RegExp('(?:^|[^\\d])'+num+'(?:[^\\d]|$)');
+          if(!numRe.test(t)) return false;
+        }
+        // (3) graded: house + score (es. PSA 8) deve apparire
+        if(graded && score && house){
+          if(!matchesScore(t, score)) return false;
+        }
+        return true;
       });
       var ratio = filteredItems.length / before;
-      // Se almeno 1/3 dei listings menziona la parola chiave, ok il subset
-      if(filteredItems.length >= 3 && ratio >= 0.30){
+
+      if(filteredItems.length >= 3){
         if(filteredItems.length < before){
-          console.warn('[anl eBay] sanity filter: '+(before-filteredItems.length)+'/'+before+' listings scartati (no match "'+primary+'" nel titolo)');
+          console.warn(
+            '[anl eBay] sanity filter: '+(before-filteredItems.length)+'/'+before+
+            ' listings scartati (filtri: nome="'+primary+'"' +
+            (num ? ', numero="'+num+'"' : '') +
+            (graded && score ? ', grade="'+house+' '+score+'"' : '') + ')'
+          );
         }
         data.items = filteredItems;
         if(Array.isArray(data.prices)){
-          // Riallinea prices con items filtrati (per dedup price-only fallback)
           data.prices = filteredItems.map(function(it){ return it.price; });
         }
         if(typeof data.count === 'number') data.count = filteredItems.length;
-      } else if (before >= 3 && ratio < 0.30) {
-        // Massa di listings non correlati = pagina di blocco con raccomandazioni.
-        console.error('[anl eBay] BLOCK DETECTED: '+before+' listings ricevuti ma solo '+filteredItems.length+' menziona "'+primary+'" → scarto tutto (cache contaminata o pagina anti-bot)');
+      } else if(before >= 5 && ratio < 0.05){
+        // Pochissimi match e tantissimi listing = pagina-blocco con raccomandazioni
+        console.error('[anl eBay] BLOCK DETECTED: '+before+' listings ricevuti ma solo '+filteredItems.length+' coerenti → scarto tutto');
         data.items = [];
         data.prices = [];
         data.count = 0;
-        err = 'cache contaminata · ricaricare con purge';
+        err = 'troppi listing non correlati · pagina sospetta';
+      } else if(filteredItems.length === 0 && before > 0){
+        // Filtri troppo aggressivi: nessun match. Logga ma NON scartare il dato:
+        // l'utente vede comunque la mediana grezza, sa che il filtro non ha funzionato.
+        console.warn('[anl eBay] sanity filter ha rimosso TUTTI i listing → mantengo dato non filtrato. Filtri: name="'+primary+'", num="'+num+'", grade="'+house+' '+score+'"');
+      } else if(filteredItems.length > 0 && filteredItems.length < 3){
+        // Subset troppo piccolo per fidarsi della mediana ma non zero. Tieni il subset
+        // anche se piccolo: meglio 1-2 venduti accurati che 200 rumorosi.
+        data.items = filteredItems;
+        if(Array.isArray(data.prices)) data.prices = filteredItems.map(function(it){ return it.price; });
+        if(typeof data.count === 'number') data.count = filteredItems.length;
+        console.warn('[anl eBay] sanity filter: subset piccolo ('+filteredItems.length+' listing) ma alta confidenza · '+(before-filteredItems.length)+' scartati');
       }
     }
   }

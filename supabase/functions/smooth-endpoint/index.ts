@@ -2285,10 +2285,92 @@ async function handleEbaySoldCascade(urls: string[], minHits: number, merge = fa
 }
 
 function extractEbayPrices(html: string, currency: string): EbaySoldResult {
-  // ─── PHASE 1: s-item container extraction (title + price as a pair) ───
-  // Cerca <li class="s-item ..."> ... </li> oppure <div class="s-item ...">.
-  // Per ogni container, estrai il titolo + il prezzo.
+  // ─── PHASE 0: s-card layout (eBay 2025+) ─────────────────────────────
+  // eBay ha cambiato la SRP da <li class="s-item"> a <li class="s-card">
+  // (rilevato gennaio 2026). Nuovo layout:
+  //   - Container: <li class="s-card s-card--horizontal">
+  //   - Titolo: nella maggioranza dei layout è dentro <span class="su-styled-text">
+  //             (è il 2° span con questa classe nel blocco; il 1° è "Venduti DATA")
+  //   - Prezzo: <span class="s-card__price">
+  // Il vecchio s-item resta come fallback per compatibilità transizione.
   const items: EbayItem[] = [];
+
+  const cardContainerPat = /<li[^>]*class="[^"]*s-card[^"]*"[^>]*>([\s\S]*?)<\/li>/gi;
+  let cardMatch: RegExpExecArray | null;
+  while ((cardMatch = cardContainerPat.exec(html)) !== null) {
+    const block = cardMatch[1];
+
+    // Skip placeholder "Shop on eBay" (annunci sponsorizzati a fine pagina)
+    if (/Shop on eBay/i.test(block)) continue;
+
+    // Prezzo: cerca <span class="s-card__price">...</span>
+    const priceM = block.match(/<span[^>]*class="[^"]*s-card__price[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
+    if (!priceM) continue;
+    const priceText = priceM[1].replace(/<[^>]+>/g, ' ').trim();
+
+    // Salta range price (es. "EUR 10,00 a EUR 20,00")
+    if (/\bto\b\s+[\$€£]/i.test(priceText) || /\ba\b\s+[\$€£]/i.test(priceText)) continue;
+
+    let p: number | null = null;
+    let cur: string = currency;
+    const priceProbes: Array<[RegExp, string]> = [
+      [/EUR\s+([\d.]+,\d{2})/i, 'EUR'],          // "EUR 467,31" formato IT
+      [/EUR\s+([\d,]+\.\d{2})/i, 'EUR'],         // "EUR 467.31" formato US
+      [/€\s*([\d.]+,\d{2})/, 'EUR'],
+      [/€\s*([\d,]+\.\d{2})/, 'EUR'],
+      [/(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})\s*€/, 'EUR'],
+      [/\$\s*([\d,]+\.\d{2})/, 'USD'],
+      [/USD\s+([\d.,]+)/i, 'USD'],
+      [/£\s*([\d,]+\.\d{2})/, 'GBP'],
+      [/GBP\s+([\d.,]+)/i, 'GBP'],
+    ];
+    for (const [rx, c] of priceProbes) {
+      const mm = priceText.match(rx);
+      if (mm) {
+        const n = parsePrice(mm[1]);
+        if (n && n >= 1 && n <= 99999) { p = n; cur = c; break; }
+      }
+    }
+    if (p == null) continue;
+
+    // Titolo: pattern 1) cerca classe specifica nel nuovo layout (s-card__title).
+    // Pattern 2) fallback: scansiona <span class="su-styled-text"> e prendi
+    // il primo che NON sia date/price/condition/shipping/sponsored.
+    let title = '';
+    const tMatch = block.match(/<[^>]+class="[^"]*s-card__title[^"]*"[^>]*>([\s\S]*?)</i);
+    if (tMatch) {
+      title = tMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    } else {
+      const styledTexts = [...block.matchAll(/<span[^>]*class="[^"]*su-styled-text[^"]*"[^>]*>([\s\S]*?)<\/span>/gi)];
+      for (const stm of styledTexts) {
+        const candidate = stm[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        if (!candidate) continue;
+        // Skip righe ridondanti (date, prezzi, condition, spedizione, link CTA)
+        if (/^Venduti?\s/i.test(candidate)) continue;
+        if (/^EUR|USD|GBP|^€|^\$|^£/i.test(candidate)) continue;
+        if (/^Nuovo|^Usato|^Pre-owned|^New|^Refurbished/i.test(candidate)) continue;
+        if (/^\+/.test(candidate)) continue;                   // "+EUR X,XX per la consegna"
+        if (/^da\s/i.test(candidate)) continue;                // "da Stati Uniti"
+        if (/Vedi inserzioni|Vendi un oggetto|Proposta d'acquisto|Comprai? subito|Asta|Offerta|Spedizione|Ritir/i.test(candidate)) continue;
+        if (/^Venditore|^Seller/i.test(candidate)) continue;
+        if (candidate.length < 8) continue;
+        title = candidate;
+        break;
+      }
+    }
+
+    // Decode HTML entities comuni
+    title = title.replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+
+    if (!title || title.length < 5) continue;
+
+    items.push({ price: p, title, currency: cur });
+  }
+
+  // ─── PHASE 1: s-item container extraction (legacy fallback) ──────────
+  // Eseguito SOLO se PHASE 0 non ha trovato nulla — alcuni A/B test eBay
+  // potrebbero ancora servire il vecchio layout.
+  if (items.length === 0) {
   const containerPat = /<(?:li|div)[^>]*class="[^"]*s-item(?!__)[^"]*"[^>]*>([\s\S]*?)(?=<(?:li|div)[^>]*class="[^"]*s-item(?!__)|<\/ul>|<\/section>|<\/main>)/gi;
   let cm: RegExpExecArray | null;
   while ((cm = containerPat.exec(html)) !== null) {
@@ -2327,6 +2409,7 @@ function extractEbayPrices(html: string, currency: string): EbaySoldResult {
     if (p == null) continue;
     items.push({ price: p, title, currency: cur });
   }
+  }  // end if (items.length === 0) — fallback s-item
 
   // ─── PHASE 2: legacy price-only extraction (fallback / supplementary) ───
   const raw: number[] = items.map(it => it.price);
