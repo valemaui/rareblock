@@ -286,26 +286,504 @@ label{font-size:10px;color:var(--text-muted);display:block;margin-bottom:4px;fon
 .form-card{padding:16px;border-bottom:1px solid var(--border)}
 .form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
 
-/* ── TAB COLLEZIONE ── */
-.col-layout{display:flex;flex-direction:column;height:100%;overflow:hidden}
-.col-toolbar{padding:10px 20px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex-shrink:0;background:var(--surface)}
-.col-stats{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
-.stat-cell{padding:10px 20px;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:2px}
-.stat-val{font-size:18px;font-weight:600;font-family:var(--mono)}.stat-lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px}
-.col-grid{display:none}/* legacy — replaced by col-grid-area */
-.ccard{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);overflow:hidden;cursor:pointer;transition:border-color .12s}
-.ccard:hover{border-color:var(--border-focus)}
-.ccard img{width:100%;display:block}
-.ccard-ph{height:130px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-subtle)}
-.ccard-body{padding:7px}
-.ccard-info{padding:7px}
-.ccard-name{font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ccard-set{font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ccard-meta{font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ccard-footer{display:flex;align-items:center;justify-content:space-between;margin-top:4px}
-.ccard-price{font-size:12px;font-weight:600;font-family:var(--mono);margin-top:3px;color:var(--accent)}
-.ccard-cm{font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:1px}
+/* ═══════════════════════════════════════════════════════════════════════
+   TAB COLLEZIONE — modern view (toolbar + filters + stats + grid/list)
+   ─────────────────────────────────────────────────────────────────────
+   Layout: toolbar sticky → filter panel collapsible → active filter chips
+   → stats bar → main area (grid OR list view, switch live)
+   ═══════════════════════════════════════════════════════════════════════ */
+.col-layout{display:flex;flex-direction:column;height:100%;overflow:hidden;background:var(--bg)}
+
+/* — TOOLBAR principale — */
+.col-toolbar{
+  padding:12px 20px;border-bottom:1px solid var(--border);
+  display:flex;gap:10px;align-items:center;flex-wrap:wrap;flex-shrink:0;
+  background:var(--surface);
+}
+.col-tb-search{position:relative;flex:1 1 240px;max-width:340px;min-width:180px}
+.col-tb-search input{
+  width:100%;padding:7px 28px 7px 32px;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--r);color:var(--text);font-size:13px;
+  font-family:var(--font);transition:border-color .12s;
+}
+.col-tb-search input:focus{outline:none;border-color:var(--border-focus)}
+.col-tb-search-icon{
+  position:absolute;left:10px;top:50%;transform:translateY(-50%);
+  width:14px;height:14px;color:var(--text-subtle);pointer-events:none;
+}
+.col-tb-search-clear{
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  background:none;border:none;color:var(--text-subtle);cursor:pointer;
+  padding:2px 6px;font-size:14px;line-height:1;display:none;
+}
+.col-tb-search-clear:hover{color:var(--text)}
+.col-tb-search.has-value .col-tb-search-clear{display:block}
+
+.col-tb-grp{display:flex;gap:6px;align-items:center}
+.col-tb-spacer{flex:1;min-width:0}
+
+.col-view-toggle{
+  display:flex;background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--r);padding:2px;gap:2px;
+}
+.col-view-btn{
+  background:transparent;border:none;color:var(--text-muted);
+  padding:5px 10px;border-radius:4px;cursor:pointer;
+  display:flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono);
+  transition:all .12s;white-space:nowrap;
+}
+.col-view-btn:hover{color:var(--text)}
+.col-view-btn.active{
+  background:var(--surface3);color:var(--accent);
+  box-shadow:0 1px 2px rgba(0,0,0,.3);
+}
+.col-view-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.6;flex-shrink:0}
+
+.col-sort-select{
+  background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);padding:6px 26px 6px 10px;border-radius:var(--r);
+  font-size:12px;cursor:pointer;font-family:var(--font);
+  -webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237d8590' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat:no-repeat;background-position:right 7px center;background-size:12px;
+}
+.col-sort-select:focus{outline:none;border-color:var(--border-focus)}
+
+.col-tb-btn{
+  background:var(--surface2);border:1px solid var(--border);
+  color:var(--text-muted);padding:6px 11px;border-radius:var(--r);
+  font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+  transition:all .12s;font-family:var(--font);white-space:nowrap;
+}
+.col-tb-btn:hover{color:var(--text);border-color:var(--border-strong)}
+.col-tb-btn.active{color:var(--accent);border-color:var(--accent-border);background:var(--accent-soft)}
+.col-tb-btn .col-filter-count{
+  background:var(--accent);color:var(--bg);font-size:9.5px;font-weight:700;
+  padding:0 5px;border-radius:8px;line-height:14px;font-family:var(--mono);
+  min-width:14px;text-align:center;
+}
+.col-tb-btn-share{
+  background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent);
+}
+.col-tb-btn-share:hover{background:var(--accent-softer);border-color:var(--accent);color:var(--accent)}
+.col-tb-btn svg{width:13px;height:13px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+
+/* — FILTER PANEL collapsible — */
+.col-filters{
+  background:var(--surface);flex-shrink:0;overflow:hidden;
+  max-height:0;transition:max-height .25s ease,border-bottom-color .25s;
+  border-bottom:1px solid transparent;
+}
+.col-filters.open{max-height:640px;border-bottom-color:var(--border)}
+.col-filters-inner{
+  padding:14px 20px;
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:16px;
+}
+.col-filter-grp{display:flex;flex-direction:column;gap:6px;min-width:0}
+.col-filter-label{
+  font-size:10px;font-weight:600;color:var(--text-muted);
+  text-transform:uppercase;letter-spacing:.6px;
+  display:flex;align-items:center;gap:5px;
+}
+.col-filter-label-clear{
+  font-family:var(--mono);font-size:9.5px;color:var(--text-subtle);
+  cursor:pointer;text-transform:none;letter-spacing:0;margin-left:auto;
+  background:none;border:none;padding:0;
+}
+.col-filter-label-clear:hover{color:var(--accent)}
+
+.col-chips{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.col-chip{
+  background:var(--surface2);border:1px solid var(--border);
+  color:var(--text-muted);padding:3px 9px;border-radius:14px;
+  font-size:11px;font-family:var(--mono);cursor:pointer;
+  transition:all .1s;user-select:none;letter-spacing:.02em;
+}
+.col-chip:hover{border-color:var(--border-strong);color:var(--text)}
+.col-chip.on{background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent)}
+/* Condition-tinted chips */
+.col-chip.cond-mint.on,.col-chip.cond-nm.on{background:rgba(63,185,80,.10);border-color:rgba(63,185,80,.35);color:#7be08c}
+.col-chip.cond-ex.on{background:rgba(88,166,255,.10);border-color:rgba(88,166,255,.35);color:#82bbff}
+.col-chip.cond-gd.on,.col-chip.cond-lp.on{background:rgba(210,153,34,.10);border-color:rgba(210,153,34,.35);color:#e6b94d}
+.col-chip.cond-pl.on,.col-chip.cond-po.on,.col-chip.cond-inkalt.on{background:rgba(248,81,73,.10);border-color:rgba(248,81,73,.35);color:#ff8a82}
+
+.col-presets{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+.col-preset-btn{
+  background:transparent;border:1px solid var(--border);color:var(--text-subtle);
+  padding:2px 8px;border-radius:10px;font-size:10px;font-family:var(--mono);
+  cursor:pointer;transition:all .12s;
+}
+.col-preset-btn:hover{border-color:var(--accent-border);color:var(--accent)}
+
+.col-tristate{
+  display:grid;grid-template-columns:1fr 1fr 1fr;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--r);padding:2px;
+}
+.col-tristate-btn{
+  background:transparent;border:none;color:var(--text-muted);
+  padding:5px 4px;border-radius:4px;cursor:pointer;
+  font-size:10.5px;font-family:var(--mono);
+  transition:all .12s;text-align:center;
+}
+.col-tristate-btn:hover{color:var(--text)}
+.col-tristate-btn.on{background:var(--surface3);color:var(--accent)}
+
+.col-range-inputs{display:flex;gap:6px;align-items:center}
+.col-range-inputs input{
+  flex:1;background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);padding:5px 8px;border-radius:var(--r);
+  font-size:12px;font-family:var(--mono);min-width:0;
+}
+.col-range-inputs input:focus{outline:none;border-color:var(--border-focus)}
+.col-range-sep{color:var(--text-subtle);font-size:11px;flex-shrink:0;font-family:var(--mono)}
+
+.col-cond-range{display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center}
+.col-cond-range select{
+  background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);padding:5px 8px;border-radius:var(--r);
+  font-size:12px;font-family:var(--mono);min-width:0;width:100%;
+}
+.col-cond-range select:focus{outline:none;border-color:var(--border-focus)}
+.col-cond-mode{
+  display:inline-flex;background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--r);padding:2px;gap:2px;margin-bottom:6px;
+}
+.col-cond-mode-btn{
+  background:transparent;border:none;color:var(--text-muted);
+  padding:3px 9px;border-radius:3px;cursor:pointer;
+  font-size:10px;font-family:var(--mono);transition:all .12s;
+}
+.col-cond-mode-btn.on{background:var(--surface3);color:var(--accent)}
+
+/* — ACTIVE FILTERS chip bar — */
+.col-active-filters{
+  padding:7px 20px;background:var(--surface);border-bottom:1px solid var(--border);
+  display:flex;flex-wrap:wrap;gap:5px;align-items:center;flex-shrink:0;
+}
+.col-active-filters:empty{display:none}
+.col-active-filters-label{
+  font-size:9.5px;color:var(--text-subtle);font-family:var(--mono);
+  text-transform:uppercase;letter-spacing:.5px;margin-right:4px;
+}
+.col-active-filter{
+  display:inline-flex;align-items:center;gap:5px;
+  background:var(--accent-soft);border:1px solid var(--accent-border);
+  color:var(--accent);padding:2px 4px 2px 9px;border-radius:11px;
+  font-size:11px;font-family:var(--mono);
+}
+.col-active-filter button{
+  background:none;border:none;color:currentColor;cursor:pointer;
+  padding:0 4px;line-height:1;font-size:14px;opacity:.65;
+}
+.col-active-filter button:hover{opacity:1}
+.col-active-clear-all{
+  background:none;border:1px solid var(--border);color:var(--text-subtle);
+  padding:2px 9px;border-radius:11px;font-size:10px;font-family:var(--mono);
+  cursor:pointer;margin-left:4px;
+}
+.col-active-clear-all:hover{border-color:var(--danger);color:var(--danger)}
+
+/* — STATS BAR — */
+.col-stats-bar{
+  display:flex;border-bottom:1px solid var(--border);flex-shrink:0;
+  background:var(--surface);overflow-x:auto;
+}
+.col-stat-cell{
+  padding:11px 18px;border-right:1px solid var(--border);
+  display:flex;flex-direction:column;gap:2px;flex-shrink:0;
+}
+.col-stat-cell:last-child{border-right:none}
+.col-stat-val{font-size:17px;font-weight:600;font-family:var(--mono);color:var(--text);white-space:nowrap}
+.col-stat-val.gold{color:var(--accent)}
+.col-stat-val.success{color:var(--success)}
+.col-stat-lbl{font-size:9.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+
+/* — BODY: main + add panel side by side — */
+.col-body{flex:1;display:flex;overflow:hidden;min-height:0}
+.col-main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.col-status{font-size:11px;font-family:var(--mono);color:var(--text-muted);padding:6px 20px;min-height:18px;flex-shrink:0}
+.col-status.err{color:var(--danger)}
+
+/* — GRID VIEW — */
+.col-grid{display:none}/* legacy hidden, replaced by col-grid-area */
+.col-grid-area{
+  flex:1;overflow-y:auto;padding:14px 20px 24px;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
+  gap:14px;align-content:start;
+}
+.ccard{
+  position:relative;border:1px solid var(--border);border-radius:8px;
+  background:var(--surface);overflow:hidden;cursor:pointer;
+  transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease;
+  display:flex;flex-direction:column;
+}
+.ccard:hover{
+  border-color:var(--accent-border);transform:translateY(-2px);
+  box-shadow:0 8px 22px rgba(0,0,0,.45),0 0 0 1px var(--accent-border);
+}
+.ccard.is-manual{border-color:rgba(210,153,34,.35)}
+.ccard.is-manual::before{
+  content:'MAN';position:absolute;top:6px;left:6px;z-index:3;
+  background:var(--warning);color:var(--bg);
+  font-size:8.5px;font-weight:700;padding:2px 5px;border-radius:3px;
+  font-family:var(--mono);letter-spacing:.05em;
+}
+.ccard-imgwrap{
+  position:relative;background:var(--surface2);
+  aspect-ratio:5/7;overflow:hidden;display:flex;align-items:center;justify-content:center;
+}
+.ccard-imgwrap img{width:100%;height:100%;display:block;object-fit:contain;background:var(--surface2)}
+.ccard-ph{font-size:28px;color:var(--text-subtle)}
+.ccard-overlays{
+  position:absolute;inset:0;pointer-events:none;
+  display:flex;flex-direction:column;justify-content:space-between;padding:6px;
+}
+.ccard-overlay-row{display:flex;justify-content:space-between;align-items:flex-start;gap:4px}
+.ccard-overlay-row.bottom{align-items:flex-end}
+.ccard-cond{
+  background:rgba(13,17,23,.88);backdrop-filter:blur(4px);
+  border:1px solid var(--border);color:var(--text);
+  font-size:10px;font-weight:600;font-family:var(--mono);
+  padding:2px 7px;border-radius:3px;letter-spacing:.05em;
+}
+.ccard-cond.c-mint,.ccard-cond.c-nm{border-color:rgba(63,185,80,.5);color:#7be08c}
+.ccard-cond.c-ex{border-color:rgba(88,166,255,.5);color:#82bbff}
+.ccard-cond.c-gd,.ccard-cond.c-lp{border-color:rgba(210,153,34,.5);color:#e6b94d}
+.ccard-cond.c-pl,.ccard-cond.c-po,.ccard-cond.c-inkalt{border-color:rgba(248,81,73,.5);color:#ff8a82}
+.ccard-qty{
+  background:rgba(13,17,23,.88);backdrop-filter:blur(4px);
+  border:1px solid var(--border);color:var(--text);
+  font-size:10px;font-weight:600;font-family:var(--mono);
+  padding:2px 7px;border-radius:3px;
+}
+.ccard-1st{
+  background:linear-gradient(135deg,#c9a84c,#a8862e);color:#0d1117;
+  font-size:9px;font-weight:800;padding:2px 6px;border-radius:3px;
+  letter-spacing:.05em;box-shadow:0 2px 6px rgba(0,0,0,.4);font-family:var(--mono);
+}
+.ccard-lang{
+  background:rgba(13,17,23,.88);backdrop-filter:blur(4px);
+  border:1px solid var(--border);color:var(--text-muted);
+  font-size:9.5px;font-weight:600;font-family:var(--mono);
+  padding:2px 5px;border-radius:3px;letter-spacing:.04em;
+}
+.ccard-info{padding:9px 10px;display:flex;flex-direction:column;gap:3px;flex:1;min-height:0}
+.ccard-name{
+  font-size:13px;font-weight:500;color:var(--text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-family:var(--font);
+}
+.ccard-set{
+  font-size:10px;color:var(--text-muted);font-family:var(--mono);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.ccard-meta{
+  font-size:10px;color:var(--text-subtle);font-family:var(--mono);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.ccard-prices{
+  display:flex;align-items:baseline;justify-content:space-between;
+  margin-top:auto;gap:6px;padding-top:4px;
+}
+.ccard-price{
+  font-size:13px;font-weight:600;font-family:var(--mono);
+  color:var(--accent);white-space:nowrap;
+}
+.ccard-price.empty{color:var(--text-subtle);font-weight:400}
+.ccard-cm{font-size:10px;color:var(--text-muted);font-family:var(--mono);white-space:nowrap}
+.ccard-actions{
+  position:absolute;top:6px;right:6px;
+  display:flex;gap:3px;opacity:0;transition:opacity .15s;z-index:3;
+}
+.ccard:hover .ccard-actions{opacity:1}
+.ccard-action-btn{
+  width:24px;height:24px;border-radius:4px;
+  background:rgba(13,17,23,.88);backdrop-filter:blur(4px);
+  border:1px solid var(--border);color:var(--text-muted);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all .12s;font-size:13px;line-height:1;padding:0;
+}
+.ccard-action-btn:hover{color:var(--danger);border-color:var(--danger)}
+.ccard-action-btn svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.8}
+
+/* — LIST VIEW — */
+.col-list-area{flex:1;overflow:auto;background:var(--bg)}
+.col-list{width:100%;border-collapse:collapse;font-size:12px;background:var(--surface)}
+.col-list thead{position:sticky;top:0;z-index:1;background:var(--surface);box-shadow:inset 0 -1px 0 var(--border)}
+.col-list th{
+  padding:10px 12px;text-align:left;font-size:10px;font-weight:600;
+  color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;
+  border-bottom:1px solid var(--border);cursor:pointer;user-select:none;
+  white-space:nowrap;background:var(--surface);
+}
+.col-list th:hover{color:var(--text)}
+.col-list th.sorted{color:var(--accent)}
+.col-list th.sorted::after{content:" ▲";font-size:9px;margin-left:3px}
+.col-list th.sorted.desc::after{content:" ▼"}
+.col-list th.num{text-align:right}
+.col-list th.center{text-align:center}
+.col-list td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:middle;white-space:nowrap}
+.col-list tbody tr{cursor:pointer;transition:background-color .1s}
+.col-list tbody tr:hover td{background:var(--surface2)}
+.col-list .cl-img{width:42px;padding:5px 8px}
+.col-list .cl-img img{width:42px;height:auto;border-radius:3px;display:block}
+.col-list .cl-img-ph{
+  width:42px;height:58px;background:var(--surface2);border-radius:3px;
+  display:flex;align-items:center;justify-content:center;color:var(--text-subtle);font-size:14px;
+}
+.col-list .cl-name{font-weight:500;color:var(--text);max-width:340px;overflow:hidden;text-overflow:ellipsis}
+.col-list .cl-name-sub{font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:1px;overflow:hidden;text-overflow:ellipsis;max-width:340px}
+.col-list .cl-num{text-align:right;font-family:var(--mono);color:var(--text)}
+.col-list .cl-mono{font-family:var(--mono);color:var(--text-muted);font-size:11px}
+.col-list .cl-price-sell{text-align:right;font-family:var(--mono);font-weight:600;color:var(--accent)}
+.col-list .cl-price-sell.empty{color:var(--text-subtle);font-weight:400}
+.col-list .cl-price-cm{text-align:right;font-family:var(--mono);color:var(--text-muted);font-size:11px}
+.col-list .cl-actions{text-align:right;width:1%;white-space:nowrap}
+.col-list .cl-act-btn{
+  background:none;border:none;color:var(--text-subtle);cursor:pointer;
+  padding:5px 7px;border-radius:3px;line-height:1;
+}
+.col-list .cl-act-btn:hover{color:var(--danger);background:var(--danger-soft)}
+.col-list .cl-cond{
+  display:inline-block;padding:2px 7px;border-radius:3px;font-size:10px;
+  font-weight:600;font-family:var(--mono);letter-spacing:.05em;
+  border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);
+}
+.col-list .cl-cond.c-mint,.col-list .cl-cond.c-nm{border-color:rgba(63,185,80,.4);color:#7be08c;background:rgba(63,185,80,.08)}
+.col-list .cl-cond.c-ex{border-color:rgba(88,166,255,.4);color:#82bbff;background:rgba(88,166,255,.08)}
+.col-list .cl-cond.c-gd,.col-list .cl-cond.c-lp{border-color:rgba(210,153,34,.4);color:#e6b94d;background:rgba(210,153,34,.08)}
+.col-list .cl-cond.c-pl,.col-list .cl-cond.c-po,.col-list .cl-cond.c-inkalt{border-color:rgba(248,81,73,.4);color:#ff8a82;background:rgba(248,81,73,.08)}
+.col-list .cl-1st{
+  display:inline-block;background:linear-gradient(135deg,#c9a84c,#a8862e);
+  color:#0d1117;font-size:8.5px;font-weight:800;padding:1px 5px;border-radius:3px;
+  letter-spacing:.05em;font-family:var(--mono);margin-left:5px;vertical-align:middle;
+}
+
+/* Empty state */
+.col-empty{
+  flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;
+  gap:10px;color:var(--text-subtle);text-align:center;padding:60px 20px;
+}
+.col-empty-icon{font-size:34px;opacity:.4}
+.col-empty-title{font-size:14px;color:var(--text-muted);font-family:var(--font)}
+.col-empty-hint{font-size:12px;color:var(--text-subtle);max-width:380px;line-height:1.5}
+
 .badge-manual{background:rgba(184,151,96,.1);color:var(--warning);border-color:rgba(184,151,96,.25)}
+
+/* — SHARE MODAL — */
+.share-modal{
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  width:520px;max-width:95vw;max-height:90vh;overflow:hidden;
+  box-shadow:0 24px 60px rgba(0,0,0,.55);
+  display:flex;flex-direction:column;
+}
+.share-modal-head{
+  padding:18px 22px 14px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:12px;flex-shrink:0;
+}
+.share-modal-head h3{font-size:15px;font-weight:600;color:var(--text);font-family:var(--font);flex:1}
+.share-modal-head-close{
+  background:none;border:none;color:var(--text-muted);cursor:pointer;
+  padding:4px 8px;border-radius:4px;font-size:18px;line-height:1;
+}
+.share-modal-head-close:hover{background:var(--surface2);color:var(--text)}
+.share-modal-body{padding:18px 22px;overflow-y:auto;flex:1;min-height:0}
+.share-modal-foot{
+  padding:12px 22px;border-top:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;flex-shrink:0;
+}
+
+.share-form{display:flex;flex-direction:column;gap:12px}
+.share-form-row{display:flex;flex-direction:column;gap:5px}
+.share-form-row label{font-size:11px;font-weight:500;color:var(--text-muted)}
+.share-form-row input[type=text],.share-form-row input[type=date]{
+  width:100%;background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);padding:7px 10px;border-radius:var(--r);font-size:13px;
+}
+.share-form-row input:focus{outline:none;border-color:var(--border-focus)}
+.share-toggle{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:12.5px;color:var(--text)}
+.share-toggle input{accent-color:var(--accent);cursor:pointer}
+.share-toggle-hint{font-size:11px;color:var(--text-subtle);margin-left:24px}
+
+.share-result{
+  display:flex;flex-direction:column;gap:14px;align-items:center;
+  padding:16px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--r-lg);
+}
+.share-qr-wrap{
+  background:#fff;padding:12px;border-radius:8px;
+  box-shadow:0 4px 16px rgba(0,0,0,.4);position:relative;
+}
+.share-qr-wrap img,.share-qr-wrap canvas{display:block;width:200px;height:200px}
+.share-qr-loading{
+  width:200px;height:200px;display:flex;align-items:center;justify-content:center;
+  font-size:11px;color:#666;font-family:var(--mono);background:#f5f5f5;
+}
+.share-url-row{
+  width:100%;display:flex;gap:6px;align-items:center;
+}
+.share-url-row input{
+  flex:1;background:var(--bg);border:1px solid var(--border);
+  color:var(--text);padding:6px 9px;border-radius:var(--r);
+  font-size:11.5px;font-family:var(--mono);
+}
+.share-url-row input:focus{outline:none;border-color:var(--border-focus)}
+.share-copy-btn{
+  background:var(--accent);color:var(--bg);border:1px solid var(--accent);
+  padding:6px 12px;border-radius:var(--r);font-size:11px;
+  font-family:var(--mono);font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:all .12s;
+}
+.share-copy-btn:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.share-copy-btn.copied{background:var(--success);border-color:var(--success);color:var(--bg)}
+
+.share-existing{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.share-existing-title{
+  font-size:10px;font-weight:600;color:var(--text-muted);
+  text-transform:uppercase;letter-spacing:.5px;
+}
+.share-existing-row{
+  display:flex;align-items:center;gap:8px;padding:9px 11px;
+  background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);
+}
+.share-existing-row.inactive{opacity:.55}
+.share-existing-info{flex:1;min-width:0}
+.share-existing-title-row{font-size:12.5px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.share-existing-meta{font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:2px;display:flex;gap:10px;flex-wrap:wrap}
+.share-existing-meta-item{white-space:nowrap}
+.share-existing-actions{display:flex;gap:4px;flex-shrink:0}
+.share-existing-actions button{
+  background:var(--surface3);border:1px solid var(--border);color:var(--text-muted);
+  padding:4px 9px;border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--mono);
+  transition:all .12s;
+}
+.share-existing-actions button:hover{color:var(--text);border-color:var(--border-strong)}
+.share-existing-actions button.danger:hover{color:var(--danger);border-color:var(--danger)}
+.share-existing-actions button svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.8;display:block}
+
+.share-info-banner{
+  background:var(--info-soft);border:1px solid var(--accent-border);
+  border-radius:var(--r);padding:10px 12px;font-size:11.5px;
+  color:var(--text);line-height:1.5;display:flex;gap:8px;align-items:flex-start;
+}
+.share-info-banner svg{flex-shrink:0;width:14px;height:14px;color:var(--accent);margin-top:2px}
+
+@media(max-width:780px){
+  .col-toolbar{padding:10px 12px;gap:6px}
+  .col-tb-search{flex:1 1 100%;max-width:none;order:-1}
+  .col-tb-grp{flex-wrap:wrap}
+  .col-stats-bar{padding:0}
+  .col-stat-cell{padding:8px 12px}
+  .col-stat-val{font-size:15px}
+  .col-grid-area{padding:10px 12px;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:9px}
+  .col-active-filters{padding:6px 12px}
+  .col-filters-inner{padding:12px;gap:12px}
+  .share-modal{width:100%;max-width:100%;border-radius:0;height:100vh;max-height:100vh}
+  .share-qr-wrap img,.share-qr-wrap canvas{width:180px;height:180px}
+}
 
 /* ── TAB PREVENTIVI ── */
 .prev-layout{display:flex;height:100%;overflow:hidden}
@@ -465,9 +943,8 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .prev-card-price{font-size:15px;font-weight:600;font-family:var(--mono);white-space:nowrap;color:var(--text);margin-top:4px}
 .panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 
-/* ── COL ADD PANEL ── */
-.col-body{flex:1;display:flex;overflow:hidden;min-height:0}
-.col-grid-area{flex:1;overflow-y:auto;padding:16px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;align-content:start}
+/* ── COL ADD PANEL — pannello laterale "Aggiungi carta" ── */
+/* (col-body / col-grid-area / col-status già definiti sopra nella sezione TAB COLLEZIONE) */
 .col-add-panel{width:680px;flex-shrink:0;border-left:1px solid var(--border);display:none;flex-direction:column;overflow:hidden;background:var(--surface)}
 .col-add-panel.open{display:flex}
 .col-add-header{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface)}
@@ -477,7 +954,6 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .col-add-panel .add-left{border-right:none;border-bottom:1px solid var(--border);max-height:260px;overflow-y:auto;flex-shrink:0}
 .col-add-panel .results-grid{grid-template-columns:repeat(4,1fr)}
 .col-add-panel .add-right{flex:1;overflow-y:auto}
-.col-status{font-size:11px;font-family:var(--mono);color:var(--text-muted);padding:4px 20px;min-height:20px;flex-shrink:0;border-bottom:1px solid var(--border)}
 
 /* ── IMPORT CSV ── */
 .imp-layout{overflow-y:auto;padding:24px;max-width:700px}
@@ -1783,22 +2259,209 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 <!-- TAB COLLEZIONE -->
 <div class="tab active" id="tab-col">
   <div class="col-layout">
+
+    <!-- ▸ Toolbar principale: ricerca, view toggle, ordinamento, azioni -->
     <div class="col-toolbar">
-      <input type="text" placeholder="Cerca per nome..." id="searchCol" oninput="loadCollection()" style="max-width:180px"/>
-      <select id="filterSet" onchange="loadCollection()" style="max-width:150px"><option value="">Tutti i set</option></select>
-      <select id="filterCond" onchange="loadCollection()" style="max-width:110px"><option value="">Condizione</option><option>MINT</option><option>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select>
-      <select id="filterLang" onchange="loadCollection()" style="max-width:85px"><option value="">Lingua</option><option>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select>
-      <div style="margin-left:auto;display:flex;gap:6px">
-        <button class="btn btn-primary" id="colAddBtn" onclick="toggleColAdd()">+ Aggiungi carta</button>
-        <button class="btn" onclick="exportCSV()">Esporta CSV</button>
+      <div class="col-tb-search" id="colSearchWrap">
+        <svg class="col-tb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input type="text" placeholder="Cerca per nome, set, numero o note…" id="searchCol" oninput="colOnSearchInput()" autocomplete="off"/>
+        <button class="col-tb-search-clear" type="button" onclick="colClearSearch()" title="Cancella">×</button>
+      </div>
+
+      <div class="col-tb-grp">
+        <button class="col-tb-btn" id="colFiltersToggle" onclick="colToggleFilters()" type="button" title="Filtri">
+          <svg viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          <span>Filtri</span>
+          <span class="col-filter-count" id="colFilterCount" style="display:none">0</span>
+        </button>
+
+        <div class="col-view-toggle" role="tablist" aria-label="Vista">
+          <button class="col-view-btn active" id="colViewGrid" onclick="colSetView('grid')" type="button" title="Vista griglia">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            <span>Griglia</span>
+          </button>
+          <button class="col-view-btn" id="colViewList" onclick="colSetView('list')" type="button" title="Vista elenco">
+            <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            <span>Elenco</span>
+          </button>
+        </div>
+
+        <select id="colSort" class="col-sort-select" onchange="colOnSortChange()" title="Ordina per">
+          <option value="created_desc">Recenti prima</option>
+          <option value="created_asc">Meno recenti</option>
+          <option value="name_asc">Nome A→Z</option>
+          <option value="name_desc">Nome Z→A</option>
+          <option value="set_asc">Set A→Z</option>
+          <option value="cond_best">Condizione (migliore)</option>
+          <option value="cond_worst">Condizione (peggiore)</option>
+          <option value="sell_desc">Prezzo ↓</option>
+          <option value="sell_asc">Prezzo ↑</option>
+          <option value="cm_desc">CM ↓</option>
+          <option value="cm_asc">CM ↑</option>
+          <option value="qty_desc">Quantità ↓</option>
+        </select>
+      </div>
+
+      <div class="col-tb-spacer"></div>
+
+      <div class="col-tb-grp">
+        <button class="col-tb-btn col-tb-btn-share" onclick="colShareOpen()" type="button" title="Condividi collezione">
+          <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          <span>Condividi</span>
+        </button>
+        <button class="btn btn-primary" id="colAddBtn" onclick="toggleColAdd()" type="button">+ Aggiungi carta</button>
+        <button class="col-tb-btn" onclick="exportCSV()" type="button" title="Esporta CSV">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>CSV</span>
+        </button>
       </div>
     </div>
-    <div class="col-stats" id="colStats"></div>
+
+    <!-- ▸ Pannello filtri (collassabile) -->
+    <div class="col-filters" id="colFiltersPanel">
+      <div class="col-filters-inner">
+
+        <!-- Set: chips multi-select (popolato dinamicamente) -->
+        <div class="col-filter-grp">
+          <div class="col-filter-label">
+            Set
+            <button class="col-filter-label-clear" type="button" onclick="colClearFilter('sets')">azzera</button>
+          </div>
+          <div class="col-chips" id="colFilterSets"></div>
+        </div>
+
+        <!-- Lingua: chip-row -->
+        <div class="col-filter-grp">
+          <div class="col-filter-label">
+            Lingua
+            <button class="col-filter-label-clear" type="button" onclick="colClearFilter('langs')">azzera</button>
+          </div>
+          <div class="col-chips" id="colFilterLangs"></div>
+        </div>
+
+        <!-- Condizione: tre modalità (Tutte / Range Da-A / Single chips) -->
+        <div class="col-filter-grp">
+          <div class="col-filter-label">
+            Condizione
+            <button class="col-filter-label-clear" type="button" onclick="colClearFilter('cond')">azzera</button>
+          </div>
+          <div class="col-cond-mode" id="colCondMode">
+            <button class="col-cond-mode-btn on" data-mode="single" type="button" onclick="colSetCondMode('single')">Singole</button>
+            <button class="col-cond-mode-btn"    data-mode="range"  type="button" onclick="colSetCondMode('range')">Da → A</button>
+          </div>
+          <div class="col-chips" id="colFilterCondChips"></div>
+          <div class="col-cond-range" id="colFilterCondRange" style="display:none">
+            <select id="colCondMin">
+              <option value="">— Min —</option>
+              <option value="MINT">MINT (migliore)</option>
+              <option value="NM">NM</option>
+              <option value="EX">EX</option>
+              <option value="GD">GD</option>
+              <option value="LP">LP</option>
+              <option value="PL">PL</option>
+              <option value="PO">PO (peggiore)</option>
+            </select>
+            <span class="col-range-sep">→</span>
+            <select id="colCondMax">
+              <option value="">— Max —</option>
+              <option value="MINT">MINT (migliore)</option>
+              <option value="NM">NM</option>
+              <option value="EX">EX</option>
+              <option value="GD">GD</option>
+              <option value="LP">LP</option>
+              <option value="PL">PL</option>
+              <option value="PO">PO (peggiore)</option>
+            </select>
+          </div>
+          <div class="col-presets" id="colCondPresets">
+            <button class="col-preset-btn" type="button" onclick="colPresetCond('best')">≥ NM</button>
+            <button class="col-preset-btn" type="button" onclick="colPresetCond('good')">≥ EX</button>
+            <button class="col-preset-btn" type="button" onclick="colPresetCond('played')">≤ LP</button>
+            <button class="col-preset-btn" type="button" onclick="colPresetCond('all')">Tutte</button>
+          </div>
+        </div>
+
+        <!-- Variante: chip-row -->
+        <div class="col-filter-grp">
+          <div class="col-filter-label">
+            Variante
+            <button class="col-filter-label-clear" type="button" onclick="colClearFilter('vars')">azzera</button>
+          </div>
+          <div class="col-chips" id="colFilterVars"></div>
+        </div>
+
+        <!-- 1ª edizione: tri-state -->
+        <div class="col-filter-grp">
+          <div class="col-filter-label">1ª edizione</div>
+          <div class="col-tristate" id="colFilter1st">
+            <button class="col-tristate-btn on" data-val=""    type="button" onclick="colSet1st('')">Tutte</button>
+            <button class="col-tristate-btn"    data-val="yes"  type="button" onclick="colSet1st('yes')">Solo 1ª</button>
+            <button class="col-tristate-btn"    data-val="no"   type="button" onclick="colSet1st('no')">Escludi 1ª</button>
+          </div>
+        </div>
+
+        <!-- Tipo carta: tutte / solo TCG / solo manuali -->
+        <div class="col-filter-grp">
+          <div class="col-filter-label">Tipo carta</div>
+          <div class="col-tristate" id="colFilterMan">
+            <button class="col-tristate-btn on" data-val=""    type="button" onclick="colSetMan('')">Tutte</button>
+            <button class="col-tristate-btn"    data-val="tcg"  type="button" onclick="colSetMan('tcg')">Solo TCG</button>
+            <button class="col-tristate-btn"    data-val="man"  type="button" onclick="colSetMan('man')">Solo manuali</button>
+          </div>
+        </div>
+
+        <!-- Range prezzo (sell) -->
+        <div class="col-filter-grp">
+          <div class="col-filter-label">
+            Prezzo vendita (€)
+            <button class="col-filter-label-clear" type="button" onclick="colClearFilter('price')">azzera</button>
+          </div>
+          <div class="col-range-inputs">
+            <input type="number" id="colPriceMin" placeholder="min" step="0.01" min="0" oninput="colState.priceMin=this.value;colRender()"/>
+            <span class="col-range-sep">—</span>
+            <input type="number" id="colPriceMax" placeholder="max" step="0.01" min="0" oninput="colState.priceMax=this.value;colRender()"/>
+          </div>
+        </div>
+
+        <!-- Range CM -->
+        <div class="col-filter-grp">
+          <div class="col-filter-label">
+            Prezzo CM (€)
+            <button class="col-filter-label-clear" type="button" onclick="colClearFilter('cm')">azzera</button>
+          </div>
+          <div class="col-range-inputs">
+            <input type="number" id="colCmMin" placeholder="min" step="0.01" min="0" oninput="colState.cmMin=this.value;colRender()"/>
+            <span class="col-range-sep">—</span>
+            <input type="number" id="colCmMax" placeholder="max" step="0.01" min="0" oninput="colState.cmMax=this.value;colRender()"/>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ▸ Active filter chips bar (compare filtri attivi rapidi da rimuovere) -->
+    <div class="col-active-filters" id="colActiveFilters"></div>
+
+    <!-- ▸ Stats bar (dinamica in base ai dati filtrati) -->
+    <div class="col-stats-bar" id="colStats"></div>
+
+    <!-- ▸ Body: main area + add panel -->
     <div class="col-body">
       <div class="col-main">
-        <div class="status info" id="colst" style="padding:4px 20px;font-size:12px;min-height:0"></div>
-        <div class="col-grid" id="colGrid"></div>
+        <div class="col-status" id="colst"></div>
+        <!-- Grid view -->
+        <div class="col-grid-area" id="colGridArea"></div>
+        <!-- List view -->
+        <div class="col-list-area" id="colListArea" style="display:none">
+          <table class="col-list" id="colList">
+            <thead><tr id="colListHead"></tr></thead>
+            <tbody id="colListBody"></tbody>
+          </table>
+        </div>
+        <!-- Legacy: kept for backward compat with any external script that targets #colGrid -->
+        <div class="col-grid" id="colGrid" hidden></div>
       </div>
+
       <!-- Pannello aggiungi carta -->
       <div class="col-add-panel" id="colAddPanel">
         <div class="col-add-header">
@@ -1924,6 +2587,70 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
           </div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════════════════════════════════════════════════
+     COL EDIT MODAL — modifica una carta della collezione (collection edit)
+     N.B. Distinto da editModalBg che è invece per i preventivi.
+     ═════════════════════════════════════════════════════════════════ -->
+<div class="modal-bg" id="colEditModalBg" onclick="if(event.target===this)closeColEditModal()">
+  <div class="modal" style="width:520px">
+    <div class="modal-card-header">
+      <div class="sc-thumb-wrap" id="colEmThumb" style="flex-shrink:0;cursor:default">
+        <img id="colEmImg" class="modal-card-img" style="display:none" alt=""/>
+        <div class="modal-card-img-ph" id="colEmImgPh">🃏</div>
+      </div>
+      <div class="modal-card-info">
+        <div class="modal-card-name" id="colEmName">—</div>
+        <div class="modal-card-set" id="colEmMeta">—</div>
+        <div class="modal-card-price" id="colEmPriceDisplay" style="margin-top:6px;font-size:15px">—</div>
+      </div>
+    </div>
+    <div class="modal-fields">
+      <div class="field"><label for="colEmCond">Condizione</label><select id="colEmCond"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select></div>
+      <div class="field"><label for="colEmLang">Lingua</label><select id="colEmLang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select></div>
+      <div class="field"><label for="colEmVar">Variante</label><select id="colEmVar"><option>Normal</option><option>Holo</option><option>Reverse Holo</option><option>Full Art</option><option>Secret Rare</option><option>Rainbow Rare</option><option>Gold</option><option>Promo</option><option>Shadowless</option></select></div>
+      <div class="field"><label for="colEmQty">Quantità</label><input id="colEmQty" type="number" value="1" min="1" step="1"/></div>
+      <div class="field"><label for="colEmSell">Prezzo vendita (€)</label><input id="colEmSell" type="number" step="0.01" min="0" placeholder="0.00"/></div>
+      <div class="field"><label for="colEmCm">CM avg30 (€)</label><input id="colEmCm" type="number" step="0.01" min="0" placeholder="0.00"/></div>
+      <div class="field full" style="grid-column:1/-1">
+        <label for="colEmNotes">Note</label>
+        <textarea id="colEmNotes" rows="2" placeholder="Note opzionali (provenienza, storia, ecc.)" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:var(--r);font-size:12px;font-family:var(--font);resize:vertical"></textarea>
+      </div>
+      <div class="field full" style="grid-column:1/-1;flex-direction:row;align-items:center;gap:14px;display:flex">
+        <label class="sc-1st-sm" style="margin:0">
+          <input type="checkbox" id="colEm1st"/>
+          <span>1ª EDIZIONE</span>
+        </label>
+        <span style="font-size:10.5px;color:var(--text-subtle);font-family:var(--mono)" id="colEmManualBadge"></span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="colDeleteFromModal()" style="color:var(--danger);border-color:var(--border)" title="Elimina la carta">
+        <span class="rb-i rb-i-trash"></span> Elimina
+      </button>
+      <div class="modal-actions" style="margin-left:auto">
+        <button class="btn" onclick="closeColEditModal()">Annulla</button>
+        <button class="btn btn-primary" onclick="saveColEditModal()" id="colEmSaveBtn">Salva</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════════════════════════════════════════════════
+     COLLECTION SHARE MODAL — genera link pubblico + QR
+     ═════════════════════════════════════════════════════════════════ -->
+<div class="modal-bg" id="colShareModalBg" onclick="if(event.target===this)colShareClose()">
+  <div class="share-modal">
+    <div class="share-modal-head">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent)"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      <h3>Condividi la tua collezione</h3>
+      <button class="share-modal-head-close" onclick="colShareClose()" type="button" title="Chiudi">×</button>
+    </div>
+    <div class="share-modal-body" id="colShareBody">
+      <!-- Body popolato dinamicamente da colShareRender() -->
     </div>
   </div>
 </div>
@@ -3780,72 +4507,1005 @@ function closeColAdd(){
   if(btn)btn.textContent='+ Aggiungi carta';
 }
 
-// ── COLLECTION ──
+// ═════════════════════════════════════════════════════════════════════
+//  COLLEZIONE — vista moderna (filtri/sort/grid+list/share QR)
+//  ────────────────────────────────────────────────────────────────────
+//  Architettura:
+//   1. loadCollection()  → fetch one-shot (limit 5000) + cache in colData
+//   2. colRender()       → applica filtri (client-side) + sort + render
+//   3. colState          → singolo dizionario di stato (filtri/sort/view)
+//   4. colRenderFilterPanel(): popola dinamicamente i chip Set/Lingua/Variante/Cond
+//      basandosi sull'inventario reale dell'utente.
+//
+//  N.B. nomi funzione e id #colGrid/#colStats preservati per backward-
+//  compat con codice esistente (loadCollection è chiamata da showTab,
+//  add card, deal confirm, edit modal, ecc.). I nuovi container usano
+//  #colGridArea (griglia) e #colListArea (tabella).
+// ═════════════════════════════════════════════════════════════════════
+const COL_COND_ORDER_MAP = {MINT:1, NM:2, EX:3, GD:4, LP:5, PL:6, PO:7, 'INK/ALT':8};
+const COL_COND_ALL = ['MINT','NM','EX','GD','LP','PL','PO','INK/ALT'];
+const COL_LANG_ALL = ['ITA','ENG','JPN','DEU','FRA','ESP','KOR','POR'];
+const COL_VAR_ALL  = ['Normal','Holo','Reverse Holo','Full Art','Secret Rare','Rainbow Rare','Gold','Promo','Shadowless'];
+
+window.colData = []; // cache cards (popolata da loadCollection)
+window.colState = {
+  search: '',
+  sets: [],          // multi-select array di set_name
+  langs: [],         // multi-select array di lingua
+  condMode: 'single',// 'single' (chips toggle) | 'range' (min-max)
+  conds: [],         // singole condizioni selezionate (modalità single)
+  condMin: '',       // condizione min (range)
+  condMax: '',       // condizione max (range)
+  vars: [],          // multi-select varianti
+  firstEd: '',       // '' | 'yes' | 'no'
+  manFilter: '',     // '' | 'tcg' | 'man'
+  priceMin: '',
+  priceMax: '',
+  cmMin: '',
+  cmMax: '',
+  sort: 'created_desc',
+  view: 'grid',
+  listSortKey: '',   // override sort quando si clicca header in vista list
+  listSortDir: 'desc'
+};
+
+// Debounce per search input (UX più fluida)
+let _colSearchDebounce = null;
+function colOnSearchInput(){
+  const v = (document.getElementById('searchCol')?.value||'').trim();
+  document.getElementById('colSearchWrap')?.classList.toggle('has-value', !!v);
+  clearTimeout(_colSearchDebounce);
+  _colSearchDebounce = setTimeout(function(){
+    colState.search = v.toLowerCase();
+    colRender();
+  }, 120);
+}
+function colClearSearch(){
+  const inp = document.getElementById('searchCol');
+  if(inp){ inp.value=''; }
+  document.getElementById('colSearchWrap')?.classList.remove('has-value');
+  colState.search='';
+  colRender();
+}
+
+function colSetView(view){
+  if(view!=='grid' && view!=='list') return;
+  colState.view = view;
+  document.getElementById('colViewGrid')?.classList.toggle('active', view==='grid');
+  document.getElementById('colViewList')?.classList.toggle('active', view==='list');
+  document.getElementById('colGridArea').style.display = (view==='grid')?'grid':'none';
+  document.getElementById('colListArea').style.display = (view==='list')?'block':'none';
+  colRender();
+}
+
+function colToggleFilters(){
+  const panel = document.getElementById('colFiltersPanel');
+  const btn   = document.getElementById('colFiltersToggle');
+  const open  = panel.classList.toggle('open');
+  btn?.classList.toggle('active', open);
+}
+
+function colOnSortChange(){
+  colState.sort = document.getElementById('colSort')?.value || 'created_desc';
+  // azzera override list-header per evitare conflitti
+  colState.listSortKey = '';
+  colRender();
+}
+
+function colSetCondMode(mode){
+  colState.condMode = mode;
+  document.querySelectorAll('#colCondMode .col-cond-mode-btn').forEach(function(b){
+    b.classList.toggle('on', b.dataset.mode===mode);
+  });
+  document.getElementById('colFilterCondChips').style.display  = (mode==='single')?'flex':'none';
+  document.getElementById('colFilterCondRange').style.display  = (mode==='range') ?'grid':'none';
+  colRender();
+}
+
+function colPresetCond(preset){
+  // preset agisce come scorciatoia: imposta range mode + min/max coerenti
+  if(preset==='best'){
+    colState.condMode='range'; colState.condMin='MINT'; colState.condMax='NM';
+  } else if(preset==='good'){
+    colState.condMode='range'; colState.condMin='MINT'; colState.condMax='EX';
+  } else if(preset==='played'){
+    colState.condMode='range'; colState.condMin='LP';   colState.condMax='PO';
+  } else { // 'all'
+    colState.condMode='single'; colState.conds=[]; colState.condMin=''; colState.condMax='';
+  }
+  // sync UI
+  colSetCondMode(colState.condMode);
+  const minSel=document.getElementById('colCondMin'); if(minSel) minSel.value=colState.condMin;
+  const maxSel=document.getElementById('colCondMax'); if(maxSel) maxSel.value=colState.condMax;
+  document.querySelectorAll('#colFilterCondChips .col-chip').forEach(function(c){
+    c.classList.toggle('on', colState.conds.indexOf(c.dataset.val)>=0);
+  });
+  colRender();
+}
+
+function colSet1st(val){
+  colState.firstEd = val;
+  document.querySelectorAll('#colFilter1st .col-tristate-btn').forEach(function(b){
+    b.classList.toggle('on', b.dataset.val===val);
+  });
+  colRender();
+}
+function colSetMan(val){
+  colState.manFilter = val;
+  document.querySelectorAll('#colFilterMan .col-tristate-btn').forEach(function(b){
+    b.classList.toggle('on', b.dataset.val===val);
+  });
+  colRender();
+}
+
+function colClearFilter(grp){
+  if(grp==='sets'){ colState.sets=[]; }
+  else if(grp==='langs'){ colState.langs=[]; }
+  else if(grp==='cond'){ colState.conds=[]; colState.condMin=''; colState.condMax=''; colState.condMode='single';
+    const m=document.getElementById('colCondMin'); if(m) m.value='';
+    const x=document.getElementById('colCondMax'); if(x) x.value='';
+    colSetCondMode('single');
+  }
+  else if(grp==='vars'){ colState.vars=[]; }
+  else if(grp==='price'){ colState.priceMin=''; colState.priceMax='';
+    const a=document.getElementById('colPriceMin'); if(a) a.value='';
+    const b=document.getElementById('colPriceMax'); if(b) b.value='';
+  }
+  else if(grp==='cm'){ colState.cmMin=''; colState.cmMax='';
+    const a=document.getElementById('colCmMin'); if(a) a.value='';
+    const b=document.getElementById('colCmMax'); if(b) b.value='';
+  }
+  colRender();
+}
+
+function colClearAllFilters(){
+  colState.search=''; const s=document.getElementById('searchCol'); if(s){s.value='';document.getElementById('colSearchWrap')?.classList.remove('has-value');}
+  colState.sets=[]; colState.langs=[]; colState.vars=[];
+  colState.conds=[]; colState.condMin=''; colState.condMax=''; colState.condMode='single';
+  colState.firstEd=''; colState.manFilter='';
+  colState.priceMin=''; colState.priceMax=''; colState.cmMin=''; colState.cmMax='';
+  ['colPriceMin','colPriceMax','colCmMin','colCmMax','colCondMin','colCondMax'].forEach(function(id){
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  colSet1st(''); colSetMan(''); colSetCondMode('single');
+  colRender();
+}
+
+// Toggle helper per chip multi-select. arrName è il nome della prop in colState.
+function colToggleChip(arrName, val, btn){
+  const arr = colState[arrName];
+  const i = arr.indexOf(val);
+  if(i>=0) arr.splice(i,1); else arr.push(val);
+  if(btn) btn.classList.toggle('on');
+  colRender();
+}
+// Esposto a inline onclick
+window.colToggleChip = colToggleChip;
+
+// ── FETCH: una sola query, poi tutto client-side ────────────────────
 async function loadCollection(){
-  const cg=document.getElementById('colGrid');
-  const colst=document.getElementById('colst');
-  if(colst){colst.className='status info';colst.textContent='Caricamento...';}
-  const fn=(document.getElementById('searchCol')?.value||'').toLowerCase();
-  const fc=document.getElementById('filterCond')?.value||'';
-  const fl=document.getElementById('filterLang')?.value||'';
-  const fs=document.getElementById('filterSet')?.value||'';
-  const uid=getCurrentUserId();
-  let q='cards?order=created_at.desc&limit=500'+(uid?'&user_id=eq.'+uid:'');
-  if(fc)q+='&condition=eq.'+encodeURIComponent(fc);
-  if(fl)q+='&language=eq.'+encodeURIComponent(fl);
-  if(fs)q+='&set_name=eq.'+encodeURIComponent(fs);
+  const colst = document.getElementById('colst');
+  const grid  = document.getElementById('colGridArea');
+  const list  = document.getElementById('colListBody');
+  if(colst){ colst.classList.remove('err'); colst.textContent='Caricamento collezione…'; }
+  const uid = getCurrentUserId();
+  // Limite 5000: copre la stragrande maggioranza degli utenti. Per >5000 carte
+  // in futuro va aggiunta paginazione (Range header + scroll infinito).
+  const q = 'cards?order=created_at.desc&limit=5000' + (uid?'&user_id=eq.'+uid:'');
   try{
-    let data=await supa('GET',q);
-    if(fn)data=data.filter(c=>c.name.toLowerCase().includes(fn));
-    renderStats(data);updateSetFilter(data,fs);
-    if(colst)colst.textContent='';
-    if(!data.length){cg.innerHTML='<div class="empty-state"><div class="empty-icon">🃏</div><div style="font-size:13px">Nessuna carta trovata.</div></div>';return}
-    cg.innerHTML=data.map(c=>`
-      <div class="ccard${c.is_manual?' manual-card':''}" onclick="openEditModal('${c.id}')">
-        ${(c.image_url&&c.image_url.startsWith('http'))?`<img src="${c.image_url}" loading="lazy"/>`:'<div class="ccard-ph">🃏</div>'}
-        <div class="ccard-info">
-          <div class="ccard-name" title="${c.name}">${c.name}${c.first_edition?'<span class="badge-1st" style="margin-left:4px">1ª</span>':''}</div>
-          <div class="ccard-set">${c.set_name||'—'}${c.card_number?' #'+c.card_number:''}</div>
-          <div class="ccard-meta">${c.variant||'Normal'} · ${c.language} · ×${c.qty}</div>
-          <div class="ccard-footer">
-            <span class="badge b-${c.condition.toLowerCase().replace('/','')}">${c.condition}${c.is_manual?' <span style="color:var(--warning);font-size:9px">M</span>':''}</span>
-            <button class="btn-ghost" style="padding:1px 5px" onclick="event.stopPropagation();delCard('${c.id}','${c.name.replace(/'/g,"\'")}')"><span class="rb-i rb-i-x"></span></button>
-          </div>
-          ${c.sell_price>0?`<div class="ccard-price">€${parseFloat(c.sell_price).toFixed(2)}</div>`:''}
-          ${c.cm_avg30>0?`<div class="ccard-cm">CM: €${parseFloat(c.cm_avg30).toFixed(2)}</div>`:''}
-        </div>
-      </div>`).join('');
-  }catch(e){
-    var errMsg=e.message||'Errore sconosciuto';
-    var hint='';
-    if(errMsg.includes('permission denied')||errMsg.includes('RLS')||errMsg.includes('row-level'))
-      hint=' (sessione scaduta — ricarica la pagina)';
-    if(errMsg.includes('JWT')||errMsg.includes('401')||errMsg.includes('403'))
-      hint=' (errore autenticazione — ricarica la pagina)';
-    if(colst){colst.className='status err';colst.textContent='Errore: '+errMsg+hint;}
-    if(cg){cg.innerHTML='<div class="empty-state"><div style="font-size:13px;color:var(--danger)">'+
-      'Errore caricamento'+hint+'<br><button class="btn btn-primary" style="margin-top:12px" onclick="location.reload()">Ricarica pagina</button></div></div>';}
+    const data = await supa('GET', q);
+    window.colData = Array.isArray(data) ? data : [];
+    if(colst) colst.textContent='';
+    colRenderFilterPanel(); // popola chip Set/Lingua/Variante/Cond da dati
+    colRender();
+  } catch(e){
+    var errMsg = e.message || 'Errore sconosciuto';
+    var hint = '';
+    if(errMsg.indexOf('permission denied')>=0 || errMsg.indexOf('RLS')>=0 || errMsg.indexOf('row-level')>=0)
+      hint = ' (sessione scaduta — ricarica la pagina)';
+    if(errMsg.indexOf('JWT')>=0 || errMsg.indexOf('401')>=0 || errMsg.indexOf('403')>=0)
+      hint = ' (errore autenticazione — ricarica la pagina)';
+    if(colst){ colst.classList.add('err'); colst.textContent = 'Errore: '+errMsg+hint; }
+    if(grid) grid.innerHTML = '<div class="col-empty"><div class="col-empty-icon">⚠️</div><div class="col-empty-title" style="color:var(--danger)">Errore caricamento</div><div class="col-empty-hint">'+escapeHtml(errMsg)+hint+'</div><div style="margin-top:12px"><button class="btn btn-primary" onclick="location.reload()">Ricarica pagina</button></div></div>';
+    if(list) list.innerHTML = '';
   }
 }
 
+// ── POPOLA CHIPS dei filtri da dati reali ────────────────────────────
+function colRenderFilterPanel(){
+  // Sets — solo set effettivamente presenti nella collezione
+  const sets = [...new Set((window.colData||[]).map(c=>c.set_name).filter(Boolean))].sort();
+  const setsHost = document.getElementById('colFilterSets');
+  if(setsHost){
+    if(!sets.length){
+      setsHost.innerHTML = '<span style="font-size:11px;color:var(--text-subtle);font-family:var(--mono)">— nessun set —</span>';
+    } else {
+      setsHost.innerHTML = sets.map(function(s){
+        const on = colState.sets.indexOf(s)>=0 ? ' on' : '';
+        return '<button type="button" class="col-chip'+on+'" data-val="'+escapeHtml(s)+'" onclick="colToggleChip(\'sets\', this.dataset.val, this)">'+escapeHtml(s)+'</button>';
+      }).join('');
+    }
+  }
+  // Lingua — limitate a quelle presenti, ma in ordine canonico
+  const langsPresent = new Set((window.colData||[]).map(c=>c.language).filter(Boolean));
+  const langs = COL_LANG_ALL.filter(l => langsPresent.has(l));
+  // se c'è una lingua "esotica" non in COL_LANG_ALL, aggiungila
+  langsPresent.forEach(function(l){ if(COL_LANG_ALL.indexOf(l)<0) langs.push(l); });
+  const langsHost = document.getElementById('colFilterLangs');
+  if(langsHost){
+    if(!langs.length){
+      langsHost.innerHTML = '<span style="font-size:11px;color:var(--text-subtle);font-family:var(--mono)">— nessuna lingua —</span>';
+    } else {
+      langsHost.innerHTML = langs.map(function(l){
+        const on = colState.langs.indexOf(l)>=0 ? ' on' : '';
+        return '<button type="button" class="col-chip'+on+'" data-val="'+escapeHtml(l)+'" onclick="colToggleChip(\'langs\', this.dataset.val, this)">'+escapeHtml(l)+'</button>';
+      }).join('');
+    }
+  }
+  // Condizioni (modalità single) — sempre tutte le 8, anche se vuote (UX prevedibile)
+  const condChipsHost = document.getElementById('colFilterCondChips');
+  if(condChipsHost){
+    condChipsHost.innerHTML = COL_COND_ALL.map(function(c){
+      const on  = colState.conds.indexOf(c)>=0 ? ' on' : '';
+      const cls = 'cond-' + c.toLowerCase().replace('/','');
+      return '<button type="button" class="col-chip '+cls+on+'" data-val="'+c+'" onclick="colToggleChip(\'conds\', this.dataset.val, this)">'+c+'</button>';
+    }).join('');
+  }
+  // Varianti — solo quelle effettivamente presenti
+  const varsPresent = new Set((window.colData||[]).map(c=>c.variant||'Normal').filter(Boolean));
+  const vars = COL_VAR_ALL.filter(v => varsPresent.has(v));
+  varsPresent.forEach(function(v){ if(COL_VAR_ALL.indexOf(v)<0) vars.push(v); });
+  const varsHost = document.getElementById('colFilterVars');
+  if(varsHost){
+    if(!vars.length){
+      varsHost.innerHTML = '<span style="font-size:11px;color:var(--text-subtle);font-family:var(--mono)">— nessuna variante —</span>';
+    } else {
+      varsHost.innerHTML = vars.map(function(v){
+        const on = colState.vars.indexOf(v)>=0 ? ' on' : '';
+        return '<button type="button" class="col-chip'+on+'" data-val="'+escapeHtml(v)+'" onclick="colToggleChip(\'vars\', this.dataset.val, this)">'+escapeHtml(v)+'</button>';
+      }).join('');
+    }
+  }
+  // wire up cond range select-changes (idempotente)
+  const minSel = document.getElementById('colCondMin');
+  const maxSel = document.getElementById('colCondMax');
+  if(minSel && !minSel._wired){ minSel._wired=true; minSel.addEventListener('change', function(){ colState.condMin=this.value; colRender(); }); }
+  if(maxSel && !maxSel._wired){ maxSel._wired=true; maxSel.addEventListener('change', function(){ colState.condMax=this.value; colRender(); }); }
+}
 
-function renderStats(data){
-  const tot=data.reduce((a,c)=>a+(c.qty||1),0);
-  const val=data.reduce((a,c)=>a+((c.sell_price||0)*(c.qty||1)),0);
-  const sets=new Set(data.map(c=>c.set_name).filter(Boolean)).size;
-  const fed=data.filter(c=>c.first_edition).length;
-  document.getElementById('colStats').innerHTML=`
-    <div class="stat-cell"><div class="stat-val">${tot}</div><div class="stat-lbl">Carte totali</div></div>
-    <div class="stat-cell"><div class="stat-val">${data.length}</div><div class="stat-lbl">Voci uniche</div></div>
-    <div class="stat-cell"><div class="stat-val">€${val.toFixed(0)}</div><div class="stat-lbl">Valore vendita</div></div>
-    <div class="stat-cell"><div class="stat-val">${sets}</div><div class="stat-lbl">Set diversi</div></div>`;
+// ── FILTERING + SORTING (pure: input cards, output filtered+sorted) ──
+function colApplyFilters(cards){
+  const s = colState.search;
+  const sets = colState.sets;
+  const langs = colState.langs;
+  const vars = colState.vars;
+  const condsSel = colState.conds;
+  const condMin = colState.condMin ? COL_COND_ORDER_MAP[colState.condMin] : null;
+  const condMax = colState.condMax ? COL_COND_ORDER_MAP[colState.condMax] : null;
+  const fe = colState.firstEd;
+  const mf = colState.manFilter;
+  const pMin = colState.priceMin!=='' ? parseFloat(colState.priceMin) : null;
+  const pMax = colState.priceMax!=='' ? parseFloat(colState.priceMax) : null;
+  const cMin = colState.cmMin!=='' ? parseFloat(colState.cmMin) : null;
+  const cMax = colState.cmMax!=='' ? parseFloat(colState.cmMax) : null;
+
+  return cards.filter(function(c){
+    // Search: nome OR set OR numero OR notes
+    if(s){
+      const hay = ((c.name||'')+' '+(c.set_name||'')+' '+(c.card_number||'')+' '+(c.notes||'')).toLowerCase();
+      if(hay.indexOf(s) < 0) return false;
+    }
+    if(sets.length  && sets.indexOf(c.set_name)<0) return false;
+    if(langs.length && langs.indexOf(c.language)<0) return false;
+    if(vars.length){
+      const v = c.variant || 'Normal';
+      if(vars.indexOf(v)<0) return false;
+    }
+    // Condizione
+    if(colState.condMode==='single'){
+      if(condsSel.length && condsSel.indexOf(c.condition)<0) return false;
+    } else { // range
+      const rank = COL_COND_ORDER_MAP[c.condition];
+      if(rank == null){
+        // condizioni speciali (INK/ALT) non hanno rank in range mode → escluse se range attivo
+        if(condMin!=null || condMax!=null) return false;
+      } else {
+        if(condMin!=null && rank < condMin) return false;
+        if(condMax!=null && rank > condMax) return false;
+      }
+    }
+    // 1a edizione tri-state
+    if(fe==='yes' && !c.first_edition) return false;
+    if(fe==='no'  &&  c.first_edition) return false;
+    // Tipo carta (TCG vs manuale)
+    if(mf==='tcg' && c.is_manual) return false;
+    if(mf==='man' && !c.is_manual) return false;
+    // Range prezzi
+    const sp = parseFloat(c.sell_price)||0;
+    if(pMin!=null && sp < pMin) return false;
+    if(pMax!=null && sp > pMax) return false;
+    const cp = parseFloat(c.cm_avg30)||0;
+    if(cMin!=null && cp < cMin) return false;
+    if(cMax!=null && cp > cMax) return false;
+    return true;
+  });
 }
-function updateSetFilter(data,current){
-  const sel=document.getElementById('filterSet');
-  if(!sel)return;
-  const sets=[...new Set(data.map(c=>c.set_name).filter(Boolean))].sort();
-  sel.innerHTML='<option value="">Tutti i set</option>'+sets.map(s=>`<option${s===current?' selected':''}>${s}</option>`).join('');
+
+function colApplySort(cards){
+  const arr = cards.slice();
+  // Se l'utente ha cliccato un header in vista list, prevale quello
+  let key = colState.sort;
+  if(colState.view==='list' && colState.listSortKey){
+    key = colState.listSortKey + '_' + colState.listSortDir;
+  }
+  const cmpStr = function(a,b){ return (a||'').localeCompare(b||'',undefined,{numeric:true,sensitivity:'base'}); };
+  const cmpNum = function(a,b){ return (parseFloat(a)||0) - (parseFloat(b)||0); };
+  const cmpDate = function(a,b){ return new Date(a||0).getTime() - new Date(b||0).getTime(); };
+  const cmpCond = function(a,b){ return (COL_COND_ORDER_MAP[a]||99) - (COL_COND_ORDER_MAP[b]||99); };
+
+  switch(key){
+    case 'created_asc':  arr.sort((a,b)=>cmpDate(a.created_at,b.created_at)); break;
+    case 'created_desc': arr.sort((a,b)=>cmpDate(b.created_at,a.created_at)); break;
+    case 'name_asc':     arr.sort((a,b)=>cmpStr(a.name,b.name)); break;
+    case 'name_desc':    arr.sort((a,b)=>cmpStr(b.name,a.name)); break;
+    case 'set_asc':      arr.sort((a,b)=>cmpStr(a.set_name,b.set_name) || cmpStr(a.card_number,b.card_number)); break;
+    case 'set_desc':     arr.sort((a,b)=>cmpStr(b.set_name,a.set_name) || cmpStr(b.card_number,a.card_number)); break;
+    case 'cond_best':    arr.sort((a,b)=>cmpCond(a.condition,b.condition)); break;
+    case 'cond_worst':   arr.sort((a,b)=>cmpCond(b.condition,a.condition)); break;
+    case 'sell_desc':    arr.sort((a,b)=>cmpNum(b.sell_price,a.sell_price)); break;
+    case 'sell_asc':     arr.sort((a,b)=>cmpNum(a.sell_price,b.sell_price)); break;
+    case 'cm_desc':      arr.sort((a,b)=>cmpNum(b.cm_avg30,a.cm_avg30)); break;
+    case 'cm_asc':       arr.sort((a,b)=>cmpNum(a.cm_avg30,b.cm_avg30)); break;
+    case 'qty_desc':     arr.sort((a,b)=>cmpNum(b.qty,a.qty)); break;
+    case 'qty_asc':      arr.sort((a,b)=>cmpNum(a.qty,b.qty)); break;
+  }
+  return arr;
 }
+
+// Header click in vista list → override sort
+function colListSort(key){
+  if(colState.listSortKey===key){
+    colState.listSortDir = (colState.listSortDir==='asc')?'desc':'asc';
+  } else {
+    colState.listSortKey = key;
+    colState.listSortDir = (key==='name'||key==='set'||key==='cond_best')?'asc':'desc';
+  }
+  colRender();
+}
+window.colListSort = colListSort;
+
+// ── RENDER MASTER ────────────────────────────────────────────────────
+function colRender(){
+  const data = window.colData || [];
+  const filtered = colApplyFilters(data);
+  const sorted   = colApplySort(filtered);
+
+  colRenderStats(sorted);
+  colRenderActiveFilters();
+  colUpdateFilterCount();
+
+  if(colState.view==='list'){
+    colRenderList(sorted);
+  } else {
+    colRenderGrid(sorted);
+  }
+}
+
+function colRenderStats(filtered){
+  const tot   = filtered.reduce((a,c)=>a+(parseInt(c.qty)||1),0);
+  const val   = filtered.reduce((a,c)=>a+((parseFloat(c.sell_price)||0)*(parseInt(c.qty)||1)),0);
+  const cmVal = filtered.reduce((a,c)=>a+((parseFloat(c.cm_avg30)||0)*(parseInt(c.qty)||1)),0);
+  const sets  = new Set(filtered.map(c=>c.set_name).filter(Boolean)).size;
+  const fed   = filtered.filter(c=>c.first_edition).length;
+  const totAll = (window.colData||[]).length;
+  const isFiltered = filtered.length !== totAll;
+  const fmtEur = function(n){
+    if(n>=10000) return '€'+(Math.round(n/1000)*1)+'k';
+    return '€'+n.toFixed(0);
+  };
+  document.getElementById('colStats').innerHTML =
+    '<div class="col-stat-cell"><div class="col-stat-val">'+tot+'</div><div class="col-stat-lbl">Carte totali</div></div>' +
+    '<div class="col-stat-cell"><div class="col-stat-val">'+filtered.length+(isFiltered?' <span style="font-size:11px;color:var(--text-subtle)">/'+totAll+'</span>':'')+'</div><div class="col-stat-lbl">Voci uniche</div></div>' +
+    '<div class="col-stat-cell"><div class="col-stat-val gold">'+fmtEur(val)+'</div><div class="col-stat-lbl">Valore vendita</div></div>' +
+    '<div class="col-stat-cell"><div class="col-stat-val">'+fmtEur(cmVal)+'</div><div class="col-stat-lbl">Valore CM</div></div>' +
+    '<div class="col-stat-cell"><div class="col-stat-val">'+sets+'</div><div class="col-stat-lbl">Set diversi</div></div>' +
+    '<div class="col-stat-cell"><div class="col-stat-val">'+fed+'</div><div class="col-stat-lbl">1ª edizione</div></div>';
+}
+
+// Conta filtri attivi (per badge sul pulsante Filtri)
+function colCountActiveFilters(){
+  let n = 0;
+  if(colState.sets.length)  n++;
+  if(colState.langs.length) n++;
+  if(colState.vars.length)  n++;
+  if(colState.condMode==='single' && colState.conds.length) n++;
+  if(colState.condMode==='range'  && (colState.condMin || colState.condMax)) n++;
+  if(colState.firstEd) n++;
+  if(colState.manFilter) n++;
+  if(colState.priceMin!=='' || colState.priceMax!=='') n++;
+  if(colState.cmMin!==''    || colState.cmMax!=='')    n++;
+  return n;
+}
+function colUpdateFilterCount(){
+  const n = colCountActiveFilters();
+  const badge = document.getElementById('colFilterCount');
+  if(!badge) return;
+  if(n>0){ badge.textContent=n; badge.style.display='inline-flex'; }
+  else { badge.style.display='none'; }
+}
+
+// Bar di chip per filtri attivi (rimovibili al click)
+function colRenderActiveFilters(){
+  const host = document.getElementById('colActiveFilters');
+  if(!host) return;
+  const out = [];
+  function chip(label, onRemove){
+    return '<span class="col-active-filter">'+escapeHtml(label)+'<button type="button" onclick="'+onRemove+'" title="Rimuovi">×</button></span>';
+  }
+  if(colState.search) out.push(chip('Cerca: "'+colState.search+'"','colClearSearch()'));
+  colState.sets.forEach(function(s){ out.push(chip('Set: '+s, 'colToggleChip(\'sets\',\''+s.replace(/'/g,"\\'")+'\');colRenderFilterPanel()')); });
+  colState.langs.forEach(function(l){ out.push(chip('Lingua: '+l, 'colToggleChip(\'langs\',\''+l+'\');colRenderFilterPanel()')); });
+  colState.vars.forEach(function(v){ out.push(chip('Variante: '+v, 'colToggleChip(\'vars\',\''+v.replace(/'/g,"\\'")+'\');colRenderFilterPanel()')); });
+  if(colState.condMode==='single'){
+    colState.conds.forEach(function(c){ out.push(chip('Cond: '+c, 'colToggleChip(\'conds\',\''+c+'\');colRenderFilterPanel()')); });
+  } else {
+    if(colState.condMin || colState.condMax){
+      const lbl = 'Cond: '+(colState.condMin||'…')+' → '+(colState.condMax||'…');
+      out.push(chip(lbl, 'colClearFilter(\'cond\')'));
+    }
+  }
+  if(colState.firstEd==='yes') out.push(chip('Solo 1ª ed.','colSet1st(\'\')'));
+  if(colState.firstEd==='no')  out.push(chip('Escludi 1ª ed.','colSet1st(\'\')'));
+  if(colState.manFilter==='tcg') out.push(chip('Solo TCG','colSetMan(\'\')'));
+  if(colState.manFilter==='man') out.push(chip('Solo manuali','colSetMan(\'\')'));
+  if(colState.priceMin!=='' || colState.priceMax!==''){
+    out.push(chip('Prezzo €'+(colState.priceMin||0)+'–€'+(colState.priceMax||'∞'), 'colClearFilter(\'price\')'));
+  }
+  if(colState.cmMin!=='' || colState.cmMax!==''){
+    out.push(chip('CM €'+(colState.cmMin||0)+'–€'+(colState.cmMax||'∞'), 'colClearFilter(\'cm\')'));
+  }
+  if(out.length){
+    host.innerHTML = '<span class="col-active-filters-label">Filtri attivi:</span>'+out.join('')+
+      '<button type="button" class="col-active-clear-all" onclick="colClearAllFilters()">Azzera tutti</button>';
+  } else {
+    host.innerHTML = '';
+  }
+}
+
+// ── RENDER GRID ──────────────────────────────────────────────────────
+function colRenderGrid(cards){
+  const host = document.getElementById('colGridArea');
+  if(!host) return;
+  if(!cards.length){
+    host.innerHTML = '<div class="col-empty" style="grid-column:1/-1">' +
+      '<div class="col-empty-icon">🃏</div>' +
+      '<div class="col-empty-title">'+(window.colData.length?'Nessuna carta corrisponde ai filtri':'La tua collezione è vuota')+'</div>' +
+      '<div class="col-empty-hint">'+(window.colData.length?'Prova a modificare o azzerare i filtri attivi.':'Aggiungi la tua prima carta cliccando "+ Aggiungi carta" in alto a destra.')+'</div>' +
+      '</div>';
+    return;
+  }
+  const html = cards.map(function(c){
+    const condClass = 'c-' + (c.condition||'').toLowerCase().replace('/','');
+    const condLbl   = c.condition || '?';
+    const qtyLbl    = '×'+(parseInt(c.qty)||1);
+    const langLbl   = c.language || '—';
+    const has1st    = !!c.first_edition;
+    const isMan     = !!c.is_manual;
+    const setLine   = (c.set_name||'—') + (c.card_number?(' · #'+c.card_number):'');
+    const variant   = c.variant || 'Normal';
+    const sp = parseFloat(c.sell_price)||0;
+    const cm = parseFloat(c.cm_avg30)||0;
+    const img = (c.image_url && String(c.image_url).indexOf('http')===0)
+      ? '<img src="'+escapeHtml(c.image_url)+'" loading="lazy" alt=""/>'
+      : '<div class="ccard-ph">🃏</div>';
+    return ''+
+      '<div class="ccard'+(isMan?' is-manual':'')+'" onclick="openColEditModal(\''+c.id+'\')" title="'+escapeHtml(c.name||'')+'">'+
+        '<div class="ccard-imgwrap">'+img+
+          '<div class="ccard-overlays">'+
+            '<div class="ccard-overlay-row">'+
+              '<span class="ccard-cond '+condClass+'">'+condLbl+'</span>'+
+              (has1st?'<span class="ccard-1st">1ª ED.</span>':'')+
+            '</div>'+
+            '<div class="ccard-overlay-row bottom">'+
+              '<span class="ccard-lang">'+escapeHtml(langLbl)+'</span>'+
+              '<span class="ccard-qty">'+qtyLbl+'</span>'+
+            '</div>'+
+          '</div>'+
+        '</div>'+
+        '<div class="ccard-info">'+
+          '<div class="ccard-name">'+escapeHtml(c.name||'(senza nome)')+'</div>'+
+          '<div class="ccard-set">'+escapeHtml(setLine)+'</div>'+
+          '<div class="ccard-meta">'+escapeHtml(variant)+'</div>'+
+          '<div class="ccard-prices">'+
+            (sp>0
+              ? '<span class="ccard-price">€'+sp.toFixed(2)+'</span>'
+              : '<span class="ccard-price empty">— €</span>')+
+            (cm>0 ? '<span class="ccard-cm">CM '+cm.toFixed(2)+'</span>' : '')+
+          '</div>'+
+        '</div>'+
+        '<div class="ccard-actions">'+
+          '<button class="ccard-action-btn" title="Elimina" onclick="event.stopPropagation();delCard(\''+c.id+'\','+JSON.stringify(c.name||'').replace(/"/g,'&quot;')+')">'+
+            '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a2 2 0 012-2h2a2 2 0 012 2v2"/></svg>'+
+          '</button>'+
+        '</div>'+
+      '</div>';
+  }).join('');
+  host.innerHTML = html;
+}
+
+// ── RENDER LIST ──────────────────────────────────────────────────────
+function colRenderList(cards){
+  const head = document.getElementById('colListHead');
+  const body = document.getElementById('colListBody');
+  if(!head || !body) return;
+
+  // Header con sort indicator
+  const sk = colState.listSortKey;
+  const sd = colState.listSortDir;
+  function th(label, key, extra){
+    const cls = (sk===key) ? ('sorted '+(sd==='desc'?'desc':'')) : '';
+    return '<th class="'+(extra||'')+' '+cls+'" onclick="colListSort(\''+key+'\')">'+label+'</th>';
+  }
+  head.innerHTML =
+    '<th class="cl-img"></th>'+
+    th('Nome','name')+
+    th('Set','set')+
+    th('# Num','number','num')+
+    th('Variante','variant')+
+    th('Cond','condition','center')+
+    th('Lingua','language','center')+
+    th('Q.tà','qty','num')+
+    th('CM','cm_avg30','num')+
+    th('Prezzo','sell_price','num')+
+    '<th class="cl-actions"></th>';
+
+  if(!cards.length){
+    body.innerHTML = '<tr><td colspan="11" style="padding:0">'+
+      '<div class="col-empty">'+
+        '<div class="col-empty-icon">🃏</div>'+
+        '<div class="col-empty-title">'+(window.colData.length?'Nessuna carta corrisponde ai filtri':'La tua collezione è vuota')+'</div>'+
+      '</div>'+
+    '</td></tr>';
+    return;
+  }
+
+  body.innerHTML = cards.map(function(c){
+    const condClass = 'c-' + (c.condition||'').toLowerCase().replace('/','');
+    const sp = parseFloat(c.sell_price)||0;
+    const cm = parseFloat(c.cm_avg30)||0;
+    const img = (c.image_url && String(c.image_url).indexOf('http')===0)
+      ? '<img src="'+escapeHtml(c.image_url)+'" loading="lazy" alt=""/>'
+      : '<div class="cl-img-ph">🃏</div>';
+    return '<tr onclick="openColEditModal(\''+c.id+'\')">'+
+      '<td class="cl-img">'+img+'</td>'+
+      '<td><div class="cl-name">'+escapeHtml(c.name||'(senza nome)')+
+        (c.first_edition?'<span class="cl-1st">1ª</span>':'')+
+        (c.is_manual?'<span class="cl-1st" style="background:var(--warning);background-image:none;color:var(--bg)">MAN</span>':'')+
+      '</div></td>'+
+      '<td><span class="cl-mono">'+escapeHtml(c.set_name||'—')+'</span></td>'+
+      '<td class="cl-num">'+escapeHtml(c.card_number||'—')+'</td>'+
+      '<td><span class="cl-mono">'+escapeHtml(c.variant||'Normal')+'</span></td>'+
+      '<td style="text-align:center"><span class="cl-cond '+condClass+'">'+escapeHtml(c.condition||'?')+'</span></td>'+
+      '<td style="text-align:center"><span class="cl-mono">'+escapeHtml(c.language||'—')+'</span></td>'+
+      '<td class="cl-num">'+(parseInt(c.qty)||1)+'</td>'+
+      '<td class="cl-price-cm">'+(cm>0?('€'+cm.toFixed(2)):'—')+'</td>'+
+      '<td class="cl-price-sell'+(sp<=0?' empty':'')+'">'+(sp>0?('€'+sp.toFixed(2)):'—')+'</td>'+
+      '<td class="cl-actions"><button class="cl-act-btn" title="Elimina" onclick="event.stopPropagation();delCard(\''+c.id+'\','+JSON.stringify(c.name||'').replace(/"/g,'&quot;')+')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button></td>'+
+    '</tr>';
+  }).join('');
+}
+
+// Backward-compat shim: vecchio codice chiama renderStats(data) / updateSetFilter(data, current)
+// Le nuove versioni leggono colState/colData direttamente, ma manteniamo le firme per non rompere.
+function renderStats(/*data*/){ /* no-op: gestito da colRender() */ }
+function updateSetFilter(/*data,current*/){ /* no-op: gestito da colRenderFilterPanel() */ }
+
+// ═════════════════════════════════════════════════════════════════════
+//  COL EDIT MODAL — modifica una carta della collezione
+// ═════════════════════════════════════════════════════════════════════
+window._colEditing = null; // riferimento alla carta in modifica
+
+function openColEditModal(id){
+  const c = (window.colData||[]).find(x => x.id === id);
+  if(!c){
+    console.warn('[colEdit] carta non trovata in cache:', id);
+    alert('Carta non trovata. Ricarica la pagina.');
+    return;
+  }
+  window._colEditing = c;
+  const img = document.getElementById('colEmImg');
+  const ph  = document.getElementById('colEmImgPh');
+  if(c.image_url && String(c.image_url).indexOf('http')===0){
+    img.src = c.image_url; img.style.display='block'; ph.style.display='none';
+  } else {
+    img.style.display='none'; ph.style.display='flex';
+  }
+  document.getElementById('colEmName').textContent = c.name || '(senza nome)';
+  document.getElementById('colEmMeta').textContent = (c.set_name||'—') + (c.card_number?(' · #'+c.card_number):'') + (c.rarity?(' · '+c.rarity):'');
+  document.getElementById('colEmCond').value  = c.condition || 'NM';
+  document.getElementById('colEmLang').value  = c.language  || 'ITA';
+  document.getElementById('colEmVar').value   = c.variant   || 'Normal';
+  document.getElementById('colEmQty').value   = c.qty || 1;
+  document.getElementById('colEmSell').value  = (c.sell_price!=null) ? parseFloat(c.sell_price).toFixed(2) : '';
+  document.getElementById('colEmCm').value    = (c.cm_avg30!=null)   ? parseFloat(c.cm_avg30).toFixed(2)   : '';
+  document.getElementById('colEmNotes').value = c.notes || '';
+  document.getElementById('colEm1st').checked = !!c.first_edition;
+  document.getElementById('colEmManualBadge').textContent = c.is_manual ? '· Carta manuale' : '';
+  // Anteprima prezzo (live update)
+  colEmRefreshPreview();
+  ['colEmCond','colEmSell','colEm1st'].forEach(function(id){
+    const el = document.getElementById(id);
+    if(el && !el._colWired){
+      el._colWired = true;
+      el.addEventListener('input',  colEmRefreshPreview);
+      el.addEventListener('change', colEmRefreshPreview);
+    }
+  });
+  document.getElementById('colEditModalBg').classList.add('show');
+}
+window.openColEditModal = openColEditModal;
+
+function colEmRefreshPreview(){
+  const sp  = parseFloat(document.getElementById('colEmSell').value)||0;
+  const has1 = document.getElementById('colEm1st').checked;
+  const lbl = (sp>0 ? ('€'+sp.toFixed(2)) : '— €') + (has1?' · 1ª':'');
+  const out = document.getElementById('colEmPriceDisplay');
+  if(out) out.textContent = lbl;
+}
+
+function closeColEditModal(){
+  document.getElementById('colEditModalBg').classList.remove('show');
+  window._colEditing = null;
+}
+window.closeColEditModal = closeColEditModal;
+
+async function saveColEditModal(){
+  const c = window._colEditing;
+  if(!c) return;
+  const btn = document.getElementById('colEmSaveBtn');
+  if(btn){ btn.disabled=true; btn.textContent='Salvataggio…'; }
+  const payload = {
+    condition:    document.getElementById('colEmCond').value,
+    language:     document.getElementById('colEmLang').value,
+    variant:      document.getElementById('colEmVar').value,
+    qty:          parseInt(document.getElementById('colEmQty').value)||1,
+    sell_price:   parseFloat(document.getElementById('colEmSell').value)||0,
+    cm_avg30:     parseFloat(document.getElementById('colEmCm').value)||0,
+    notes:        document.getElementById('colEmNotes').value || null,
+    first_edition: document.getElementById('colEm1st').checked
+  };
+  try{
+    const updated = await supa('PATCH', 'cards?id=eq.'+c.id, payload);
+    // Aggiorna cache locale per evitare un re-fetch full
+    const newRow = (Array.isArray(updated) && updated[0]) ? updated[0] : Object.assign({}, c, payload);
+    const idx = (window.colData||[]).findIndex(x => x.id === c.id);
+    if(idx >= 0) window.colData[idx] = newRow;
+    closeColEditModal();
+    colRender();
+  } catch(e){
+    alert('Errore salvataggio: '+(e.message||'sconosciuto'));
+  } finally {
+    if(btn){ btn.disabled=false; btn.textContent='Salva'; }
+  }
+}
+window.saveColEditModal = saveColEditModal;
+
+async function colDeleteFromModal(){
+  const c = window._colEditing;
+  if(!c) return;
+  if(!confirm('Eliminare definitivamente "'+(c.name||'questa carta')+'"?')) return;
+  try{
+    await supa('DELETE', 'cards?id=eq.'+c.id);
+    // Rimuovi dalla cache senza re-fetch
+    const idx = (window.colData||[]).findIndex(x => x.id === c.id);
+    if(idx >= 0) window.colData.splice(idx, 1);
+    closeColEditModal();
+    colRender();
+    colRenderFilterPanel();
+  } catch(e){
+    alert('Errore eliminazione: '+(e.message||'sconosciuto'));
+  }
+}
+window.colDeleteFromModal = colDeleteFromModal;
+
+// Permetti di chiudere col edit modal con Esc (oltre al click sul backdrop)
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape'){
+    const bg = document.getElementById('colEditModalBg');
+    if(bg && bg.classList.contains('show')) closeColEditModal();
+    const sb = document.getElementById('colShareModalBg');
+    if(sb && sb.classList.contains('show')) colShareClose();
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════
+//  SHARE COLLEZIONE — link pubblico read-only con QR code
+// ═════════════════════════════════════════════════════════════════════
+window._colShareCache = null;     // ultimo elenco share caricato
+let _qrLibLoading = null;          // promessa di lazy-load qrcodejs
+
+// Lazy-load di qrcodejs da cdnjs. Se fallisce, useremo come fallback
+// l'API qrserver.com (immagine PNG remota). Idempotente.
+function colLoadQRLib(){
+  if(typeof window.QRCode === 'function') return Promise.resolve(true);
+  if(_qrLibLoading) return _qrLibLoading;
+  _qrLibLoading = new Promise(function(resolve){
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    s.async = true;
+    s.onload  = function(){ resolve(true);  };
+    s.onerror = function(){ resolve(false); }; // fallback a qrserver
+    document.head.appendChild(s);
+  });
+  return _qrLibLoading;
+}
+
+// Costruisce l'URL pubblico per un dato token. Gli host noti finiscono
+// in '/collection.html?t=...'. Usiamo l'host corrente per supportare
+// ambienti di staging.
+function colShareBuildPublicUrl(token){
+  const origin = window.location.origin;
+  // Se siamo su file:// o qualche dev local, fallback a rareblock.eu
+  const host = (origin && origin.indexOf('http')===0) ? origin : 'https://www.rareblock.eu';
+  return host + '/collection.html?t=' + encodeURIComponent(token);
+}
+
+async function colShareOpen(){
+  const uid = getCurrentUserId();
+  if(!uid){
+    alert('Devi essere loggato per condividere la collezione.');
+    return;
+  }
+  document.getElementById('colShareModalBg').classList.add('show');
+  document.getElementById('colShareBody').innerHTML =
+    '<div style="padding:20px;text-align:center;color:var(--text-muted);font-family:var(--mono);font-size:12px">Caricamento…</div>';
+  try{
+    const rows = await supa('GET', 'collection_shares?order=created_at.desc&limit=20');
+    window._colShareCache = Array.isArray(rows) ? rows : [];
+    colShareRender();
+    // Pre-warm libreria QR in parallelo
+    colLoadQRLib();
+  } catch(e){
+    document.getElementById('colShareBody').innerHTML =
+      '<div style="padding:18px;color:var(--danger);font-size:12.5px;line-height:1.5">' +
+        'Errore caricamento share: ' + escapeHtml(e.message||'sconosciuto') +
+        '<div style="margin-top:10px;font-size:11px;color:var(--text-muted)">' +
+        'Se è la prima volta che usi questa funzione, esegui la migration <code>068_collection_shares.sql</code> nel SQL Editor di Supabase.' +
+        '</div>' +
+      '</div>';
+  }
+}
+window.colShareOpen = colShareOpen;
+
+function colShareClose(){
+  document.getElementById('colShareModalBg').classList.remove('show');
+}
+window.colShareClose = colShareClose;
+
+function colShareRender(){
+  const body  = document.getElementById('colShareBody');
+  const rows  = window._colShareCache || [];
+  // Banner informativo + form creazione + lista esistenti
+  const totalCards = (window.colData||[]).length;
+  let html = '';
+  html += '<div class="share-info-banner">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
+            '<div>Genera un link pubblico in <b>sola lettura</b> per la tua collezione (' + totalCards + ' carte). Chiunque abbia il link potrà visualizzarla, ma <b>non potrà modificarla</b>. Puoi disattivarlo o eliminarlo in qualsiasi momento.</div>' +
+          '</div>';
+  // Form creazione
+  html += '<div class="share-form" style="margin-top:14px">' +
+            '<div class="share-form-row">' +
+              '<label for="colShareTitle">Titolo della collezione (visibile pubblicamente)</label>' +
+              '<input type="text" id="colShareTitle" maxlength="80" placeholder="es. La mia collezione vintage"/>' +
+            '</div>' +
+            '<label class="share-toggle"><input type="checkbox" id="colShareShowPrices" checked/> Mostra prezzi (vendita + CM)</label>' +
+            '<div class="share-toggle-hint">Se disattivato, i visitatori vedranno solo le carte ma non i valori.</div>' +
+            '<label class="share-toggle"><input type="checkbox" id="colShareShowNotes"/> Mostra note personali</label>' +
+            '<div class="share-toggle-hint">Di default le note sono private.</div>' +
+            '<div class="share-form-row">' +
+              '<label for="colShareExpires">Scadenza (opzionale)</label>' +
+              '<input type="date" id="colShareExpires"/>' +
+            '</div>' +
+            '<button class="btn btn-primary" type="button" onclick="colShareCreate()" style="margin-top:6px;align-self:flex-start">' +
+              '<span class="rb-i rb-i-link"></span> Genera link condivisione' +
+            '</button>' +
+          '</div>';
+  // Lista esistenti
+  if(rows.length){
+    html += '<div class="share-existing">';
+    html += '<div class="share-existing-title">Link esistenti (' + rows.length + ')</div>';
+    rows.forEach(function(r){
+      const url = colShareBuildPublicUrl(r.token);
+      const expired = r.expires_at && new Date(r.expires_at) <= new Date();
+      const inactive = !r.is_active || expired;
+      const meta = [];
+      meta.push('Creato il ' + new Date(r.created_at).toLocaleDateString('it-IT'));
+      if(r.view_count!=null) meta.push((r.view_count|0) + ' visite');
+      if(r.expires_at) meta.push('Scade ' + new Date(r.expires_at).toLocaleDateString('it-IT'));
+      if(!r.show_prices) meta.push('senza prezzi');
+      if(expired) meta.push('SCADUTO');
+      if(!r.is_active && !expired) meta.push('DISATTIVO');
+      html += '<div class="share-existing-row'+(inactive?' inactive':'')+'">' +
+                '<div class="share-existing-info">' +
+                  '<div class="share-existing-title-row">' + escapeHtml(r.title || '(senza titolo)') + '</div>' +
+                  '<div class="share-existing-meta">' + meta.map(function(m){return '<span class="share-existing-meta-item">'+escapeHtml(m)+'</span>';}).join('') + '</div>' +
+                '</div>' +
+                '<div class="share-existing-actions">' +
+                  '<button type="button" onclick="colShareShow(\''+r.token+'\')" title="Mostra QR + link">'+
+                    '<svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'+
+                  '</button>' +
+                  '<button type="button" onclick="colShareToggle(\''+r.id+'\','+(!r.is_active)+')" title="'+(r.is_active?'Disattiva':'Attiva')+'">' +
+                    (r.is_active
+                      ? '<svg viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>'
+                      : '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>') +
+                  '</button>' +
+                  '<button class="danger" type="button" onclick="colShareDelete(\''+r.id+'\')" title="Elimina link">' +
+                    '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>' +
+                  '</button>' +
+                '</div>' +
+              '</div>';
+    });
+    html += '</div>';
+  }
+  // Slot per il QR ed il link generato (popolato da colShareShow / colShareCreate)
+  html += '<div id="colShareResult"></div>';
+  body.innerHTML = html;
+}
+
+async function colShareCreate(){
+  const title       = (document.getElementById('colShareTitle').value||'').trim() || null;
+  const showPrices  = document.getElementById('colShareShowPrices').checked;
+  const showNotes   = document.getElementById('colShareShowNotes').checked;
+  const expRaw      = document.getElementById('colShareExpires').value;
+  const expires_at  = expRaw ? new Date(expRaw + 'T23:59:59').toISOString() : null;
+  const uid = getCurrentUserId();
+  if(!uid){ alert('Sessione scaduta — ricarica la pagina.'); return; }
+  try{
+    // Inviamo solo i campi controllabili dall'utente. token / view_count / created_at sono server-side.
+    const rows = await supa('POST', 'collection_shares', {
+      user_id: uid,
+      title: title,
+      show_prices: showPrices,
+      show_notes: showNotes,
+      is_active: true,
+      expires_at: expires_at
+    });
+    const created = (Array.isArray(rows) && rows[0]) ? rows[0] : null;
+    if(!created || !created.token){
+      throw new Error('Risposta inattesa dal server (token mancante)');
+    }
+    // Aggiorna cache locale
+    window._colShareCache = [created].concat(window._colShareCache || []);
+    colShareRender();
+    colShareShow(created.token);
+  } catch(e){
+    alert('Errore creazione link: '+(e.message||'sconosciuto')+'\n\nVerifica di aver eseguito la migration 068_collection_shares.sql.');
+  }
+}
+window.colShareCreate = colShareCreate;
+
+async function colShareToggle(id, newActive){
+  try{
+    await supa('PATCH', 'collection_shares?id=eq.'+id, { is_active: !!newActive });
+    const row = (window._colShareCache||[]).find(r => r.id === id);
+    if(row) row.is_active = !!newActive;
+    colShareRender();
+  } catch(e){
+    alert('Errore: '+(e.message||'sconosciuto'));
+  }
+}
+window.colShareToggle = colShareToggle;
+
+async function colShareDelete(id){
+  if(!confirm('Eliminare questo link di condivisione?\nIl link non sarà più accessibile.')) return;
+  try{
+    await supa('DELETE', 'collection_shares?id=eq.'+id);
+    window._colShareCache = (window._colShareCache||[]).filter(r => r.id !== id);
+    colShareRender();
+  } catch(e){
+    alert('Errore eliminazione: '+(e.message||'sconosciuto'));
+  }
+}
+window.colShareDelete = colShareDelete;
+
+// Mostra QR + URL per un dato token (in fondo al body modal)
+async function colShareShow(token){
+  const url = colShareBuildPublicUrl(token);
+  const slot = document.getElementById('colShareResult');
+  if(!slot) return;
+  slot.innerHTML =
+    '<div class="share-result" id="colShareResultBox" style="margin-top:14px">' +
+      '<div class="share-qr-wrap" id="colShareQrWrap"><div class="share-qr-loading">Generazione QR…</div></div>' +
+      '<div class="share-url-row">' +
+        '<input type="text" id="colShareUrlInput" value="'+escapeHtml(url)+'" readonly onclick="this.select()"/>' +
+        '<button class="share-copy-btn" onclick="colShareCopyUrl(this)" type="button">Copia</button>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">' +
+        '<a href="'+escapeHtml(url)+'" target="_blank" rel="noopener" class="col-tb-btn">Apri il link</a>' +
+        '<button type="button" class="col-tb-btn" onclick="colShareDownloadQR()">Scarica QR</button>' +
+      '</div>' +
+    '</div>';
+  // Scroll al risultato
+  setTimeout(function(){
+    const box = document.getElementById('colShareResultBox');
+    if(box && box.scrollIntoView) box.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }, 50);
+  // Genera QR
+  const ok = await colLoadQRLib();
+  const wrap = document.getElementById('colShareQrWrap');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  if(ok && typeof window.QRCode === 'function'){
+    try{
+      new window.QRCode(wrap, {
+        text: url,
+        width: 220, height: 220,
+        colorDark: '#0d1117',
+        colorLight: '#ffffff',
+        correctLevel: window.QRCode.CorrectLevel ? window.QRCode.CorrectLevel.M : 1
+      });
+    } catch(e){
+      _colShareFallbackQR(wrap, url);
+    }
+  } else {
+    _colShareFallbackQR(wrap, url);
+  }
+}
+window.colShareShow = colShareShow;
+
+function _colShareFallbackQR(wrap, url){
+  // Fallback: API qrserver.com (PNG remoto)
+  const img = new Image();
+  img.width = 220; img.height = 220;
+  img.alt = 'QR code';
+  img.onerror = function(){
+    wrap.innerHTML = '<div class="share-qr-loading" style="color:#a00">QR non disponibile.<br>Usa il link diretto qui sotto.</div>';
+  };
+  img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=4&data='+encodeURIComponent(url);
+  wrap.appendChild(img);
+}
+
+function colShareCopyUrl(btn){
+  const inp = document.getElementById('colShareUrlInput');
+  if(!inp) return;
+  const url = inp.value;
+  const onCopied = function(){
+    btn.classList.add('copied'); btn.textContent='Copiato!';
+    setTimeout(function(){ btn.classList.remove('copied'); btn.textContent='Copia'; }, 1500);
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(onCopied, function(){
+      inp.select(); document.execCommand('copy'); onCopied();
+    });
+  } else {
+    inp.select(); document.execCommand('copy'); onCopied();
+  }
+}
+window.colShareCopyUrl = colShareCopyUrl;
+
+function colShareDownloadQR(){
+  const wrap = document.getElementById('colShareQrWrap');
+  if(!wrap) return;
+  // qrcodejs genera sia <canvas> sia <img> (fallback se canvas non supportato)
+  const cv = wrap.querySelector('canvas');
+  const im = wrap.querySelector('img');
+  let dataUrl = null;
+  if(cv){
+    try{ dataUrl = cv.toDataURL('image/png'); } catch(e){ /* tainted */ }
+  }
+  if(!dataUrl && im && im.src){
+    // Se è un'immagine remota (qrserver) facciamo open in tab — non possiamo scaricare via download
+    window.open(im.src, '_blank');
+    return;
+  }
+  if(!dataUrl) return;
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = 'rareblock-collection-qr.png';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+window.colShareDownloadQR = colShareDownloadQR;
+
 async function delCard(id,name){
   if(!confirm('Rimuovere "'+name+'"?'))return;
   try{await supa('DELETE','cards?id=eq.'+id);loadCollection()}catch(e){alert('Errore: '+e.message)}
