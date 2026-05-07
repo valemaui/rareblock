@@ -8523,11 +8523,75 @@ function clearSessionFromStorage(){
 
 async function supa(method, path, body){
   var prefer = (method==='PATCH'||method==='DELETE') ? 'return=minimal' : 'return=representation';
+  // Refresh proattivo se token vicino a scadenza (< 60s)
+  await ensureFreshSession();
   var r = await fetch(SUPA_URL+'/rest/v1/'+path, { method, headers:getHDR(prefer), body:body?JSON.stringify(body):undefined });
+  // Retry una volta su 401: probabilmente token scaduto tra check e fetch
+  if(r.status === 401 && _session && _session.refresh_token){
+    var refreshed = await tryRefreshSession();
+    if(refreshed){
+      r = await fetch(SUPA_URL+'/rest/v1/'+path, { method, headers:getHDR(prefer), body:body?JSON.stringify(body):undefined });
+    }
+  }
   if(!r.ok){ var e=await r.text(); throw new Error(e); }
   var t = await r.text();
   return t ? JSON.parse(t) : null;
 }
+
+// ── Auto-refresh JWT ─────────────────────────────────────────────────
+// Supabase access_token scade dopo 1h; senza refresh tutte le chiamate
+// successive falliscono con 401 ("Sessione scaduta"). Refresh proattivo
+// 60s prima della scadenza usando il refresh_token già in _session.
+var _refreshPromise = null;     // dedup chiamate concorrenti
+async function ensureFreshSession(){
+  if(!_session || !_session.expires_at || !_session.refresh_token) return;
+  var now = Math.floor(Date.now()/1000);
+  // Se mancano più di 60s alla scadenza, ok
+  if(_session.expires_at - now > 60) return;
+  await tryRefreshSession();
+}
+async function tryRefreshSession(){
+  if(!_session || !_session.refresh_token) return false;
+  // Dedup: se è già in corso un refresh, aspetta quello
+  if(_refreshPromise) return _refreshPromise;
+  _refreshPromise = (async function(){
+    try {
+      var r = await fetch(SUPA_URL+'/auth/v1/token?grant_type=refresh_token', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'apikey':SUPA_KEY },
+        body: JSON.stringify({ refresh_token: _session.refresh_token })
+      });
+      var data = await r.json();
+      if(!r.ok || !data.access_token) {
+        console.warn('[auth] refresh fallito:', data);
+        return false;
+      }
+      // Stripe 1: aggiorna token, mantieni user dal vecchio
+      _session.access_token  = data.access_token;
+      _session.refresh_token = data.refresh_token || _session.refresh_token;
+      _session.expires_in    = data.expires_in;
+      _session.expires_at    = data.expires_at || (Math.floor(Date.now()/1000) + (data.expires_in||3600));
+      if(data.user) _session.user = data.user;
+      saveSessionToStorage(_session);
+      window._rbSession = _session;
+      return true;
+    } catch(e){
+      console.warn('[auth] refresh error:', e && e.message);
+      return false;
+    } finally {
+      _refreshPromise = null;
+    }
+  })();
+  return _refreshPromise;
+}
+
+// Refresh ogni 30 minuti come safety net (anche con tab in background)
+setInterval(function(){
+  if(_session && _session.expires_at){
+    var now = Math.floor(Date.now()/1000);
+    if(_session.expires_at - now < 5*60) tryRefreshSession();
+  }
+}, 30*60*1000);
 
 async function supaAuth(path, body){
   var r = await fetch(SUPA_URL+'/auth/v1/'+path, {

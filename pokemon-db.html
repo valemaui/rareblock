@@ -2401,11 +2401,67 @@ let prevCard=null;   // carta selezionata nel preventivo
 let preventivi=[];   // lista preventivi in memoria
 
 async function supa(method,path,body){
-  const r=await fetch(SUPA_URL+'/rest/v1/'+path,{method,headers:getHDR(),body:body?JSON.stringify(body):undefined});
+  await ensureFreshSession();
+  let r = await fetch(SUPA_URL+'/rest/v1/'+path,{method,headers:getHDR(),body:body?JSON.stringify(body):undefined});
+  if(r.status === 401 && window._rbSession && window._rbSession.refresh_token){
+    const ok = await tryRefreshSession();
+    if(ok){
+      r = await fetch(SUPA_URL+'/rest/v1/'+path,{method,headers:getHDR(),body:body?JSON.stringify(body):undefined});
+    }
+  }
   if(!r.ok){const e=await r.text();throw new Error(e)}
   const t=await r.text();
   return t?JSON.parse(t):null;
 }
+
+// ── Auto-refresh JWT (vedi rareblock-dashboard.html per logica completa) ──
+let _refreshPromise = null;
+async function ensureFreshSession(){
+  const s = window._rbSession;
+  if(!s || !s.expires_at || !s.refresh_token) return;
+  const now = Math.floor(Date.now()/1000);
+  if(s.expires_at - now > 60) return;
+  await tryRefreshSession();
+}
+async function tryRefreshSession(){
+  const s = window._rbSession;
+  if(!s || !s.refresh_token) return false;
+  if(_refreshPromise) return _refreshPromise;
+  _refreshPromise = (async function(){
+    try {
+      const r = await fetch(SUPA_URL+'/auth/v1/token?grant_type=refresh_token', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'apikey':SUPA_KEY },
+        body: JSON.stringify({ refresh_token: s.refresh_token })
+      });
+      const data = await r.json();
+      if(!r.ok || !data.access_token){
+        console.warn('[auth] refresh fallito:', data);
+        return false;
+      }
+      s.access_token  = data.access_token;
+      s.refresh_token = data.refresh_token || s.refresh_token;
+      s.expires_in    = data.expires_in;
+      s.expires_at    = data.expires_at || (Math.floor(Date.now()/1000) + (data.expires_in||3600));
+      if(data.user) s.user = data.user;
+      try { localStorage.setItem('rb_auth_session', JSON.stringify(s)); } catch(e){}
+      return true;
+    } catch(e){
+      console.warn('[auth] refresh error:', e && e.message);
+      return false;
+    } finally {
+      _refreshPromise = null;
+    }
+  })();
+  return _refreshPromise;
+}
+setInterval(function(){
+  const s = window._rbSession;
+  if(s && s.expires_at){
+    const now = Math.floor(Date.now()/1000);
+    if(s.expires_at - now < 5*60) tryRefreshSession();
+  }
+}, 30*60*1000);
 
 // ── ZOOM ON HOVER ──
 const zoomEl=(()=>{
