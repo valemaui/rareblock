@@ -350,6 +350,17 @@ body{display:flex;flex-direction:column}
 (function(){
 'use strict';
 
+// ── rbParentFn: helper per accedere a funzioni del parent (pokemon-db.html)
+//    Quando il frame gira in iframe, ritorna window.parent[name].
+//    In standalone, ritorna window[name]. Safe su cross-origin.
+function rbParentFn(name){
+  try {
+    var w = (window.parent && window.parent !== window) ? window.parent : window;
+    return w[name] || null;
+  } catch(_){ return null; }
+}
+window.rbParentFn = rbParentFn;
+
 // ── Constants ────────────────────────────────────────────────────
 var CW=340, OW=400, OH=560;
 var REF_LS='pkm_auth_v3';

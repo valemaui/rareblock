@@ -2961,8 +2961,30 @@ function anlPopPc(prices, err){
 <script>
 
 
+// ── rbParentFn: helper per accedere a funzioni del parent (pokemon-db.html)
+//    Quando il frame gira in iframe, ritorna window.parent[name].
+//    In standalone, ritorna window[name]. Safe su cross-origin.
+function rbParentFn(name){
+  try {
+    var w = (window.parent && window.parent !== window) ? window.parent : window;
+    return w[name] || null;
+  } catch(_){ return null; }
+}
+
 // Bootstrap del frame
 document.addEventListener("DOMContentLoaded", function(){
+  // Mount setpicker (richiede rbMountSetPicker dal parent)
+  try {
+    var mountFn = rbParentFn('rbMountSetPicker');
+    if(mountFn){
+      mountFn({
+        containerId: 'anlCardName-setpicker',
+        inputId:     'anlCardName-setpicker-input',
+        placeholder: 'Scegli set'
+      });
+    }
+  } catch(e){ console.warn('[anl] mount setpicker:', e && e.message); }
+
   if(typeof window.anlInitTab === 'function'){
     try{ window.anlInitTab(); }catch(e){ console.error("[anl frame]", e); }
   }
