@@ -186,12 +186,30 @@ async function cachePut(url: string, html: string, status: number, via: string):
 //        Dashboard → Edge Functions → Secrets aggiungere
 //        SCRAPINGBEE_API_KEY = <chiave>.
 //        Il proxy viene attivato automaticamente al primo deploy successivo.
+//
+//  CIRCUIT BREAKER: se ScrapingBee ritorna 402 Payment Required (crediti
+//  esauriti), disabilitiamo il proxy in memoria per 1 ora. Evita di
+//  bruciare retry inutili e accumulare logging warning.
 // ═════════════════════════════════════════════════════════════════════
 const SCRAPINGBEE_KEY = Deno.env.get('SCRAPINGBEE_API_KEY') || '';
 const PROXY_AVAILABLE = SCRAPINGBEE_KEY.length > 10;
+let _proxyCircuitOpenUntil = 0;  // timestamp epoch ms; se now()<questo, skip proxy
+const CIRCUIT_OPEN_MS = 60 * 60 * 1000;  // 1 ora
 
-async function fetchViaProxy(url: string, opts?: { js?: boolean; premium?: boolean; stealth?: boolean }): Promise<{ html: string; ok: boolean; status: number }> {
+async function fetchViaProxy(url: string, opts?: { js?: boolean; premium?: boolean; stealth?: boolean }): Promise<{ html: string; ok: boolean; status: number; _proxyDiag?: any }> {
   if (!PROXY_AVAILABLE) return { html: '', ok: false, status: 0 };
+  // Circuit breaker
+  if (Date.now() < _proxyCircuitOpenUntil) {
+    const remainMs = _proxyCircuitOpenUntil - Date.now();
+    return {
+      html: '', ok: false, status: 0,
+      _proxyDiag: {
+        circuit_open: true,
+        reason: 'no_credits',
+        retry_in_min: Math.round(remainMs / 60000),
+      }
+    };
+  }
   try {
     // stealth_proxy ha priorità: usa il pool "anti-bot extreme" e non si combina
     // con premium_proxy. Costo 75 crediti, ma necessario per eBay sold pages
@@ -217,6 +235,32 @@ async function fetchViaProxy(url: string, opts?: { js?: boolean; premium?: boole
     const proxyUrl = `https://app.scrapingbee.com/api/v1/?${params.toString()}`;
     const resp = await fetch(proxyUrl);
     const html = await resp.text();
+
+    // ── Circuit breaker su 402 Payment Required (crediti esauriti) ──
+    // ScrapingBee ritorna 402 quando il piano free e' sforato. Inutile
+    // continuare a chiamare per la prossima ora.
+    if (resp.status === 402) {
+      _proxyCircuitOpenUntil = Date.now() + CIRCUIT_OPEN_MS;
+      console.error('[proxy] 402 Payment Required — crediti ScrapingBee esauriti. Circuit breaker aperto per 60 min.');
+      return {
+        html: '', ok: false, status: 402,
+        _proxyDiag: {
+          circuit_open: true,
+          reason: 'no_credits',
+          status: 402,
+          message: html.substring(0, 200),
+        }
+      };
+    }
+    // 401 = api key invalida/revocata
+    if (resp.status === 401) {
+      _proxyCircuitOpenUntil = Date.now() + CIRCUIT_OPEN_MS;
+      console.error('[proxy] 401 Unauthorized — API key ScrapingBee invalida. Circuit aperto.');
+      return {
+        html: '', ok: false, status: 401,
+        _proxyDiag: { circuit_open: true, reason: 'unauthorized', status: 401 }
+      };
+    }
     // ScrapingBee ritorna 200 anche con upstream 4xx/5xx; il vero status
     // upstream è in header Spb-original-status.
     const upstreamStatus = parseInt(resp.headers.get('Spb-original-status') || '0', 10) || resp.status;
@@ -352,25 +396,31 @@ async function fetchWithRetry(url: string, maxRetries = 2, referer?: string): Pr
             // eBay: blocca anche il pool DC ScrapingBee → forziamo residential
             // anche qui. Costo 25 crediti vs 1, ma con cache TTL 12h una carta
             // = 1 fetch/12h. Tradeoff accettabile per avere dati attendibili.
-            // CM: residential premium basta (CF Enterprise lo accetta).
-            // eBay: blocca anche residential premium → stealth_proxy obbligatorio
-            //       (75 crediti vs 25, ma è la differenza tra dati attendibili
-            //       e zero dati). Con cache TTL 12h, una carta = 1 fetch/12h.
-            const proxyOpts = isEbay
-              ? { js: false, stealth: true }
-              : { js: false, premium: true };
+            // CM: residential premium (25 crediti) basta, CF Enterprise OK.
+            // eBay: DISABLED. Anche stealth_proxy (75 crediti) non bypassa il
+            //       blocco. Per ora restituiamo direttamente 451 senza
+            //       chiamare il proxy: meglio "non disponibile" che bruciare
+            //       crediti per dati non utilizzabili. Da rivalutare se si
+            //       cambia provider o eBay rilassa la WAF.
+            if (isEbay) {
+              return {
+                html, ok: false,
+                status: ebaySoftBlock ? 451 : 403,
+                via: 'ebay_disabled',
+                _proxyDiag: { reason: 'eBay proxy disabled (provider non supportato attualmente)' },
+              } as any;
+            }
+            const proxyOpts = { js: false, premium: true };
             const proxied = await fetchViaProxy(url, proxyOpts);
             if (proxied.ok && proxied.html) {
-              const mode = isEbay ? 'eBay stealth' : 'CM residential';
-              console.log(`[fetchWithRetry] proxy success (${mode}): ${proxied.html.length} chars`);
-              await cachePut(url, proxied.html, proxied.status,
-                             isEbay ? 'proxy_stealth' : 'proxy_premium');
-              return { ...proxied, via: isEbay ? 'proxy_stealth' : 'proxy_premium' } as any;
+              console.log(`[fetchWithRetry] proxy success (CM residential): ${proxied.html.length} chars`);
+              await cachePut(url, proxied.html, proxied.status, 'proxy_premium');
+              return { ...proxied, via: 'proxy_premium' } as any;
             }
-            console.warn(`[fetchWithRetry] proxy also failed (${isEbay?'stealth':'premium'}): status=${proxied.status} len=${proxied.html.length}`);
+            console.warn(`[fetchWithRetry] proxy also failed (premium): status=${proxied.status} len=${proxied.html.length}`);
             return {
               html, ok: false,
-              status: cfChallenge ? 403 : (ebaySoftBlock ? 451 : 403),
+              status: cfChallenge ? 403 : 403,
               via: 'proxy_failed',
               _proxyDiag: (proxied as any)._proxyDiag,
             } as any;

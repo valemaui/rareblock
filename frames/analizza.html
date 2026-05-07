@@ -2605,23 +2605,40 @@ function anlPopEbay(data, err, card){
   var noteEl=document.getElementById('anlSrcEbNote');
   if(err || !data || (!data.count && !(data.items && data.items.length))){
     if(priceEl){ priceEl.textContent='—'; priceEl.classList.remove('loading'); priceEl.classList.add('na'); }
+
+    // Detect "ebay_disabled" → messaggio dedicato. Si applica quando l'edge
+    // ritorna via='ebay_disabled' su almeno una query. Diverso da errore
+    // generico: l'utente sa che la sorgente è temporaneamente non
+    // utilizzabile e non si chiede se ha sbagliato lui qualcosa.
+    var ebayDisabled = false;
+    if(data && Array.isArray(data._diag)){
+      ebayDisabled = data._diag.some(function(d){
+        return d && d.diag && d.diag.via === 'ebay_disabled';
+      });
+    }
+
     if(noteEl){
-      // Mostra diag riassuntivo inline (visibile senza DevTools)
-      var diagSummary = '';
-      if(data && data._diag && Array.isArray(data._diag) && data._diag.length){
-        var firstD = data._diag[0] && data._diag[0].diag;
-        if(firstD){
-          var flags = [];
-          if(firstD.has_cf_challenge)        flags.push('CF');
-          if(firstD.has_captcha)             flags.push('captcha');
-          if(firstD.has_signin_redirect)     flags.push('signin');
-          if(firstD.has_pardon_interruption) flags.push('pardon');
-          if(firstD.has_no_results)          flags.push('no_res');
-          if(firstD.itm_link_count > 0 && !flags.length) flags.push(firstD.itm_link_count+' link nessun price');
-          if(flags.length) diagSummary = ' · ['+flags.join('/')+']';
+      if(ebayDisabled){
+        noteEl.textContent = 'eBay temporaneamente non disponibile';
+        noteEl.title = 'Il fetch dei venduti eBay è disattivato in attesa di una soluzione di scraping affidabile. Il valore di mercato si calcola da PriceCharting + Cardmarket.';
+      } else {
+        // Mostra diag riassuntivo inline (visibile senza DevTools)
+        var diagSummary = '';
+        if(data && data._diag && Array.isArray(data._diag) && data._diag.length){
+          var firstD = data._diag[0] && data._diag[0].diag;
+          if(firstD){
+            var flags = [];
+            if(firstD.has_cf_challenge)        flags.push('CF');
+            if(firstD.has_captcha)             flags.push('captcha');
+            if(firstD.has_signin_redirect)     flags.push('signin');
+            if(firstD.has_pardon_interruption) flags.push('pardon');
+            if(firstD.has_no_results)          flags.push('no_res');
+            if(firstD.itm_link_count > 0 && !flags.length) flags.push(firstD.itm_link_count+' link nessun price');
+            if(flags.length) diagSummary = ' · ['+flags.join('/')+']';
+          }
         }
+        noteEl.textContent = (err ? ('errore: '+String(err).substring(0,60)) : 'nessun venduto trovato')+diagSummary;
       }
-      noteEl.textContent = (err ? ('errore: '+String(err).substring(0,60)) : 'nessun venduto trovato')+diagSummary;
     }
     anlSetDot('anlSrcEbDot', 'none');
     anlRenderEbGradeTable(null);
