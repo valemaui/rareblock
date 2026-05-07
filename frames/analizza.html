@@ -652,11 +652,15 @@ function anlSourcesScaffold(card){
   // (nome + voto se graded, nome + numero se raw). Stringhe lunghe con set
   // name + 'pokemon' degradano fuzzy match eBay (user feedback).
   // sort by recent (_sop=13) + 240 items/page (_ipg=240) per sample ricco
+  // Query eBay: in entrambi i mode includiamo SEMPRE il numero (es. "Charizard 4
+  // PSA 9") per non confondere stesse carte di set diversi. Il numero è la
+  // discriminante più forte sui titoli eBay.
   var ebQ;
+  var ebNum = card.number ? ' ' + card.number : '';
   if(graded){
-    ebQ = (card.name + ' ' + house + ' ' + score).trim();
+    ebQ = (card.name + ebNum + ' ' + house + ' ' + score).trim();
   } else {
-    ebQ = (card.name + (card.number ? ' ' + card.number : '')).trim();
+    ebQ = (card.name + ebNum).trim();
   }
   var ebUrl='https://www.ebay.it/sch/i.html?_nkw='+encodeURIComponent(ebQ)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_sop=13&_ipg=240';
 
@@ -1440,22 +1444,25 @@ async function anlStartLiveFetches(card){
     // Edge function early-exit a 15 items: le prime query semplici dominano il sample.
 
     if(graded){
-      // GRADED: priorità query corte con grade
-      // 1. Più semplice: nome + voto (stile user "Tropical Wind PSA 9")
-      if(nameUser)                 addQ(nameUser+gradeSfx);
-      // 2. Nome semplificato + voto (utile per "Groudon-EX" → "Groudon")
-      if(nameSimple && nameSimple!==nameUser) addQ(nameSimple+gradeSfx);
-      // 3. Nome + numero + voto
+      // GRADED: priorità a query CON numero (carta singola identificabile)
+      // User feedback: "Charizard PSA 8" senza numero trova listings di
+      // Charizard di set diversi → statistiche inquinate. Il numero è la
+      // discriminante più forte sui titoli eBay.
+      // 1. Nome + numero + voto (più discriminante)
       if(nameUser && num)          addQ(nameUser+' '+num+gradeSfx);
-      // 4. Nome + voto + "pokemon" (utile se categoria sbagliata)
-      if(nameUser)                 addQ(nameUser+gradeSfx+' pokemon');
-      // 5. Nome + numero + voto + "pokemon"
+      // 2. Nome semplificato + numero + voto (per "Groudon-EX" → "Groudon")
+      if(nameSimple && num && nameSimple!==nameUser) addQ(nameSimple+' '+num+gradeSfx);
+      // 3. Nome + numero + voto + "pokemon" (fallback su categoria mistakes)
       if(nameUser && num)          addQ(nameUser+' '+num+gradeSfx+' pokemon');
-      // 6. Nome semplificato + numero + voto
-      if(nameSimple && num)        addQ(nameSimple+' '+num+gradeSfx);
-      // 7. Nome API ufficiale (se diverso) + voto
-      if(nameApi && nameApi!==nameUser) addQ(nameApi+gradeSfx);
-      // 8. SPECIFICA: nome + numero + set + voto (last resort)
+      // 4. SOLO se non c'è num: nome + voto (carta unica nel database)
+      if(nameUser && !num)         addQ(nameUser+gradeSfx);
+      // 5. Nome + voto (senza numero) — per varianti dove eBay tag-fa il numero
+      if(nameUser)                 addQ(nameUser+gradeSfx);
+      // 6. Nome semplificato + voto (Groudon-EX → Groudon)
+      if(nameSimple && nameSimple!==nameUser) addQ(nameSimple+gradeSfx);
+      // 7. Nome API ufficiale (se diverso) + numero + voto
+      if(nameApi && nameApi!==nameUser && num) addQ(nameApi+' '+num+gradeSfx);
+      // 8. Last resort: nome + numero + set + voto
       if(nameUser && num && setNm) addQ(nameUser+' '+num+' '+setNm+gradeSfx);
     } else {
       // RAW: priorità nome+numero (carta singola identificabile da numero)

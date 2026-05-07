@@ -89,6 +89,52 @@ function buildHeaders(url: string, lang = 'it', referer?: string, opts?: { mobil
   return headers;
 }
 
+// ═════════════════════════════════════════════════════════════════════
+//  PROXY FALLBACK — ScrapingBee
+// ─────────────────────────────────────────────────────────────────────
+//  Strategia: il fetch diretto da Deno Deploy IP datacenter viene blocked
+//  da CM (Cloudflare Enterprise) e da eBay (soft-block 451). Quando
+//  abbiamo SCRAPINGBEE_API_KEY in env, ritentiamo via proxy residenziale.
+//
+//  Costo: free tier 1.000 chiamate/mese (basta per uso personale leggero).
+//  Setup: registrarsi su scrapingbee.com, copiare API key, e in Supabase
+//        Dashboard → Edge Functions → Secrets aggiungere
+//        SCRAPINGBEE_API_KEY = <chiave>.
+//        Il proxy viene attivato automaticamente al primo deploy successivo.
+// ═════════════════════════════════════════════════════════════════════
+const SCRAPINGBEE_KEY = Deno.env.get('SCRAPINGBEE_API_KEY') || '';
+const PROXY_AVAILABLE = SCRAPINGBEE_KEY.length > 10;
+
+async function fetchViaProxy(url: string, opts?: { js?: boolean; premium?: boolean }): Promise<{ html: string; ok: boolean; status: number }> {
+  if (!PROXY_AVAILABLE) return { html: '', ok: false, status: 0 };
+  try {
+    const params = new URLSearchParams({
+      api_key:     SCRAPINGBEE_KEY,
+      url:         url,
+      // render_js=false è gratuito. true costa 5x crediti ma necessario per
+      // pagine con CF JS challenge. Per CM/eBay HTML statico false basta.
+      render_js:   opts?.js ? 'true' : 'false',
+      // premium_proxy=true usa IP residenziali (1 chiamata = 25 crediti).
+      // Necessario quando datacenter IP sono blacklistati. Per CM Enterprise
+      // è probabile che serva.
+      premium_proxy: opts?.premium ? 'true' : 'false',
+      // country: 'it'/'de'/'us' può aiutare ma costa extra. Lasciamo default.
+      block_resources: 'true',  // skip immagini/CSS/font, solo HTML
+    });
+    const proxyUrl = `https://app.scrapingbee.com/api/v1/?${params.toString()}`;
+    const resp = await fetch(proxyUrl);
+    const html = await resp.text();
+    // ScrapingBee ritorna 200 anche con upstream 4xx/5xx; il vero status
+    // upstream è in header Spb-original-status.
+    const upstreamStatus = parseInt(resp.headers.get('Spb-original-status') || '0', 10) || resp.status;
+    const ok = resp.ok && html.length > 1000 && !/Just a moment|cf-browser-verification/i.test(html);
+    return { html, ok, status: upstreamStatus };
+  } catch (e) {
+    console.warn('[proxy] fetch failed:', String(e));
+    return { html: '', ok: false, status: 0 };
+  }
+}
+
 async function fetchWithRetry(url: string, maxRetries = 2, referer?: string): Promise<{ html: string; ok: boolean; status: number }> {
   const isCm = url.includes('cardmarket.com');
   const isEbay = url.includes('ebay.');
@@ -137,6 +183,20 @@ async function fetchWithRetry(url: string, maxRetries = 2, referer?: string): Pr
 
       if (tooShort || cfChallenge || ebaySoftBlock) {
         if (attempt === maxRetries) {
+          // ── Ultima spiaggia: proxy residenziale ScrapingBee se configurato ──
+          // Solo se PROXY_AVAILABLE (env SCRAPINGBEE_API_KEY presente).
+          // Per CM blockato da CF Enterprise serve premium_proxy (residenziale).
+          // Per eBay soft-block 451 anche datacenter proxy spesso basta.
+          if (PROXY_AVAILABLE && (isCm || isEbay)) {
+            console.log(`[fetchWithRetry] direct fetch blocked (status=${cfChallenge?403:451}), falling back to ScrapingBee for ${isCm ? 'CM' : 'eBay'}`);
+            const proxyOpts = { js: false, premium: isCm };  // CM richiede residential, eBay no
+            const proxied = await fetchViaProxy(url, proxyOpts);
+            if (proxied.ok && proxied.html) {
+              console.log(`[fetchWithRetry] proxy success: ${proxied.html.length} chars`);
+              return proxied;
+            }
+            console.warn(`[fetchWithRetry] proxy also failed: status=${proxied.status} len=${proxied.html.length}`);
+          }
           // Restituiamo comunque l'HTML per la diagnostica client
           return { html, ok: false, status: cfChallenge ? 403 : (ebaySoftBlock ? 451 : 403) };
         }
