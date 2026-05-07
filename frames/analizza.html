@@ -703,10 +703,7 @@ function anlSourcesScaffold(card){
         return parts.join(' · ');
      })()+'</div>'
   +  '<div id="anlSrcCmTable" class="anl-cm-grade-table" style="display:none"></div>'
-  +  '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">'
-  +    '<a class="anl-src-link" id="anlSrcCmLink" href="'+cmUrl+'" target="_blank" rel="noopener">apri →</a>'
-  +    '<button type="button" class="anl-src-link" id="anlSrcCmLive" onclick="anlCmImportLive()" title="Apre la pagina Cardmarket e raccoglie i prezzi live (richiede userscript Tampermonkey RareBlock CM Price Bridge attivo)" style="background:none;border:none;color:inherit;cursor:pointer;padding:0;font-family:inherit;font-size:inherit">↻ importa live</button>'
-  +  '</div>'
+  +  '<a class="anl-src-link" id="anlSrcCmLink" href="'+cmUrl+'" target="_blank" rel="noopener">apri →</a>'
   +'</div>';
 }
 
@@ -2272,99 +2269,7 @@ function anlRenderCmGradeTable(gradedListings, targetHouse, targetScore, targetL
   tblEl.style.display = '';
 }
 
-// ── anlCmImportLive: trigger userscript Tampermonkey per raccogliere prezzi
-//    live dalla pagina Cardmarket. Apre tab CM, registra handler sul parent
-//    via _rbRegisterPriceHandler (stesso meccanismo del Collector verify).
-//    Se userscript installato, dopo qualche secondo arriva postMessage con
-//    listings (incluse carte gradate); altrimenti timeout 30s con messaggio
-//    chiaro all'utente.
-window.anlCmImportLive = async function(){
-  var btn   = document.getElementById('anlSrcCmLive');
-  var linkA = document.getElementById('anlSrcCmLink');
-  var noteEl= document.getElementById('anlSrcCmNote');
-  var priceEl=document.getElementById('anlSrcCm');
-  if(!btn || !linkA) return;
-
-  var card = window._anlCurrentCard;
-  if(!card){ alert('Carica prima una carta nel box Analizza'); return; }
-
-  // Helper per registrare handler sul parent (cross-frame)
-  var register   = rbParentFn('_rbRegisterPriceHandler');
-  var unregister = rbParentFn('_rbUnregisterPriceHandler');
-  if(!register || !unregister){
-    if(noteEl) noteEl.textContent = 'bridge price handler non disponibile';
-    return;
-  }
-
-  var origLabel = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = '↻ importazione…';
-  if(priceEl){ priceEl.classList.add('loading'); }
-  if(noteEl) noteEl.textContent = 'apro Cardmarket — attendo userscript…';
-
-  // Apri la tab CM (stesso URL del link "apri →"). Necessario open prima
-  // della Promise per non perdere il gesto utente (popup blocker).
-  var cmTab;
-  try { cmTab = window.open(linkA.href, '_blank'); } catch(_){}
-  if(!cmTab){
-    if(noteEl) noteEl.textContent = 'browser ha bloccato il popup CM';
-    btn.disabled = false; btn.textContent = origLabel;
-    return;
-  }
-
-  var idx = 'anl_'+Date.now();
-  var result = await new Promise(function(resolve){
-    var timer = setTimeout(function(){ resolve({_timeout:true}); }, 35000);
-    register(idx, function(prices, data, listings){
-      clearTimeout(timer);
-      resolve({ prices: prices, listings: listings||[], status: data&&data.status, reason: data&&data.reason });
-    });
-  });
-
-  if(result && result._timeout){
-    unregister(idx);
-    if(noteEl) noteEl.textContent = 'timeout 35s — userscript Tampermonkey non rilevato';
-    if(priceEl) priceEl.classList.remove('loading');
-    btn.disabled = false; btn.textContent = origLabel;
-    return;
-  }
-  if(result && result.status === 'no_prices'){
-    if(noteEl) noteEl.textContent = 'nessuna offerta sulla pagina CM';
-    if(priceEl) priceEl.classList.remove('loading');
-    btn.disabled = false; btn.textContent = origLabel;
-    return;
-  }
-  if(!result || !result.listings || !result.listings.length){
-    if(noteEl) noteEl.textContent = 'nessun listing ricevuto';
-    if(priceEl) priceEl.classList.remove('loading');
-    btn.disabled = false; btn.textContent = origLabel;
-    return;
-  }
-
-  // Successo: passa i listings al render normale di anlPopCm.
-  // Trasformo nella shape attesa: {listings: [{price, condition, comment, ...}, ...]}
-  // Il parser anlParseGrading riconoscerà PSA/BGS/CGS dai comment.
-  var data = {
-    listings: result.listings.map(function(l){
-      return {
-        price:     l.price,
-        condition: l.condition || 'NM',
-        comment:   l.comment || l.note || l.seller_comment || l.label || '',
-      };
-    }),
-    _summary: { source: 'userscript_live', count: result.listings.length },
-  };
-  try { anlPopCm(data, card); } catch(e){ console.warn('anlPopCm error', e); }
-
-  // Chiudi tab CM dopo breve delay (lascia all'utente vedere se vuole)
-  try { if(cmTab && !cmTab.closed) setTimeout(function(){ try{cmTab.close();}catch(_){} }, 1500); } catch(_){}
-
-  btn.disabled = false; btn.textContent = origLabel;
-};
-
 function anlPopCm(data, card){
-  // Salva la card corrente per anlCmImportLive (rilettura post-render)
-  window._anlCurrentCard = card;
   var priceEl=document.getElementById('anlSrcCm');
   var noteEl =document.getElementById('anlSrcCmNote');
   var tblEl  =document.getElementById('anlSrcCmTable');
