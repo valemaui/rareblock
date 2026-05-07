@@ -1317,6 +1317,39 @@ async function anlGetUsdEur(){
 }
 
 async function anlFetchSmooth(body){
+  // ─── Pre-fetch HTML via estensione RareBlock Hunter (v2.5+) ──────────
+  // Se l'utente ha l'extension installata, fa fetch HTML lato browser
+  // (cookie + IP residenziale) e lo passa nel body. L'edge function
+  // skippa proxy/ScrapingBee. Su eBay è l'unico modo per ottenere dati.
+  // Su CM evita di consumare crediti proxy.
+  // Fallback automatico se extension assente o fetch fallito.
+  try {
+    var extFetch = (window.parent && window.parent.rbExtFetch) || window.rbExtFetch;
+    if (typeof extFetch === 'function' && Array.isArray(body.urls) && body.urls.length){
+      var ready = await extFetch.isReady();
+      if (ready){
+        var fetched = await Promise.all(body.urls.map(function(u){
+          return extFetch(u).catch(function(){ return null; });
+        }));
+        // Tutte le fetch riuscite con HTML valido?
+        var allOk = fetched.every(function(f){ return f && f.ok && f.html && f.html.length > 500; });
+        if (allOk){
+          body = Object.assign({}, body, { provided_html: fetched.map(function(f){ return f.html; }) });
+          console.log('[anlFetchSmooth] HTML pre-fetched via extension: '+body.urls.length+' urls');
+        } else {
+          var failed = fetched.filter(function(f){ return !f || !f.ok; }).length;
+          if (failed > 0) console.log('[anlFetchSmooth] extension fetch parziale ('+(body.urls.length-failed)+'/'+body.urls.length+' ok), fallback misto');
+          // Passa solo gli HTML validi: per gli URL dove extension ha
+          // fallito, l'edge function farà il suo fetch normale.
+          var partial = fetched.map(function(f){ return (f && f.ok && f.html && f.html.length > 500) ? f.html : null; });
+          body = Object.assign({}, body, { provided_html: partial });
+        }
+      }
+    }
+  } catch (e){
+    console.warn('[anlFetchSmooth] extension fetch error:', e && e.message);
+  }
+
   var sessionToken=window._rbSession&&window._rbSession.access_token;
   var firstToken=sessionToken||SUPA_KEY;
   async function doCall(bearer){

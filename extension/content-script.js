@@ -72,6 +72,39 @@
       });
       return;
     }
+
+    // ── Fetch HTML grezzo (v2.5+) ──
+    // Used by Analizza, Verify CM price, Hunter (alternativa scraping DOM).
+    // Fa fetch via service worker con cookie utente — niente tab aperte.
+    if (d.type === 'rb-fetch-html-request' && d.requestId && d.url) {
+      chrome.runtime.sendMessage({
+        type: 'rb-fetch-html',
+        url: d.url,
+        headers: d.headers || {},
+      }, function (response) {
+        if (chrome.runtime.lastError) {
+          window.postMessage({
+            type: 'rb-fetch-html-response',
+            requestId: d.requestId,
+            ok: false,
+            error: 'extension service worker non raggiungibile: ' + chrome.runtime.lastError.message,
+          }, '*');
+          return;
+        }
+        window.postMessage({
+          type: 'rb-fetch-html-response',
+          requestId: d.requestId,
+          ok: !!(response && response.ok),
+          status: response?.status,
+          html: response?.html || '',
+          url: response?.url || d.url,
+          length: response?.length || 0,
+          error: response?.error || null,
+          duration_ms: response?.duration_ms || null,
+        }, '*');
+      });
+      return;
+    }
   });
 
   // Annuncia all'avvio + dopo 1s + dopo load completo

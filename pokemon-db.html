@@ -12848,6 +12848,111 @@ function radScanMatchItem(item, job){
 //   }
 // ═══════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════
+// rbExtFetch — Fetch HTML grezzo via estensione RareBlock Hunter (v2.5+)
+//
+// Bypassa proxy ScrapingBee per CM/eBay/PC: usa il browser dell'utente
+// come gateway residenziale. Se l'estensione non è installata, ritorna
+// null e il caller cade sul fallback server-side (proxy o errore).
+//
+// API:
+//   const result = await rbExtFetch(url);
+//   result.ok    : true se fetch riuscito
+//   result.status: HTTP status (200/403/451/...)
+//   result.html  : body completo (string)
+//   result.length, result.duration_ms, result.error
+//
+//   const ready = await rbExtFetch.isReady();
+//   ready: true se estensione installata e capacità 'fetch-html' esposta.
+// ═══════════════════════════════════════════════════════════════════════
+window.rbExtFetch = (function(){
+  var _ready = null;       // null=mai pingato, true/false=conosciuto
+  var _capsKnown = [];
+  var _readyPromise = null;
+  var DETECT_TIMEOUT_MS = 800;
+  var FETCH_TIMEOUT_MS = 30000;
+
+  // Listener permanente: cattura eventuali rb-extension-ready spontanei
+  window.addEventListener('message', function(ev){
+    if(ev.source !== window || !ev.data) return;
+    if(ev.data.type !== 'rb-extension-ready') return;
+    _capsKnown = ev.data.capabilities || [];
+    _ready = (_capsKnown.indexOf('fetch-html') >= 0);
+  });
+
+  function isReady(){
+    if(_ready !== null) return Promise.resolve(_ready);
+    if(_readyPromise) return _readyPromise;
+
+    _readyPromise = new Promise(function(resolve){
+      var done = false;
+      function onMsg(ev){
+        if(done || ev.source !== window) return;
+        if(!ev.data || ev.data.type !== 'rb-extension-ready') return;
+        done = true;
+        window.removeEventListener('message', onMsg);
+        _capsKnown = ev.data.capabilities || [];
+        _ready = (_capsKnown.indexOf('fetch-html') >= 0);
+        resolve(_ready);
+      }
+      window.addEventListener('message', onMsg);
+      window.postMessage({ type: 'rb-ext-ping' }, '*');
+      setTimeout(function(){
+        if(done) return;
+        done = true;
+        window.removeEventListener('message', onMsg);
+        _ready = false;
+        resolve(false);
+      }, DETECT_TIMEOUT_MS);
+    });
+
+    return _readyPromise;
+  }
+
+  function fetchHtml(url, opts){
+    opts = opts || {};
+    return isReady().then(function(ok){
+      if(!ok) return null;
+      return new Promise(function(resolve){
+        var requestId = 'fetch_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+        var t0 = Date.now();
+        var timer = setTimeout(function(){
+          window.removeEventListener('message', onMsg);
+          resolve({ ok:false, error:'timeout extension fetch ('+FETCH_TIMEOUT_MS+'ms)', duration_ms: Date.now()-t0 });
+        }, opts.timeout || FETCH_TIMEOUT_MS);
+        function onMsg(ev){
+          if(ev.source !== window || !ev.data) return;
+          if(ev.data.type !== 'rb-fetch-html-response') return;
+          if(ev.data.requestId !== requestId) return;
+          clearTimeout(timer);
+          window.removeEventListener('message', onMsg);
+          resolve({
+            ok: !!ev.data.ok,
+            status: ev.data.status,
+            html: ev.data.html || '',
+            length: ev.data.length || 0,
+            url: ev.data.url || url,
+            error: ev.data.error || null,
+            duration_ms: ev.data.duration_ms || (Date.now()-t0),
+          });
+        }
+        window.addEventListener('message', onMsg);
+        window.postMessage({
+          type: 'rb-fetch-html-request',
+          requestId: requestId,
+          url: url,
+          headers: opts.headers || {},
+        }, '*');
+      });
+    });
+  }
+
+  fetchHtml.isReady = isReady;
+  fetchHtml._caps = function(){ return _capsKnown.slice(); };
+  return fetchHtml;
+})();
+
+
 // ── Provider 1: Estensione Chrome (preferito — IP residenziale, no Cloudflare) ─
 var ProviderExtension = (function(){
   var EXT_AVAILABLE = false;

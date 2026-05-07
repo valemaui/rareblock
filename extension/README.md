@@ -23,8 +23,20 @@ L'utente vede una tab che si apre per ~5-10s e si chiude da sola.
 | Sito | Strategia | Note |
 |---|---|---|
 | **Catawiki** | `__NEXT_DATA__` JSON + DOM fallback | Bypassa Cloudflare ✓ |
-| **eBay** (it/com/de/uk/fr/es) | DOM `li.s-item` | Funziona sempre |
-| **Subito** | `__NEXT_DATA__` JSON + DOM | Funziona sempre |
+| **eBay** (it/com/de/uk/fr/es) | DOM `li.s-item` (Hunter) o fetch HTML (Analizza) | ✓ |
+| **Subito** | `__NEXT_DATA__` JSON + DOM | ✓ |
+| **Cardmarket** (v2.5) | Fetch HTML grezzo via `credentials:'include'` | Usa cookie utente |
+| **PriceCharting** (v2.5) | Fetch HTML grezzo via `credentials:'include'` | Sostituzione proxy |
+
+### Capacità v2.5+
+
+- **`scrape`** (legacy): apre tab nascosta, inietta scraper DOM, chiude tab.
+  Usato per Hunter/Radar (live aste).
+- **`fetch-html`** (nuovo): `fetch()` da service worker con `credentials:'include'`.
+  Restituisce HTML grezzo che l'edge function `smooth-endpoint` parsa lato server.
+  Zero tab aperte, throttle 1.5s/dominio. Funziona perché Chrome auto-include
+  i cookie del dominio target (se l'utente ha mai navigato CM/eBay loggato).
+  Bypassa completamente i proxy a pagamento.
 
 ## Installazione (sviluppo / unpacked)
 

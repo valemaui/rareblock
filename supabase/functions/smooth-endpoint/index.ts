@@ -478,6 +478,24 @@ Deno.serve(async (req) => {
     if (source === 'unknown' || !urls.length) {
       return json({ error: 'url/source non valido', listings: [], prices: [] });
     }
+
+    // ─── HTML pre-fetched dal client (extension RareBlock Hunter v2.5+) ───
+    // Body può contenere provided_html: array (stesso index degli URLs) di
+    // strings HTML o null. Pre-popola la cache: fetchWithRetry trova hit
+    // immediato e salta totalmente il network IO + proxy. Slot null vengono
+    // saltati e il loro URL passa per il flusso standard (cache → direct → proxy).
+    if (Array.isArray(body?.provided_html) && body.provided_html.length === urls.length) {
+      let injected = 0;
+      for (let i = 0; i < urls.length; i++) {
+        const html = body.provided_html[i];
+        if (typeof html === 'string' && html.length > 500) {
+          await cachePut(urls[i], html, 200, 'extension').catch(() => {});
+          injected++;
+        }
+      }
+      if (injected > 0) console.log(`[smooth-endpoint] extension pre-fetch: ${injected}/${urls.length} HTML injected in cache`);
+    }
+
     if (source === 'cardmarket')      return await handleCardmarket(firstUrl, body?.debug === true);
     if (source === 'pricecharting')   return await handlePriceChartingCascade(urls, body?.card_name, body?.debug === true, { firstEdition: body?.first_edition === true });
     if (source === 'ebay_sold')       return await handleEbaySoldCascade(urls, Number(body?.min_hits ?? 3), body?.merge === true);
