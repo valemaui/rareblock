@@ -246,9 +246,40 @@ async function fetchViaProxy(url: string, opts?: { js?: boolean; premium?: boole
 
     const ok = resp.ok && html.length > 1000 && !cfChallenge && !ebayBlock && !cmBlock;
     if (!ok) {
-      console.warn(`[proxy] block detected: cf=${cfChallenge} ebay=${ebayBlock} cm=${cmBlock} status=${upstreamStatus} len=${html.length}`);
+      // Log dettagliato per capire perché il filtro ha scartato:
+      // - cosa ha matchato (cf/ebay/cm)
+      // - dimensione html
+      // - tag <title> (utile per identificare "Pardon Our Interruption" vs altro)
+      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+      const title = titleMatch ? titleMatch[1].trim().substring(0, 100) : '(no title)';
+      // Conta pattern positivi che AVREMMO voluto trovare:
+      const itmCount = (html.match(/\/itm\//g) || []).length;
+      const sItemCount = (html.match(/s-item/g) || []).length;
+      const srpResultsHit = /srp-results/i.test(html);
+      console.warn(
+        `[proxy] block detected: cf=${cfChallenge} ebay=${ebayBlock} cm=${cmBlock} ` +
+        `status=${upstreamStatus} len=${html.length} title="${title}" ` +
+        `itm=${itmCount} s-item=${sItemCount} srp=${srpResultsHit}`
+      );
+    } else if (isEbay) {
+      // Anche su success, log info per validare che siamo sulla pagina giusta
+      const itmCount = (html.match(/\/itm\//g) || []).length;
+      console.log(`[proxy] eBay OK: len=${html.length} itm-links=${itmCount}`);
     }
-    return { html, ok, status: upstreamStatus };
+    // _proxyDiag esposto per ispezione frontend (solo su block)
+    let _proxyDiag: any = null;
+    if (!ok) {
+      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+      const title = titleMatch ? titleMatch[1].trim().substring(0, 100) : '(no title)';
+      _proxyDiag = {
+        cf: cfChallenge, ebay: ebayBlock, cm: cmBlock,
+        status: upstreamStatus, len: html.length, title,
+        itm: (html.match(/\/itm\//g) || []).length,
+        s_item: (html.match(/s-item/g) || []).length,
+        srp: /srp-results/i.test(html),
+      };
+    }
+    return { html, ok, status: upstreamStatus, _proxyDiag } as any;
   } catch (e) {
     console.warn('[proxy] fetch failed:', String(e));
     return { html: '', ok: false, status: 0 };
@@ -337,7 +368,12 @@ async function fetchWithRetry(url: string, maxRetries = 2, referer?: string): Pr
               return { ...proxied, via: isEbay ? 'proxy_stealth' : 'proxy_premium' } as any;
             }
             console.warn(`[fetchWithRetry] proxy also failed (${isEbay?'stealth':'premium'}): status=${proxied.status} len=${proxied.html.length}`);
-            return { html, ok: false, status: cfChallenge ? 403 : (ebaySoftBlock ? 451 : 403), via: 'proxy_failed' } as any;
+            return {
+              html, ok: false,
+              status: cfChallenge ? 403 : (ebaySoftBlock ? 451 : 403),
+              via: 'proxy_failed',
+              _proxyDiag: (proxied as any)._proxyDiag,
+            } as any;
           }
           // Restituiamo comunque l'HTML per la diagnostica client
           return { html, ok: false, status: cfChallenge ? 403 : (ebaySoftBlock ? 451 : 403), via: 'no_proxy' } as any;
@@ -2022,7 +2058,15 @@ async function handleEbaySoldCascade(urls: string[], minHits: number, merge = fa
       if (!r.ok) {
         attempts.push({ url: r.url, count: 0, error: `HTTP ${r.status} (${r.via||'?'})` });
         perQueryCounts.push({ url: r.url, raw: 0, new: 0 });
-        diagPerUrl.push({ url: r.url, diag: { http_error: r.status, via: r.via } });
+        const proxyDiag = (r as any)._proxyDiag;
+        diagPerUrl.push({
+          url: r.url,
+          diag: {
+            http_error: r.status,
+            via: r.via,
+            ...(proxyDiag ? { proxy: proxyDiag } : {}),
+          }
+        });
         continue;
       }
       if (!primaryCurrency) primaryCurrency = r.currency;
