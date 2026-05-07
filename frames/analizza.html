@@ -1505,9 +1505,9 @@ async function anlStartLiveFetches(card){
       // MERGE MODE: combina tutti gli URL, dedup per (titleNormalized, price, currency).
       // Restituisce items[] con titoli — usati dal client per filtri raw/graded e lingua.
       var data=await anlFetchSmooth({source:'ebay_sold', urls:urls, url:urls[0], min_hits:3, merge:true});
-      if(data.error && (!data.items || !data.items.length)){ anlPopEbay(data,data.error); return; }
-      anlPopEbay(data);
-    }catch(e){ anlPopEbay(null,e.message||'errore rete'); }
+      if(data.error && (!data.items || !data.items.length)){ anlPopEbay(data,data.error,card); return; }
+      anlPopEbay(data, null, card);
+    }catch(e){ anlPopEbay(null,e.message||'errore rete', card); }
   })();
 
   // eBay LIVE ASKS — inserzioni attive (non venduti) per stesso target
@@ -2559,7 +2559,48 @@ function anlPopCm(data, card){
   anlRenderProjection();
 }
 
-function anlPopEbay(data, err){
+function anlPopEbay(data, err, card){
+  // ── SANITY FILTER ──
+  // Se il proxy ScrapingBee restituisce una pagina di blocco eBay con
+  // listings di "raccomandazioni" (carte casuali), il parser estrae listings
+  // che non c'entrano nulla con la nostra carta. Filtriamo qui qualsiasi
+  // item il cui titolo non contiene il nome della carta. Se dopo il filtro
+  // resta meno del 30% dei risultati, scartiamo tutto (sicuro di blocco).
+  if(card && data && Array.isArray(data.items) && data.items.length){
+    var keywords = (card.name||'').toLowerCase()
+      .replace(/[-]/g,' ')                          // 'Groudon-EX' → 'Groudon EX'
+      .split(/\s+/)
+      .filter(function(w){ return w.length>=3; });   // skip 'EX','GX' etc per il primo check
+    if(keywords.length){
+      var primary = keywords[0];                    // es 'groudon'
+      var before = data.items.length;
+      var filteredItems = data.items.filter(function(it){
+        var t = (it.title||'').toLowerCase();
+        return t.indexOf(primary) !== -1;
+      });
+      var ratio = filteredItems.length / before;
+      // Se almeno 1/3 dei listings menziona la parola chiave, ok il subset
+      if(filteredItems.length >= 3 && ratio >= 0.30){
+        if(filteredItems.length < before){
+          console.warn('[anl eBay] sanity filter: '+(before-filteredItems.length)+'/'+before+' listings scartati (no match "'+primary+'" nel titolo)');
+        }
+        data.items = filteredItems;
+        if(Array.isArray(data.prices)){
+          // Riallinea prices con items filtrati (per dedup price-only fallback)
+          data.prices = filteredItems.map(function(it){ return it.price; });
+        }
+        if(typeof data.count === 'number') data.count = filteredItems.length;
+      } else if (before >= 3 && ratio < 0.30) {
+        // Massa di listings non correlati = pagina di blocco con raccomandazioni.
+        console.error('[anl eBay] BLOCK DETECTED: '+before+' listings ricevuti ma solo '+filteredItems.length+' menziona "'+primary+'" → scarto tutto (cache contaminata o pagina anti-bot)');
+        data.items = [];
+        data.prices = [];
+        data.count = 0;
+        err = 'cache contaminata · ricaricare con purge';
+      }
+    }
+  }
+
   var priceEl=document.getElementById('anlSrcEb');
   var noteEl=document.getElementById('anlSrcEbNote');
   if(err || !data || (!data.count && !(data.items && data.items.length))){

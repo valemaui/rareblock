@@ -212,7 +212,34 @@ async function fetchViaProxy(url: string, opts?: { js?: boolean; premium?: boole
     // ScrapingBee ritorna 200 anche con upstream 4xx/5xx; il vero status
     // upstream è in header Spb-original-status.
     const upstreamStatus = parseInt(resp.headers.get('Spb-original-status') || '0', 10) || resp.status;
-    const ok = resp.ok && html.length > 1000 && !/Just a moment|cf-browser-verification/i.test(html);
+
+    // ── Validazione soft-block ──
+    // Anche con proxy residential, eBay/CM possono ritornare pagine di
+    // blocco che però rispondono 200 con html valido e listings finti
+    // (raccomandazioni). Bisogna scartare attivamente:
+    //   • CF challenge generico (qualsiasi sito)
+    //   • eBay "Pardon Our Interruption" + varianti
+    //   • CM consent/geo-block wall
+    const isEbay = url.includes('ebay.');
+    const isCm = url.includes('cardmarket.com');
+    const cfChallenge = /Just a moment|cf-browser-verification|challenge-platform/i.test(html);
+    const ebayBlock = isEbay && (
+      /Pardon Our Interruption|Robot or human|Please verify yourself|Botbot Be Gone/i.test(html) ||
+      // signin redirect: eBay redirige a /signin se sospettoso
+      /signin\.ebay\.[a-z.]+\/(?:ws\/)?eBayISAPI\.dll\?SignIn/i.test(html) ||
+      // pagina senza markup di SRP (no risultati validi)
+      (html.length < 50000 && !/srp-results|s-item|\/itm\//i.test(html))
+    );
+    const cmBlock = isCm && (
+      /Just a moment|cf-browser-verification/i.test(html) ||
+      // CM consent wall (cookie-only, no contenuto)
+      (html.length < 30000 && /cookieconsent|consent_banner/i.test(html) && !/article-row|article_/i.test(html))
+    );
+
+    const ok = resp.ok && html.length > 1000 && !cfChallenge && !ebayBlock && !cmBlock;
+    if (!ok) {
+      console.warn(`[proxy] block detected: cf=${cfChallenge} ebay=${ebayBlock} cm=${cmBlock} status=${upstreamStatus} len=${html.length}`);
+    }
     return { html, ok, status: upstreamStatus };
   } catch (e) {
     console.warn('[proxy] fetch failed:', String(e));
