@@ -2025,7 +2025,8 @@ async function handleEbaySoldCascade(urls: string[], minHits: number, merge = fa
     type FetchResult = {
       url: string; html: string; ok: boolean; status: number;
       currency: string;
-      via?: string;          // 'cache_hit'|'direct'|'proxy_premium'|'proxy_failed'
+      via?: string;          // 'cache_hit'|'direct'|'proxy_premium'|'proxy_stealth'|'proxy_failed'
+      _proxyDiag?: any;      // Diagnostica proxy quando ok=false
     };
     const fetchTasks: Array<() => Promise<FetchResult>> = urlsCapped.map(url => async () => {
       let u = url;
@@ -2036,7 +2037,11 @@ async function handleEbaySoldCascade(urls: string[], minHits: number, merge = fa
       const currency = /ebay\.com\//.test(u) ? 'USD'
         : /ebay\.co\.uk/.test(u) ? 'GBP'
         : 'EUR';
-      return { url: u, html: r.html, ok: r.ok, status: r.status, currency, via: (r as any).via };
+      return {
+        url: u, html: r.html, ok: r.ok, status: r.status, currency,
+        via: (r as any).via,
+        _proxyDiag: (r as any)._proxyDiag,
+      };
     });
 
     const fetchResults: FetchResult[] = [];
