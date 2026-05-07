@@ -313,6 +313,7 @@ body.embed-mode .page-head .btn{
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-cron" onclick="runEligibilityScan()" id="scanBtn" title="Esegue il cron scanner — non promuove, solo flagga eleggibilità e at-risk">⟳ Esegui scan eleggibilità</button>
+      <button class="btn btn-cron" onclick="openEmailPreviewModal()" id="emailPreviewBtn" title="Invia un'email di preview di un template tier alla tua casella, per verificare il rendering">✉ Test email tier</button>
       <button class="btn" onclick="loadAll()" id="reloadBtn">Aggiorna</button>
     </div>
   </div>
@@ -611,6 +612,57 @@ body.embed-mode .page-head .btn{
     <div class="modal-footer">
       <button class="btn-ghost" onclick="closeModal('modalRevoke')">Annulla</button>
       <button class="btn btn-danger" onclick="confirmRevoke()" id="revokeBtn">Revoca GOLD</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: PREVIEW EMAIL TIER ── -->
+<div class="modal-backdrop" id="modalEmailPreview" onclick="if(event.target===this)closeModal('modalEmailPreview')">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Preview email tier</div>
+      <button class="modal-close" onclick="closeModal('modalEmailPreview')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-info">Invia una preview del template alla casella scelta. Il subject sarà prefissato con <b>[PREVIEW]</b> e l'email viene aggiunta a <code>email_outbox</code> come tutte le altre.</div>
+
+      <div class="field">
+        <label>Email destinatario</label>
+        <input type="email" id="emailPreviewTo" placeholder="tu@esempio.com" autocomplete="off"/>
+        <div class="field-hint">L'email viene messa in coda nell'outbox. Verrà inviata al prossimo ciclo del worker SMTP.</div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Tipo notifica</label>
+          <select id="emailPreviewKind" onchange="_updatePreviewKindHint()">
+            <option value="promotion">Promozione (rank up)</option>
+            <option value="demotion">Retrocessione (rank down)</option>
+            <option value="expired">Scadenza PRO</option>
+            <option value="eligible">Eleggibilità GOLD raggiunta</option>
+          </select>
+        </div>
+        <div class="field" id="emailPreviewTransition">
+          <label>Da → A</label>
+          <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center">
+            <select id="emailPreviewFromTier">
+              <option value="basic">BASIC</option>
+              <option value="pro" selected>PRO</option>
+              <option value="gold">GOLD</option>
+            </select>
+            <span style="color:var(--text-subtle);font-family:var(--mono);font-size:13px">→</span>
+            <select id="emailPreviewToTier">
+              <option value="basic">BASIC</option>
+              <option value="pro">PRO</option>
+              <option value="gold" selected>GOLD</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal('modalEmailPreview')">Annulla</button>
+      <button class="btn btn-primary" onclick="sendEmailPreview()" id="emailPreviewSendBtn">Invia preview</button>
     </div>
   </div>
 </div>
@@ -1338,6 +1390,73 @@ async function runEligibilityScan(){
   }finally{
     btn.disabled = false;
     btn.textContent = orig;
+  }
+}
+
+// ── ACTION: PREVIEW EMAIL TIER ──
+function openEmailPreviewModal(){
+  // Pre-fill con email admin corrente se disponibile
+  var defaultTo = (_session && _session.user && _session.user.email) || '';
+  document.getElementById('emailPreviewTo').value = defaultTo;
+  document.getElementById('emailPreviewKind').value = 'promotion';
+  document.getElementById('emailPreviewFromTier').value = 'pro';
+  document.getElementById('emailPreviewToTier').value = 'gold';
+  _updatePreviewKindHint();
+  openModal('modalEmailPreview');
+}
+
+function _updatePreviewKindHint(){
+  var k = document.getElementById('emailPreviewKind').value;
+  var trans = document.getElementById('emailPreviewTransition');
+  // 'eligible' e 'expired' non hanno transizione tier configurabile lato preview
+  if(k === 'eligible' || k === 'expired'){
+    trans.style.opacity = '0.4';
+    trans.style.pointerEvents = 'none';
+  } else {
+    trans.style.opacity = '1';
+    trans.style.pointerEvents = 'auto';
+  }
+  // Auto-suggest from/to coerenti
+  var fromSel = document.getElementById('emailPreviewFromTier');
+  var toSel   = document.getElementById('emailPreviewToTier');
+  if(k === 'promotion'){
+    if(_tierRankLocal(toSel.value) <= _tierRankLocal(fromSel.value)){
+      fromSel.value = 'basic'; toSel.value = 'pro';
+    }
+  } else if(k === 'demotion'){
+    if(_tierRankLocal(toSel.value) >= _tierRankLocal(fromSel.value)){
+      fromSel.value = 'gold'; toSel.value = 'basic';
+    }
+  }
+}
+
+function _tierRankLocal(t){
+  return ({basic:1, pro:2, gold:3})[t] || 0;
+}
+
+async function sendEmailPreview(){
+  var to   = document.getElementById('emailPreviewTo').value.trim();
+  var kind = document.getElementById('emailPreviewKind').value;
+  var from = document.getElementById('emailPreviewFromTier').value;
+  var ttier= document.getElementById('emailPreviewToTier').value;
+  if(!to){ toast('Email destinatario obbligatoria','err'); return; }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)){ toast('Email non valida','err'); return; }
+
+  var btn = document.getElementById('emailPreviewSendBtn');
+  btn.disabled = true; btn.textContent = 'Invio in corso...';
+  try{
+    var id = await rpc('admin_send_tier_email_preview', {
+      p_to_email: to,
+      p_kind: kind,
+      p_to_tier: ttier,
+      p_from_tier: from
+    });
+    closeModal('modalEmailPreview');
+    toast('Preview accodata in outbox ✓ (id: '+(id||'').toString().substring(0,8)+'...)', 'ok');
+  }catch(e){
+    toast('Errore invio: '+(e.message||e), 'err');
+  }finally{
+    btn.disabled=false; btn.textContent='Invia preview';
   }
 }
 
