@@ -15339,9 +15339,16 @@ function _frameMarket(){
   }catch(_){ return null; }
 }
 async function openSellModal(){
-  if(!_session){ alert('Accedi per vendere le tue quote'); return; }
+  console.log('[sellModal] openSellModal called');
+  if(!_session){
+    console.warn('[sellModal] no _session');
+    alert('Accedi per vendere le tue quote'); return;
+  }
+  console.log('[sellModal] _session OK, user:', _session.user && _session.user.id);
   var fw = _frameMarket();
+  console.log('[sellModal] _frameMarket():', fw ? 'OK' : 'NULL');
   var holdings = (fw && fw._myHoldingsForSell) || [];
+  console.log('[sellModal] holdings from frame:', holdings.length);
   // Se il frame Market non ha ancora caricato le holdings (es. utente clicca
   // "Vendi" senza aver mai aperto Marketplace o prima del fetch), facciamo
   // un fetch diretto qui per non lasciare il select vuoto.
@@ -15349,35 +15356,47 @@ async function openSellModal(){
     try{
       var uid = _session.user && _session.user.id;
       if(uid){
+        console.log('[sellModal] fetching holdings for uid:', uid);
         holdings = (await supa('GET','inv_holdings?user_id=eq.'+uid))||[];
+        console.log('[sellModal] holdings fetched:', holdings.length);
         if(fw) fw._myHoldingsForSell = holdings; // sincronizza il frame
       }
-    }catch(e){ console.warn('[openSellModal] holdings fetch failed:', e); }
+    }catch(e){ console.error('[sellModal] holdings fetch failed:', e); }
   }
   if(!holdings.length){
+    console.warn('[sellModal] no holdings, abort');
     alert('Non hai quote disponibili da vendere.');
     return;
   }
   var products = (fw && fw._mktProducts) || _mktProducts;
+  console.log('[sellModal] products:', products.length);
   // Anche _mktProducts potrebbe essere vuoto (se Marketplace mai aperto)
   if(!products.length){
     try{
+      console.log('[sellModal] fetching products');
       products = (await supa('GET','v_inv_products_with_cover?order=created_at.desc&limit=500'))
               || (await supa('GET','inv_products?order=created_at.desc&limit=500'))
               || [];
       window._mktProducts = products;
-    }catch(e){ console.warn('[openSellModal] products fetch failed:', e); }
+      console.log('[sellModal] products fetched:', products.length);
+    }catch(e){ console.error('[sellModal] products fetch failed:', e); }
   }
   var sel = document.getElementById('sellProduct');
+  console.log('[sellModal] sellProduct element:', sel ? 'OK' : 'NULL');
+  if(!sel){ alert('UI error: sellProduct not found'); return; }
   sel.innerHTML = holdings.map(function(h){
     var p = products.find(function(x){ return x.id===h.product_id; });
     return '<option value="'+h.product_id+'" data-max="'+h.qty+'">'+(p?esc(p.name):'—')+' ('+h.qty+' quote)</option>';
   }).join('');
+  console.log('[sellModal] options populated:', sel.options.length);
   sellUpdateMax();
   document.getElementById('sellExpiry').value='';
   document.getElementById('sellNotes').value='';
   document.getElementById('sellSt').innerHTML='';
-  document.getElementById('sellModalBg').classList.add('show');
+  var bg = document.getElementById('sellModalBg');
+  console.log('[sellModal] sellModalBg element:', bg ? 'OK' : 'NULL');
+  if(bg) bg.classList.add('show');
+  console.log('[sellModal] modal opened');
 }
 async function openSellFromHolding(hid, pid, qty){
   await openSellModal();
