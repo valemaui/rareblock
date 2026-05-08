@@ -8790,6 +8790,27 @@ function showTab(t){
   if(t==='vendor') vendorLoadProducts();
   if(t==='admin')  adminLoad();
   if(t==='contracts') ctrLoad();
+
+  // Trigger reload sui frame Investor (lazy-data: il frame parte al boot
+  // dell'iframe ma allora _session/_mktProducts potrebbero non essere
+  // ancora popolati dal parent — qui re-invochiamo il loader ad ogni
+  // showTab cosi' i dati arrivano sempre freschi e con auth pronta).
+  var iframeReloadMap = {
+    tx:     ['txFrame', 'txLoad'],
+    agenda: ['agendaFrame', 'agendaLoad'],
+    market: ['marketFrame', 'marketLoad']
+  };
+  if(iframeReloadMap[t]){
+    var frameId = iframeReloadMap[t][0];
+    var fnName  = iframeReloadMap[t][1];
+    try{
+      var f = document.getElementById(frameId);
+      var fw = f && f.contentWindow;
+      if(fw && typeof fw[fnName] === 'function'){
+        fw[fnName]();
+      }
+    }catch(e){ console.warn('[showTab] iframe reload failed for', t, ':', e); }
+  }
 }
 
 
