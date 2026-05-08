@@ -4066,6 +4066,12 @@ window.rbMountSetPicker = function(opts){
         console.error('[setpicker] mount failed for', m.c, ':', e);
       }
     });
+    // Background: aggiorna msSetsAll dalla TCG API per avere TUTTI i ~177 set
+    // anziche' i 112 della lista statica. scLoadAllSets gestisce sia
+    // scState.allSets che msSetsAll (vedi modulo Scan).
+    if(typeof scLoadAllSets === 'function'){
+      try{ scLoadAllSets(); }catch(e){ console.warn('[setpicker] scLoadAllSets failed:', e); }
+    }
   }
   // Mount al DOM ready (i container <div id="...-setpicker"> devono esserci).
   // Provo subito (nel caso DOMContentLoaded sia gia' passato) e mi registro
@@ -8271,6 +8277,15 @@ async function scLoadAllSets(){
         scState.allSets = d.data.map(function(s){
           return { id:s.id, name:s.name, series:s.series||'', releaseDate:s.releaseDate||'', ptcgoCode:s.ptcgoCode||'' };
         });
+        // Aggiorna anche msSetsAll usato dai setpicker (q-, pq-, emReplaceQ-)
+        // cosi' il dropdown 'Filtra set' mostra tutti i ~177 set TCG anziche'
+        // i 112 della lista statica.
+        try{
+          window.msSetsAll = d.data.slice().sort(function(a,b){
+            return (b.releaseDate||'').localeCompare(a.releaseDate||'');
+          });
+          console.log('[setpicker] msSetsAll upgraded from TCG API:', window.msSetsAll.length, 'sets');
+        }catch(e){ console.warn('[setpicker] msSetsAll upgrade failed:', e); }
       }
     })
     .catch(function(e){ console.warn('scLoadAllSets API:', e); /* usa lista statica */ })
