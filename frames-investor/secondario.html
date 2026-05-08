@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Mercato Secondario</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../shared/rareblock-shared.css"/>
+<style>
+html,body{height:100%;overflow:hidden}
+body{display:flex;flex-direction:column}
+
+/* Market styles (estratto 1:1 da rareblock-dashboard.html L4044-4080) */
+/* ═══ MERCATO SECONDARIO ═══ */
+.market-wrap{flex:1;overflow-y:auto;padding:20px 24px;display:flex;gap:20px}
+.market-left{flex:1;min-width:0}
+.market-right{width:340px;flex-shrink:0;display:flex;flex-direction:column;gap:14px}
+.market-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px}
+.market-card-title{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;font-family:var(--mono);margin-bottom:14px}
+.market-howto{list-style:none;padding:0;margin:0;counter-reset:item}
+.market-howto li{counter-increment:item;font-size:12.5px;color:var(--text-muted);line-height:1.55;padding-left:24px;position:relative;margin-bottom:10px}
+.market-howto li::before{content:counter(item);position:absolute;left:0;top:0;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-family:var(--mono);font-weight:600;color:var(--accent);background:var(--accent-soft);border-radius:50%}
+.market-howto li:last-child{margin-bottom:0}
+.offer-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px;transition:border-color var(--t-fast)}
+.offer-card:hover{border-color:var(--border-strong)}
+.offer-card.reserved{border-color:rgba(210,153,34,.4);background:rgba(210,153,34,.04)}
+.offer-card.payment_pending{border-color:rgba(88,166,255,.35);background:rgba(88,166,255,.04)}
+.offer-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.offer-product{font-size:13px;font-weight:600}
+.offer-seller{font-size:11px;color:var(--text-muted);font-family:var(--mono);margin-top:2px}
+.offer-price{font-size:18px;font-weight:600;font-family:var(--mono);color:var(--gold);text-align:right}
+.offer-qty{font-size:12px;color:var(--text-muted);text-align:right;margin-top:2px}
+.offer-actions{display:flex;gap:6px;flex-wrap:wrap}
+.offer-status-pill{
+  display:inline-flex;align-items:center;
+  font-size:9.5px;font-family:var(--mono);font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;
+  padding:3px 8px;border-radius:20px;
+  border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);
+  white-space:nowrap;
+}
+.offer-status-pill.reserved{background:rgba(210,153,34,.1);color:var(--warning);border-color:rgba(210,153,34,.3)}
+.offer-status-pill.payment_pending{background:rgba(88,166,255,.08);color:var(--accent);border-color:rgba(88,166,255,.25)}
+.offer-status-pill.completed{background:rgba(63,185,80,.1);color:var(--success);border-color:rgba(63,185,80,.25)}
+.offer-deadline{
+  font-size:11px;font-family:var(--mono);
+  color:var(--warning);
+  display:flex;align-items:center;gap:4px;
+}
+
+
+
+/* Empty state */
+.empty-state{text-align:center;padding:48px 24px;color:var(--text-muted)}
+.empty-state .icon{font-size:32px;margin-bottom:10px;opacity:.6}
+.empty-state h3{font-size:14px;font-weight:600;margin-bottom:4px;color:var(--text)}
+.empty-state p{font-size:12px}
+</style>
+</head>
+<body>
+
+<div class="tab" id="tab-market" style="display:flex;flex-direction:column;flex:1">
+  <div class="market-wrap">
+    <!-- Offerte disponibili -->
+    <div class="market-left">
+      <div style="margin-bottom:18px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px">
+          <div>
+            <div style="font-size:15px;font-weight:600;letter-spacing:.005em;display:inline-flex;align-items:center;gap:8px"><span class="rb-i rb-i-swap" style="color:var(--accent)"></span> Mercato secondario</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:3px">Compra e vendi quote tra investitori. <span id="offersCount" style="font-family:var(--mono)"></span></div>
+          </div>
+          <button class="btn primary sm" onclick="openSellModal()"><span class="rb-i rb-i-plus"></span> Vendi le tue quote</button>
+        </div>
+      </div>
+      <div id="offersList">
+        <div class="empty-state"><div class="icon"><span class="rb-i rb-i-swap"></span></div><h3>Nessuna offerta attiva</h3><p>Sii il primo a proporre le tue quote</p></div>
+      </div>
+    </div>
+    <!-- Le tue offerte aperte + Come funziona -->
+    <div class="market-right">
+      <div class="market-card">
+        <div class="market-card-title">Le tue offerte attive</div>
+        <div id="myOffersList">
+          <div style="color:var(--text-muted);font-size:12px;font-style:italic">Nessuna offerta attiva</div>
+        </div>
+      </div>
+      <div class="market-card">
+        <div class="market-card-title">Come funziona</div>
+        <ol class="market-howto">
+          <li>Proponi le tue quote con il prezzo desiderato</li>
+          <li>Il compratore contatta il venditore e si accordano</li>
+          <li>Il compratore deve essere iscritto alla piattaforma</li>
+          <li>Il pagamento avviene tramite bonifico o piattaforma</li>
+          <li>L'admin convalida e trasferisce le quote</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../shared/rareblock-shared.js" defer></script>
+<script defer>
+// ── Bridge: utilities + state condiviso del parent ──
+// Le modali sellModalBg e checkoutModalBg, e le funzioni openSellModal/
+// openSellFromHolding/closeSellModal/sellConfirm/openCheckout/etc
+// VIVONO NEL PARENT. Qui chiamiamo parent.openSellModal() etc.
+(function(){
+  function p(name){
+    try { return (window.parent && window.parent !== window) ? window.parent[name] : undefined; }
+    catch(_){ return undefined; }
+  }
+  // Utilities runtime via getter
+  ['esc','fmt2','fmtDate','setSt','supa','openSellModal','openSellFromHolding','openCheckout','cancelTransfer','typeBadge'].forEach(function(name){
+    if(typeof window[name] === 'undefined'){
+      Object.defineProperty(window, name, {
+        configurable: true,
+        get: function(){ return p(name); }
+      });
+    }
+  });
+  // _session per check auth
+  Object.defineProperty(window, '_session', {
+    configurable: true,
+    get: function(){ return p('_session') || null; }
+  });
+})();
+
+var _allTransfers = [];
+var _myHoldingsForSell = [];
+
+async function marketLoad(){
+  try {
+    // Best-effort: auto-expire reservations scadute prima di caricare
+    try { await supa('POST','rpc/expire_stale_reservations', {}); } catch(eRpc){}
+    // Carica offerte open + le mie reserved/payment_pending (sia come seller che buyer)
+    var uid = _session && _session.user && _session.user.id;
+    if(uid){
+      // Query in OR: open OR seller_id=me OR buyer_id=me
+      // PostgREST: usa or= filter
+      _allTransfers = (await supa('GET','inv_transfers?or=(status.eq.open,seller_id.eq.'+uid+',buyer_id.eq.'+uid+')&order=created_at.desc'))||[];
+    } else {
+      _allTransfers = (await supa('GET','inv_transfers?status=eq.open&order=created_at.desc'))||[];
+    }
+  } catch(e){ _allTransfers=[]; }
+  marketRender();
+  // Populate sell product selector
+  if(_session){
+    var uid2 = _session.user&&_session.user.id;
+    if(uid2){
+      try{ _myHoldingsForSell = (await supa('GET','inv_holdings?user_id=eq.'+uid2))||[]; }catch(e){}
+    }
+  }
+}
+
+function marketRender(){
+  var list   = document.getElementById('offersList');
+  var myList = document.getElementById('myOffersList');
+  document.getElementById('offersCount').textContent = '('+_allTransfers.length+')';
+
+  // Mostra solo offerte in stato 'open' nella lista pubblica
+  var openTransfers = _allTransfers.filter(function(t){return t.status==='open'});
+
+  if(!openTransfers.length){
+    list.innerHTML='<div class="empty-state"><div class="icon"><span class="rb-i rb-i-swap"></span></div><h3>Nessuna offerta attiva</h3><p>Sii il primo a proporre le tue quote</p></div>';
+  } else {
+    list.innerHTML = openTransfers.map(function(t){
+      var p = _mktProducts.find(function(x){ return x.id===t.product_id; });
+      var isMine = _session && _session.user && t.seller_id===_session.user.id;
+      var total = (parseFloat(t.ask_price)||0) * (t.qty||0);
+      return '<div class="offer-card">'
+        +'<div class="offer-card-top">'
+          +'<div style="flex:1;min-width:0">'
+            +'<div class="offer-product">'+(p?esc(p.name):'Prodotto')+'</div>'
+            +'<div class="offer-seller">Venditore #'+esc(t.seller_id&&t.seller_id.slice(0,8).toUpperCase())+(t.notes?' · '+esc(t.notes):'')+'</div>'
+          +'</div>'
+          +'<div style="flex-shrink:0">'
+            +'<div class="offer-price">€'+fmt2(t.ask_price)+'/q</div>'
+            +'<div class="offer-qty">'+t.qty+' quote · €'+fmt2(total)+'</div>'
+          +'</div>'
+        +'</div>'
+        +(t.expires_at?'<div style="font-size:11px;color:var(--text-muted);font-family:var(--mono)">Scade: '+fmtDate(t.expires_at)+'</div>':'')
+        +'<div class="offer-actions">'
+          +(!isMine
+            ?'<button class="btn primary sm" onclick="openCheckout(\''+t.id+'\')"><span class="rb-i rb-i-cart"></span> Acquista</button>'
+            :'<span class="offer-status-pill">Tua offerta</span>'
+          )
+          +(isMine?'<button class="btn danger sm" onclick="cancelTransfer(\''+t.id+'\')">Cancella</button>':'')
+        +'</div>'
+      +'</div>';
+    }).join('');
+  }
+
+  // Le tue offerte: include anche stati reserved/payment_pending
+  var myOffers = _session ? _allTransfers.filter(function(t){ return _session.user&&t.seller_id===_session.user.id; }) : [];
+  // Aggiungi anche le offerte come buyer (prenotazioni in corso)
+  var myAsBuyer = _session ? _allTransfers.filter(function(t){ return _session.user&&t.buyer_id===_session.user.id; }) : [];
+
+  var myHtml = '';
+  if(myOffers.length){
+    myHtml += '<div style="font-size:10.5px;font-family:var(--mono);color:var(--text-subtle);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Vendite in corso</div>';
+    myHtml += myOffers.map(function(t){
+      var p=_mktProducts.find(function(x){return x.id===t.product_id;});
+      var statusLbl = ({open:'Aperta',reserved:'Prenotata',payment_pending:'In attesa pagamento',completed:'Completata'})[t.status]||t.status;
+      return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px;margin-bottom:8px;font-size:12px">'
+        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'
+          +'<div style="flex:1;min-width:0">'
+            +'<div style="font-weight:500">'+(p?esc(p.name):'?')+'</div>'
+            +'<div style="font-family:var(--mono);color:var(--gold)">€'+fmt2(t.ask_price)+'×'+t.qty+' = €'+(t.ask_price*t.qty).toFixed(2)+'</div>'
+          +'</div>'
+          +'<span class="offer-status-pill '+esc(t.status)+'">'+statusLbl+'</span>'
+        +'</div>'
+      +'</div>';
+    }).join('');
+  }
+  if(myAsBuyer.length){
+    myHtml += '<div style="font-size:10.5px;font-family:var(--mono);color:var(--text-subtle);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px">Acquisti in corso</div>';
+    myHtml += myAsBuyer.map(function(t){
+      var p=_mktProducts.find(function(x){return x.id===t.product_id;});
+      var statusLbl = ({reserved:'Prenotato',payment_pending:'Pagamento inviato',completed:'Completato'})[t.status]||t.status;
+      var canOpen = t.status==='reserved' || t.status==='payment_pending';
+      var hint = '';
+      if(t.status==='reserved') hint = 'Click per completare il pagamento &rarr;';
+      else if(t.status==='payment_pending') hint = 'In attesa verifica admin';
+      return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px;margin-bottom:8px;font-size:12px;cursor:'+(canOpen?'pointer':'default')+'" '
+        +(canOpen?'onclick="openCheckout(\''+t.id+'\')"':'')+'>'
+        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'
+          +'<div style="flex:1;min-width:0">'
+            +'<div style="font-weight:500">'+(p?esc(p.name):'?')+'</div>'
+            +'<div style="font-family:var(--mono);color:var(--gold)">€'+fmt2(t.ask_price*t.qty)+' · '+t.qty+' quote</div>'
+          +'</div>'
+          +'<span class="offer-status-pill '+esc(t.status)+'">'+statusLbl+'</span>'
+        +'</div>'
+        +(hint?'<div style="font-size:10.5px;color:var(--accent);margin-top:6px;font-family:var(--mono)">'+hint+'</div>':'')
+      +'</div>';
+    }).join('');
+  }
+  if(!myHtml) myHtml = '<div style="color:var(--text-muted);font-size:12px">Nessuna offerta attiva</div>';
+  myList.innerHTML = myHtml;
+}
+
+
+// Bootstrap del frame
+document.addEventListener("DOMContentLoaded", function(){
+  if(typeof marketLoad === 'function'){
+    try{ marketLoad(); }catch(e){ console.error("[market frame]", e); }
+  }
+});
+
+// Listener per refresh dal parent (es. dopo checkout o sell complete)
+window.addEventListener('message', function(ev){
+  if(!ev.data || ev.data.type !== 'rb-market-refresh') return;
+  try{ marketLoad(); }catch(e){}
+});
+</script>
+</body>
+</html>
