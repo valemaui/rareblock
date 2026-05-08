@@ -5622,6 +5622,22 @@ function togglePrevSearch(){
     document.getElementById('pst').textContent='';
     document.getElementById('prevResults').style.display='none';
     document.getElementById('prevQuickAdd').style.display='none';
+    // Garantisce che il setpicker pq-setpicker sia montato (se per qualche
+    // motivo l'auto-mount globale non e' partito ancora)
+    try{
+      var c = document.getElementById('pq-setpicker');
+      if(c && !c._rbPickerMounted && typeof rbMountSetPicker === 'function'){
+        if(!Array.isArray(window.msSetsAll) || !window.msSetsAll.length){
+          if(typeof SC_SETS_STATIC !== 'undefined' && Array.isArray(SC_SETS_STATIC)){
+            window.msSetsAll = SC_SETS_STATIC.slice().sort(function(a,b){
+              return (b.releaseDate||'').localeCompare(a.releaseDate||'');
+            });
+          }
+        }
+        rbMountSetPicker({containerId:'pq-setpicker', inputId:'pq-setpicker-input', placeholder:'Filtra set'});
+        console.log('[setpicker] mounted on togglePrevSearch fallback');
+      }
+    }catch(e){ console.warn('[setpicker] togglePrevSearch mount fallback error:', e); }
     setTimeout(()=>document.getElementById('pq').focus(),100);
   }
 }
