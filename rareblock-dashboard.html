@@ -15338,6 +15338,18 @@ function _frameMarket(){
     return (f && f.contentWindow) ? f.contentWindow : null;
   }catch(_){ return null; }
 }
+// Ricarica il frame Market: chiamata diretta se possibile, postMessage come fallback
+function refreshMarketFrame(){
+  var fw = _frameMarket();
+  if(!fw) return;
+  try{
+    if(typeof fw.marketLoad === 'function'){
+      fw.marketLoad();
+    } else {
+      fw.postMessage({type:'rb-market-refresh'}, location.origin);
+    }
+  }catch(e){ console.warn('[refreshMarketFrame]', e); }
+}
 async function openSellModal(){
   console.log('[sellModal] openSellModal called');
   if(!_session){
@@ -15421,30 +15433,32 @@ function sellUpdateTotal(){
   document.getElementById('sellTotal').textContent = qty&&price ? '€'+(qty*price).toFixed(2) : '—';
 }
 async function sellConfirm(){
+  console.log('[sellConfirm] start');
   if(!_session) return;
   var pid   = document.getElementById('sellProduct').value;
   var qty   = parseInt(document.getElementById('sellQty').value)||0;
   var price = parseFloat(document.getElementById('sellPrice').value)||0;
   var notes = document.getElementById('sellNotes').value.trim();
   var exp   = document.getElementById('sellExpiry').value||null;
+  console.log('[sellConfirm] pid='+pid, 'qty='+qty, 'price='+price);
   if(!pid||qty<1||price<=0){ setSt('sellSt','Compila tutti i campi richiesti','err'); return; }
   var uid = _session.user&&_session.user.id;
   try {
-    await supa('POST','inv_transfers',{ product_id:pid, seller_id:uid, qty:qty, ask_price:price, notes:notes||null, expires_at:exp, status:'open' });
+    var inserted = await supa('POST','inv_transfers',{ product_id:pid, seller_id:uid, qty:qty, ask_price:price, notes:notes||null, expires_at:exp, status:'open' });
+    console.log('[sellConfirm] inserted:', inserted);
     setSt('sellSt','<span class="rb-i rb-i-check"></span> Offerta pubblicata!','ok');
     setTimeout(closeSellModal,1500);
-    // Refresh il frame Market
-    var f = document.getElementById('marketFrame');
-    if(f && f.contentWindow) f.contentWindow.postMessage({type:'rb-market-refresh'}, location.origin);
-  } catch(e){ setSt('sellSt','Errore: '+e.message,'err'); }
+    // Refresh il frame Market: chiamata diretta + postMessage fallback
+    console.log('[sellConfirm] refreshing market frame');
+    refreshMarketFrame();
+  } catch(e){ console.error('[sellConfirm] insert failed:', e); setSt('sellSt','Errore: '+e.message,'err'); }
 }
 function closeSellModal(){ document.getElementById('sellModalBg').classList.remove('show'); }
 async function cancelTransfer(id){
   if(!confirm('Cancellare questa offerta?')) return;
   try{
     await supa('PATCH','inv_transfers?id=eq.'+id,{status:'cancelled'});
-    var f = document.getElementById('marketFrame');
-    if(f && f.contentWindow) f.contentWindow.postMessage({type:'rb-market-refresh'}, location.origin);
+    refreshMarketFrame();
   }catch(e){ alert(e.message); }
 }
 
@@ -15503,10 +15517,7 @@ function closeCheckoutModal(){
   _chkTransfer = null;
   _chkProduct = null;
   // Refresh il frame Market (marketLoad ora vive nel frame, non nel parent)
-  try{
-    var f = document.getElementById('marketFrame');
-    if(f && f.contentWindow) f.contentWindow.postMessage({type:'rb-market-refresh'}, location.origin);
-  }catch(_){}
+  refreshMarketFrame();
 }
 
 function chkShowStep(n){
