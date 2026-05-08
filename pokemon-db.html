@@ -4017,26 +4017,49 @@ window.rbMountSetPicker = function(opts){
 (function(){
   function seedMsSetsAll(){
     if(Array.isArray(window.msSetsAll) && window.msSetsAll.length) return true;
-    if(typeof SC_SETS_STATIC !== 'undefined' && SC_SETS_STATIC.length){
+    if(typeof SC_SETS_STATIC !== 'undefined' && Array.isArray(SC_SETS_STATIC) && SC_SETS_STATIC.length){
       window.msSetsAll = SC_SETS_STATIC.slice().sort(function(a,b){
         return (b.releaseDate||'').localeCompare(a.releaseDate||'');
       });
+      console.log('[setpicker] seeded msSetsAll from SC_SETS_STATIC:', window.msSetsAll.length, 'sets');
       return true;
     }
     return false;
   }
   function mountAll(){
-    seedMsSetsAll();
+    var seeded = seedMsSetsAll();
+    if(!seeded){
+      console.warn('[setpicker] msSetsAll not ready yet, retrying in 200ms');
+      setTimeout(mountAll, 200);
+      return;
+    }
+    if(typeof rbMountSetPicker !== 'function'){
+      console.error('[setpicker] rbMountSetPicker not defined!');
+      return;
+    }
     var mounts = [
       {c:'q-setpicker',          i:'q-setpicker-input',          p:'Filtra per set'},
       {c:'pq-setpicker',         i:'pq-setpicker-input',         p:'Filtra set'},
       {c:'emReplaceQ-setpicker', i:'emReplaceQ-setpicker-input', p:'Set'}
     ];
     mounts.forEach(function(m){
-      try{ rbMountSetPicker({containerId:m.c, inputId:m.i, placeholder:m.p}); }catch(e){}
+      var el = document.getElementById(m.c);
+      if(!el){
+        console.warn('[setpicker] container not found:', m.c);
+        return;
+      }
+      if(el._rbPickerMounted){ return; } // gia' montato
+      try{
+        rbMountSetPicker({containerId:m.c, inputId:m.i, placeholder:m.p});
+        console.log('[setpicker] mounted:', m.c);
+      }catch(e){
+        console.error('[setpicker] mount failed for', m.c, ':', e);
+      }
     });
   }
-  // Mount al DOM ready (i container <div id="...-setpicker"> devono esserci)
+  // Mount al DOM ready (i container <div id="...-setpicker"> devono esserci).
+  // Provo subito (nel caso DOMContentLoaded sia gia' passato) e mi registro
+  // anche al listener (nel caso non sia ancora scattato).
   if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', mountAll);
   } else {
