@@ -59,9 +59,9 @@ body{display:flex;flex-direction:column}
     try { return (window.parent && window.parent !== window) ? window.parent[name] : undefined; }
     catch(_){ return undefined; }
   }
-  // Utilities runtime: definite-once nel parent, pungiate via getter cosi'
-  // se il parent le carica/aggiorna dopo il boot del frame, rimaniamo sync.
-  ['esc','fmt2','daysTo','typeBadge','uiLoading','uiError','supa'].forEach(function(name){
+  // Bridge solo per le utilities specifiche del dashboard Investor.
+  // supa/esc arrivano da shared/rareblock-shared.js (caricato nel frame).
+  ['fmt2','daysTo','typeBadge','uiLoading','uiError'].forEach(function(name){
     if(typeof window[name] === 'undefined'){
       Object.defineProperty(window, name, {
         configurable: true,
@@ -69,7 +69,7 @@ body{display:flex;flex-direction:column}
       });
     }
   });
-  // Stato condiviso _mktProducts: getter dinamico (parent lo aggiorna ad ogni mktLoad)
+  // State condiviso _mktProducts: getter dinamico (parent lo aggiorna ad ogni mktLoad)
   Object.defineProperty(window, '_mktProducts', {
     configurable: true,
     get: function(){ return p('_mktProducts') || []; }

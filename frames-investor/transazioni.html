@@ -87,7 +87,10 @@ body{display:flex;flex-direction:column}
     try { return (window.parent && window.parent !== window) ? window.parent[name] : undefined; }
     catch(_){ return undefined; }
   }
-  ['esc','fmtDate','fmt2','fmtMoney','payBadge','skelRows','uiErrorCell','supa'].forEach(function(name){
+  // Bridge solo per le utilities specifiche del rareblock-dashboard.html
+  // (NON per supa/esc/SUPA_URL/SUPA_KEY: quelli arrivano da shared/rareblock-shared.js
+  // che gira nel frame stesso e usa la sessione localStorage same-origin condivisa).
+  ['fmtDate','fmt2','fmtMoney','payBadge','skelRows','uiErrorCell','typeBadge','daysTo','uiLoading','uiError'].forEach(function(name){
     if(typeof window[name] === 'undefined'){
       Object.defineProperty(window, name, {
         configurable: true,
@@ -95,7 +98,7 @@ body{display:flex;flex-direction:column}
       });
     }
   });
-  // State condiviso del parent
+  // State condiviso del parent: _session (auth Investor), _mktProducts (lista prodotti)
   Object.defineProperty(window, '_session', {
     configurable: true,
     get: function(){ return p('_session') || null; }

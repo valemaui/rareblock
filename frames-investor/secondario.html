@@ -111,8 +111,10 @@ body{display:flex;flex-direction:column}
     try { return (window.parent && window.parent !== window) ? window.parent[name] : undefined; }
     catch(_){ return undefined; }
   }
-  // Utilities runtime via getter
-  ['esc','fmt2','fmtDate','setSt','supa','openSellModal','openSellFromHolding','openCheckout','cancelTransfer','typeBadge'].forEach(function(name){
+  // Bridge solo per le utilities specifiche del dashboard Investor.
+  // supa/esc/SUPA_URL/SUPA_KEY arrivano da shared/rareblock-shared.js
+  // (caricato nel frame stesso, sessione localStorage condivisa).
+  ['fmt2','fmtDate','fmtMoney','setSt','typeBadge','payBadge','skelRows','uiErrorCell','uiLoading','uiError','openSellModal','openSellFromHolding','openCheckout','cancelTransfer'].forEach(function(name){
     if(typeof window[name] === 'undefined'){
       Object.defineProperty(window, name, {
         configurable: true,
@@ -120,10 +122,14 @@ body{display:flex;flex-direction:column}
       });
     }
   });
-  // _session per check auth
+  // State condiviso del parent
   Object.defineProperty(window, '_session', {
     configurable: true,
     get: function(){ return p('_session') || null; }
+  });
+  Object.defineProperty(window, '_mktProducts', {
+    configurable: true,
+    get: function(){ return p('_mktProducts') || []; }
   });
 })();
 
