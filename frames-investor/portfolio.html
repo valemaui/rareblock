@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Portfolio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../shared/rareblock-shared.css"/>
+<style>
+html,body{height:100%;overflow:hidden}
+body{display:flex;flex-direction:column}
+
+/* Portfolio styles (estratto 1:1 da rareblock-dashboard.html L4016-4033) */
+/* ═══ PORTFOLIO ═══ */
+.port-wrap{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:16px}
+.port-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.port-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;transition:border-color var(--t-fast)}
+.port-kpi:hover{border-color:var(--border-strong)}
+.port-kpi-lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;font-family:var(--mono);margin-bottom:6px}
+.port-kpi-val{font-size:22px;font-weight:600;font-family:var(--mono);letter-spacing:-.005em}
+.port-kpi-val.pos{color:var(--success)}
+.port-kpi-val.neg{color:var(--danger)}
+.port-kpi-val.gold{color:var(--accent)}
+.port-table{width:100%;border-collapse:collapse;font-size:13px}
+.port-table th{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-family:var(--mono);padding:8px 12px;border-bottom:1px solid var(--border);text-align:left;background:var(--surface);position:sticky;top:0;z-index:1}
+.port-table td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.port-table tr:hover td{background:rgba(255,255,255,.025)}
+.accrual-warn{color:var(--warning);font-size:11px;font-family:var(--mono)}
+
+
+
+
+
+/* Empty state */
+.empty-state{text-align:center;padding:48px 24px;color:var(--text-muted)}
+.empty-state .icon{font-size:32px;margin-bottom:10px;opacity:.6}
+.empty-state h3{font-size:14px;font-weight:600;margin-bottom:4px;color:var(--text)}
+.empty-state p{font-size:12px}
+</style>
+</head>
+<body>
+
+<div class="tab" id="tab-port" style="display:flex;flex-direction:column;flex:1">
+  <div class="port-wrap">
+    <div class="port-kpis" id="portKpis">
+      <div class="port-kpi"><div class="port-kpi-lbl">Investito</div><div class="port-kpi-val gold" id="pkInvested">—</div></div>
+      <div class="port-kpi"><div class="port-kpi-lbl">Valore stimato</div><div class="port-kpi-val" id="pkValue">—</div></div>
+      <div class="port-kpi"><div class="port-kpi-lbl">P&amp;L stimato</div><div class="port-kpi-val" id="pkPL">—</div></div>
+      <div class="port-kpi"><div class="port-kpi-lbl">Liquidazioni incassate</div><div class="port-kpi-val" id="pkLiquidated">—</div></div>
+      <div class="port-kpi"><div class="port-kpi-lbl">Costi accrual pendenti</div><div class="port-kpi-val" id="pkAccrual" style="color:var(--warning)">—</div></div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+      <div style="padding:12px 14px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;font-family:var(--mono)">Le tue quote</div>
+      <div style="overflow-x:auto">
+        <table class="port-table" id="portTable">
+          <thead><tr>
+            <th>Prodotto</th><th>Tipo</th><th>Quote</th><th>Numeri</th><th>Pagato/quota</th>
+            <th>Val. stimato</th><th>P&amp;L</th><th>Scadenza</th><th>Costi pendenti</th><th></th>
+          </tr></thead>
+          <tbody id="portTbody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="portEmpty" style="display:none">
+        <div class="icon"><span class="rb-i rb-i-portfolio"></span></div>
+        <h3>Nessun investimento attivo</h3>
+        <p>Esplora i prodotti disponibili e acquista le tue prime quote.</p>
+        <button class="btn primary sm" onclick="showTab('mkt')" style="margin-top:14px"><span class="rb-i rb-i-store"></span> Vai al Marketplace</button>
+      </div>
+    </div>
+
+    <!-- ═══ Sezione Comproprietà Modalità B (PR9c) ═══ -->
+    <div id="fracHoldingsSection" style="margin-top:24px;display:none">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+        <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--gold,#c9a84c);text-transform:uppercase;letter-spacing:.6px;font-family:var(--mono)">Comproprietà · Modalità B</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:3px">Quote di beni in comproprietà ex art. 1100 c.c. — vendita su trigger ibrido (target price OR exit window).</div>
+          </div>
+          <button class="btn sm" onclick="fracPortLoad()" title="Aggiorna"><span class="rb-i rb-i-refresh"></span></button>
+        </div>
+        <div id="fracHoldingsList">
+          <!-- Render JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../shared/rareblock-shared.js" defer></script>
+<script defer>
+// ── Bridge: utilities + state condiviso del parent ──
+// Le modali fvoteBg e KYC-ack vivono nel parent; chiamiamo
+// parent.fvoteOpenForProduct() etc per interagirci.
+(function(){
+  function p(name){
+    try { return (window.parent && window.parent !== window) ? window.parent[name] : undefined; }
+    catch(_){ return undefined; }
+  }
+  // Utilities specifiche del dashboard Investor (esc/supa vengono da shared.js)
+  ['escAttr','escHtml','fmtDate','fmtDateIt','fmtMoney','fmt2','payBadge','typeBadge',
+   'setText','showToast','toast','showTab','openProductDetail','openSellFromHolding',
+   'qsOpenForHoldingId','fvoteOpenForProduct','fvoteOpen','fvoteClose','ctrFvoteShowErr',
+   'uiLoading','uiError','skelRows','uiErrorCell'].forEach(function(name){
+    if(typeof window[name] === 'undefined'){
+      Object.defineProperty(window, name, {
+        configurable: true,
+        get: function(){ return p(name); }
+      });
+    }
+  });
+  // State condiviso
+  Object.defineProperty(window, '_session', {
+    configurable: true,
+    get: function(){ return p('_session') || null; }
+  });
+  Object.defineProperty(window, '_mktProducts', {
+    configurable: true,
+    get: function(){ return p('_mktProducts') || []; }
+  });
+})();
+
+var _portHoldings = [];
+var _portPayments = [];
+var _portAccruals = [];
+var _portLiquidations = [];
+var _portSlotsByHolding = {};  // {holdingId: [slot_number, ...]}
+
+// Banner sopra la tabella holdings: visibile solo se ci sono quote
+// possedute senza numero assegnato. CTA = apre il portfolio focalizzando
+// le righe con bottone "Scegli numeri".
+function portRenderSlotsBanner(pendingHoldings, pendingQuotes){
+  var existing = document.getElementById('portSlotsBanner');
+  if(pendingHoldings === 0){
+    if(existing) existing.remove();
+    return;
+  }
+  var html = ''
+    + '<div id="portSlotsBanner" class="port-slots-banner">'
+    +   '<div class="port-slots-banner-icon"><span class="rb-i rb-i-info"></span></div>'
+    +   '<div class="port-slots-banner-text">'
+    +     '<strong>Scegli i numeri delle tue quote.</strong> '
+    +     'Hai <strong>'+pendingQuotes+' quot'+(pendingQuotes===1?'a':'e')+'</strong> '
+    +     'su '+pendingHoldings+' '+(pendingHoldings===1?'prodotto':'prodotti')+' '
+    +     'in attesa di numerazione. I numeri scelti restano associati permanentemente.'
+    +   '</div>'
+    + '</div>';
+  if(existing){
+    existing.outerHTML = html;
+  } else {
+    var portTable = document.querySelector('#portTbody');
+    var tableEl = portTable && portTable.closest('table');
+    if(tableEl) tableEl.insertAdjacentHTML('beforebegin', html);
+  }
+}
+
+async function portLoad(){
+  if(!_session) return;
+  var uid = _session.user && _session.user.id;
+  if(!uid) return;
+  try {
+    _portHoldings     = (await supa('GET','inv_holdings?user_id=eq.'+uid+'&order=acquired_at.desc')) || [];
+    _portPayments     = (await supa('GET','inv_payments?user_id=eq.'+uid)) || [];
+    _portLiquidations = (await supa('GET','inv_liquidations?order=planned_date.desc')) || [];
+    // Accruals: solo per i prodotti in cui l'utente ha quote
+    var productIds = [...new Set(_portHoldings.map(function(h){ return h.product_id; }))];
+    if(productIds.length){
+      var accrualQ = 'inv_accruals?product_id=in.('+productIds.join(',')+')'+'&order=accrual_date.desc';
+      _portAccruals = (await supa('GET', accrualQ)) || [];
+    } else {
+      _portAccruals = [];
+    }
+    // Quote slots assegnati alle holdings dell'utente (best-effort: se la
+    // migration 027 non è applicata, semplicemente non popoliamo questa info).
+    _portSlotsByHolding = {};
+    try {
+      var holdingIds = _portHoldings.map(function(h){ return h.id; });
+      if(holdingIds.length){
+        var slots = (await supa('GET','inv_quote_slots?holding_id=in.('+holdingIds.join(',')+')&order=slot_number.asc&select=holding_id,slot_number,status')) || [];
+        slots.forEach(function(s){
+          if(!_portSlotsByHolding[s.holding_id]) _portSlotsByHolding[s.holding_id] = [];
+          _portSlotsByHolding[s.holding_id].push(s.slot_number);
+        });
+      }
+    } catch(eS){ /* migration 027 non applicata: niente slot info */ }
+  } catch(e){ console.warn('portLoad:', e.message); _portHoldings=[]; }
+  portRender();
+  // PR9c — carica anche la sezione fractional in parallelo
+  try { fracPortLoad(); } catch(e){ console.warn('fracPortLoad:', e && e.message); }
+}
+
+function portRender(){
+  var confirmedPayments = _portPayments.filter(function(p){ return p.status==='confirmed'&&p.type==='purchase'; });
+  var totalInvested = confirmedPayments.reduce(function(a,p){ return a+((p.amount||0)); },0);
+  var totalLiquidated = _portPayments.filter(function(p){ return p.type==='liquidation'&&p.status==='confirmed'; })
+    .reduce(function(a,p){ return a+(p.amount||0); },0);
+
+  // Estimated value: match holdings to products
+  var estValue = _portHoldings.reduce(function(a,h){
+    var p = _mktProducts.find(function(x){ return x.id===h.product_id; });
+    var est = (p&&p.estimated_value&&p.total_quotes) ? (p.estimated_value/p.total_quotes)*h.qty : h.qty*h.price_per_quote;
+    return a+est;
+  },0);
+
+  // Pending accruals for this user
+  var pendingAccrual = 0;
+  _portHoldings.forEach(function(h){
+    var productAccruals = _portAccruals.filter(function(a){ return a.product_id===h.product_id&&!a.is_settled; });
+    var p = _mktProducts.find(function(x){ return x.id===h.product_id; });
+    if(!p) return;
+    var st = _mktStats[p.id] || { sold_quotes: p.total_quotes };
+    var myShare = st.sold_quotes>0 ? h.qty/st.sold_quotes : 0;
+    productAccruals.forEach(function(a){ pendingAccrual += (a.total_amount||0)*myShare; });
+  });
+
+  var pl = estValue - totalInvested;
+  var plEl = document.getElementById('pkPL');
+  document.getElementById('pkInvested').textContent   = fmtMoney(totalInvested);
+  document.getElementById('pkValue').textContent      = fmtMoney(estValue);
+  plEl.textContent = (pl>=0?'+':'−') + fmtMoney(Math.abs(pl));
+  plEl.className = 'port-kpi-val '+(pl>=0?'pos':'neg');
+  document.getElementById('pkLiquidated').textContent = fmtMoney(totalLiquidated);
+  document.getElementById('pkAccrual').textContent    = fmtMoney(pendingAccrual);
+
+  var empty = document.getElementById('portEmpty');
+  var tbody = document.getElementById('portTbody');
+  if(!_portHoldings.length){ empty.style.display=''; tbody.innerHTML=''; portRenderSlotsBanner(0,0); return; }
+  empty.style.display='none';
+
+  // Calcola quante holdings hanno numeri ancora da scegliere
+  // (solo per fractional/millesimal con holdingId presente).
+  var pendingHoldings = 0, pendingQuotes = 0;
+  _portHoldings.forEach(function(h){
+    var p = _mktProducts.find(function(x){ return x.id===h.product_id; });
+    if(!p || (p.type !== 'fractional' && p.type !== 'millesimal')) return;
+    var slots = _portSlotsByHolding[h.id] || [];
+    if(slots.length < h.qty){
+      pendingHoldings++;
+      pendingQuotes += (h.qty - slots.length);
+    }
+  });
+  portRenderSlotsBanner(pendingHoldings, pendingQuotes);
+
+  tbody.innerHTML = _portHoldings.map(function(h){
+    var p = _mktProducts.find(function(x){ return x.id===h.product_id; });
+    var pname = p ? p.name : '—';
+    var ptype = p ? typeBadge(p.type) : '—';
+    var st = _mktStats[h.product_id] || { sold_quotes: (p&&p.total_quotes)||1 };
+    var myShare = st.sold_quotes>0 ? h.qty/st.sold_quotes : 0;
+    var estPerQ = (p&&p.estimated_value&&p.total_quotes) ? p.estimated_value/p.total_quotes : h.price_per_quote;
+    var myEst   = estPerQ * h.qty;
+    var paid    = h.price_per_quote * h.qty;
+    var pl2     = myEst - paid;
+    var plCls   = pl2>=0?'pos':'neg';
+    // Accruals
+    var acc = _portAccruals.filter(function(a){ return a.product_id===h.product_id&&!a.is_settled; })
+      .reduce(function(a,x){ return a+(x.total_amount||0)*myShare; },0);
+    // Payment status
+    var pay = _portPayments.find(function(x){ return x.holding_id===h.id&&x.type==='purchase'; });
+    var payStatus = pay ? payBadge(pay.status) : '<span style="color:var(--text-muted);font-size:11px">—</span>';
+    // Numeri assegnati / da scegliere (solo per fractional/millesimal)
+    var slotsCell = '<span style="color:var(--text-muted);font-size:11px">—</span>';
+    var isFractional = p && (p.type === 'fractional' || p.type === 'millesimal');
+    if(isFractional){
+      var slots = _portSlotsByHolding[h.id] || [];
+      if(slots.length === h.qty){
+        // Tutti i numeri assegnati: mostra come chips compatti
+        var chips = slots.slice(0, 8).map(function(n){
+          return '<span class="port-slot-chip">#'+(n<10?'0':'')+n+'</span>';
+        }).join('');
+        if(slots.length > 8) chips += '<span class="port-slot-chip-more">+'+(slots.length-8)+'</span>';
+        slotsCell = '<div class="port-slots-list">'+chips+'</div>';
+      } else if(slots.length > 0 && slots.length < h.qty){
+        // Parziale: edge case (admin ha riassegnato alcuni)
+        slotsCell = '<button class="btn sm" style="font-size:10.5px;padding:3px 8px" onclick="qsOpenForHoldingId(\''+h.id+'\')" title="Completa selezione">'+slots.length+'/'+h.qty+' · Completa</button>';
+      } else {
+        // Nessun numero assegnato: bottone azione
+        slotsCell = '<button class="btn sm primary" style="font-size:10.5px;padding:3px 10px" onclick="qsOpenForHoldingId(\''+h.id+'\')">Scegli numeri</button>';
+      }
+    }
+
+    return '<tr>'
+      +'<td><div style="font-weight:500">'+esc(pname)+'</div><div style="font-size:11px;margin-top:2px">'+payStatus+'</div></td>'
+      +'<td>'+ptype+'</td>'
+      +'<td style="font-family:var(--mono)">'+h.qty+' / '+((p&&p.total_quotes)||'?')+'<div style="font-size:10px;color:var(--text-muted)">'+(myShare*100).toFixed(1)+'%</div></td>'
+      +'<td>'+slotsCell+'</td>'
+      +'<td style="font-family:var(--mono)">'+fmtMoney(h.price_per_quote)+'</td>'
+      +'<td style="font-family:var(--mono)">'+fmtMoney(myEst)+'</td>'
+      +'<td class="'+plCls+'" style="font-family:var(--mono)">'+(pl2>=0?'+':'−')+fmtMoney(Math.abs(pl2))+'</td>'
+      +'<td style="font-size:12px">'+fmtDate(p&&p.target_date)+'</td>'
+      +'<td>'+(acc>0?'<span class="accrual-warn"><span class="rb-i rb-i-warn"></span> '+fmtMoney(acc)+'</span>':'<span style="color:var(--text-muted);font-size:12px">—</span>')+'</td>'
+      +'<td><button class="btn sm" onclick="openSellFromHolding(\''+h.id+'\',\''+h.product_id+'\','+h.qty+')">Vendi</button></td>'
+    +'</tr>';
+  }).join('');
+}
+
+
+// ═══════════════════════════════════════════════════════════
+
+
+// ═══════════════════════════════════════════════════════════
+//  PR9c — PORTFOLIO FRACTIONAL HOLDINGS (lato frame)
+//  fvote* modali restano nel parent (chiamate via parent.fvoteOpenForProduct)
+// ═══════════════════════════════════════════════════════════
+
+var _fracHoldings = [];
+
+async function fracPortLoad(){
+  if(!_session) return;
+  var uid = _session.user && _session.user.id;
+  if(!uid) return;
+  var sec = document.getElementById('fracHoldingsSection');
+  var list = document.getElementById('fracHoldingsList');
+  if(!sec || !list) return;
+
+  list.innerHTML = '<div class="frac-empty"><div class="frac-empty-title">Caricamento...</div></div>';
+
+  try{
+    var rows = await supa('GET', 'v_my_fractional_holdings?order=acquired_at.desc');
+    _fracHoldings = Array.isArray(rows) ? rows : [];
+  }catch(e){
+    console.warn('fracPortLoad:', e && e.message);
+    // Fallback graceful: se la view non c'è (migration 045 non eseguita),
+    // mostriamo niente invece di un errore confondente per l'utente
+    _fracHoldings = [];
+    sec.style.display = 'none';
+    return;
+  }
+
+  // Aggrega per prodotto (un utente può avere più holdings sullo stesso prodotto
+  // da acquisti separati). Sommiamo le quotes_held.
+  var byProduct = {};
+  _fracHoldings.forEach(function(h){
+    if(!byProduct[h.product_id]){
+      byProduct[h.product_id] = {
+        product_id: h.product_id,
+        product_name: h.product_name,
+        product_status: h.product_status,
+        target_price_eur: h.fractional_target_price_eur,
+        exit_window_status: h.fractional_exit_window_status,
+        active_vote_id: h.active_vote_id,
+        active_vote_closes_at: h.active_vote_closes_at,
+        my_ballot: h.my_ballot,
+        total_quotes_held: 0,
+        first_acquired: h.acquired_at,
+      };
+    }
+    byProduct[h.product_id].total_quotes_held += Number(h.quotes_held) || 0;
+    // my_ballot dovrebbe essere lo stesso per tutte le righe; teniamo il primo
+    if(!byProduct[h.product_id].my_ballot && h.my_ballot) byProduct[h.product_id].my_ballot = h.my_ballot;
+  });
+  var products = Object.values(byProduct);
+
+  if(products.length === 0){
+    sec.style.display = 'none';
+    return;
+  }
+  sec.style.display = '';
+  list.innerHTML = products.map(fracHoldingCardHtml).join('');
+}
+
+function fracHoldingCardHtml(p){
+  var statusLabel = p.exit_window_status === 'open'              ? 'Voto in corso'
+                  : p.exit_window_status === 'closed_sell'       ? 'In vendita'
+                  : p.exit_window_status === 'closed_target_hit' ? 'Target raggiunto'
+                  : p.exit_window_status === 'closed_sold'       ? 'Venduto'
+                  : p.exit_window_status === 'closed_postpone'   ? 'Rinviato'
+                  :                                                'In comproprietà';
+  var targetStr = p.target_price_eur != null
+    ? parseFloat(p.target_price_eur).toLocaleString('it-IT', { minimumFractionDigits:0, maximumFractionDigits:0 }) + ' €'
+    : '—';
+
+  var actionsHtml = '';
+  // Banner di voto se finestra aperta E utente non ha ancora votato
+  var voteBanner = '';
+  if(p.exit_window_status === 'open' && p.active_vote_id){
+    if(p.my_ballot){
+      voteBanner = '<div class="frac-vote-banner">'
+        + '<div class="frac-vote-banner-left">Hai già votato <strong>' + escHtml(p.my_ballot === 'sell' ? '✓ Vendi' : p.my_ballot === 'postpone' ? '⏸ Rinvia' : '○ Astensione') + '</strong> in questo round.</div>'
+        + '<div class="frac-vote-banner-cta"><button class="btn sm" onclick="fvoteOpenForProduct(\'' + escAttr(p.product_id) + '\', true)">Vedi stato</button></div>'
+        + '</div>';
+    } else {
+      var closesIn = p.active_vote_closes_at ? fmtRelativeTime(p.active_vote_closes_at) : '';
+      voteBanner = '<div class="frac-vote-banner">'
+        + '<div class="frac-vote-banner-left"><strong>È aperto un voto exit window.</strong> Esprimi la tua posizione entro la chiusura' + (closesIn ? ' (' + closesIn + ')' : '') + '.</div>'
+        + '<div class="frac-vote-banner-cta"><button class="btn primary sm" onclick="fvoteOpenForProduct(\'' + escAttr(p.product_id) + '\')">Vota ora</button></div>'
+        + '</div>';
+    }
+  }
+
+  return '<div class="frac-card">'
+    + '<div class="frac-card-body">'
+    +   '<div class="frac-card-title">' + escHtml(p.product_name || '—')
+    +     ' <span class="frac-status ' + (p.exit_window_status || 'not_due') + '">' + escHtml(statusLabel) + '</span>'
+    +   '</div>'
+    +   '<div class="frac-card-meta">'
+    +     '<span><strong>Le mie quote:</strong> <span class="mono">' + p.total_quotes_held + '</span></span>'
+    +     '<span><strong>Target price:</strong> ' + targetStr + '</span>'
+    +     '<span><strong>Acquisita il:</strong> ' + fmtDateIt(p.first_acquired) + '</span>'
+    +   '</div>'
+    + '</div>'
+    + '<div class="frac-card-actions">'
+    +   '<button class="btn sm" onclick="fracOpenProductDetail(\'' + escAttr(p.product_id) + '\')" title="Vedi dettagli">Dettagli</button>'
+    + '</div>'
+    + '</div>'
+    + voteBanner;
+}
+
+function fmtRelativeTime(iso){
+  try{
+    var diff = new Date(iso).getTime() - Date.now();
+    if(diff <= 0) return 'scaduto';
+    var days  = Math.floor(diff / (24*60*60*1000));
+    var hours = Math.floor((diff % (24*60*60*1000)) / (60*60*1000));
+    if(days > 0) return 'tra ' + days + ' giorn' + (days===1?'o':'i');
+    if(hours > 0) return 'tra ' + hours + ' or' + (hours===1?'a':'e');
+    var mins = Math.floor((diff % (60*60*1000)) / (60*1000));
+    return 'tra ' + mins + ' minuti';
+  }catch(e){ return ''; }
+}
+
+function fracOpenProductDetail(productId){
+  // Per ora reindirizziamo al marketplace dove il prodotto è già renderizzato
+  // con la sua scheda completa. In una PR successiva potrebbe esserci una
+  // pagina dedicata "fractional product detail" con storico voti completo.
+  showTab('mkt');
+  setTimeout(function(){
+    if(typeof openProductDetail === 'function'){
+      try { openProductDetail(productId); } catch(e){}
+    }
+  }, 150);
+}
+
+// ─── MODAL DI VOTO ────────────────────────────────────────────────
+
+
+// Bootstrap robusto: aspetta che il parent abbia finito di parsare.
+function _waitParentReady(cb){
+  var tries = 0;
+  function check(){
+    var ready = (window.parent && window.parent !== window
+                 && typeof window.parent.fmt2 === 'function'
+                 && typeof window.parent.supa === 'function');
+    if(ready){ cb(); return; }
+    if(++tries > 50){ console.warn('[portfolio] parent never ready, giving up'); cb(); return; }
+    setTimeout(check, 100);
+  }
+  check();
+}
+document.addEventListener("DOMContentLoaded", function(){
+  _waitParentReady(function(){
+    if(typeof portLoad === 'function'){
+      try{ portLoad(); }catch(e){ console.error("[portfolio frame]", e); }
+    }
+  });
+});
+
+// Listener per refresh dal parent (es. dopo voto fractional o cambio holding)
+window.addEventListener('message', function(ev){
+  if(!ev.data) return;
+  if(ev.data.type === 'rb-portfolio-refresh'){
+    try{ portLoad(); }catch(_){}
+    try{ if(typeof fracPortLoad==='function') fracPortLoad(); }catch(_){}
+  }
+});
+</script>
+</body>
+</html>
