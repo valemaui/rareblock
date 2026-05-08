@@ -91,7 +91,12 @@ SELECT
   -- Dati prodotto necessari al template
   p.name                            AS product_name,
   p.type                            AS product_type,
-  p.set_name                        AS product_set_name,
+  -- NOTA: inv_products non ha colonna set_name (lo schema TCG-aware non e'
+  -- ancora estratto in colonna dedicata; oggi vive opzionalmente in tags[]
+  -- o description). Esposto come NULL per non rompere il consumer JS che lo
+  -- legge con `ord.product_set_name || null`. Quando aggiungeremo
+  -- inv_products.set_name (migration futura), basta sostituire qui.
+  NULL::text                        AS product_set_name,
   p.total_quotes                    AS product_total_quotes,
   p.fractional_target_price_eur     AS product_target_price_eur,
   p.fractional_exit_window_years    AS product_exit_window_years
