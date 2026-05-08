@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Agenda Investimenti</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../shared/rareblock-shared.css"/>
+<style>
+html,body{height:100%;overflow:hidden}
+body{display:flex;flex-direction:column}
+
+/* Agenda styles (estratto 1:1 da rareblock-dashboard.html L4043-4053) */
+/* ═══ AGENDA ═══ */
+.agenda-wrap{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:12px}
+.agenda-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;display:flex;gap:14px;align-items:flex-start}
+.agenda-date-box{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 12px;text-align:center;flex-shrink:0;min-width:56px}
+.agenda-date-day{font-size:20px;font-weight:700;font-family:var(--mono);line-height:1;color:var(--accent)}
+.agenda-date-mon{font-size:10px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase}
+.agenda-content{flex:1}
+.agenda-title{font-size:13px;font-weight:600;margin-bottom:3px}
+.agenda-sub{font-size:12px;color:var(--text-muted)}
+.agenda-ddays{font-size:11px;font-family:var(--mono);color:var(--warning)}
+.agenda-section-title{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;font-family:var(--mono);margin:8px 0 4px}
+
+
+/* Empty state riusato dallo shell parent — copia minimale qui */
+.empty-state{text-align:center;padding:48px 24px;color:var(--text-muted)}
+.empty-state .icon{font-size:32px;margin-bottom:10px;opacity:.6}
+.empty-state h3{font-size:14px;font-weight:600;margin-bottom:4px;color:var(--text)}
+.empty-state p{font-size:12px}
+</style>
+</head>
+<body>
+
+<div class="tab" id="tab-agenda" style="display:flex;flex-direction:column;flex:1">
+  <div class="agenda-wrap" id="agendaWrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div>
+        <div style="font-size:15px;font-weight:600;letter-spacing:.005em;display:inline-flex;align-items:center;gap:8px"><span class="rb-i rb-i-calendar" style="color:var(--accent)"></span> Agenda Investimenti</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:3px">Calendario delle scadenze: termini di chiusura, gradazioni in corso, liquidazioni pianificate.</div>
+      </div>
+      <button class="btn sm" onclick="agendaLoad()" title="Aggiorna agenda"><span class="rb-i rb-i-refresh"></span> Aggiorna</button>
+    </div>
+    <div id="agendaContent"></div>
+  </div>
+</div>
+
+<script src="../shared/rareblock-shared.js" defer></script>
+<script defer>
+// ── Bridge: utilities globali del parent rareblock-dashboard.html ──
+// Pattern consolidato (vedi frames Collector): le funzioni utility e lo
+// stato condiviso vivono nel parent. Qui le importo come globali del
+// frame per non toccare il codice interno (1:1 dall'originale).
+(function(){
+  function p(name){
+    try { return (window.parent && window.parent !== window) ? window.parent[name] : undefined; }
+    catch(_){ return undefined; }
+  }
+  // Utilities runtime: definite-once nel parent, pungiate via getter cosi'
+  // se il parent le carica/aggiorna dopo il boot del frame, rimaniamo sync.
+  ['esc','fmt2','daysTo','typeBadge','uiLoading','uiError','supa'].forEach(function(name){
+    if(typeof window[name] === 'undefined'){
+      Object.defineProperty(window, name, {
+        configurable: true,
+        get: function(){ return p(name); }
+      });
+    }
+  });
+  // Stato condiviso _mktProducts: getter dinamico (parent lo aggiorna ad ogni mktLoad)
+  Object.defineProperty(window, '_mktProducts', {
+    configurable: true,
+    get: function(){ return p('_mktProducts') || []; }
+  });
+})();
+
+async function agendaLoad(){
+  var wrap = document.getElementById('agendaContent');
+  wrap.innerHTML = uiLoading('Caricamento agenda…');
+  try {
+    var products     = _mktProducts.length ? _mktProducts : (await supa('GET','inv_products?order=target_date.asc'))||[];
+    var liquidations = (await supa('GET','inv_liquidations?order=planned_date.asc'))||[];
+    var events = [];
+
+    // Scadenze prodotti
+    products.filter(function(p){ return p.target_date; }).forEach(function(p){
+      events.push({ date:p.target_date, title:p.name, sub:'Scadenza: '+(p.type==='fractional'?'Apertura bustine':p.type==='grade_hold'?'Invio gradazione':'Liquidazione'), type:p.type, status:p.status });
+    });
+    // Liquidazioni pianificate
+    liquidations.filter(function(l){ return l.planned_date&&l.status!=='completed'; }).forEach(function(l){
+      var p = products.find(function(x){ return x.id===l.product_id; });
+      events.push({ date:l.planned_date, title:(p?p.name:'—'), sub:'<span class="rb-i rb-i-coin"></span> Liquidazione prevista: '+(l.per_quote?'€'+fmt2(l.per_quote)+'/quota':'importo da definire'), type:'liquidation', status:l.status });
+    });
+
+    // Sort by date
+    events.sort(function(a,b){ return new Date(a.date)-new Date(b.date); });
+
+    if(!events.length){ wrap.innerHTML='<div class="empty-state"><div class="icon"><span class="rb-i rb-i-calendar"></span></div><h3>Nessun evento in agenda</h3><p>Verranno mostrati qui aperture, scadenze e liquidazioni</p></div>'; return; }
+
+    var today = new Date();
+    var upcoming = events.filter(function(e){ return new Date(e.date)>=today; });
+    var past     = events.filter(function(e){ return new Date(e.date)<today; });
+
+    var html = '';
+    if(upcoming.length){
+      html += '<div class="agenda-section-title">Prossimi eventi</div>';
+      html += upcoming.map(function(e){ return renderAgendaItem(e); }).join('');
+    }
+    if(past.length){
+      html += '<div class="agenda-section-title" style="margin-top:16px">Passati</div>';
+      html += past.slice(0,5).map(function(e){ return renderAgendaItem(e,true); }).join('');
+    }
+    wrap.innerHTML = html;
+  } catch(err){
+    wrap.innerHTML = uiError('Caricamento agenda fallito', err, 'agendaLoad()');
+  }
+}
+
+function renderAgendaItem(e, isPast){
+  var d    = new Date(e.date);
+  var day  = d.getDate();
+  var mon  = d.toLocaleDateString('it-IT',{month:'short'}).replace('.','');
+  var dd   = daysTo(e.date);
+  var ddStr= dd!==null&&!isPast ? (dd===0?'Oggi':dd===1?'Domani':dd+' giorni') : '';
+  return '<div class="agenda-item" style="'+(isPast?'opacity:.55':'')+'"><div class="agenda-date-box"><div class="agenda-date-day">'+day+'</div><div class="agenda-date-mon">'+mon+'</div></div><div class="agenda-content"><div class="agenda-title">'+esc(e.title)+'</div><div class="agenda-sub">'+esc(e.sub)+'</div>'+(ddStr?'<div class="agenda-ddays"><span class="rb-i rb-i-hourglass"></span> '+ddStr+'</div>':'')+'</div><div>'+typeBadge(e.type==='liquidation'?'millesimal':e.type)+'</div></div>';
+}
+
+
+// Bootstrap del frame
+document.addEventListener("DOMContentLoaded", function(){
+  if(typeof agendaLoad === 'function'){
+    try{ agendaLoad(); }catch(e){ console.error("[agenda frame]", e); }
+  }
+});
+</script>
+</body>
+</html>
