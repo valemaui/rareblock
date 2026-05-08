@@ -3881,6 +3881,16 @@ window.rbSearchCards = async function(name, number, setId){
   return all;
 };
 
+// auSetLabel — formatta un set per la visualizzazione (nome · anno · serie)
+// Era nell'IIFE Autentica fino a F5; ora che Autentica vive in iframe, qui
+// nel parent serve per rbResolveSetFromInput (che cerca match per label)
+// e per il pick() di rbMountSetPicker (che setta inp.value = auSetLabel(set)).
+window.auSetLabel = function(s){
+  if(!s) return '';
+  var yr=(s.releaseDate||'').slice(0,4);
+  return (s.name||'') + (yr?' · '+yr:'') + (s.series?' · '+s.series:'');
+};
+
 // Risolve set da un qualsiasi input testuale (fallback msSetsAll > SC_SETS_STATIC)
 window.rbResolveSetFromInput = function(inputEl){
   if(!inputEl) return null;
