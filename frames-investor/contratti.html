@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Contratti</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../shared/rareblock-shared.css"/>
+<style>
+html,body{height:100%;overflow:hidden}
+body{display:flex;flex-direction:column}
+
+/* Contratti styles (estratto 1:1 da rareblock-dashboard.html L4842-5156) */
+/* ═══════════════════════════════════════════════════════════════════
+   PR7 — UI CONTRATTI: lista, dettaglio, wizard firma
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Tab wrapper */
+.ctr-wrap{flex:1;overflow:auto;padding:24px 28px}
+.ctr-inner{max-width:1080px;margin:0 auto}
+
+/* Hero compatta come Profilo */
+.ctr-hero{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:16px 20px;margin-bottom:20px;
+  display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;
+}
+.ctr-hero-title{
+  font-family:var(--serif);font-style:italic;font-weight:300;
+  font-size:18px;letter-spacing:-.01em;line-height:1;color:var(--text);
+}
+
+/* Filter pills */
+.ctr-filters{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.ctr-filter{
+  padding:6px 14px;font-size:11.5px;font-weight:500;
+  border-radius:var(--r);border:1px solid var(--border);
+  background:transparent;color:var(--text-muted);cursor:pointer;
+  font-family:var(--font);transition:all var(--t-fast);height:30px;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.ctr-filter:hover{color:var(--text);border-color:var(--border-strong)}
+.ctr-filter.active{background:var(--surface2);color:var(--text);border-color:var(--border-strong);font-weight:600}
+.ctr-filter-count{
+  background:var(--surface3);font-size:10px;padding:1px 6px;
+  border-radius:10px;font-family:var(--mono);min-width:18px;text-align:center;
+}
+.ctr-filter.active .ctr-filter-count{background:var(--gold,#c9a84c);color:var(--bg)}
+
+/* Lista contratti */
+.ctr-list{display:flex;flex-direction:column;gap:10px}
+.ctr-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:18px 20px;
+  display:grid;grid-template-columns:auto 1fr auto;gap:18px;
+  align-items:center;transition:all var(--t-fast);
+}
+.ctr-card:hover{border-color:var(--border-strong);background:var(--surface2)}
+.ctr-card-icon{
+  width:48px;height:48px;border-radius:var(--r);
+  background:var(--surface2);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text-muted);font-size:20px;flex-shrink:0;
+}
+.ctr-card.pending .ctr-card-icon{
+  background:rgba(210,153,34,.10);border-color:rgba(210,153,34,.4);color:var(--warning,#d29922);
+}
+.ctr-card.signed .ctr-card-icon{
+  background:rgba(63,185,80,.08);border-color:rgba(63,185,80,.35);color:var(--success,#3fb950);
+}
+.ctr-card.revoked .ctr-card-icon,
+.ctr-card.expired .ctr-card-icon{
+  background:rgba(248,81,73,.08);border-color:rgba(248,81,73,.3);color:var(--text-muted);
+}
+.ctr-card-body{min-width:0;display:flex;flex-direction:column;gap:4px}
+.ctr-card-title{
+  font-size:14px;font-weight:600;color:var(--text);
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+}
+.ctr-card-num{font-family:var(--mono);font-size:11px;color:var(--text-muted);font-weight:500}
+.ctr-card-meta{font-size:11.5px;color:var(--text-muted);display:flex;gap:16px;flex-wrap:wrap}
+.ctr-card-meta strong{color:var(--text);font-weight:500}
+.ctr-card-actions{display:flex;gap:6px;align-items:center;flex-shrink:0}
+
+/* Status badge */
+.ctr-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 9px;border-radius:20px;font-size:10px;
+  font-family:var(--mono);font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);
+}
+.ctr-badge.pending_signature{color:var(--warning,#d29922);border-color:rgba(210,153,34,.4);background:rgba(210,153,34,.08)}
+.ctr-badge.signed{color:var(--success,#3fb950);border-color:rgba(63,185,80,.4);background:rgba(63,185,80,.08)}
+.ctr-badge.revoked{color:var(--danger,#f85149);border-color:rgba(248,81,73,.4);background:rgba(248,81,73,.08)}
+.ctr-badge.expired{color:var(--text-muted);background:var(--surface3)}
+.ctr-badge.draft{color:var(--text-muted);border-color:var(--border)}
+
+.ctr-empty{
+  text-align:center;padding:64px 20px;color:var(--text-muted);
+  background:var(--surface);border:1px dashed var(--border);
+  border-radius:var(--r-lg);
+}
+.ctr-empty-title{font-family:var(--serif);font-style:italic;font-size:16px;margin-bottom:6px;color:var(--text)}
+.ctr-empty-sub{font-size:12.5px;line-height:1.6;max-width:380px;margin:0 auto}
+
+/* AUTO-PREPARE BANNER (ordini pagati senza contratto) */
+.ctr-autoprep{
+  display:flex;align-items:flex-start;gap:14px;
+  padding:16px 20px;margin-bottom:14px;
+  background:linear-gradient(135deg,rgba(201,168,76,.06),rgba(201,168,76,.015));
+  border:1px solid rgba(201,168,76,.22);
+  border-radius:var(--r-lg);
+}
+.ctr-autoprep-spinner{
+  width:16px;height:16px;flex:0 0 16px;margin-top:2px;
+  border:2px solid rgba(201,168,76,.28);
+  border-top-color:var(--gold);
+  border-radius:50%;
+  animation:ctr-autoprep-spin .9s linear infinite;
+}
+.ctr-autoprep-icon{
+  width:18px;height:18px;flex:0 0 18px;margin-top:1px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--gold);font-size:14px;
+}
+@keyframes ctr-autoprep-spin{to{transform:rotate(360deg)}}
+.ctr-autoprep-body{flex:1;min-width:0}
+.ctr-autoprep-title{
+  font-family:var(--serif);font-style:italic;font-size:14.5px;
+  color:#e6d59a;margin-bottom:3px;line-height:1.3;
+}
+.ctr-autoprep-sub{font-size:12px;line-height:1.55;color:var(--text-muted)}
+.ctr-autoprep-sub strong{color:#e6d59a;font-weight:500}
+.ctr-autoprep.error{
+  background:linear-gradient(135deg,rgba(248,81,73,.06),rgba(248,81,73,.015));
+  border-color:rgba(248,81,73,.22);
+}
+.ctr-autoprep.error .ctr-autoprep-icon{color:var(--danger)}
+.ctr-autoprep.error .ctr-autoprep-title{color:#f5a8a4}
+.ctr-autoprep.error .ctr-autoprep-sub strong{color:#f5a8a4}
+
+/* WIZARD MODAL */
+.ctr-wiz-bg{
+  position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(6px);
+  display:none;align-items:center;justify-content:center;z-index:920;padding:20px;
+}
+.ctr-wiz-bg.show{display:flex}
+.ctr-wiz-modal{
+  background:var(--bg);border:1px solid var(--border-strong);border-radius:var(--r-lg);
+  width:100%;max-width:920px;max-height:92vh;
+  display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,.7);
+  overflow:hidden;
+}
+.ctr-wiz-head{
+  padding:18px 24px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  background:var(--surface);
+}
+.ctr-wiz-head-info{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ctr-wiz-eyebrow{
+  font-size:9.5px;font-family:var(--mono);text-transform:uppercase;
+  letter-spacing:.14em;color:var(--gold,#c9a84c);font-weight:600;
+}
+.ctr-wiz-title{
+  font-family:var(--serif);font-style:italic;font-weight:400;
+  font-size:18px;color:var(--text);
+}
+.ctr-wiz-close{
+  width:34px;height:34px;border-radius:50%;background:transparent;
+  border:1px solid var(--border);color:var(--text-muted);font-size:18px;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+  transition:all var(--t-fast);
+}
+.ctr-wiz-close:hover{color:var(--text);border-color:var(--text)}
+
+/* Step indicator (4 step orizzontali) */
+.ctr-wiz-steps{
+  display:flex;background:var(--surface);
+  border-bottom:1px solid var(--border);
+}
+.ctr-wiz-step{
+  flex:1;padding:12px 14px;display:flex;align-items:center;gap:10px;
+  border-right:1px solid var(--border);position:relative;
+}
+.ctr-wiz-step:last-child{border-right:none}
+.ctr-wiz-step-num{
+  width:22px;height:22px;border-radius:50%;background:var(--surface3);
+  color:var(--text-muted);font-family:var(--mono);font-size:11px;font-weight:600;
+  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.ctr-wiz-step.active .ctr-wiz-step-num{background:var(--accent);color:var(--bg)}
+.ctr-wiz-step.done  .ctr-wiz-step-num{background:var(--gold,#c9a84c);color:var(--bg)}
+.ctr-wiz-step.done  .ctr-wiz-step-num::before{content:'✓'}
+.ctr-wiz-step.done  .ctr-wiz-step-num{font-size:0}
+.ctr-wiz-step.done  .ctr-wiz-step-num::before{font-size:13px}
+.ctr-wiz-step-label{font-size:11.5px;color:var(--text-muted);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctr-wiz-step.active .ctr-wiz-step-label{color:var(--accent);font-weight:600}
+.ctr-wiz-step.done   .ctr-wiz-step-label{color:var(--gold,#c9a84c);font-weight:600}
+
+/* Body scrollable */
+.ctr-wiz-body{flex:1;overflow:auto;padding:0;background:var(--bg)}
+.ctr-wiz-pane{display:none;padding:22px 26px}
+.ctr-wiz-pane.active{display:block}
+
+/* Step 1: PDF preview */
+.ctr-pdf-frame{
+  width:100%;height:520px;border:1px solid var(--border);
+  border-radius:var(--r);background:var(--surface2);
+}
+.ctr-pdf-fallback{
+  background:var(--surface);border:1px dashed var(--border);
+  padding:40px 22px;text-align:center;color:var(--text-muted);
+  border-radius:var(--r);
+}
+.ctr-pdf-fallback a{color:var(--accent);text-decoration:none;font-weight:600}
+.ctr-pdf-fallback a:hover{text-decoration:underline}
+.ctr-pdf-info{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:14px 16px;margin-top:14px;
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:14px;
+}
+.ctr-pdf-info-item{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ctr-pdf-info-label{font-size:9.5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.10em;color:var(--text-muted);font-weight:500}
+.ctr-pdf-info-value{font-size:13px;color:var(--text);font-weight:500;overflow-wrap:break-word}
+.ctr-pdf-info-value.mono{font-family:var(--mono);font-size:11px}
+
+/* Step 2: consensi */
+.ctr-consents{display:flex;flex-direction:column;gap:14px}
+.ctr-consent-item{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:16px 18px;cursor:pointer;
+  display:flex;gap:14px;align-items:flex-start;transition:all var(--t-fast);
+}
+.ctr-consent-item:hover{border-color:var(--border-strong)}
+.ctr-consent-item.checked{border-color:var(--gold,#c9a84c);background:rgba(201,168,76,.04)}
+.ctr-consent-checkbox{
+  width:20px;height:20px;border-radius:5px;border:1.5px solid var(--border-strong);
+  flex-shrink:0;margin-top:1px;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;color:var(--bg);
+  font-size:0;transition:all var(--t-fast);
+}
+.ctr-consent-item.checked .ctr-consent-checkbox{
+  background:var(--gold,#c9a84c);border-color:var(--gold,#c9a84c);font-size:13px;font-weight:700;
+}
+.ctr-consent-item.checked .ctr-consent-checkbox::before{content:'✓'}
+.ctr-consent-text{flex:1;min-width:0}
+.ctr-consent-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px}
+.ctr-consent-sub{font-size:11.5px;color:var(--text-muted);line-height:1.55}
+
+/* Step 3: OTP cells (riusa lo stile di profilo) */
+.ctr-otp-info{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:14px 16px;margin-bottom:18px;
+  font-size:12px;color:var(--text-muted);line-height:1.5;
+}
+.ctr-otp-info strong{color:var(--text);font-family:var(--mono);font-weight:600}
+.ctr-otp-cells{
+  display:flex;justify-content:center;gap:8px;margin:24px 0 12px;
+}
+.ctr-otp-cell{
+  width:46px;height:56px;border:2px solid var(--border);
+  border-radius:var(--r);background:var(--surface);
+  font-size:22px;font-weight:600;text-align:center;
+  font-family:var(--mono);color:var(--text);
+  outline:none;transition:all var(--t-fast);
+}
+.ctr-otp-cell:focus{border-color:var(--gold,#c9a84c);background:var(--surface2)}
+.ctr-otp-cell.filled{border-color:var(--gold,#c9a84c);background:var(--surface2)}
+.ctr-otp-cell.error{border-color:var(--danger,#f85149);background:rgba(248,81,73,.08);animation:shake .35s}
+@keyframes shake{
+  0%,100%{transform:translateX(0)}
+  25%{transform:translateX(-6px)}
+  75%{transform:translateX(6px)}
+}
+.ctr-otp-meta{
+  display:flex;justify-content:center;gap:18px;
+  font-size:11.5px;color:var(--text-muted);
+}
+.ctr-otp-resend{
+  background:none;border:none;color:var(--accent);
+  font-family:var(--font);font-size:11.5px;cursor:pointer;text-decoration:underline;
+}
+.ctr-otp-resend:disabled{color:var(--text-muted);text-decoration:none;cursor:not-allowed}
+
+/* Step 4: success */
+.ctr-success{
+  text-align:center;padding:14px 0;
+}
+.ctr-success-icon{
+  width:64px;height:64px;border-radius:50%;
+  background:rgba(63,185,80,.1);border:2px solid var(--success,#3fb950);
+  display:inline-flex;align-items:center;justify-content:center;
+  color:var(--success,#3fb950);font-size:30px;margin-bottom:18px;
+}
+.ctr-success-title{
+  font-family:var(--serif);font-style:italic;font-weight:400;
+  font-size:24px;color:var(--text);margin-bottom:6px;
+}
+.ctr-success-sub{font-size:13px;color:var(--text-muted);line-height:1.5;margin-bottom:24px}
+.ctr-success-info{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:14px 16px;text-align:left;display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;
+  margin-bottom:18px;
+}
+.ctr-success-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+
+/* Footer del wizard */
+.ctr-wiz-foot{
+  padding:14px 24px;border-top:1px solid var(--border);
+  background:var(--surface);
+  display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+}
+.ctr-wiz-msg{font-size:11.5px;color:var(--text-muted);min-height:16px;flex:1;text-align:left;line-height:1.5}
+.ctr-wiz-msg.err{color:var(--danger,#f85149)}
+.ctr-wiz-msg.ok{color:var(--success,#3fb950)}
+.ctr-wiz-foot-btns{display:flex;gap:8px;align-items:center}
+
+/* Mobile */
+@media (max-width:780px){
+  .ctr-card{grid-template-columns:auto 1fr;gap:14px}
+  .ctr-card-actions{grid-column:1 / -1;justify-content:flex-end;border-top:1px solid var(--border);padding-top:12px;margin-top:4px}
+  .ctr-wiz-step-label{display:none}
+  .ctr-wiz-modal{max-height:96vh}
+  .ctr-pdf-frame{height:380px}
+}
+
+
+
+/* Empty state (riusato dallo shell parent) */
+.empty-state{text-align:center;padding:48px 24px;color:var(--text-muted)}
+.empty-state .icon{font-size:32px;margin-bottom:10px;opacity:.6}
+.empty-state h3{font-size:14px;font-weight:600;margin-bottom:4px;color:var(--text)}
+.empty-state p{font-size:12px}
+</style>
+</head>
+<body>
+
+<div class="tab" id="tab-contracts" style="display:flex;flex-direction:column;flex:1">
+  <div class="ctr-wrap">
+    <div class="ctr-inner">
+
+      <div class="ctr-hero">
+        <span class="ctr-hero-title">Contratti</span>
+        <div class="ctr-filters">
+          <button class="ctr-filter active" data-filter="all" onclick="ctrSetFilter('all')">
+            Tutti <span class="ctr-filter-count" id="ctrCountAll">0</span>
+          </button>
+          <button class="ctr-filter" data-filter="pending_signature" onclick="ctrSetFilter('pending_signature')">
+            Da firmare <span class="ctr-filter-count" id="ctrCountPending">0</span>
+          </button>
+          <button class="ctr-filter" data-filter="signed" onclick="ctrSetFilter('signed')">
+            Firmati <span class="ctr-filter-count" id="ctrCountSigned">0</span>
+          </button>
+          <button class="ctr-filter" data-filter="archived" onclick="ctrSetFilter('archived')">
+            Archivio <span class="ctr-filter-count" id="ctrCountArchived">0</span>
+          </button>
+          <button class="prof-hero-icon-btn" onclick="ctrLoad()" title="Aggiorna">
+            <span class="rb-i rb-i-refresh"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="ctr-list" id="ctrList">
+        <!-- Render JS -->
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODALE WIZARD FIRMA CONTRATTO (estratto 1:1 da L6120-6263) ═══ -->
+<div class="ctr-wiz-bg" id="ctrWizBg" onclick="if(event.target===this)ctrWizMaybeClose()">
+  <div class="ctr-wiz-modal">
+    <div class="ctr-wiz-head">
+      <div class="ctr-wiz-head-info">
+        <div class="ctr-wiz-eyebrow">FIRMA ELETTRONICA AVANZATA</div>
+        <div class="ctr-wiz-title" id="ctrWizTitle">Firma contratto</div>
+      </div>
+      <button class="ctr-wiz-close" onclick="ctrWizMaybeClose()" title="Chiudi">×</button>
+    </div>
+
+    <div class="ctr-wiz-steps">
+      <div class="ctr-wiz-step active" data-step="1">
+        <div class="ctr-wiz-step-num">1</div>
+        <div class="ctr-wiz-step-label">Documento</div>
+      </div>
+      <div class="ctr-wiz-step" data-step="2">
+        <div class="ctr-wiz-step-num">2</div>
+        <div class="ctr-wiz-step-label">Consensi</div>
+      </div>
+      <div class="ctr-wiz-step" data-step="3">
+        <div class="ctr-wiz-step-num">3</div>
+        <div class="ctr-wiz-step-label">Codice OTP</div>
+      </div>
+      <div class="ctr-wiz-step" data-step="4">
+        <div class="ctr-wiz-step-num">4</div>
+        <div class="ctr-wiz-step-label">Conferma</div>
+      </div>
+    </div>
+
+    <div class="ctr-wiz-body">
+
+      <!-- STEP 1: Preview PDF -->
+      <div class="ctr-wiz-pane active" data-pane="1">
+        <iframe class="ctr-pdf-frame" id="ctrPdfFrame" src="about:blank" title="Anteprima contratto"></iframe>
+        <div class="ctr-pdf-info">
+          <div class="ctr-pdf-info-item">
+            <div class="ctr-pdf-info-label">Numero contratto</div>
+            <div class="ctr-pdf-info-value mono" id="ctrInfoNumber">—</div>
+          </div>
+          <div class="ctr-pdf-info-item">
+            <div class="ctr-pdf-info-label">Tipologia</div>
+            <div class="ctr-pdf-info-value" id="ctrInfoType">—</div>
+          </div>
+          <div class="ctr-pdf-info-item">
+            <div class="ctr-pdf-info-label">Validità offerta</div>
+            <div class="ctr-pdf-info-value" id="ctrInfoExpires">—</div>
+          </div>
+          <div class="ctr-pdf-info-item">
+            <div class="ctr-pdf-info-label">SHA-256 documento</div>
+            <div class="ctr-pdf-info-value mono" id="ctrInfoSha">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2: Consensi -->
+      <div class="ctr-wiz-pane" data-pane="2">
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:18px;line-height:1.6">Leggi attentamente le seguenti dichiarazioni e seleziona ciascuna casella per confermarne l'accettazione. Tutti e tre i consensi sono obbligatori per procedere alla firma.</p>
+        <div class="ctr-consents">
+          <div class="ctr-consent-item" id="ctrConsentRead" onclick="ctrToggleConsent('read')">
+            <div class="ctr-consent-checkbox"></div>
+            <div class="ctr-consent-text">
+              <div class="ctr-consent-title">Ho letto integralmente il documento</div>
+              <div class="ctr-consent-sub">Dichiaro di aver preso visione del testo del contratto, compresi gli allegati (Privacy, FEA, Modulo recesso ove applicabile), e di accettarne integralmente le condizioni.</div>
+            </div>
+          </div>
+          <div class="ctr-consent-item" id="ctrConsentFea" onclick="ctrToggleConsent('fea')">
+            <div class="ctr-consent-checkbox"></div>
+            <div class="ctr-consent-text">
+              <div class="ctr-consent-title">Accetto la Firma Elettronica Avanzata</div>
+              <div class="ctr-consent-sub">Acconsento alla sottoscrizione di questo documento mediante FEA ai sensi dell'art. 26 Reg. UE 910/2014 (eIDAS) e dell'art. 20 D.Lgs. 82/2005, identificata tramite OTP inviato sul mio cellulare verificato.</div>
+            </div>
+          </div>
+          <div class="ctr-consent-item" id="ctrConsentData" onclick="ctrToggleConsent('data')">
+            <div class="ctr-consent-checkbox"></div>
+            <div class="ctr-consent-text">
+              <div class="ctr-consent-title">Accetto il trattamento dei miei dati</div>
+              <div class="ctr-consent-sub">Ho preso visione dell'informativa privacy (allegato al contratto) e acconsento al trattamento dei dati personali per le finalità connesse all'esecuzione del contratto, agli obblighi di legge (D.Lgs. 231/2007) e al legittimo interesse.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 3: OTP -->
+      <div class="ctr-wiz-pane" data-pane="3">
+        <div class="ctr-otp-info">
+          Stiamo inviando un codice di <strong>6 cifre</strong> via SMS al tuo cellulare verificato <strong id="ctrOtpPhoneMask">*** —</strong>. Inseriscilo qui sotto entro <strong id="ctrOtpTtl">5:00</strong> minuti.
+        </div>
+        <div class="ctr-otp-cells" id="ctrOtpCells">
+          <input class="ctr-otp-cell" type="tel" inputmode="numeric" maxlength="1" data-idx="0" autocomplete="one-time-code"/>
+          <input class="ctr-otp-cell" type="tel" inputmode="numeric" maxlength="1" data-idx="1" autocomplete="off"/>
+          <input class="ctr-otp-cell" type="tel" inputmode="numeric" maxlength="1" data-idx="2" autocomplete="off"/>
+          <input class="ctr-otp-cell" type="tel" inputmode="numeric" maxlength="1" data-idx="3" autocomplete="off"/>
+          <input class="ctr-otp-cell" type="tel" inputmode="numeric" maxlength="1" data-idx="4" autocomplete="off"/>
+          <input class="ctr-otp-cell" type="tel" inputmode="numeric" maxlength="1" data-idx="5" autocomplete="off"/>
+        </div>
+        <div class="ctr-otp-meta">
+          <span id="ctrOtpAttempts">3 tentativi rimanenti</span>
+          <span>·</span>
+          <button class="ctr-otp-resend" id="ctrOtpResendBtn" onclick="ctrOtpResend()" disabled>Reinvia codice <span id="ctrOtpResendCd"></span></button>
+        </div>
+      </div>
+
+      <!-- STEP 4: Success -->
+      <div class="ctr-wiz-pane" data-pane="4">
+        <div class="ctr-success">
+          <div class="ctr-success-icon">✓</div>
+          <div class="ctr-success-title">Contratto firmato</div>
+          <div class="ctr-success-sub" id="ctrSuccessSub">Il tuo contratto è stato firmato digitalmente con valore legale ai sensi dell'art. 26 Reg. UE 910/2014 e dell'art. 20 D.Lgs. 82/2005.</div>
+          <div class="ctr-success-info">
+            <div class="ctr-pdf-info-item">
+              <div class="ctr-pdf-info-label">Numero</div>
+              <div class="ctr-pdf-info-value mono" id="ctrSuccessNumber">—</div>
+            </div>
+            <div class="ctr-pdf-info-item">
+              <div class="ctr-pdf-info-label">Firmato il</div>
+              <div class="ctr-pdf-info-value" id="ctrSuccessDate">—</div>
+            </div>
+            <div class="ctr-pdf-info-item">
+              <div class="ctr-pdf-info-label">SHA-256</div>
+              <div class="ctr-pdf-info-value mono" id="ctrSuccessSha">—</div>
+            </div>
+            <div class="ctr-pdf-info-item">
+              <div class="ctr-pdf-info-label">Notarizzazione on-chain</div>
+              <div class="ctr-pdf-info-value" id="ctrSuccessNotarize">—</div>
+            </div>
+          </div>
+          <div class="ctr-success-actions">
+            <a class="btn sm primary" id="ctrSuccessDownload" target="_blank" rel="noopener">Scarica PDF firmato</a>
+            <a class="btn sm" id="ctrSuccessVerify" target="_blank" rel="noopener">Verifica pubblica</a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="ctr-wiz-foot">
+      <div class="ctr-wiz-msg" id="ctrWizMsg"></div>
+      <div class="ctr-wiz-foot-btns">
+        <button class="btn sm" id="ctrWizBackBtn" onclick="ctrWizBack()" style="display:none">← Indietro</button>
+        <button class="btn sm primary" id="ctrWizNextBtn" onclick="ctrWizNext()">Avanti →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script src="../shared/rareblock-shared.js" defer></script>
+<script defer>
+// ── Bridge: utilities + state condiviso del parent ──
+// La modale di conferma profConfirm vive nel parent (e' shared con
+// altre tab); il frame la invoca via parent.profConfirm().
+(function(){
+  function p(name){
+    try { return (window.parent && window.parent !== window) ? window.parent[name] : undefined; }
+    catch(_){ return undefined; }
+  }
+  // Utilities specifiche dashboard Investor (esc/supa da shared.js)
+  ['escAttr','escHtml','fmtDate','fmtDateIt','fmtMoney','setText','showToast','toast',
+   'profConfirm','typeBadge','payBadge','uiLoading','uiError'].forEach(function(name){
+    if(typeof window[name] === 'undefined'){
+      Object.defineProperty(window, name, {
+        configurable: true,
+        get: function(){ return p(name); }
+      });
+    }
+  });
+  // State condiviso
+  Object.defineProperty(window, '_session', {
+    configurable: true,
+    get: function(){ return p('_session') || null; }
+  });
+  Object.defineProperty(window, '_mktProducts', {
+    configurable: true,
+    get: function(){ return p('_mktProducts') || []; }
+  });
+})();
+
+var _ctrList    = [];
+var _ctrFilter  = 'all';
+var _ctrWiz     = null;
+var _ctrOtpTimer = null;
+var _ctrOtpResendTimer = null;
+// Auto-prepare contratti per ordini pagati senza contratto associato.
+// Vedi migration 058_pending_contracts_autoprepare.sql.
+//   _ctrAutoPrepInFlight  — guard re-entrancy fra chiamate concorrenti
+//   _ctrAutoPrepFailed    — Set di order_id che sono già falliti in questa sessione
+//                           (evita loop infiniti su KYC/platform incompleti)
+//   _ctrAutoPrepDone      — true dopo il primo passaggio andato a buon fine
+//                           (evita di rifare la query view ad ogni ctrLoad
+//                           manuale; il refresh manuale forza comunque il check)
+var _ctrAutoPrepInFlight = false;
+var _ctrAutoPrepFailed   = Object.create(null);
+var _ctrAutoPrepLastErr  = null;
+
+async function ctrLoad(){
+  var list = document.getElementById('ctrList');
+  if(!list) return;
+  list.innerHTML = '<div class="ctr-empty"><div class="ctr-empty-title">Caricamento...</div></div>';
+  try{
+    var rows = await supa('GET','v_my_contracts?select=*&order=created_at.desc');
+    _ctrList = Array.isArray(rows) ? rows : [];
+    ctrUpdateCounts();
+    ctrRenderList();
+    ctrUpdatePendingDot();
+  }catch(e){
+    list.innerHTML = '<div class="ctr-empty"><div class="ctr-empty-title">Errore di caricamento</div><div class="ctr-empty-sub">'+escHtml(e.message||String(e))+'</div></div>';
+    return;
+  }
+  // Auto-prepare contratti mancanti (ordini pagati senza contratto associato).
+  // Eseguito dopo il render iniziale per non bloccare la UI; se trova ordini
+  // pending innesca il banner + i contract-prepare in sequenza.
+  ctrAutoPrepareMissing().catch(function(err){
+    console.warn('ctrAutoPrepareMissing error:', err && (err.message || err));
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Auto-preparazione contratti per ordini pagati
+// ─────────────────────────────────────────────────────────────────────
+// Quando il buyer apre la tab Contratti, recuperiamo da
+// v_my_orders_pending_contract gli ordini in stato payment_received /
+// completed che non hanno ancora un contratto attivo. Per ognuno
+// chiamiamo l'edge function contract-prepare in sequenza (non parallelo
+// per evitare race / hammering). Alla fine refresh della lista.
+//
+// Idempotenza: a livello DB un unique partial index garantisce massimo
+// 1 contratto buyer non-terminale per (order, user); un INSERT duplicato
+// fallisce con errore 23505 e noi lo trattiamo come no-op (l'altra tab
+// ha già preparato il contratto).
+//
+// Errori non recuperabili (KYC incompleto, platform_not_ready, no
+// active template) vengono memorizzati in _ctrAutoPrepFailed in modo da
+// NON ripetere il tentativo nella stessa sessione: l'utente vede il
+// motivo nel banner di errore e agisce di conseguenza (es. completa KYC
+// e ricarica la pagina).
+async function ctrAutoPrepareMissing(){
+  if(_ctrAutoPrepInFlight) return;
+  // Skip se la view non e' disponibile in DB (migration non applicata).
+  // Senza questo flag ogni apertura del tab Contratti lancia un 404 in console.
+  if(window._ctrPendingViewMissing) return;
+  var list = document.getElementById('ctrList');
+  if(!list) return;
+
+  // 1. Detect: query la view pending_contract
+  var pending;
+  try{
+    pending = await supa('GET','v_my_orders_pending_contract?select=*');
+  }catch(e){
+    // View non esiste (migration 058 non ancora applicata) o altro
+    // errore di accesso: fail silently. Memorizziamo per non ripetere
+    // la chiamata fallita ad ogni apertura tab.
+    var msg = e && (e.message||String(e));
+    if(msg && (msg.indexOf('PGRST205') > -1 || msg.indexOf('not find') > -1 || msg.indexOf('404') > -1)){
+      window._ctrPendingViewMissing = true;
+      console.warn('[contracts] v_my_orders_pending_contract: view DB mancante (migration 058 non applicata) — auto-prepare disabilitata in questa sessione');
+    } else {
+      console.warn('v_my_orders_pending_contract non disponibile:', msg);
+    }
+    return;
+  }
+
+  // Filtra ordini già falliti in questa sessione (evita loop)
+  var todo = (Array.isArray(pending) ? pending : []).filter(function(o){
+    return o && o.order_id && !_ctrAutoPrepFailed[o.order_id];
+  });
+  if(todo.length === 0) return;
+
+  // 2. Render banner sopra la lista
+  _ctrAutoPrepInFlight = true;
+  ctrRenderAutoPrepBanner(todo.length, 0);
+
+  // 3. Loop sequenziale
+  var ok = 0, ko = 0;
+  for(var i = 0; i < todo.length; i++){
+    var ord = todo[i];
+    ctrRenderAutoPrepBanner(todo.length, i);
+    try{
+      await ctrPrepareForOrder(ord);
+      ok++;
+    }catch(err){
+      ko++;
+      _ctrAutoPrepFailed[ord.order_id] = err && err.code || 'error';
+      _ctrAutoPrepLastErr = err;
+      // KYC/platform/template errors sono terminali: interrompi il loop
+      // (gli altri ordini avranno lo stesso errore, inutile riprovare)
+      if(err && (err.code === 'kyc_incomplete' || err.code === 'platform_not_ready' || err.code === 'no_active_template')){
+        break;
+      }
+    }
+  }
+
+  _ctrAutoPrepInFlight = false;
+
+  // 4. Refresh contratti per mostrare i nuovi appena creati
+  if(ok > 0){
+    try{
+      var rows = await supa('GET','v_my_contracts?select=*&order=created_at.desc');
+      _ctrList = Array.isArray(rows) ? rows : [];
+      ctrUpdateCounts();
+      ctrRenderList();
+      ctrUpdatePendingDot();
+    }catch(e){ /* ignore, lista resta com'è */ }
+
+    var msg = ok === 1
+      ? 'Contratto preparato. Lo trovi nella sezione "Da firmare".'
+      : ok + ' contratti preparati. Li trovi nella sezione "Da firmare".';
+    try{ showToast(msg, 'ok'); }catch(e){}
+  }
+
+  // 5. Se ci sono errori bloccanti, mostra banner errore al posto del banner di lavoro
+  if(ko > 0 && _ctrAutoPrepLastErr){
+    ctrRenderAutoPrepError(_ctrAutoPrepLastErr, ko, todo.length);
+  } else {
+    // Successo pulito: rimuovi banner se presente
+    var bn = document.getElementById('ctrAutoPrepBanner');
+    if(bn && bn.parentNode) bn.parentNode.removeChild(bn);
+  }
+}
+
+// Costruisce subject_data e chiama l'edge function contract-prepare per
+// un singolo ordine. Throw con .code se errore noto (così il caller può
+// distinguere errori terminali da transitori).
+async function ctrPrepareForOrder(ord){
+  // Mappatura tipo prodotto → template contratto buyer
+  //   full / grade_hold       → BUYER_PURCHASE_CUSTODY (Modalità A)
+  //   fractional / millesimal → BUYER_FRACTIONAL       (Modalità B)
+  var t = (ord.product_type || '').toLowerCase();
+  var templateCode;
+  if(t === 'fractional' || t === 'millesimal'){
+    templateCode = 'BUYER_FRACTIONAL';
+  } else if(t === 'full' || t === 'grade_hold'){
+    templateCode = 'BUYER_PURCHASE_CUSTODY';
+  } else {
+    var e = new Error('Tipo prodotto non riconosciuto: ' + (ord.product_type||'n/a'));
+    e.code = 'unknown_product_type';
+    throw e;
+  }
+
+  // Subject data: campi minimi per BUYER_PURCHASE_CUSTODY + addizionali
+  // per BUYER_FRACTIONAL (regime di comproprietà). Tutti i campi opzionali
+  // del template (set_name, grading, ecc.) vengono iniettati se presenti
+  // nella view; il template-prepare fa graceful degrade per i mancanti.
+  var subjectData = {
+    order_id:     ord.order_id,
+    order_number: ord.order_number,
+    product_id:   ord.product_id,
+    product_name: ord.product_name,
+    set_name:     ord.product_set_name || null,
+    qty:          ord.qty,
+    amount_eur:   parseFloat(ord.amount_eur) || 0,
+    unit_price:   parseFloat(ord.unit_price) || 0,
+  };
+  if(templateCode === 'BUYER_FRACTIONAL'){
+    subjectData.total_quotes      = ord.product_total_quotes;
+    subjectData.target_price_eur  = parseFloat(ord.product_target_price_eur) || null;
+    subjectData.exit_window_years = ord.product_exit_window_years;
+  }
+
+  var token = (_session && _session.access_token) || SUPA_KEY;
+  var r = await fetch(SUPA_URL + '/functions/v1/contract-prepare', {
+    method:'POST',
+    headers:{
+      'Authorization':'Bearer '+token,
+      'Content-Type':'application/json',
+      'apikey':SUPA_KEY,
+    },
+    body: JSON.stringify({ template_code: templateCode, subject_data: subjectData }),
+  });
+  var body = await r.json().catch(function(){ return {}; });
+  if(!r.ok){
+    // 412 = vincolo logico violato (KYC, platform, template). 23505 sul
+    // duplicate key arriva con error 'contract_insert_failed' e detail
+    // contenente "duplicate key" — lo trattiamo come no-op (race con
+    // altra tab).
+    var detail = (body && body.detail) || '';
+    if(body && body.error === 'contract_insert_failed' && /duplicate key/i.test(detail)){
+      return null; // race vinta dall'altra tab, no-op
+    }
+    var err = new Error(body.message || body.detail || body.error || ('HTTP '+r.status));
+    err.code = body.error || 'http_error';
+    err.status = r.status;
+    throw err;
+  }
+  return body;
+}
+
+// Render banner "stiamo preparando i tuoi contratti..."
+function ctrRenderAutoPrepBanner(total, doneSoFar){
+  var list = document.getElementById('ctrList');
+  if(!list) return;
+  // Se l'utente non ha ancora contratti, lo stato vuoto "Non ci sono
+  // contratti" stride col banner attivo. Lo rimuoviamo: il banner
+  // diventa l'unico elemento visibile finché non arriva il primo
+  // contratto preparato.
+  if(_ctrList.length === 0){
+    var emptyEl = list.querySelector('.ctr-empty');
+    if(emptyEl) emptyEl.remove();
+  }
+  var bn = document.getElementById('ctrAutoPrepBanner');
+  var counter = total > 1 ? (' (' + Math.min(doneSoFar+1, total) + '/' + total + ')') : '';
+  var html =
+    '<div class="ctr-autoprep" id="ctrAutoPrepBanner">'
+    +   '<div class="ctr-autoprep-spinner"></div>'
+    +   '<div class="ctr-autoprep-body">'
+    +     '<div class="ctr-autoprep-title">Stiamo preparando ' + (total === 1 ? 'il tuo contratto' : (total + ' contratti')) + counter + '</div>'
+    +     '<div class="ctr-autoprep-sub">Il pagamento è stato confermato. Tra pochi secondi ' + (total === 1 ? 'troverai il contratto' : 'troverai i contratti') + ' nella sezione <strong>Da firmare</strong>.</div>'
+    +   '</div>'
+    + '</div>';
+  if(bn){
+    bn.outerHTML = html;
+  } else {
+    // Inseriamo PRIMA della lista esistente (sopra le card o l'empty state)
+    list.insertAdjacentHTML('afterbegin', html);
+  }
+}
+
+// Render banner di errore terminale (KYC, platform, template)
+function ctrRenderAutoPrepError(err, koCount, totalCount){
+  var list = document.getElementById('ctrList');
+  if(!list) return;
+  // Stesso ragionamento del banner di lavoro: rimuovi empty state se
+  // la lista è vuota (l'errore è la nuova "informazione visibile").
+  if(_ctrList.length === 0){
+    var emptyEl = list.querySelector('.ctr-empty');
+    if(emptyEl) emptyEl.remove();
+  }
+  var title, sub;
+  var code = err && err.code;
+  if(code === 'kyc_incomplete'){
+    title = 'Completa il profilo per generare il contratto';
+    sub   = 'Per firmare il contratto di acquisto è necessario completare la verifica anagrafica (KYC). Vai nella sezione <strong>Profilo</strong> e completa i dati richiesti, poi torna qui.';
+  } else if(code === 'platform_not_ready'){
+    title = 'Configurazione di piattaforma in corso';
+    sub   = 'I contratti non possono ancora essere generati: alcuni dati societari (società/polizza assicurativa) non sono completi. Stiamo lavorando per attivarli; riprova tra qualche ora o contatta l\'amministratore.';
+  } else if(code === 'no_active_template'){
+    title = 'Template contratto non ancora attivo';
+    sub   = 'Il template legale per questo tipo di operazione è in revisione. Verrà attivato a breve dall\'amministratore.';
+  } else {
+    title = 'Impossibile preparare il contratto';
+    sub   = 'Si è verificato un errore (' + escHtml(err && (err.message||err.code) || 'unknown') + '). Riprova più tardi o contatta l\'assistenza.';
+  }
+  var html =
+    '<div class="ctr-autoprep error" id="ctrAutoPrepBanner">'
+    +   '<div class="ctr-autoprep-icon">!</div>'
+    +   '<div class="ctr-autoprep-body">'
+    +     '<div class="ctr-autoprep-title">' + title + '</div>'
+    +     '<div class="ctr-autoprep-sub">' + sub + '</div>'
+    +   '</div>'
+    + '</div>';
+  var bn = document.getElementById('ctrAutoPrepBanner');
+  if(bn){
+    bn.outerHTML = html;
+  } else {
+    list.insertAdjacentHTML('afterbegin', html);
+  }
+}
+
+function ctrUpdateCounts(){
+  var c = { all: _ctrList.length, pending_signature: 0, signed: 0, archived: 0 };
+  _ctrList.forEach(function(x){
+    if(x.status === 'pending_signature') c.pending_signature++;
+    else if(x.status === 'signed')        c.signed++;
+    else                                  c.archived++;
+  });
+  setText('ctrCountAll',     c.all);
+  setText('ctrCountPending', c.pending_signature);
+  setText('ctrCountSigned',  c.signed);
+  setText('ctrCountArchived',c.archived);
+}
+
+function ctrUpdatePendingDot(){
+  var dot = document.getElementById('ctrPendingDot');
+  if(!dot) return;
+  var hasPending = _ctrList.some(function(x){ return x.status === 'pending_signature'; });
+  dot.style.display = hasPending ? 'inline-block' : 'none';
+}
+
+function ctrSetFilter(f){
+  _ctrFilter = f;
+  document.querySelectorAll('.ctr-filter').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-filter') === f);
+  });
+  ctrRenderList();
+}
+
+function ctrFilteredList(){
+  if(_ctrFilter === 'all')                return _ctrList;
+  if(_ctrFilter === 'pending_signature')  return _ctrList.filter(function(x){ return x.status === 'pending_signature'; });
+  if(_ctrFilter === 'signed')             return _ctrList.filter(function(x){ return x.status === 'signed'; });
+  if(_ctrFilter === 'archived')           return _ctrList.filter(function(x){ return ['revoked','expired','rejected','draft'].indexOf(x.status) !== -1; });
+  return _ctrList;
+}
+
+function ctrRenderList(){
+  var list = document.getElementById('ctrList');
+  if(!list) return;
+  var rows = ctrFilteredList();
+  if(rows.length === 0){
+    var emptyTitle, emptySub;
+    if(_ctrFilter === 'pending_signature'){
+      emptyTitle = 'Nessun contratto da firmare';
+      emptySub   = 'Tutto a posto. Quando un contratto sarà preparato per la tua firma, lo troverai qui.';
+    } else if(_ctrFilter === 'signed'){
+      emptyTitle = 'Nessun contratto firmato';
+      emptySub   = 'Non hai ancora firmato contratti su RareBlock.';
+    } else if(_ctrFilter === 'archived'){
+      emptyTitle = 'Archivio vuoto';
+      emptySub   = 'I contratti revocati, scaduti o rifiutati appariranno qui.';
+    } else {
+      emptyTitle = 'Non ci sono contratti';
+      emptySub   = 'Quando inizierai a operare su RareBlock, ogni contratto firmato apparirà qui per consultazione e download.';
+    }
+    list.innerHTML = '<div class="ctr-empty"><div class="ctr-empty-title">'+emptyTitle+'</div><div class="ctr-empty-sub">'+emptySub+'</div></div>';
+    return;
+  }
+  list.innerHTML = rows.map(ctrCardHtml).join('');
+}
+
+function ctrCardHtml(c){
+  var status = c.status || 'draft';
+  var iconChar = status === 'pending_signature' ? '📝'
+              : status === 'signed'              ? '✓'
+              : status === 'revoked'             ? '✕'
+              : status === 'expired'             ? '⌛'
+              :                                     '·';
+  var typeLabel = c.subject_type === 'vendor_mandate'         ? 'Mandato a vendere'
+                 : c.subject_type === 'buyer_purchase_custody' ? 'Compravendita con custodia'
+                 : c.subject_type === 'buyer_fractional'       ? 'Acquisto quote di comproprietà'
+                 :                                                'Contratto';
+  var subjectLabel = c.subject_label || '—';
+  var statusLabel = status === 'pending_signature' ? 'Da firmare'
+                  : status === 'signed'              ? 'Firmato'
+                  : status === 'revoked'             ? 'Revocato'
+                  : status === 'expired'             ? 'Scaduto'
+                  : status === 'rejected'            ? 'Rifiutato'
+                  : status === 'draft'               ? 'Bozza'
+                  :                                    status;
+
+  var dateLabel, dateValue;
+  if(status === 'pending_signature' && c.expires_at){
+    dateLabel = 'Scade il'; dateValue = fmtDateIt(c.expires_at);
+  } else if(status === 'signed' && c.signed_at){
+    dateLabel = 'Firmato il'; dateValue = fmtDateIt(c.signed_at);
+  } else {
+    dateLabel = 'Creato il'; dateValue = fmtDateIt(c.created_at);
+  }
+
+  var actionBtn = '';
+  if(status === 'pending_signature'){
+    actionBtn = '<button class="btn sm primary" onclick="ctrOpenWizard(\''+escAttr(c.id)+'\')">Firma</button>';
+  } else if(status === 'signed'){
+    actionBtn = '<button class="btn sm" onclick="ctrViewSigned(\''+escAttr(c.id)+'\')">Apri PDF</button>';
+  }
+  var detailBtn = '<button class="btn sm" onclick="ctrViewDetails(\''+escAttr(c.contract_number)+'\')" title="Vedi pagina di verifica pubblica"><span class="rb-i rb-i-arrow-up-right"></span></button>';
+
+  return '<div class="ctr-card '+status+'">'
+    + '<div class="ctr-card-icon">'+iconChar+'</div>'
+    + '<div class="ctr-card-body">'
+    +   '<div class="ctr-card-title">'+escHtml(typeLabel)+' <span class="ctr-card-num">'+escHtml(c.contract_number)+'</span> <span class="ctr-badge '+status+'">'+statusLabel+'</span></div>'
+    +   '<div class="ctr-card-meta">'
+    +     '<span><strong>Oggetto:</strong> '+escHtml(subjectLabel)+'</span>'
+    +     '<span><strong>'+dateLabel+':</strong> '+dateValue+'</span>'
+    +   '</div>'
+    + '</div>'
+    + '<div class="ctr-card-actions">'+actionBtn+detailBtn+'</div>'
+    + '</div>';
+}
+
+function fmtDateIt(d){
+  if(!d) return '—';
+  try{
+    return new Date(d).toLocaleDateString('it-IT', { day:'2-digit', month:'short', year:'numeric' });
+  }catch(e){ return '—'; }
+}
+
+async function ctrViewSigned(contractId){
+  try{
+    var rows = await supa('GET','contracts?select=pdf_signed_path&id=eq.'+contractId);
+    var path = rows && rows[0] && rows[0].pdf_signed_path;
+    if(!path){ showToast('PDF firmato non disponibile', 'err'); return; }
+    var url = await ctrSignedUrl('contracts-signed', path, 3600);
+    if(url) window.open(url, '_blank');
+    else showToast('Errore creazione URL', 'err');
+  }catch(e){ showToast('Errore: '+(e.message||e), 'err'); }
+}
+
+function ctrViewDetails(contractNumber){
+  window.open('rareblock-verify.html?serial='+encodeURIComponent(contractNumber), '_blank');
+}
+
+async function ctrSignedUrl(bucket, path, expiresIn){
+  var r = await fetch(SUPA_URL+'/storage/v1/object/sign/'+bucket+'/'+path, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'apikey':SUPA_KEY, 'Authorization':'Bearer '+_session.access_token },
+    body: JSON.stringify({ expiresIn: expiresIn || 3600 })
+  });
+  if(!r.ok){
+    var errText = await r.text().catch(function(){ return ''; });
+    console.error('ctrSignedUrl HTTP', r.status, errText);
+    return null;
+  }
+  var data = await r.json();
+  // Supabase ritorna data.signedURL come '/object/sign/<bucket>/<path>?token=...'
+  // (path RELATIVO senza '/storage/v1'). Va prefisso con '/storage/v1' per
+  // ottenere URL assoluto valido.
+  var url = data.signedURL || data.signedUrl || '';
+  if(!url) return null;
+  if(url.indexOf('http') === 0) return url;                  // già assoluto
+  if(url.indexOf('/storage/v1') === 0) return SUPA_URL + url; // già con /storage/v1
+  if(url.indexOf('/') === 0)            return SUPA_URL + '/storage/v1' + url;
+  return SUPA_URL + '/storage/v1/' + url;
+}
+
+// Scarica un PDF da bucket privato come Blob (no X-Frame restrictions
+// quando usato come src di iframe via URL.createObjectURL). Ritorna
+// { blobUrl, sizeBytes } oppure null se fallisce.
+async function ctrDownloadPdfAsBlobUrl(bucket, path){
+  try{
+    var r = await fetch(SUPA_URL+'/storage/v1/object/authenticated/'+bucket+'/'+path, {
+      method: 'GET',
+      headers: { 'apikey':SUPA_KEY, 'Authorization':'Bearer '+_session.access_token }
+    });
+    if(!r.ok){
+      console.error('ctrDownloadPdfAsBlobUrl HTTP', r.status);
+      return null;
+    }
+    var blob = await r.blob();
+    return { blobUrl: URL.createObjectURL(blob), sizeBytes: blob.size };
+  }catch(e){
+    console.error('ctrDownloadPdfAsBlobUrl error', e);
+    return null;
+  }
+}
+
+// ─── Wizard ────────────────────────────────────────────────────────
+
+async function ctrOpenWizard(contractId){
+  var c = _ctrList.find(function(x){ return x.id === contractId; });
+  if(!c){ showToast('Contratto non trovato', 'err'); return; }
+  if(c.status !== 'pending_signature'){
+    showToast('Il contratto non è in stato firmabile', 'err');
+    return;
+  }
+  if(c.expires_at && new Date(c.expires_at) < new Date()){
+    showToast('Questo contratto è scaduto. Richiedine uno nuovo.', 'err');
+    return;
+  }
+
+  _ctrWiz = {
+    contractId:     c.id,
+    contractNumber: c.contract_number,
+    subjectType:    c.subject_type,
+    expiresAt:      c.expires_at,
+    step:           1,
+    consents:       { read:false, fea:false, data:false },
+    otpId:          null,
+    otpExp:         null,
+    otpAttemptsRemaining: 3,
+    pdfPath:        null,
+    pdfSha:         null,
+    signedResult:   null,
+  };
+
+  var bg = document.getElementById('ctrWizBg');
+  bg.classList.add('show');
+
+  ctrWizGoStep(1);
+  ctrWizMsg('');
+  document.getElementById('ctrWizNextBtn').disabled = false;
+  document.getElementById('ctrWizNextBtn').style.display = '';
+  document.getElementById('ctrWizBackBtn').style.display = 'none';
+  ['read','fea','data'].forEach(function(k){
+    document.getElementById('ctrConsent'+(k.charAt(0).toUpperCase()+k.slice(1))).classList.remove('checked');
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.ctr-otp-cell'), function(el){
+    el.value = ''; el.classList.remove('filled','error');
+  });
+
+  try{
+    var rows = await supa('GET','contracts?select=pdf_unsigned_path,pdf_unsigned_sha256,subject_type,expires_at&id=eq.'+contractId);
+    var ctr = rows && rows[0];
+    if(!ctr){ ctrWizMsg('Errore: contratto non accessibile', 'err'); return; }
+    _ctrWiz.pdfPath = ctr.pdf_unsigned_path;
+    _ctrWiz.pdfSha  = ctr.pdf_unsigned_sha256;
+
+    var typeLabel = ctr.subject_type === 'buyer_purchase_custody' ? 'Compravendita con custodia'
+                    : ctr.subject_type === 'vendor_mandate' ? 'Mandato a vendere'
+                    : ctr.subject_type === 'buyer_fractional' ? 'Acquisto quote'
+                    : 'Contratto';
+    setText('ctrWizTitle', typeLabel + ' · ' + c.contract_number);
+    setText('ctrInfoNumber', c.contract_number);
+    setText('ctrInfoType',   typeLabel);
+    setText('ctrInfoExpires', ctr.expires_at ? fmtDateIt(ctr.expires_at) : '—');
+    setText('ctrInfoSha',     ctrShortSha(_ctrWiz.pdfSha));
+
+    if(_ctrWiz.pdfPath){
+      // Embed via blob URL: bypass X-Frame-Options=sameorigin di Supabase Storage.
+      // L'iframe carica un object URL del browser (origin same), non l'URL
+      // remoto Supabase, quindi il browser non blocca.
+      var dl = await ctrDownloadPdfAsBlobUrl('contracts-unsigned', _ctrWiz.pdfPath);
+      if(dl && dl.blobUrl){
+        _ctrWiz.blobUrl = dl.blobUrl;
+        document.getElementById('ctrPdfFrame').src = dl.blobUrl + '#toolbar=1&navpanes=0';
+      } else {
+        // Fallback: signed URL diretto (richiederà di scaricarlo a parte)
+        var url = await ctrSignedUrl('contracts-unsigned', _ctrWiz.pdfPath, 1800);
+        if(url){
+          document.getElementById('ctrPdfFrame').srcdoc = '<div style="padding:40px;text-align:center;font-family:sans-serif;color:#999;background:#161b22;color:#e6edf3;height:100%">L\'anteprima inline non è disponibile per limiti di sicurezza del browser.<br><br><a href="'+url+'" target="_blank" style="color:#c9a84c">Apri il PDF in una nuova scheda →</a></div>';
+        } else {
+          document.getElementById('ctrPdfFrame').srcdoc = '<div style="padding:40px;text-align:center;font-family:sans-serif;color:#999">Anteprima non disponibile. Procedi pure con la firma — il documento sarà accessibile dopo la sottoscrizione.</div>';
+        }
+      }
+    }
+  }catch(e){
+    ctrWizMsg('Errore caricamento contratto: '+(e.message||e), 'err');
+  }
+}
+
+function ctrWizMaybeClose(){
+  if(!_ctrWiz) { ctrWizClose(); return; }
+  if(_ctrWiz.step === 4 || _ctrWiz.step === 1){
+    ctrWizClose();
+    return;
+  }
+  if(typeof profConfirm === 'function'){
+    profConfirm({
+      title: 'Annullare la firma?',
+      body: 'Stai per chiudere il wizard. Le modifiche non salvate andranno perse e dovrai ricominciare. Continuare?',
+      okLabel: 'Annulla firma',
+      okClass: 'btn-danger',
+      onOk: function(){ ctrWizClose(); }
+    });
+  } else {
+    ctrWizClose();
+  }
+}
+
+function ctrWizClose(){
+  document.getElementById('ctrWizBg').classList.remove('show');
+  // Cleanup blob URL del PDF (se creato) per liberare memoria
+  if(_ctrWiz && _ctrWiz.blobUrl){
+    try{ URL.revokeObjectURL(_ctrWiz.blobUrl); }catch(e){}
+  }
+  document.getElementById('ctrPdfFrame').src = 'about:blank';
+  if(_ctrOtpTimer){ clearInterval(_ctrOtpTimer); _ctrOtpTimer = null; }
+  if(_ctrOtpResendTimer){ clearInterval(_ctrOtpResendTimer); _ctrOtpResendTimer = null; }
+  if(_ctrWiz && _ctrWiz.step === 4) ctrLoad();
+  _ctrWiz = null;
+}
+
+function ctrWizGoStep(n){
+  if(!_ctrWiz) return;
+  _ctrWiz.step = n;
+  document.querySelectorAll('.ctr-wiz-step').forEach(function(el){
+    var s = parseInt(el.getAttribute('data-step'),10);
+    el.classList.toggle('active', s === n);
+    el.classList.toggle('done',   s < n);
+  });
+  document.querySelectorAll('.ctr-wiz-pane').forEach(function(el){
+    var s = parseInt(el.getAttribute('data-pane'),10);
+    el.classList.toggle('active', s === n);
+  });
+
+  var nextBtn = document.getElementById('ctrWizNextBtn');
+  var backBtn = document.getElementById('ctrWizBackBtn');
+  nextBtn.style.display = '';
+  backBtn.style.display = (n === 1 || n === 4) ? 'none' : '';
+  if(n === 1)      nextBtn.textContent = 'Procedi alla firma →';
+  else if(n === 2) nextBtn.textContent = 'Conferma e invia OTP →';
+  else if(n === 3) nextBtn.textContent = 'Firma documento';
+  else if(n === 4) {
+    nextBtn.textContent = 'Chiudi';
+    backBtn.style.display = 'none';
+  }
+  ctrWizMsg('');
+}
+
+async function ctrWizNext(){
+  if(!_ctrWiz) return;
+  var step = _ctrWiz.step;
+  var nextBtn = document.getElementById('ctrWizNextBtn');
+  if(step === 1){
+    ctrWizGoStep(2);
+  }
+  else if(step === 2){
+    if(!_ctrWiz.consents.read || !_ctrWiz.consents.fea || !_ctrWiz.consents.data){
+      ctrWizMsg('Devi accettare tutti e tre i consensi per procedere.', 'err');
+      return;
+    }
+    nextBtn.disabled = true; nextBtn.textContent = 'Invio OTP...';
+    var sent = await ctrSendOtp();
+    nextBtn.disabled = false;
+    if(sent){
+      ctrWizGoStep(3);
+      ctrStartOtpTimer();
+      setTimeout(function(){ var c = document.querySelector('.ctr-otp-cell[data-idx="0"]'); if(c) c.focus(); }, 80);
+    } else {
+      nextBtn.textContent = 'Conferma e invia OTP →';
+    }
+  }
+  else if(step === 3){
+    var code = ctrOtpReadCode();
+    if(code.length !== 6){
+      ctrWizMsg('Inserisci tutte e 6 le cifre del codice.', 'err');
+      ctrOtpFlashError();
+      return;
+    }
+    nextBtn.disabled = true; nextBtn.textContent = 'Firma in corso...';
+    var ok = await ctrSubmitSign(code);
+    nextBtn.disabled = false;
+    if(!ok){
+      nextBtn.textContent = 'Firma documento';
+    }
+  }
+  else if(step === 4){
+    ctrWizClose();
+  }
+}
+
+function ctrWizBack(){
+  if(!_ctrWiz) return;
+  if(_ctrWiz.step === 2) ctrWizGoStep(1);
+  else if(_ctrWiz.step === 3){
+    if(typeof profConfirm === 'function'){
+      profConfirm({
+        title: 'Tornare ai consensi?',
+        body: 'Tornando indietro perderai il codice OTP corrente. Dovrai richiederne uno nuovo. Continuare?',
+        okLabel: 'Torna indietro',
+        onOk: function(){
+          if(_ctrOtpTimer){ clearInterval(_ctrOtpTimer); _ctrOtpTimer = null; }
+          _ctrWiz.otpId = null;
+          ctrWizGoStep(2);
+        }
+      });
+    } else {
+      ctrWizGoStep(2);
+    }
+  }
+}
+
+function ctrToggleConsent(key){
+  if(!_ctrWiz) return;
+  _ctrWiz.consents[key] = !_ctrWiz.consents[key];
+  var el = document.getElementById('ctrConsent'+(key.charAt(0).toUpperCase()+key.slice(1)));
+  if(el) el.classList.toggle('checked', _ctrWiz.consents[key]);
+  if(_ctrWiz.consents.read && _ctrWiz.consents.fea && _ctrWiz.consents.data){
+    ctrWizMsg('Tutti i consensi accettati. Premi "Conferma e invia OTP" per ricevere il codice via SMS.', 'ok');
+  } else {
+    ctrWizMsg('');
+  }
+}
+
+// ─── OTP ──────────────────────────────────────────────────────────
+
+async function ctrSendOtp(){
+  try{
+    var r = await fetch(SUPA_URL+'/functions/v1/sms-otp-send', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'apikey':SUPA_KEY, 'Authorization':'Bearer '+_session.access_token },
+      body: JSON.stringify({
+        purpose:    'contract_sign',
+        context_id: _ctrWiz.contractId,
+        channel_hint: 'auto'
+      })
+    });
+    var data = await r.json().catch(function(){ return {}; });
+    if(!r.ok || !data.otp_id){
+      var em = data.error === 'rate_limited' ? 'Troppi tentativi. Riprova fra qualche minuto.'
+             : data.error === 'phone_not_verified' ? 'Il tuo cellulare non risulta verificato. Vai su Profilo → Telefono.'
+             : (data.error || 'errore_sconosciuto');
+      ctrWizMsg('Invio OTP non riuscito: '+em, 'err');
+      return false;
+    }
+    _ctrWiz.otpId = data.otp_id;
+    _ctrWiz.otpExp = new Date(data.expires_at).getTime();
+    _ctrWiz.otpAttemptsRemaining = data.attempts_max || 3;
+    setText('ctrOtpPhoneMask', data.masked_phone || '*** ****');
+    setText('ctrOtpAttempts', _ctrWiz.otpAttemptsRemaining + ' tentativi rimanenti');
+    return true;
+  }catch(e){
+    ctrWizMsg('Errore di rete invio OTP: '+(e.message||e), 'err');
+    return false;
+  }
+}
+
+function ctrOtpReadCode(){
+  var v = '';
+  Array.prototype.forEach.call(document.querySelectorAll('.ctr-otp-cell'), function(el){ v += el.value || ''; });
+  return v;
+}
+
+function ctrOtpFlashError(){
+  Array.prototype.forEach.call(document.querySelectorAll('.ctr-otp-cell'), function(el){
+    el.classList.add('error');
+  });
+  setTimeout(function(){
+    Array.prototype.forEach.call(document.querySelectorAll('.ctr-otp-cell'), function(el){
+      el.classList.remove('error');
+    });
+  }, 600);
+}
+
+function ctrStartOtpTimer(){
+  if(_ctrOtpTimer) clearInterval(_ctrOtpTimer);
+  function update(){
+    if(!_ctrWiz || !_ctrWiz.otpExp){ clearInterval(_ctrOtpTimer); return; }
+    var ms = _ctrWiz.otpExp - Date.now();
+    if(ms <= 0){
+      setText('ctrOtpTtl', 'scaduto');
+      clearInterval(_ctrOtpTimer); _ctrOtpTimer = null;
+      ctrWizMsg('Il codice OTP è scaduto. Premi "Reinvia codice" per riceverne uno nuovo.', 'err');
+      return;
+    }
+    var s = Math.floor(ms/1000);
+    var mm = Math.floor(s/60), ss = s % 60;
+    setText('ctrOtpTtl', mm + ':' + (ss<10?'0':'') + ss);
+  }
+  update();
+  _ctrOtpTimer = setInterval(update, 1000);
+
+  var resendBtn = document.getElementById('ctrOtpResendBtn');
+  resendBtn.disabled = true;
+  var resendCountdown = 60;
+  setText('ctrOtpResendCd', '('+resendCountdown+'s)');
+  if(_ctrOtpResendTimer) clearInterval(_ctrOtpResendTimer);
+  _ctrOtpResendTimer = setInterval(function(){
+    resendCountdown--;
+    if(resendCountdown <= 0){
+      clearInterval(_ctrOtpResendTimer); _ctrOtpResendTimer = null;
+      resendBtn.disabled = false;
+      setText('ctrOtpResendCd', '');
+    } else {
+      setText('ctrOtpResendCd', '('+resendCountdown+'s)');
+    }
+  }, 1000);
+}
+
+async function ctrOtpResend(){
+  if(!_ctrWiz) return;
+  var resendBtn = document.getElementById('ctrOtpResendBtn');
+  resendBtn.disabled = true; setText('ctrOtpResendCd', '...');
+  Array.prototype.forEach.call(document.querySelectorAll('.ctr-otp-cell'), function(el){
+    el.value = ''; el.classList.remove('filled','error');
+  });
+  var sent = await ctrSendOtp();
+  if(sent){
+    ctrStartOtpTimer();
+    var c = document.querySelector('.ctr-otp-cell[data-idx="0"]'); if(c) c.focus();
+    ctrWizMsg('Nuovo codice inviato.', 'ok');
+  }
+}
+
+async function ctrSubmitSign(code){
+  try{
+    var r = await fetch(SUPA_URL+'/functions/v1/contract-sign', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'apikey':SUPA_KEY, 'Authorization':'Bearer '+_session.access_token },
+      body: JSON.stringify({
+        contract_id: _ctrWiz.contractId,
+        otp_id:      _ctrWiz.otpId,
+        code:        code,
+        consents: {
+          read_contract:    _ctrWiz.consents.read,
+          fea_acknowledged: _ctrWiz.consents.fea,
+          data_processing:  _ctrWiz.consents.data
+        }
+      })
+    });
+    var data = await r.json().catch(function(){ return {}; });
+    if(r.status === 200 && data.ok){
+      _ctrWiz.signedResult = data;
+      setText('ctrSuccessNumber', data.contract_number);
+      setText('ctrSuccessDate', data.signed_at ? new Date(data.signed_at).toLocaleString('it-IT', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—');
+      setText('ctrSuccessSha',  ctrShortSha(data.pdf_signed_sha256));
+      var notarText, notarColor;
+      if(data.notarization && data.notarization.ok){
+        notarText = '✓ Ancorato su Base · ' + ctrShortSha(data.notarization.tx_hash, 14);
+        notarColor = 'var(--success)';
+      } else {
+        notarText = 'Non eseguita (FEA valida)';
+        notarColor = 'var(--text-muted)';
+      }
+      var nodeNotar = document.getElementById('ctrSuccessNotarize');
+      if(nodeNotar){ nodeNotar.textContent = notarText; nodeNotar.style.color = notarColor; }
+
+      document.getElementById('ctrSuccessDownload').href = data.pdf_signed_url || '#';
+      document.getElementById('ctrSuccessVerify').href   = data.verify_url || '#';
+
+      ctrWizGoStep(4);
+      ctrLoad();
+      return true;
+    }
+    if(data.error === 'otp_invalid'){
+      _ctrWiz.otpAttemptsRemaining = data.attempts_remaining || 0;
+      setText('ctrOtpAttempts', _ctrWiz.otpAttemptsRemaining + ' tentativi rimanenti');
+      ctrWizMsg('Codice OTP errato. ' + (_ctrWiz.otpAttemptsRemaining > 0 ? 'Riprova.' : 'Hai esaurito i tentativi: richiedi un nuovo codice.'), 'err');
+      ctrOtpFlashError();
+      if(_ctrWiz.otpAttemptsRemaining > 0){
+        Array.prototype.forEach.call(document.querySelectorAll('.ctr-otp-cell'), function(el){ el.value=''; el.classList.remove('filled'); });
+        var c0 = document.querySelector('.ctr-otp-cell[data-idx="0"]'); if(c0) c0.focus();
+      }
+    } else if(data.error === 'otp_expired'){
+      ctrWizMsg('Codice OTP scaduto. Premi "Reinvia codice" per riceverne uno nuovo.', 'err');
+    } else if(data.error === 'otp_max_attempts_reached'){
+      ctrWizMsg('Hai esaurito i tentativi su questo codice. Richiedine uno nuovo.', 'err');
+    } else if(data.error === 'contract_expired'){
+      ctrWizMsg('Il contratto è scaduto. Non è più firmabile.', 'err');
+    } else if(data.error === 'invalid_status'){
+      ctrWizMsg('Il contratto non è in stato firmabile (stato attuale: '+escHtml(data.current||'?')+').', 'err');
+    } else {
+      ctrWizMsg('Errore firma: '+escHtml(data.error || ('HTTP '+r.status)) + (data.detail ? ' — '+escHtml(data.detail) : ''), 'err');
+    }
+    return false;
+  }catch(e){
+    ctrWizMsg('Errore di rete: '+(e.message||e), 'err');
+    return false;
+  }
+}
+
+function ctrShortSha(s, total){
+  if(!s) return '—';
+  total = total || 22;
+  if(s.length <= total) return s;
+  var half = Math.floor(total/2);
+  return s.slice(0, half) + '…' + s.slice(-half);
+}
+
+function ctrWizMsg(text, kind){
+  var el = document.getElementById('ctrWizMsg');
+  if(!el) return;
+  el.textContent = text || '';
+  el.classList.remove('err','ok');
+  if(kind === 'err') el.classList.add('err');
+  if(kind === 'ok')  el.classList.add('ok');
+}
+
+// ─── OTP cells: auto-advance, paste 6 cifre ────────────────────────
+document.addEventListener('input', function(e){
+  if(!e.target || !e.target.classList || !e.target.classList.contains('ctr-otp-cell')) return;
+  var v = e.target.value.replace(/\D/g, '');
+  if(v.length === 0){ e.target.classList.remove('filled'); return; }
+  if(v.length > 1){
+    var startIdx = parseInt(e.target.getAttribute('data-idx'), 10) || 0;
+    for(var i=0; i<v.length && (startIdx+i) < 6; i++){
+      var c = document.querySelector('.ctr-otp-cell[data-idx="'+(startIdx+i)+'"]');
+      if(c){ c.value = v[i]; c.classList.add('filled'); }
+    }
+    var nextEmpty = document.querySelector('.ctr-otp-cell:not(.filled)');
+    if(nextEmpty) nextEmpty.focus();
+    else {
+      e.target.blur();
+      if(_ctrWiz && _ctrWiz.step === 3) ctrWizNext();
+    }
+    return;
+  }
+  e.target.value = v;
+  e.target.classList.add('filled');
+  var idx = parseInt(e.target.getAttribute('data-idx'), 10) || 0;
+  var next = document.querySelector('.ctr-otp-cell[data-idx="'+(idx+1)+'"]');
+  if(next) next.focus();
+  else {
+    e.target.blur();
+    var allFilled = document.querySelectorAll('.ctr-otp-cell.filled').length === 6;
+    if(allFilled && _ctrWiz && _ctrWiz.step === 3) ctrWizNext();
+  }
+});
+document.addEventListener('keydown', function(e){
+  if(!e.target || !e.target.classList || !e.target.classList.contains('ctr-otp-cell')) return;
+  if(e.key === 'Backspace' && !e.target.value){
+    var idx = parseInt(e.target.getAttribute('data-idx'), 10) || 0;
+    if(idx > 0){
+      var prev = document.querySelector('.ctr-otp-cell[data-idx="'+(idx-1)+'"]');
+      if(prev){ prev.focus(); prev.value = ''; prev.classList.remove('filled'); }
+    }
+  } else if(e.key === 'ArrowLeft'){
+    var idxL = parseInt(e.target.getAttribute('data-idx'), 10) || 0;
+    if(idxL > 0){ var p = document.querySelector('.ctr-otp-cell[data-idx="'+(idxL-1)+'"]'); if(p) p.focus(); }
+  } else if(e.key === 'ArrowRight'){
+    var idxR = parseInt(e.target.getAttribute('data-idx'), 10) || 0;
+    if(idxR < 5){ var n = document.querySelector('.ctr-otp-cell[data-idx="'+(idxR+1)+'"]'); if(n) n.focus(); }
+  } else if(e.key === 'Enter'){
+    if(_ctrWiz && _ctrWiz.step === 3) ctrWizNext();
+  }
+});
+
+// ─── helpers ───────────────────────────────────────────────────────
+function escAttr(s){ return escHtml(s).replace(/'/g,'&#39;'); }
+function escHtml(s){ return esc(s); }
+function setText(id, val){ var el = document.getElementById(id); if(el) el.textContent = (val == null) ? '' : String(val); }
+
+
+// ═══════════════════════════════════════════════════════════
+
+
+// Bootstrap robusto: aspetta che il parent abbia finito di parsare.
+function _waitParentReady(cb){
+  var tries = 0;
+  function check(){
+    var ready = (window.parent && window.parent !== window
+                 && typeof window.parent.fmtDateIt === 'function'
+                 && typeof window.parent.supa === 'function');
+    if(ready){ cb(); return; }
+    if(++tries > 50){ console.warn('[contracts] parent never ready, giving up'); cb(); return; }
+    setTimeout(check, 100);
+  }
+  check();
+}
+document.addEventListener("DOMContentLoaded", function(){
+  _waitParentReady(function(){
+    if(typeof ctrLoad === 'function'){
+      try{ ctrLoad(); }catch(e){ console.error("[contracts frame]", e); }
+    }
+  });
+});
+
+// Listener per refresh dal parent (es. dopo cambio stato contratto)
+window.addEventListener('message', function(ev){
+  if(!ev.data) return;
+  if(ev.data.type === 'rb-contracts-refresh'){
+    try{ ctrLoad(); }catch(_){}
+  }
+});
+</script>
+</body>
+</html>
