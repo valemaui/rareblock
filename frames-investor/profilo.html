@@ -1,0 +1,2184 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Profilo & KYC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../shared/rareblock-shared.css"/>
+<style>
+html,body{height:100%;overflow:hidden}
+body{display:flex;flex-direction:column}
+
+/* Profile + KYC styles (estratto 1:1 da rareblock-dashboard.html L4729-5305) */
+.prof-wrap{flex:1;overflow:auto;padding:24px 28px}
+.prof-inner{max-width:980px;margin:0 auto}
+
+/* ── HEADER COMPATTO: titolo + KYC + actions su singola card ──
+   Sostituisce il vecchio .prof-head + .kyc-strip + .prof-saveall-bar.
+   Tutto in una sola riga visiva, niente layout shift quando appare
+   il "Salva tutto": i pulsanti sono sempre presenti (disabilitati
+   se niente da salvare). */
+.prof-hero{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:16px 20px;margin-bottom:20px;
+  display:grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  grid-template-rows: auto auto;
+  gap:14px 20px;
+  align-items:center;
+}
+.prof-hero-left{
+  display:flex;align-items:center;gap:14px;min-width:0;
+  grid-column:1;grid-row:1;
+}
+.prof-hero-title{
+  font-family:var(--serif);font-style:italic;font-weight:300;
+  font-size:18px;letter-spacing:-.01em;line-height:1;
+  color:var(--text);white-space:nowrap;
+}
+.prof-hero-info-btn{
+  width:18px;height:18px;border-radius:50%;background:var(--surface3);
+  border:none;color:var(--text-muted);font-size:11px;font-weight:600;
+  cursor:help;display:inline-flex;align-items:center;justify-content:center;
+  font-family:var(--font);transition:all var(--t-fast);
+  position:relative;flex-shrink:0;
+}
+.prof-hero-info-btn:hover{background:var(--gold,#c9a84c);color:var(--bg)}
+.prof-hero-info-btn::before{content:'i';font-style:italic;font-family:var(--serif)}
+.prof-hero-info-btn:hover .prof-hero-tip{display:block}
+.prof-hero-tip{
+  display:none;position:absolute;top:24px;left:0;
+  width:340px;padding:12px 14px;
+  background:var(--bg);border:1px solid var(--border-strong);
+  border-radius:var(--r);box-shadow:0 12px 28px rgba(0,0,0,.6);
+  font-family:var(--font);font-style:normal;font-size:11.5px;
+  color:var(--text-muted);line-height:1.55;font-weight:400;
+  letter-spacing:0;text-transform:none;cursor:auto;text-align:left;
+  z-index:20;
+}
+.prof-hero-tip strong{color:var(--text);font-weight:600}
+
+.prof-hero-actions{
+  display:flex;gap:6px;align-items:center;flex-shrink:0;
+  grid-column:2;grid-row:1;
+}
+.prof-hero-icon-btn{
+  width:30px;height:30px;border-radius:var(--r);
+  background:transparent;border:1px solid var(--border);
+  color:var(--text-muted);cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+  transition:all var(--t-fast);
+}
+.prof-hero-icon-btn:hover{color:var(--text);border-color:var(--border-strong);background:var(--surface2)}
+.prof-hero-icon-btn .rb-i{font-size:13px}
+.prof-hero-savebtn{
+  padding:6px 14px;font-size:12px;font-weight:600;
+  border-radius:var(--r);border:1px solid var(--border);
+  background:var(--surface2);color:var(--text-muted);
+  cursor:pointer;font-family:var(--font);
+  transition:all var(--t-fast);height:30px;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.prof-hero-savebtn:hover:not(:disabled){background:var(--surface3);color:var(--text);border-color:var(--border-strong)}
+.prof-hero-savebtn.has-changes{
+  background:var(--gold,#c9a84c);color:var(--bg);
+  border-color:var(--gold,#c9a84c);font-weight:700;
+}
+.prof-hero-savebtn.has-changes:hover{background:#d4b561;border-color:#d4b561}
+.prof-hero-savebtn:disabled{opacity:.4;cursor:not-allowed}
+.prof-hero-changecount{
+  display:none;background:rgba(0,0,0,.25);
+  font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:10px;
+  font-family:var(--mono);
+}
+.prof-hero-savebtn.has-changes .prof-hero-changecount{display:inline-flex}
+
+/* KYC strip (riga 2 della hero card) */
+.prof-hero-kyc{
+  grid-column:1 / -1;grid-row:2;
+  display:flex;gap:18px;align-items:center;flex-wrap:wrap;
+  border-top:1px solid var(--border);padding-top:14px;
+}
+.kyc-level{display:flex;flex-direction:column;gap:2px;flex-shrink:0}
+.kyc-level-label{font-size:9.5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.10em;color:var(--text-muted);font-weight:500}
+.kyc-level-value{font-size:16px;font-weight:600;color:var(--gold,#c9a84c);font-family:var(--display);letter-spacing:.02em;line-height:1}
+.kyc-bar-wrap{flex:1;min-width:180px}
+.kyc-bar-track{position:relative;height:5px;background:var(--surface3);border-radius:3px;overflow:hidden}
+.kyc-bar-fill{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,var(--accent),var(--gold,#c9a84c));border-radius:3px;transition:width .4s ease}
+.kyc-bar-steps{display:flex;justify-content:space-between;margin-top:6px;font-size:9.5px;font-family:var(--mono);color:var(--text-muted);letter-spacing:.04em}
+.kyc-bar-step{flex:1;text-align:center;position:relative;padding-top:1px}
+.kyc-bar-step.done{color:var(--gold,#c9a84c);font-weight:600}
+.kyc-bar-step.current{color:var(--accent);font-weight:600}
+.kyc-status-badge{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-family:var(--mono);font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);flex-shrink:0}
+.kyc-status-badge.review{color:var(--warning,#d29922);border-color:rgba(210,153,34,.4);background:rgba(210,153,34,.08)}
+.kyc-status-badge.approved{color:var(--success,#3fb950);border-color:rgba(63,185,80,.4);background:rgba(63,185,80,.08)}
+.kyc-status-badge.rejected{color:var(--danger,#f85149);border-color:rgba(248,81,73,.4);background:rgba(248,81,73,.08)}
+
+/* Mobile: comprime header */
+@media (max-width:680px){
+  .prof-hero{grid-template-columns:1fr;gap:12px}
+  .prof-hero-left{grid-column:1;grid-row:1}
+  .prof-hero-actions{grid-column:1;grid-row:2;justify-content:flex-end}
+  .prof-hero-kyc{grid-column:1;grid-row:3}
+  .prof-hero-tip{left:auto;right:0;width:280px}
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   PR8 — ADMIN CONTRATTI + KYC REVIEW
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Stats cards — riga di metriche in cima */
+.admctr-stats{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  gap:10px;margin-bottom:18px;
+}
+.admctr-stat{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:14px 16px;
+}
+.admctr-stat-label{
+  font-size:9.5px;font-family:var(--mono);text-transform:uppercase;
+  letter-spacing:.10em;color:var(--text-muted);font-weight:500;
+}
+.admctr-stat-value{
+  font-size:22px;font-weight:600;color:var(--text);
+  font-family:var(--display);margin-top:6px;letter-spacing:.01em;line-height:1;
+}
+.admctr-stat-value.gold{color:var(--gold,#c9a84c)}
+.admctr-stat-value.warn{color:var(--warning,#d29922)}
+.admctr-stat-value.ok{color:var(--success,#3fb950)}
+.admctr-stat-sub{font-size:11px;color:var(--text-muted);margin-top:4px}
+
+/* Toolbar (filtri + search + export) */
+.admctr-toolbar{
+  display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  margin-bottom:14px;padding:12px 14px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);
+}
+.admctr-search{
+  flex:1;min-width:200px;
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--r);padding:7px 11px;font-size:12.5px;
+  color:var(--text);font-family:var(--font);outline:none;height:32px;
+}
+.admctr-search:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.admctr-select{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--r);padding:6px 28px 6px 11px;font-size:12px;
+  color:var(--text);font-family:var(--font);height:32px;cursor:pointer;
+}
+
+/* Tabella contratti (admin) */
+.admctr-table{
+  width:100%;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);border-collapse:separate;border-spacing:0;
+  font-size:12px;
+}
+.admctr-table thead th{
+  font-size:9.5px;font-family:var(--mono);text-transform:uppercase;
+  letter-spacing:.10em;color:var(--text-muted);font-weight:600;
+  padding:10px 12px;text-align:left;background:var(--surface2);
+  border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1;
+}
+.admctr-table tbody td{
+  padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle;
+}
+.admctr-table tbody tr:last-child td{border-bottom:none}
+.admctr-table tbody tr:hover{background:var(--surface2)}
+.admctr-table .mono{font-family:var(--mono);font-size:11px;color:var(--text)}
+.admctr-table .muted{color:var(--text-muted)}
+.admctr-table .num{text-align:right}
+.admctr-row-id{
+  font-family:var(--mono);font-size:10.5px;color:var(--text-muted);
+  cursor:pointer;text-decoration:underline dotted;
+}
+.admctr-row-id:hover{color:var(--accent)}
+
+.admctr-row-actions{
+  display:flex;gap:6px;justify-content:flex-end;
+}
+.admctr-icon-btn{
+  width:26px;height:26px;border-radius:var(--r);
+  background:transparent;border:1px solid var(--border);
+  color:var(--text-muted);cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+  transition:all var(--t-fast);font-size:11px;
+}
+.admctr-icon-btn:hover{color:var(--text);border-color:var(--text);background:var(--surface2)}
+
+/* Empty state riusa lo stile .ctr-empty */
+
+/* Pagination */
+.admctr-pager{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:12px 4px;font-size:11.5px;color:var(--text-muted);
+}
+.admctr-pager-btns{display:flex;gap:6px}
+
+/* Drill-down modal: dettaglio contratto + audit trail */
+.admctr-drill-bg{
+  position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(6px);
+  display:none;align-items:center;justify-content:center;z-index:920;padding:20px;
+}
+.admctr-drill-bg.show{display:flex}
+.admctr-drill{
+  background:var(--bg);border:1px solid var(--border-strong);border-radius:var(--r-lg);
+  width:100%;max-width:920px;max-height:92vh;
+  display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,.7);
+  overflow:hidden;
+}
+.admctr-drill-head{
+  padding:18px 24px;border-bottom:1px solid var(--border);
+  background:var(--surface);
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+}
+.admctr-drill-eyebrow{
+  font-size:9.5px;font-family:var(--mono);text-transform:uppercase;
+  letter-spacing:.14em;color:var(--gold,#c9a84c);font-weight:600;
+}
+.admctr-drill-title{
+  font-family:var(--serif);font-style:italic;font-weight:400;
+  font-size:18px;color:var(--text);
+}
+.admctr-drill-body{flex:1;overflow:auto;padding:22px 26px}
+
+/* Sezioni dentro drill */
+.admctr-drill-h{
+  font-size:9.5px;font-family:var(--mono);text-transform:uppercase;
+  letter-spacing:.10em;color:var(--text-muted);font-weight:600;
+  margin:18px 0 10px;
+}
+.admctr-drill-h:first-child{margin-top:0}
+.admctr-kv-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:14px 24px;margin-bottom:18px;
+}
+.admctr-kv-label{font-size:10.5px;font-family:var(--mono);color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase}
+.admctr-kv-value{font-size:13px;color:var(--text);margin-top:3px;overflow-wrap:break-word}
+.admctr-kv-value.mono{font-family:var(--mono);font-size:11.5px}
+
+/* Audit timeline */
+.admctr-timeline{
+  display:flex;flex-direction:column;gap:0;
+  border-left:2px solid var(--border);padding-left:18px;margin-left:6px;
+}
+.admctr-timeline-item{
+  position:relative;padding-bottom:14px;
+}
+.admctr-timeline-item::before{
+  content:'';position:absolute;left:-24px;top:5px;
+  width:10px;height:10px;border-radius:50%;
+  background:var(--surface3);border:2px solid var(--bg);
+}
+.admctr-timeline-item.event-prepared::before{background:var(--accent)}
+.admctr-timeline-item.event-consents_accepted::before{background:var(--accent)}
+.admctr-timeline-item.event-otp_verified::before{background:var(--gold,#c9a84c)}
+.admctr-timeline-item.event-pdf_signed::before{background:var(--success,#3fb950)}
+.admctr-timeline-item.event-notarized::before{background:var(--success,#3fb950)}
+.admctr-timeline-item.event-revoked::before{background:var(--danger,#f85149)}
+.admctr-timeline-evt{
+  font-size:12px;font-weight:600;color:var(--text);
+}
+.admctr-timeline-time{
+  font-size:10.5px;font-family:var(--mono);color:var(--text-muted);margin-top:2px;
+}
+.admctr-timeline-data{
+  font-size:11px;font-family:var(--mono);color:var(--text-muted);
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:8px 10px;margin-top:6px;overflow-wrap:break-word;
+  white-space:pre-wrap;line-height:1.5;
+}
+
+.admctr-drill-foot{
+  padding:14px 24px;border-top:1px solid var(--border);
+  background:var(--surface);
+  display:flex;justify-content:flex-end;gap:8px;
+}
+
+/* KYC Review */
+.admkyc-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:16px 18px;margin-bottom:10px;
+  display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;
+}
+.admkyc-card.review{border-left:3px solid var(--warning,#d29922)}
+.admkyc-card.approved{border-left:3px solid var(--success,#3fb950)}
+.admkyc-card.rejected{border-left:3px solid var(--danger,#f85149)}
+.admkyc-name{font-size:14px;font-weight:600;color:var(--text);margin-bottom:3px}
+.admkyc-email{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
+.admkyc-meta{font-size:11.5px;color:var(--text-muted);margin-top:6px;display:flex;gap:14px;flex-wrap:wrap}
+.admkyc-meta strong{color:var(--text);font-weight:500}
+.admkyc-actions{display:flex;gap:6px}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PR9b — KYC ACKNOWLEDGMENTS MODALITÀ B FRACTIONAL
+   Modal con 3 spunte di consapevolezza obbligatorie prima dell'acquisto
+   di quote di prodotti fractional (illiquidità + no-buyback + capital loss).
+   Stile coerente con .ctr-wiz-* di PR7 ma più verticale e con palette
+   "warning" rinforzata per dare il senso del peso giuridico.
+   ═══════════════════════════════════════════════════════════════════ */
+.frack-bg{
+  position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(6px);
+  display:none;align-items:center;justify-content:center;z-index:925;padding:20px;
+}
+.frack-bg.show{display:flex}
+.frack-modal{
+  background:var(--bg);border:1px solid var(--border-strong);border-radius:var(--r-lg);
+  width:100%;max-width:640px;max-height:92vh;
+  display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,.7);
+  overflow:hidden;
+}
+.frack-head{
+  padding:22px 26px;border-bottom:1px solid var(--border);
+  background:linear-gradient(180deg, rgba(201,168,76,.06) 0%, transparent 100%);
+}
+.frack-eyebrow{
+  font-size:9.5px;font-family:var(--mono);text-transform:uppercase;
+  letter-spacing:.16em;color:var(--gold,#c9a84c);font-weight:600;margin-bottom:6px;
+}
+.frack-title{
+  font-family:var(--serif);font-style:italic;font-weight:400;
+  font-size:22px;color:var(--text);margin-bottom:6px;line-height:1.2;
+}
+.frack-sub{font-size:12.5px;color:var(--text-muted);line-height:1.5}
+.frack-body{flex:1;overflow:auto;padding:20px 26px}
+.frack-intro{
+  font-size:13px;color:var(--text);line-height:1.6;margin-bottom:18px;
+  padding:14px 16px;background:rgba(210,153,34,.07);
+  border-left:3px solid var(--warning,#d29922);border-radius:0 var(--r) var(--r) 0;
+}
+.frack-acks{display:flex;flex-direction:column;gap:14px;margin-bottom:14px}
+.frack-ack{
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--r);padding:18px 20px;cursor:pointer;
+  display:flex;gap:14px;align-items:flex-start;transition:all var(--t-fast);
+}
+.frack-ack:hover{border-color:var(--border-strong)}
+.frack-ack.checked{border-color:var(--gold,#c9a84c);background:rgba(201,168,76,.05)}
+.frack-ack-checkbox{
+  width:22px;height:22px;border-radius:5px;border:2px solid var(--border-strong);
+  flex-shrink:0;margin-top:1px;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  font-size:0;transition:all var(--t-fast);color:var(--bg);
+}
+.frack-ack.checked .frack-ack-checkbox{
+  background:var(--gold,#c9a84c);border-color:var(--gold,#c9a84c);
+  font-size:14px;font-weight:700;
+}
+.frack-ack.checked .frack-ack-checkbox::before{content:'✓'}
+.frack-ack-text{flex:1;min-width:0}
+.frack-ack-title{font-size:13.5px;font-weight:600;color:var(--text);margin-bottom:5px;display:flex;align-items:center;gap:8px}
+.frack-ack-icon{
+  width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;
+  flex-shrink:0;color:var(--warning,#d29922);
+}
+.frack-ack-sub{font-size:12px;color:var(--text-muted);line-height:1.55}
+.frack-foot{
+  padding:14px 26px;border-top:1px solid var(--border);background:var(--surface);
+  display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+}
+.frack-foot-msg{font-size:11.5px;color:var(--text-muted);min-height:16px;flex:1;line-height:1.5}
+.frack-foot-msg.err{color:var(--danger,#f85149)}
+.frack-foot-btns{display:flex;gap:8px;align-items:center}
+@media (max-width:780px){
+  .frack-modal{max-height:96vh}
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PR9c — HOLDINGS FRACTIONAL CARDS + VOTING UI
+   ═══════════════════════════════════════════════════════════════════ */
+.frac-card{
+  display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;
+  padding:16px 18px;border-bottom:1px solid var(--border);
+  transition:background var(--t-fast);
+}
+.frac-card:last-child{border-bottom:none}
+.frac-card:hover{background:var(--surface2)}
+.frac-card-body{min-width:0;display:flex;flex-direction:column;gap:6px}
+.frac-card-title{font-size:14px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.frac-card-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--text-muted)}
+.frac-card-meta strong{color:var(--text);font-weight:500}
+.frac-card-meta .mono{font-family:var(--mono);font-size:11px}
+.frac-card-actions{display:flex;gap:6px;align-items:center;flex-shrink:0}
+
+/* Stato exit window */
+.frac-status{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 9px;border-radius:20px;font-size:10px;
+  font-family:var(--mono);font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);
+}
+.frac-status.not_due           {color:var(--text-muted);background:var(--surface3)}
+.frac-status.open              {color:var(--warning,#d29922);border-color:rgba(210,153,34,.4);background:rgba(210,153,34,.08)}
+.frac-status.closed_sell       {color:var(--success,#3fb950);border-color:rgba(63,185,80,.4);background:rgba(63,185,80,.08)}
+.frac-status.closed_postpone   {color:var(--text-muted);background:var(--surface3)}
+.frac-status.closed_target_hit {color:var(--success,#3fb950);border-color:rgba(63,185,80,.4);background:rgba(63,185,80,.08)}
+.frac-status.closed_sold       {color:var(--gold,#c9a84c);border-color:rgba(201,168,76,.4);background:rgba(201,168,76,.08)}
+
+.frac-vote-banner{
+  margin:8px 18px;padding:10px 14px;
+  background:rgba(210,153,34,.08);border-left:3px solid var(--warning,#d29922);
+  border-radius:0 var(--r) var(--r) 0;
+  font-size:12px;color:var(--text);line-height:1.5;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+}
+.frac-vote-banner-left{flex:1;min-width:200px}
+.frac-vote-banner-cta{flex-shrink:0}
+
+.frac-empty{padding:40px 22px;text-align:center;color:var(--text-muted)}
+.frac-empty-title{font-family:var(--serif);font-style:italic;font-size:15px;color:var(--text);margin-bottom:6px}
+.frac-empty-sub{font-size:12px;line-height:1.5;max-width:380px;margin:0 auto}
+
+/* Mini bar progresso voto */
+.frac-vote-bar{
+  width:100%;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden;
+  margin-top:8px;
+}
+.frac-vote-bar-fill{
+  height:100%;background:linear-gradient(90deg, var(--gold,#c9a84c) 0%, var(--success,#3fb950) 100%);
+  transition:width .4s ease;
+}
+
+@media (max-width:780px){
+  .frac-card{grid-template-columns:1fr;gap:10px}
+  .frac-card-actions{justify-content:flex-end}
+}
+
+/* Wizard steps */
+.prof-stepper{display:flex;gap:0;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+.prof-step{flex:1;padding:14px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:all var(--t-fast);border-right:1px solid var(--border);position:relative;min-width:0}
+.prof-step:last-child{border-right:none}
+.prof-step:hover{background:var(--surface2)}
+.prof-step.active{background:var(--surface2);border-bottom:2px solid var(--gold,#c9a84c)}
+.prof-step-num{width:24px;height:24px;border-radius:50%;background:var(--surface3);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--text-muted);font-family:var(--mono);flex-shrink:0}
+.prof-step.active .prof-step-num{background:var(--accent);color:var(--bg)}
+.prof-step.done .prof-step-num{background:var(--gold,#c9a84c);color:var(--bg)}
+.prof-step.done .prof-step-num::before{content:'✓'}
+.prof-step.done .prof-step-num{font-size:0}
+.prof-step.done .prof-step-num::before{font-size:13px}
+.prof-step-meta{display:flex;flex-direction:column;min-width:0;flex:1}
+.prof-step-label{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prof-step.active .prof-step-label{color:var(--accent)}
+.prof-step.done .prof-step-label{color:var(--gold,#c9a84c)}
+.prof-step-hint{font-size:10px;color:var(--text-muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:780px){
+  .prof-stepper{flex-direction:column}
+  .prof-step{border-right:none;border-bottom:1px solid var(--border)}
+  .prof-step:last-child{border-bottom:none}
+  .prof-step.active{border-bottom:1px solid var(--border);border-left:2px solid var(--gold,#c9a84c)}
+}
+
+/* Card */
+.prof-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:18px}
+.prof-card-head{padding:14px 18px;border-bottom:1px solid var(--border)}
+.prof-card-title{font-size:13px;font-weight:600;color:var(--text);display:inline-flex;align-items:center;gap:8px}
+.prof-card-title-dot{width:6px;height:6px;border-radius:50%;background:var(--gold,#c9a84c);box-shadow:0 0 8px rgba(201,168,76,.5)}
+.prof-card-sub{font-size:11.5px;color:var(--text-muted);margin-top:2px;line-height:1.5}
+.prof-card-body{padding:20px}
+
+/* Form */
+.prof-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px 16px}
+.prof-grid.three{grid-template-columns:repeat(3,1fr)}
+.prof-grid.full{grid-template-columns:1fr}
+@media (max-width:680px){.prof-grid,.prof-grid.three{grid-template-columns:1fr}}
+.prof-field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.prof-field.span2{grid-column:span 2}
+@media (max-width:680px){.prof-field.span2{grid-column:auto}}
+.prof-label{font-size:10.5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:500;display:flex;align-items:center;gap:6px}
+.prof-label .req{color:var(--danger,#f85149);margin-left:1px}
+.prof-label .hint{font-family:var(--font);text-transform:none;letter-spacing:0;color:var(--text-subtle);font-weight:400;font-size:10.5px}
+.prof-input{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--font);font-size:13px;padding:8px 11px;outline:none;transition:border-color var(--t-fast),box-shadow var(--t-fast);width:100%}
+.prof-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.prof-input.dirty{border-color:var(--gold,#c9a84c);box-shadow:0 0 0 3px rgba(201,168,76,.10)}
+.prof-input.error{border-color:var(--danger,#f85149);box-shadow:0 0 0 3px rgba(248,81,73,.10)}
+.prof-input.locked{opacity:.7;cursor:not-allowed;background:var(--surface)}
+/* Stato 'saved' — il campo è stato committato sul DB */
+.prof-input.saved{
+  background:var(--surface);
+  border-color:var(--border);
+  color:var(--text-muted);
+}
+.prof-input.saved:focus{
+  background:var(--surface2);
+  color:var(--text);
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft);
+}
+/* Edit pencil overlay sui campi saved */
+.prof-field.field-saved::after{
+  content:'';
+  position:absolute;top:34px;right:8px;width:14px;height:14px;
+  pointer-events:none;
+  background-color:var(--success,#3fb950);opacity:.55;
+  -webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>');
+          mask-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>');
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-position:center;mask-position:center;
+  -webkit-mask-size:contain;mask-size:contain;
+}
+.prof-field{position:relative}
+
+/* Confirm modal (per sostituire confirm() del browser) */
+.prof-confirm-bg{
+  position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);
+  display:none;align-items:center;justify-content:center;z-index:950;padding:20px;
+}
+.prof-confirm-bg.show{display:flex}
+.prof-confirm-modal{
+  background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);
+  width:100%;max-width:420px;box-shadow:0 30px 80px rgba(0,0,0,.7);
+}
+.prof-confirm-head{padding:18px 22px;border-bottom:1px solid var(--border)}
+.prof-confirm-title{font-family:var(--serif);font-style:italic;font-size:18px;font-weight:400;color:var(--gold,#c9a84c)}
+.prof-confirm-body{padding:20px 22px;font-size:13px;color:var(--text);line-height:1.6}
+.prof-confirm-foot{padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+.prof-input::placeholder{color:var(--text-subtle)}
+select.prof-input{cursor:pointer}
+.prof-input.mono{font-family:var(--mono);font-size:12.5px}
+.prof-error-msg{font-size:11px;color:var(--danger,#f85149);margin-top:2px;font-family:var(--mono)}
+
+/* Phone verify pill */
+.prof-phone-row{display:flex;gap:10px;align-items:flex-start}
+.prof-phone-row > *{flex:1;min-width:0}
+.prof-phone-row .prof-phone-cc{flex:0 0 80px}
+.prof-phone-row .prof-phone-num{flex:1}
+.prof-phone-row .prof-phone-action{flex:0 0 auto;align-self:end}
+.prof-verified{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--success,#3fb950);font-family:var(--mono);font-weight:600;padding:5px 10px;background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.3);border-radius:20px}
+.prof-verified::before{content:'✓';font-weight:700}
+
+/* OTP modal */
+.prof-otp-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:900;padding:20px}
+.prof-otp-bg.show{display:flex}
+.prof-otp-modal{background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);width:100%;max-width:440px;box-shadow:0 30px 80px rgba(0,0,0,.7)}
+.prof-otp-head{padding:20px 24px;border-bottom:1px solid var(--border);text-align:center}
+.prof-otp-title{font-family:var(--serif);font-style:italic;font-size:22px;font-weight:300;color:var(--gold,#c9a84c);margin-bottom:6px}
+.prof-otp-sub{font-size:12.5px;color:var(--text-muted);line-height:1.5}
+.prof-otp-body{padding:24px}
+.prof-otp-inputs{display:flex;gap:8px;justify-content:center;margin-bottom:18px}
+.prof-otp-cell{width:46px;height:54px;text-align:center;font-size:22px;font-family:var(--mono);font-weight:600;background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--r);color:var(--text);outline:none;transition:all var(--t-fast)}
+.prof-otp-cell:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.prof-otp-cell.filled{border-color:var(--gold,#c9a84c)}
+.prof-otp-meta{text-align:center;font-size:11.5px;color:var(--text-muted);font-family:var(--mono);letter-spacing:.04em;margin-bottom:16px}
+.prof-otp-countdown{color:var(--accent);font-weight:600}
+.prof-otp-countdown.warn{color:var(--warning,#d29922)}
+.prof-otp-countdown.expired{color:var(--danger,#f85149)}
+.prof-otp-foot{padding:16px 24px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:space-between;align-items:center}
+.prof-otp-resend{background:none;border:none;color:var(--accent);font-size:12px;font-family:var(--font);cursor:pointer;padding:5px 0}
+.prof-otp-resend:disabled{color:var(--text-subtle);cursor:not-allowed}
+.prof-otp-resend:hover:not(:disabled){text-decoration:underline}
+
+/* Upload */
+.prof-upload{border:1.5px dashed var(--border-strong);border-radius:var(--r-lg);padding:24px;text-align:center;cursor:pointer;transition:all var(--t-fast);background:var(--surface2)}
+.prof-upload:hover{border-color:var(--accent);background:var(--accent-soft)}
+.prof-upload.has-file{border-style:solid;border-color:var(--gold,#c9a84c);background:rgba(201,168,76,.05)}
+.prof-upload-icon{font-size:32px;color:var(--text-muted);margin-bottom:8px;line-height:1}
+.prof-upload.has-file .prof-upload-icon{color:var(--gold,#c9a84c)}
+.prof-upload-label{font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px}
+.prof-upload-hint{font-size:11.5px;color:var(--text-muted);font-family:var(--mono)}
+.prof-upload input{display:none}
+.prof-doc-preview{margin-top:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);display:flex;justify-content:space-between;align-items:center;font-size:12px}
+.prof-doc-preview .name{font-family:var(--mono);font-size:11.5px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%}
+
+/* Save bar */
+.prof-savebar{position:sticky;bottom:0;background:linear-gradient(to top,var(--bg) 60%,rgba(13,17,23,0));padding:14px 0 6px;display:flex;justify-content:space-between;gap:8px;align-items:center;z-index:5;flex-wrap:wrap;gap:10px}
+.prof-savebar-status{font-size:11.5px;color:var(--text-muted)}
+.prof-savebar-status.dirty{color:var(--gold,#c9a84c)}
+.prof-savebar-status.saved{color:var(--success,#3fb950)}
+.prof-savebar-actions{display:flex;gap:8px}
+
+</style>
+</head>
+<body>
+
+<div class="tab" id="tab-profile" style="display:flex;flex-direction:column;flex:1">
+  <div class="prof-wrap">
+    <div class="prof-inner">
+
+      <!-- HERO COMPATTA: titolo + KYC + actions su unica card.
+           Niente layout shift: i pulsanti sono sempre presenti
+           (disabilitati se nessuna modifica da salvare). -->
+      <div class="prof-hero">
+        <div class="prof-hero-left">
+          <span class="prof-hero-title">Profilo</span>
+          <button class="prof-hero-info-btn" type="button" tabindex="-1" aria-label="Informazioni">
+            <span class="prof-hero-tip">
+              Completa il tuo profilo per poter firmare i contratti RareBlock.
+              I dati anagrafici e il documento d'identità sono richiesti dalla
+              normativa antiriciclaggio (<strong>D.Lgs. 231/2007</strong>) e
+              per l'apposizione della <strong>Firma Elettronica Avanzata</strong>
+              (eIDAS, art. 26 Reg. UE 910/2014) ai contratti.
+            </span>
+          </button>
+        </div>
+        <div class="prof-hero-actions">
+          <button class="prof-hero-icon-btn" id="profDiscardBtn" onclick="profDiscardAll()" title="Annulla modifiche non salvate" disabled>
+            <span class="rb-i rb-i-redo" style="transform:scaleX(-1)"></span>
+          </button>
+          <button class="prof-hero-icon-btn" onclick="profileLoad()" title="Ricarica dal server">
+            <span class="rb-i rb-i-refresh"></span>
+          </button>
+          <button class="prof-hero-savebtn" id="profSaveAllBtn" onclick="profSaveAll()" disabled>
+            <span class="rb-i rb-i-save"></span>
+            <span>Salva</span>
+            <span class="prof-hero-changecount" id="profSaveAllCount">0</span>
+          </button>
+        </div>
+
+        <div class="prof-hero-kyc">
+          <div class="kyc-level">
+            <div class="kyc-level-label">Livello KYC</div>
+            <div class="kyc-level-value" id="kycLevelValue">L0</div>
+          </div>
+          <div class="kyc-bar-wrap">
+            <div class="kyc-bar-track"><div class="kyc-bar-fill" id="kycBarFill" style="width:0%"></div></div>
+            <div class="kyc-bar-steps">
+              <div class="kyc-bar-step" id="kycStepL0">L0 · Account</div>
+              <div class="kyc-bar-step" id="kycStepL1">L1 · Telefono</div>
+              <div class="kyc-bar-step" id="kycStepL2">L2 · Anagrafica completa</div>
+              <div class="kyc-bar-step" id="kycStepL3">L3 · Compliance</div>
+            </div>
+          </div>
+          <div id="kycStatusBadgeWrap"></div>
+        </div>
+      </div>
+
+      <!-- Stepper -->
+      <div class="prof-stepper" id="profStepper">
+        <div class="prof-step" data-step="anagrafica" onclick="profGoStep('anagrafica')">
+          <div class="prof-step-num">1</div>
+          <div class="prof-step-meta">
+            <div class="prof-step-label">Anagrafica</div>
+            <div class="prof-step-hint">Dati personali</div>
+          </div>
+        </div>
+        <div class="prof-step" data-step="indirizzo" onclick="profGoStep('indirizzo')">
+          <div class="prof-step-num">2</div>
+          <div class="prof-step-meta">
+            <div class="prof-step-label">Residenza</div>
+            <div class="prof-step-hint">Indirizzo</div>
+          </div>
+        </div>
+        <div class="prof-step" data-step="telefono" onclick="profGoStep('telefono')">
+          <div class="prof-step-num">3</div>
+          <div class="prof-step-meta">
+            <div class="prof-step-label">Telefono</div>
+            <div class="prof-step-hint">Verifica via OTP</div>
+          </div>
+        </div>
+        <div class="prof-step" data-step="documento" onclick="profGoStep('documento')">
+          <div class="prof-step-num">4</div>
+          <div class="prof-step-meta">
+            <div class="prof-step-label">Documento</div>
+            <div class="prof-step-hint">CI / Patente / Passaporto</div>
+          </div>
+        </div>
+        <div class="prof-step" data-step="consensi" onclick="profGoStep('consensi')">
+          <div class="prof-step-num">5</div>
+          <div class="prof-step-meta">
+            <div class="prof-step-label">Consensi</div>
+            <div class="prof-step-hint">Privacy &amp; T&amp;C</div>
+          </div>
+        </div>
+        <div class="prof-step" data-step="abbonamento" onclick="profGoStep('abbonamento')">
+          <div class="prof-step-num">6</div>
+          <div class="prof-step-meta">
+            <div class="prof-step-label">Abbonamento</div>
+            <div class="prof-step-hint">Tier &amp; fee</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── STEP 1: ANAGRAFICA ────────────────────────────────── -->
+      <div class="prof-section" id="profSec-anagrafica">
+        <div class="prof-card">
+          <div class="prof-card-head">
+            <div class="prof-card-title"><span class="prof-card-title-dot"></span> Dati anagrafici</div>
+            <div class="prof-card-sub">Esattamente come riportati sul tuo documento d'identità.</div>
+          </div>
+          <div class="prof-card-body">
+            <div class="prof-grid">
+              <div class="prof-field">
+                <label for="pfFirstName" class="prof-label">Nome <span class="req">*</span></label>
+                <input class="prof-input" id="pfFirstName" type="text" maxlength="50" placeholder="Mario" autocomplete="given-name" data-lpignore="true" data-form-type="other"/>
+                <div class="prof-error-msg" id="errFirstName" style="display:none"></div>
+              </div>
+              <div class="prof-field">
+                <label for="pfLastName" class="prof-label">Cognome <span class="req">*</span></label>
+                <input class="prof-input" id="pfLastName" type="text" maxlength="50" placeholder="Rossi" autocomplete="family-name" data-lpignore="true" data-form-type="other"/>
+                <div class="prof-error-msg" id="errLastName" style="display:none"></div>
+              </div>
+              <div class="prof-field">
+                <label for="pfBirthDate" class="prof-label">Data di nascita <span class="req">*</span></label>
+                <input class="prof-input" id="pfBirthDate" type="date" autocomplete="bday" data-lpignore="true" data-form-type="other"/>
+                <div class="prof-error-msg" id="errBirthDate" style="display:none"></div>
+              </div>
+              <div class="prof-field">
+                <label for="pfBirthPlace" class="prof-label">Luogo di nascita <span class="req">*</span> <span class="hint">— comune o città estera</span></label>
+                <input class="prof-input" id="pfBirthPlace" type="text" maxlength="80" placeholder="Messina" autocomplete="off" data-lpignore="true" data-form-type="other"/>
+                <div class="prof-error-msg" id="errBirthPlace" style="display:none"></div>
+              </div>
+              <div class="prof-field">
+                <label for="pfBirthCountry" class="prof-label">Paese di nascita <span class="hint">— ISO2</span></label>
+                <input class="prof-input mono" id="pfBirthCountry" type="text" maxlength="2" value="IT" style="text-transform:uppercase" autocomplete="off" data-lpignore="true" data-form-type="other"/>
+              </div>
+              <div class="prof-field">
+                <label for="pfNationality" class="prof-label">Cittadinanza <span class="hint">— ISO2</span></label>
+                <input class="prof-input mono" id="pfNationality" type="text" maxlength="2" value="IT" style="text-transform:uppercase" autocomplete="off" data-lpignore="true" data-form-type="other"/>
+              </div>
+              <div class="prof-field span2">
+                <label for="pfFiscalCode" class="prof-label">Codice Fiscale <span class="req">*</span> <span class="hint">— validato</span></label>
+                <input class="prof-input mono" id="pfFiscalCode" type="text" maxlength="16" style="text-transform:uppercase" placeholder="RSSMRA80A01F205X" autocomplete="off" data-lpignore="true" data-form-type="other"/>
+                <div class="prof-error-msg" id="errFiscalCode" style="display:none"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="prof-savebar">
+          <span class="prof-savebar-status" id="anagraficaStatus">—</span>
+          <div class="prof-savebar-actions">
+            <button class="btn sm" onclick="profGoStep('indirizzo')">Avanti →</button>
+            <button class="btn sm primary" onclick="profSave('anagrafica')">Salva</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── STEP 2: INDIRIZZO ────────────────────────────────── -->
+      <div class="prof-section" id="profSec-indirizzo" style="display:none">
+        <div class="prof-card">
+          <div class="prof-card-head">
+            <div class="prof-card-title"><span class="prof-card-title-dot"></span> Indirizzo di residenza</div>
+            <div class="prof-card-sub">Indirizzo di residenza fiscale, deve corrispondere al documento d'identità o ad altra documentazione probante (autocertificazione anagrafica).</div>
+          </div>
+          <div class="prof-card-body">
+            <div class="prof-grid">
+              <div class="prof-field span2">
+                <label for="pfResAddress" class="prof-label">Via / piazza <span class="req">*</span></label>
+                <input class="prof-input" id="pfResAddress" type="text" maxlength="120" placeholder="Via Roma" autocomplete="address-line1" data-lpignore="true" data-form-type="other"/>
+              </div>
+              <div class="prof-field">
+                <label for="pfResCivic" class="prof-label">Civico <span class="req">*</span></label>
+                <input class="prof-input" id="pfResCivic" type="text" maxlength="10" placeholder="42" autocomplete="address-line2" data-lpignore="true" data-form-type="other"/>
+              </div>
+              <div class="prof-field">
+                <label for="pfResZip" class="prof-label">CAP <span class="req">*</span></label>
+                <input class="prof-input mono" id="pfResZip" type="text" maxlength="10" placeholder="98100" autocomplete="postal-code" data-lpignore="true" data-form-type="other"/>
+              </div>
+              <div class="prof-field">
+                <label for="pfResCity" class="prof-label">Città <span class="req">*</span></label>
+                <input class="prof-input" id="pfResCity" type="text" maxlength="80" placeholder="Messina" autocomplete="address-level2" data-lpignore="true" data-form-type="other"/>
+              </div>
+              <div class="prof-field">
+                <label for="pfResProvince" class="prof-label">Provincia <span class="hint">— sigla 2 lettere</span></label>
+                <input class="prof-input mono" id="pfResProvince" type="text" maxlength="2" style="text-transform:uppercase" placeholder="ME" autocomplete="address-level1" data-lpignore="true" data-form-type="other"/>
+              </div>
+              <div class="prof-field">
+                <label for="pfResCountry" class="prof-label">Paese <span class="hint">— ISO2</span></label>
+                <input class="prof-input mono" id="pfResCountry" type="text" maxlength="2" value="IT" style="text-transform:uppercase" autocomplete="country" data-lpignore="true" data-form-type="other"/>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="prof-savebar">
+          <span class="prof-savebar-status" id="indirizzoStatus">—</span>
+          <div class="prof-savebar-actions">
+            <button class="btn sm" onclick="profGoStep('anagrafica')">← Indietro</button>
+            <button class="btn sm" onclick="profGoStep('telefono')">Avanti →</button>
+            <button class="btn sm primary" onclick="profSave('indirizzo')">Salva</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── STEP 3: TELEFONO ────────────────────────────────── -->
+      <div class="prof-section" id="profSec-telefono" style="display:none">
+        <div class="prof-card">
+          <div class="prof-card-head">
+            <div class="prof-card-title"><span class="prof-card-title-dot"></span> Numero di cellulare</div>
+            <div class="prof-card-sub">Il cellulare verificato è obbligatorio per l'apposizione della Firma Elettronica Avanzata sui contratti (art. 26 Reg. UE 910/2014). Riceverai un codice OTP via SMS o WhatsApp ad ogni firma.</div>
+          </div>
+          <div class="prof-card-body">
+            <div class="prof-phone-row">
+              <div class="prof-field prof-phone-cc">
+                <label for="pfPhoneCC" class="prof-label">Prefisso</label>
+                <input class="prof-input mono" id="pfPhoneCC" type="text" maxlength="5" value="+39" autocomplete="tel-country-code" data-lpignore="true" data-form-type="other"/>
+              </div>
+              <div class="prof-field prof-phone-num">
+                <label for="pfPhoneNum" class="prof-label">Numero <span class="req">*</span></label>
+                <input class="prof-input mono" id="pfPhoneNum" type="tel" maxlength="20" placeholder="3331234567" autocomplete="tel-national" data-lpignore="true" data-form-type="other"/>
+              </div>
+              <div class="prof-phone-action">
+                <button class="btn primary" id="pfVerifyBtn" onclick="profPhoneVerify()" style="height:36px">Verifica con OTP</button>
+              </div>
+            </div>
+            <div id="pfPhoneStatus" style="margin-top:14px"></div>
+            <div class="prof-error-msg" id="errPhone" style="display:none;margin-top:8px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── STEP 4: DOCUMENTO ────────────────────────────────── -->
+      <div class="prof-section" id="profSec-documento" style="display:none">
+        <div class="prof-card">
+          <div class="prof-card-head">
+            <div class="prof-card-title"><span class="prof-card-title-dot"></span> Documento d'identità</div>
+            <div class="prof-card-sub">Documento in corso di validità. Il file è cifrato e accessibile solo a te e all'amministrazione RareBlock per la verifica KYC.</div>
+          </div>
+          <div class="prof-card-body">
+            <div class="prof-grid">
+              <div class="prof-field">
+                <label for="pfDocType" class="prof-label">Tipo documento <span class="req">*</span></label>
+                <select class="prof-input" id="pfDocType" autocomplete="off" data-lpignore="true">
+                  <option value="">— seleziona —</option>
+                  <option value="CI">Carta d'identità</option>
+                  <option value="PATENTE">Patente di guida</option>
+                  <option value="PASSAPORTO">Passaporto</option>
+                </select>
+              </div>
+              <div class="prof-field">
+                <label for="pfDocNumber" class="prof-label">Numero documento <span class="req">*</span></label>
+                <input class="prof-input mono" id="pfDocNumber" type="text" maxlength="40" placeholder="AA1234567" autocomplete="off" data-lpignore="true" data-form-type="other"/>
+              </div>
+              <div class="prof-field span2">
+                <label for="pfDocIssuer" class="prof-label">Rilasciato da <span class="req">*</span></label>
+                <input class="prof-input" id="pfDocIssuer" type="text" maxlength="80" placeholder="Es. Comune di Messina" autocomplete="off" data-lpignore="true" data-form-type="other"/>
+              </div>
+              <div class="prof-field">
+                <label for="pfDocIssueDate" class="prof-label">Data di rilascio <span class="req">*</span></label>
+                <input class="prof-input" id="pfDocIssueDate" type="date" autocomplete="off" data-lpignore="true" data-form-type="other"/>
+              </div>
+              <div class="prof-field">
+                <label for="pfDocExpiryDate" class="prof-label">Data di scadenza <span class="req">*</span></label>
+                <input class="prof-input" id="pfDocExpiryDate" type="date" autocomplete="off" data-lpignore="true" data-form-type="other"/>
+              </div>
+              <div class="prof-field span2">
+                <label class="prof-label">Fronte documento <span class="req">*</span> <span class="hint">— JPG / PNG / PDF, max 10 MB</span></label>
+                <label class="prof-upload" id="pfDocFrontDrop">
+                  <div class="prof-upload-icon">⬆</div>
+                  <div class="prof-upload-label" id="pfDocFrontLabel">Carica fronte</div>
+                  <div class="prof-upload-hint">Click per selezionare o trascina qui il file</div>
+                  <input type="file" id="pfDocFrontInput" accept="image/jpeg,image/png,image/webp,application/pdf" onchange="profUploadDoc('front', this.files[0])"/>
+                </label>
+                <div class="prof-doc-preview" id="pfDocFrontPreview" style="display:none"></div>
+              </div>
+              <div class="prof-field span2" id="pfDocBackWrap">
+                <label class="prof-label">Retro documento <span class="hint">— solo CI e Patente, JPG / PNG / PDF, max 10 MB</span></label>
+                <label class="prof-upload" id="pfDocBackDrop">
+                  <div class="prof-upload-icon">⬆</div>
+                  <div class="prof-upload-label" id="pfDocBackLabel">Carica retro</div>
+                  <div class="prof-upload-hint">Click per selezionare o trascina qui il file</div>
+                  <input type="file" id="pfDocBackInput" accept="image/jpeg,image/png,image/webp,application/pdf" onchange="profUploadDoc('back', this.files[0])"/>
+                </label>
+                <div class="prof-doc-preview" id="pfDocBackPreview" style="display:none"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="prof-savebar">
+          <span class="prof-savebar-status" id="documentoStatus">—</span>
+          <div class="prof-savebar-actions">
+            <button class="btn sm" onclick="profGoStep('telefono')">← Indietro</button>
+            <button class="btn sm" onclick="profGoStep('consensi')">Avanti →</button>
+            <button class="btn sm primary" onclick="profSave('documento')">Salva</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── STEP 5: CONSENSI ────────────────────────────────── -->
+      <div class="prof-section" id="profSec-consensi" style="display:none">
+        <div class="prof-card">
+          <div class="prof-card-head">
+            <div class="prof-card-title"><span class="prof-card-title-dot"></span> Consensi</div>
+            <div class="prof-card-sub">I primi due consensi (Privacy e Termini) sono obbligatori per usare la piattaforma. Gli altri sono facoltativi e revocabili in qualsiasi momento.</div>
+          </div>
+          <div class="prof-card-body">
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <label style="display:flex;gap:12px;align-items:flex-start;cursor:pointer">
+                <input type="checkbox" id="pfGdprPrivacy" style="margin-top:3px;flex-shrink:0;width:16px;height:16px;cursor:pointer;accent-color:var(--gold,#c9a84c)"/>
+                <div style="flex:1;font-size:12.5px;line-height:1.6">
+                  <strong>Informativa Privacy</strong> <span class="req">*</span><br>
+                  <span style="color:var(--text-muted)">Acconsento al trattamento dei miei dati personali ai sensi del Reg. UE 2016/679 (GDPR) per le finalità di esecuzione del contratto e adempimento degli obblighi di legge.</span>
+                </div>
+              </label>
+              <label style="display:flex;gap:12px;align-items:flex-start;cursor:pointer">
+                <input type="checkbox" id="pfGdprTos" style="margin-top:3px;flex-shrink:0;width:16px;height:16px;cursor:pointer;accent-color:var(--gold,#c9a84c)"/>
+                <div style="flex:1;font-size:12.5px;line-height:1.6">
+                  <strong>Termini e Condizioni</strong> <span class="req">*</span><br>
+                  <span style="color:var(--text-muted)">Accetto i Termini e Condizioni di utilizzo della piattaforma RareBlock.</span>
+                </div>
+              </label>
+              <div style="height:1px;background:var(--border);margin:6px 0"></div>
+              <label style="display:flex;gap:12px;align-items:flex-start;cursor:pointer">
+                <input type="checkbox" id="pfGdprMarketing" style="margin-top:3px;flex-shrink:0;width:16px;height:16px;cursor:pointer;accent-color:var(--gold,#c9a84c)"/>
+                <div style="flex:1;font-size:12.5px;line-height:1.6">
+                  <strong>Marketing</strong> <span style="color:var(--text-subtle);font-weight:400">facoltativo</span><br>
+                  <span style="color:var(--text-muted)">Acconsento all'invio di comunicazioni commerciali e newsletter su nuovi prodotti e iniziative del Club.</span>
+                </div>
+              </label>
+              <label style="display:flex;gap:12px;align-items:flex-start;cursor:pointer">
+                <input type="checkbox" id="pfGdprProfiling" style="margin-top:3px;flex-shrink:0;width:16px;height:16px;cursor:pointer;accent-color:var(--gold,#c9a84c)"/>
+                <div style="flex:1;font-size:12.5px;line-height:1.6">
+                  <strong>Profilazione</strong> <span style="color:var(--text-subtle);font-weight:400">facoltativo</span><br>
+                  <span style="color:var(--text-muted)">Acconsento all'analisi delle mie preferenze per ricevere proposte personalizzate.</span>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="prof-savebar">
+          <span class="prof-savebar-status" id="consensiStatus">—</span>
+          <div class="prof-savebar-actions">
+            <button class="btn sm" onclick="profGoStep('documento')">← Indietro</button>
+            <button class="btn sm primary" onclick="profSave('consensi')">Salva consensi</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── STEP 6: ABBONAMENTO ────────────────────────────────── -->
+      <div class="prof-section" id="profSec-abbonamento" style="display:none">
+
+        <!-- Card 1: Pricing grid 3 colonne -->
+        <div class="prof-card">
+          <div class="prof-card-head">
+            <div class="prof-card-title"><span class="prof-card-title-dot"></span> I piani RareBlock</div>
+            <div class="prof-card-sub">Tre membership pensate per accompagnarti dall'acquisto spot al club di investimento curato.</div>
+          </div>
+          <div class="prof-card-body">
+            <div class="pricing-grid" id="profSubPricingGrid">
+              <!-- popolato da profRenderSubscription -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2: AUM tracker (contestuale al tuo stato) -->
+        <div class="prof-card">
+          <div class="prof-card-head">
+            <div class="prof-card-title"><span class="prof-card-title-dot"></span> Il tuo AUM</div>
+            <div class="prof-card-sub">Asset Under Management — somma degli ordini chiusi sulla piattaforma. Determina l'eleggibilità al tier GOLD.</div>
+          </div>
+          <div class="prof-card-body">
+            <div class="tier-aum-row">
+              <div class="tier-aum-head">
+                <span class="tier-aum-label">AUM corrente</span>
+                <span class="tier-aum-target" id="profSubAumTarget">— / —</span>
+              </div>
+              <div class="tier-aum-val" id="profSubAumVal">€ —</div>
+              <div class="tier-aum-bar"><div class="tier-aum-bar-fill" id="profSubAumFill" style="width:0%"></div></div>
+              <div class="tier-aum-target" id="profSubAumNote" style="font-size:11px">—</div>
+            </div>
+            <div id="profSubEligibleBanner" style="display:none;margin-top:12px"></div>
+            <div id="profSubAtRiskBanner"   style="display:none;margin-top:12px"></div>
+          </div>
+        </div>
+
+        <!-- Card 3: Storico cambi tier (visibile solo se ci sono entry) -->
+        <div class="prof-card" id="profSubHistoryCard" style="display:none">
+          <div class="prof-card-head">
+            <div class="prof-card-title"><span class="prof-card-title-dot"></span> Storico cambi tier</div>
+            <div class="prof-card-sub">Ultime variazioni del tuo abbonamento RareBlock.</div>
+          </div>
+          <div class="prof-card-body">
+            <div id="profSubHistoryList" style="display:flex;flex-direction:column;gap:10px"></div>
+          </div>
+        </div>
+
+        <div class="prof-savebar">
+          <span class="prof-savebar-status">—</span>
+          <div class="prof-savebar-actions">
+            <button class="btn sm" onclick="profGoStep('consensi')">← Indietro</button>
+            <button class="btn sm" onclick="profRenderSubscription()" title="Ricarica dati abbonamento">
+              <span class="rb-i rb-i-refresh"></span> Aggiorna
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODALE OTP PHONE (estratta 1:1 dal parent) ═══ -->
+<div class="prof-otp-bg" id="profOtpBg" onclick="if(event.target===this)profOtpClose()">
+  <div class="prof-otp-modal">
+    <div class="prof-otp-head">
+      <div class="prof-otp-title">Verifica del numero</div>
+      <div class="prof-otp-sub">Abbiamo inviato un codice a 6 cifre via <span id="profOtpChannel">SMS</span> al numero <span class="mono" id="profOtpPhone" style="color:var(--text);font-family:var(--mono)">—</span></div>
+    </div>
+    <div class="prof-otp-body">
+      <div class="prof-otp-inputs">
+        <input class="prof-otp-cell" type="text" inputmode="numeric" maxlength="1" data-otp-idx="0"/>
+        <input class="prof-otp-cell" type="text" inputmode="numeric" maxlength="1" data-otp-idx="1"/>
+        <input class="prof-otp-cell" type="text" inputmode="numeric" maxlength="1" data-otp-idx="2"/>
+        <input class="prof-otp-cell" type="text" inputmode="numeric" maxlength="1" data-otp-idx="3"/>
+        <input class="prof-otp-cell" type="text" inputmode="numeric" maxlength="1" data-otp-idx="4"/>
+        <input class="prof-otp-cell" type="text" inputmode="numeric" maxlength="1" data-otp-idx="5"/>
+      </div>
+      <div class="prof-otp-meta">
+        <span id="profOtpAttempts">3 tentativi rimanenti</span> · scade tra <span class="prof-otp-countdown" id="profOtpCountdown">5:00</span>
+      </div>
+      <div class="prof-error-msg" id="profOtpError" style="display:none;text-align:center"></div>
+    </div>
+    <div class="prof-otp-foot">
+      <button class="prof-otp-resend" id="profOtpResend" onclick="profOtpResend()" disabled>Reinvia codice (60s)</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn sm" onclick="profOtpClose()">Annulla</button>
+        <button class="btn sm primary" id="profOtpSubmit" onclick="profOtpSubmit()">Verifica</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script src="../shared/rareblock-shared.js" defer></script>
+<script defer>
+// ── Bridge: utilities + state condiviso del parent ──
+// profConfirm e la sua modale (profConfirmBg) restano nel parent perche'
+// sono utility shared con altri tab/moduli (es. Contratti). Anche
+// loadTierStatus + _tierState restano nel parent (boot auth).
+(function(){
+  function p(name){
+    try { return (window.parent && window.parent !== window) ? window.parent[name] : undefined; }
+    catch(_){ return undefined; }
+  }
+  ['fmt2','fmtDate','fmtMoney','fmtDateIt','typeBadge','payBadge',
+   'profConfirm','loadTierStatus','toast'].forEach(function(name){
+    if(typeof window[name] === 'undefined'){
+      Object.defineProperty(window, name, {
+        configurable: true,
+        get: function(){ return p(name); }
+      });
+    }
+  });
+  // State condiviso
+  Object.defineProperty(window, '_session', {
+    configurable: true,
+    get: function(){ return p('_session') || null; }
+  });
+  Object.defineProperty(window, '_tierState', {
+    configurable: true,
+    get: function(){ return p('_tierState') || {}; }
+  });
+})();
+
+//  Wizard a 5 step: anagrafica → indirizzo → telefono+OTP → documento → consensi
+//  Calcola kyc_level a runtime sulla base dei campi compilati e li scrive
+//  su profiles.kyc_level / kyc_status. Supporta upload documento d'identità
+//  in bucket privato 'kyc-documents' con path '<user_id>/front.<ext>'.
+//
+//  Convenzioni:
+//    profileLoad()                — entry point (chiamata da showTab)
+//    profGoStep(step)             — naviga tra step
+//    profSave(section)            — salva una sezione (anagrafica/indirizzo/...)
+//    profPhoneVerify()            — invia OTP via Edge Function sms-otp-send
+//    profOtp*()                   — gestione modal OTP
+//    profUploadDoc(side, file)    — upload documento in storage privato
+
+var _prof = {
+  loaded: false,
+  data: null,                 // snapshot profile dal DB
+  currentStep: 'anagrafica',
+  otp: { id:null, expiresAt:null, attempts:0, max:3, channel:'sms', tickerH:null, resendH:null },
+};
+
+async function profileLoad(){
+  if(!_session){ return; }
+  try{
+    var rows = await supa('GET','profiles?select=*&id=eq.'+_session.user.id);
+    var p = rows && rows[0];
+    if(!p){
+      // Crea record vuoto se non esiste (potrebbe succedere se l'utente è nuovo)
+      try{
+        rows = await supa('POST','profiles',{ id:_session.user.id, email:_session.user.email });
+        p = (rows && rows[0]) || { id:_session.user.id };
+      }catch(e){
+        p = { id:_session.user.id };
+      }
+    }
+    _prof.data = p;
+    _prof.loaded = true;
+    profHydrate();
+    profUpdateKycStrip();
+    profUpdateStepperState();
+  }catch(e){
+    showToast('Errore caricamento profilo: '+(e.message||e), 'err');
+  }
+}
+
+function profHydrate(){
+  var p = _prof.data || {};
+  // Anagrafica
+  setProfVal('pfFirstName', p.first_name, !!p.first_name);
+  setProfVal('pfLastName',  p.last_name,  !!p.last_name);
+  setProfVal('pfBirthDate', p.birth_date, !!p.birth_date);
+  setProfVal('pfBirthPlace',p.birth_place,!!p.birth_place);
+  setProfVal('pfBirthCountry', p.birth_country || 'IT', !!p.birth_country);
+  setProfVal('pfNationality',  p.nationality  || 'IT', !!p.nationality);
+  setProfVal('pfFiscalCode', p.fiscal_code, !!p.fiscal_code);
+  // Indirizzo
+  setProfVal('pfResAddress',  p.res_address,  !!p.res_address);
+  setProfVal('pfResCivic',    p.res_civic,    !!p.res_civic);
+  setProfVal('pfResZip',      p.res_zip,      !!p.res_zip);
+  setProfVal('pfResCity',     p.res_city,     !!p.res_city);
+  setProfVal('pfResProvince', p.res_province, !!p.res_province);
+  setProfVal('pfResCountry',  p.res_country  || 'IT', !!p.res_country);
+  // Telefono
+  setProfVal('pfPhoneCC',  p.phone_country_code || '+39', !!p.phone_country_code);
+  // Estrai numero senza prefisso da phone_e164
+  var num = '';
+  if(p.phone_e164){
+    var cc = p.phone_country_code || '+39';
+    num = p.phone_e164.indexOf(cc)===0 ? p.phone_e164.slice(cc.length) : p.phone_e164.replace(/^\+/, '');
+  }
+  setProfVal('pfPhoneNum', num, !!p.phone_verified_at);
+  profRenderPhoneStatus();
+  // Documento
+  setProfVal('pfDocType',       p.id_doc_type,       !!p.id_doc_type);
+  setProfVal('pfDocNumber',     p.id_doc_number,     !!p.id_doc_number);
+  setProfVal('pfDocIssuer',     p.id_doc_issuer,     !!p.id_doc_issuer);
+  setProfVal('pfDocIssueDate',  p.id_doc_issue_date, !!p.id_doc_issue_date);
+  setProfVal('pfDocExpiryDate', p.id_doc_expiry_date,!!p.id_doc_expiry_date);
+  profRenderDocPreview('front', p.id_doc_front_path);
+  profRenderDocPreview('back',  p.id_doc_back_path);
+  profDocBackVisibility();
+  // Consensi
+  setProfChecked('pfGdprPrivacy',   !!p.gdpr_privacy_accepted_at);
+  setProfChecked('pfGdprTos',       !!p.gdpr_tos_accepted_at);
+  setProfChecked('pfGdprMarketing', !!p.gdpr_marketing_accepted);
+  setProfChecked('pfGdprProfiling', !!p.gdpr_profiling_accepted);
+
+  // Aggiorna stato Save-all bar (nessuna modifica pendente subito dopo hydrate)
+  profUpdateSaveAllBar();
+}
+
+function setProfVal(id, v, isSaved){
+  var el = document.getElementById(id);
+  if(!el) return;
+  if(v == null) el.value = el.dataset.default || el.value || '';
+  else          el.value = v;
+  // Aggiorna stato visivo: saved (DB) / dirty (modificato) / vuoto
+  el.classList.remove('dirty','saved','error');
+  var fld = el.closest('.prof-field');
+  if(fld) fld.classList.remove('field-saved');
+  if(isSaved && el.value){
+    el.classList.add('saved');
+    if(fld) fld.classList.add('field-saved');
+  }
+}
+function setProfChecked(id, b){
+  var el = document.getElementById(id);
+  if(el) el.checked = !!b;
+}
+function getProfVal(id){
+  var el = document.getElementById(id);
+  return el ? (el.value || '').trim() : '';
+}
+
+function profGoStep(step){
+  _prof.currentStep = step;
+  ['anagrafica','indirizzo','telefono','documento','consensi','abbonamento'].forEach(function(s){
+    var sec = document.getElementById('profSec-'+s);
+    if(sec) sec.style.display = (s===step) ? '' : 'none';
+  });
+  document.querySelectorAll('.prof-step').forEach(function(el){
+    el.classList.toggle('active', el.dataset.step === step);
+  });
+  // Quando si entra nello step Abbonamento, ricalcola i dati tier
+  if(step === 'abbonamento'){
+    try { profRenderSubscription(); } catch(e){ console.warn('subscription render:', e && e.message); }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  STEP 6: ABBONAMENTO — pricing grid 3 colonne stile Claude
+//  Riusa _tierState (popolato da loadTierStatus, vedi end of file).
+// ═══════════════════════════════════════════════════════════
+var PRICING_TIERS = [
+  {
+    id: 'basic',
+    name: 'Basic',
+    tagline: 'Il punto d\'ingresso. Acquisto spot, nessun canone.',
+    features: [
+      'Marketplace pubblico con tutti i drop',
+      'Acquisti in Modalità A (vendor direct)',
+      'Watchlist personale e dashboard portafoglio',
+      'Storico transazioni e ricevute fiscali',
+      'Custodia a consumo (1,5% annuo)',
+      'KYC base (L1)'
+    ]
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    tagline: 'Per chi investe regolarmente. Strumenti operativi inclusi.',
+    features: [
+      'Tutto il piano Basic',
+      'Modalità B fractional (co-ownership)',
+      'Preview drop 48h prima del pubblico',
+      'Alert real-time su watchlist',
+      'Custodia inclusa fino a € 25.000 AUM',
+      'Report PDF trimestrale',
+      'Stop-loss anticipato (penale 2,5%)'
+    ]
+  },
+  {
+    id: 'gold',
+    name: 'Gold',
+    tagline: 'Il club. Curato, invitation-only, allocazioni prioritarie.',
+    features: [
+      'Tutto il piano Pro',
+      'Preview drop 7 giorni + priority allocation',
+      'Voto fractional con peso',
+      'Diritto di prelazione su quote in uscita',
+      'Custodia illimitata inclusa',
+      'Finestra exit trimestrale senza penale',
+      'Advisor dedicato + analyst call mensile',
+      'Accesso a deal off-market'
+    ]
+  }
+];
+
+async function profRenderSubscription(){
+  // 1) Refresh dati tier (forzato per garantire freschezza all'apertura)
+  try { await loadTierStatus(); } catch(_){}
+
+  var s = (typeof _tierState !== 'undefined') ? _tierState : null;
+  if(!s){ return; }
+
+  var t = s.tier || 'basic';
+
+  // ── Pricing grid ──
+  var grid = document.getElementById('profSubPricingGrid');
+  if(grid){
+    grid.innerHTML = PRICING_TIERS.map(function(tier){
+      var isCurrent = (tier.id === t);
+      var classes = ['pricing-card'];
+      classes.push(tier.id+'-card');
+      if(isCurrent) classes.push('current');
+
+      // Prezzo
+      var priceHtml;
+      if(tier.id === 'basic'){
+        priceHtml = '<span class="pricing-card-price-free">Gratis</span>';
+      } else {
+        var amt = tier.id==='pro' ? s.pro_price_eur : s.gold_price_eur;
+        priceHtml =
+          '<span class="pricing-card-price-amt">€ '+_fmtEur(amt)+'</span>'+
+          '<span class="pricing-card-price-period">/ anno</span>';
+      }
+
+      // Fee del tier (default hardcoded coerenti con get_*_fee_pct)
+      var feeMap = {
+        basic: { b: 0.025, sf: 0.10 },
+        pro:   { b: 0.015, sf: 0.10 },
+        gold:  { b: 0.005, sf: 0.07 }
+      };
+      // Per il tier corrente uso le fee da settings (più aggiornate)
+      var fees = isCurrent
+        ? { b: s.buyer_fee_pct, sf: s.success_fee_pct }
+        : feeMap[tier.id];
+
+      // CTA
+      var ctaHtml;
+      if(isCurrent){
+        ctaHtml = '<button class="pricing-card-cta current" disabled>Piano attuale</button>';
+      } else if(tier.id === 'gold'){
+        // GOLD non si compra: si arriva
+        if(t === 'pro' && s.gold_eligible_since){
+          ctaHtml = '<a href="https://cal.com/rareblock/30-minuti-rareblock" target="_blank" rel="noopener" class="pricing-card-cta gold">Richiedi Gold</a>';
+        } else {
+          ctaHtml = '<a href="https://cal.com/rareblock/30-minuti-rareblock" target="_blank" rel="noopener" class="pricing-card-cta" title="Invitation-only o auto sopra soglia AUM">Su invito</a>';
+        }
+      } else if(tier.id === 'pro'){
+        ctaHtml = '<a href="https://cal.com/rareblock/30-minuti-rareblock" target="_blank" rel="noopener" class="pricing-card-cta pro">Passa a Pro</a>';
+      } else {
+        // Tier basic per chi è gold/pro: nessuna azione (è downgrade, va via admin)
+        ctaHtml = '<button class="pricing-card-cta disabled" disabled title="Per ridurre il tier contatta l\'amministrazione">—</button>';
+      }
+
+      return ''+
+        '<div class="'+classes.join(' ')+'">'+
+          (isCurrent ? '<div class="pricing-card-current-flag">Il tuo piano</div>' : '')+
+          '<div class="pricing-card-head">'+
+            '<div class="pricing-card-name">'+_esc(tier.name)+'</div>'+
+            '<div class="pricing-card-tagline">'+_esc(tier.tagline)+'</div>'+
+            '<div class="pricing-card-price">'+priceHtml+'</div>'+
+          '</div>'+
+          '<div class="pricing-card-fees">'+
+            '<div class="pricing-card-fee">'+
+              '<div class="pricing-card-fee-label">Buyer fee</div>'+
+              '<div class="pricing-card-fee-value">'+_fmtPct(fees.b)+'</div>'+
+            '</div>'+
+            '<div class="pricing-card-fee">'+
+              '<div class="pricing-card-fee-label">Success fee</div>'+
+              '<div class="pricing-card-fee-value">'+_fmtPct(fees.sf)+'</div>'+
+            '</div>'+
+          '</div>'+
+          ctaHtml+
+          '<div class="pricing-features-title">Cosa è incluso</div>'+
+          '<div class="pricing-features">'+
+            tier.features.map(function(f){
+              return '<div class="pricing-feature">'+_esc(f)+'</div>';
+            }).join('')+
+          '</div>'+
+        '</div>';
+    }).join('');
+  }
+
+  // ── AUM bar (card separata) ──
+  var aumVal = document.getElementById('profSubAumVal');
+  if(aumVal) aumVal.textContent = '€ '+_fmtEur(s.aum);
+  var aumTarget = document.getElementById('profSubAumTarget');
+  var aumFill = document.getElementById('profSubAumFill');
+  var aumNote = document.getElementById('profSubAumNote');
+  if(t==='gold'){
+    if(aumTarget) aumTarget.textContent = 'Soglia GOLD: € '+_fmtEur(s.threshold_eur);
+    if(aumFill){ aumFill.style.width='100%'; aumFill.classList.add('complete'); }
+    if(aumNote) aumNote.textContent = (s.aum >= s.threshold_eur)
+      ? 'Sopra soglia — tutti i privilegi GOLD attivi.'
+      : 'Sotto soglia ma tier mantenuto a discrezione admin.';
+  } else {
+    var pct = s.threshold_eur > 0 ? Math.min(100, (s.aum/s.threshold_eur)*100) : 0;
+    if(aumTarget) aumTarget.textContent = '€ '+_fmtEur(s.aum)+' / € '+_fmtEur(s.threshold_eur);
+    if(aumFill){ aumFill.classList.remove('complete'); aumFill.style.width = pct.toFixed(1)+'%'; }
+    var missing = Math.max(0, s.threshold_eur - s.aum);
+    if(aumNote) aumNote.textContent = (missing > 0)
+      ? 'Mancano € '+_fmtEur(missing)+' per essere eleggibili a GOLD.'
+      : 'Hai raggiunto la soglia AUM per GOLD.';
+  }
+
+  // ── Banners eleggibilità / at-risk ──
+  var elig = document.getElementById('profSubEligibleBanner');
+  var atrisk = document.getElementById('profSubAtRiskBanner');
+  if(elig){
+    if(t!=='gold' && s.gold_eligible_since){
+      elig.className = 'tier-eligible-banner';
+      elig.innerHTML = '<div>Hai raggiunto la soglia AUM per <b>GOLD</b> da '+(_daysSince(s.gold_eligible_since)||0)+' giorni. La promozione è discrezionale e curata dall\'amministrazione: verrai contattato. Puoi anche richiederla dal pulsante <i>Richiedi Gold</i> qui sopra.</div>';
+      elig.style.display='flex';
+    } else { elig.style.display='none'; }
+  }
+  if(atrisk){
+    if(t==='gold' && s.gold_at_risk_since){
+      atrisk.className='tier-atrisk-banner';
+      atrisk.innerHTML='<div>Il tuo AUM è temporaneamente sotto soglia GOLD da '+(_daysSince(s.gold_at_risk_since)||0)+' giorni. Il tier resta attivo: l\'amministrazione interviene caso per caso.</div>';
+      atrisk.style.display='flex';
+    } else { atrisk.style.display='none'; }
+  }
+
+  // ── Storico cambi tier (ultimi 10) ──
+  var historyCard = document.getElementById('profSubHistoryCard');
+  var historyList = document.getElementById('profSubHistoryList');
+  if(historyCard && historyList && _session && _session.user){
+    try {
+      var rows = await supa('GET', 'inv_tier_history?user_id=eq.'+_session.user.id+'&select=from_tier,to_tier,changed_at,reason,manual_override,source&order=changed_at.desc&limit=10');
+      if(rows && rows.length){
+        historyCard.style.display = '';
+        historyList.innerHTML = rows.map(function(h){
+          var from = h.from_tier ? '<span class="tier-badge '+h.from_tier+'" style="cursor:default">'+h.from_tier.toUpperCase()+'</span>' : '<span style="color:var(--text-subtle)">—</span>';
+          var to   = '<span class="tier-badge '+h.to_tier+'" style="cursor:default">'+h.to_tier.toUpperCase()+'</span>';
+          var srcLabel = ({admin:'Admin', system:'Sistema', self_signup:'Auto-iscrizione', expired:'Scadenza'})[h.source] || (h.source || '—');
+          var override = h.manual_override
+            ? '<span style="font-size:9px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;padding:1px 6px;border-radius:3px;color:var(--danger,#f85149);border:1px solid rgba(248,81,73,.35);background:rgba(248,81,73,.08);margin-left:6px">Override</span>'
+            : '';
+          return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-size:12px;flex-wrap:wrap">'+
+            '<div style="font-family:var(--mono);font-size:11px;color:var(--text-muted);min-width:110px">'+_fmtDate(h.changed_at)+'</div>'+
+            '<div style="display:flex;align-items:center;gap:7px;flex-shrink:0">'+from+'<span style="color:var(--text-subtle);font-size:11px">→</span>'+to+'</div>'+
+            '<div style="flex:1;min-width:140px;color:var(--text-muted);font-size:11.5px">'+_esc(h.reason||'')+'</div>'+
+            '<div style="font-size:9.5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--text-subtle);padding:2px 6px;border:1px solid var(--border);border-radius:3px">'+_esc(srcLabel)+'</div>'+
+            override+
+          '</div>';
+        }).join('');
+      } else {
+        historyCard.style.display = 'none';
+      }
+    } catch(e){
+      console.warn('tier history:', e && e.message);
+      historyCard.style.display = 'none';
+    }
+  }
+}
+
+// ───── KYC strip (live) ─────
+function profUpdateKycStrip(){
+  var p = _prof.data || {};
+  // Calcola level effettivo basato sui dati presenti
+  var level = 0;
+  // L1: telefono verificato + email
+  if(p.phone_verified_at) level = 1;
+  // L2: anagrafica + indirizzo + documento + consensi obbligatori
+  var hasAnag = p.first_name && p.last_name && p.birth_date && p.birth_place && p.fiscal_code;
+  var hasAddr = p.res_address && p.res_zip && p.res_city;
+  var hasDoc  = p.id_doc_type && p.id_doc_number && p.id_doc_front_path && p.id_doc_expiry_date;
+  var hasGdpr = p.gdpr_privacy_accepted_at && p.gdpr_tos_accepted_at;
+  if(level>=1 && hasAnag && hasAddr && hasDoc && hasGdpr) level = 2;
+  // L3: source of funds compilato (per > €15k cumulativi/12m, settato in admin manualmente in PR8)
+  if(level>=2 && p.source_of_funds && (p.kyc_level||0) >= 3) level = 3;
+
+  // Render
+  var lv = document.getElementById('kycLevelValue');
+  if(lv) lv.textContent = 'L' + level;
+
+  var pct = (level / 3) * 100;
+  var fill = document.getElementById('kycBarFill');
+  if(fill) fill.style.width = pct + '%';
+
+  ['L0','L1','L2','L3'].forEach(function(L, i){
+    var el = document.getElementById('kycStep'+L);
+    if(!el) return;
+    el.classList.remove('done','current');
+    if(i < level)       el.classList.add('done');
+    else if(i === level) el.classList.add('current');
+  });
+
+  // Status badge
+  var status = p.kyc_status || 'pending';
+  var wrap = document.getElementById('kycStatusBadgeWrap');
+  if(wrap){
+    var cls = (status==='approved') ? 'approved' : (status==='rejected') ? 'rejected' : (status==='review') ? 'review' : '';
+    var label = status==='approved' ? '✓ Approvato' : status==='rejected' ? 'Respinto' : status==='review' ? 'In revisione' : 'In attesa';
+    wrap.innerHTML = '<span class="kyc-status-badge '+cls+'">'+label+'</span>';
+  }
+}
+
+function profUpdateStepperState(){
+  var p = _prof.data || {};
+  var doneMap = {
+    anagrafica: !!(p.first_name && p.last_name && p.birth_date && p.birth_place && p.fiscal_code),
+    indirizzo:  !!(p.res_address && p.res_zip && p.res_city),
+    telefono:   !!p.phone_verified_at,
+    documento:  !!(p.id_doc_type && p.id_doc_number && p.id_doc_front_path && p.id_doc_expiry_date),
+    consensi:   !!(p.gdpr_privacy_accepted_at && p.gdpr_tos_accepted_at),
+  };
+  document.querySelectorAll('.prof-step').forEach(function(el){
+    var s = el.dataset.step;
+    el.classList.toggle('done', !!doneMap[s]);
+  });
+}
+
+// ───── Validation ─────
+function profShowError(id, msg){
+  var input = document.getElementById(id.replace('err','pf').replace('FirstName','FirstName'));
+  if(input) input.classList.add('error');
+  var err = document.getElementById(id);
+  if(err){ err.textContent = msg; err.style.display = ''; }
+}
+function profClearError(id){
+  var input = document.getElementById(id.replace('err','pf'));
+  if(input) input.classList.remove('error');
+  var err = document.getElementById(id);
+  if(err){ err.textContent = ''; err.style.display = 'none'; }
+}
+function profClearAllErrors(){
+  document.querySelectorAll('.prof-error-msg').forEach(function(e){ e.style.display='none'; e.textContent=''; });
+  document.querySelectorAll('.prof-input.error').forEach(function(e){ e.classList.remove('error'); });
+}
+
+// CF italiano: 16 caratteri, struttura SSSCCCNNANXNNNX (validazione formato + checksum)
+function profValidateCF(cf){
+  if(!cf) return false;
+  cf = cf.toUpperCase().trim();
+  if(!/^[A-Z0-9]{16}$/.test(cf)) return false;
+  if(!/^[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]$/.test(cf)) return false;
+  // Checksum (algoritmo standard CF italiano)
+  var oddMap = {'0':1,'1':0,'2':5,'3':7,'4':9,'5':13,'6':15,'7':17,'8':19,'9':21,
+                'A':1,'B':0,'C':5,'D':7,'E':9,'F':13,'G':15,'H':17,'I':19,'J':21,
+                'K':2,'L':4,'M':18,'N':20,'O':11,'P':3,'Q':6,'R':8,'S':12,'T':14,
+                'U':16,'V':10,'W':22,'X':25,'Y':24,'Z':23};
+  var evenMap = {'0':0,'1':1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,
+                 'A':0,'B':1,'C':2,'D':3,'E':4,'F':5,'G':6,'H':7,'I':8,'J':9,
+                 'K':10,'L':11,'M':12,'N':13,'O':14,'P':15,'Q':16,'R':17,'S':18,'T':19,
+                 'U':20,'V':21,'W':22,'X':23,'Y':24,'Z':25};
+  var sum = 0;
+  for(var i=0;i<15;i++){
+    var c = cf.charAt(i);
+    sum += (i % 2 === 0) ? (oddMap[c]||0) : (evenMap[c]||0);
+  }
+  var expected = String.fromCharCode(65 + (sum % 26));
+  return cf.charAt(15) === expected;
+}
+
+function profValidateAge(birthDateStr){
+  if(!birthDateStr) return null;
+  var d = new Date(birthDateStr);
+  if(isNaN(d.getTime())) return null;
+  var now = new Date();
+  var age = now.getFullYear() - d.getFullYear();
+  var m = now.getMonth() - d.getMonth();
+  if(m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+  return age;
+}
+
+function profValidateAnagrafica(){
+  profClearAllErrors();
+  var ok = true;
+  if(!getProfVal('pfFirstName')){ profShowError('errFirstName','Obbligatorio'); ok=false; }
+  if(!getProfVal('pfLastName')){  profShowError('errLastName', 'Obbligatorio'); ok=false; }
+  var bd = getProfVal('pfBirthDate');
+  if(!bd){ profShowError('errBirthDate','Obbligatorio'); ok=false; }
+  else {
+    var age = profValidateAge(bd);
+    if(age == null || age < 18){ profShowError('errBirthDate','Devi essere maggiorenne'); ok=false; }
+    if(age != null && age > 120){ profShowError('errBirthDate','Data non valida'); ok=false; }
+  }
+  if(!getProfVal('pfBirthPlace')){ profShowError('errBirthPlace','Obbligatorio'); ok=false; }
+  var country = getProfVal('pfBirthCountry').toUpperCase();
+  var cf = getProfVal('pfFiscalCode').toUpperCase();
+  if(country === 'IT'){
+    if(!cf){ profShowError('errFiscalCode','Obbligatorio per residenti IT'); ok=false; }
+    else if(!profValidateCF(cf)){ profShowError('errFiscalCode','Codice fiscale non valido'); ok=false; }
+  }
+  return ok;
+}
+
+function profValidateIndirizzo(){
+  profClearAllErrors();
+  var ok = true;
+  if(!getProfVal('pfResAddress')){ ok=false; }
+  if(!getProfVal('pfResZip'))    { ok=false; }
+  if(!getProfVal('pfResCity'))   { ok=false; }
+  // CAP IT: 5 cifre
+  var country = getProfVal('pfResCountry').toUpperCase();
+  var zip = getProfVal('pfResZip');
+  if(country==='IT' && !/^\d{5}$/.test(zip)){ ok=false; }
+  return ok;
+}
+
+function profValidateDocumento(){
+  profClearAllErrors();
+  var ok = true;
+  if(!getProfVal('pfDocType'))     ok = false;
+  if(!getProfVal('pfDocNumber'))   ok = false;
+  if(!getProfVal('pfDocIssuer'))   ok = false;
+  if(!getProfVal('pfDocIssueDate')) ok = false;
+  var exp = getProfVal('pfDocExpiryDate');
+  if(!exp) ok = false;
+  else if(new Date(exp) < new Date()) ok = false; // scaduto
+  return ok;
+}
+
+// ───── Save ─────
+async function profSave(section, silent){
+  if(!_session) return false;
+  var btn = document.querySelector('#profSec-'+section+' .btn.primary');
+  if(btn) btn.disabled = true;
+
+  try{
+    var payload = {};
+    var sectionStatusEl = document.getElementById(section+'Status');
+    var statusOk = function(msg){ if(sectionStatusEl){ sectionStatusEl.classList.remove('dirty'); sectionStatusEl.classList.add('saved'); sectionStatusEl.textContent = msg||'✓ Salvato'; } };
+    var statusErr = function(msg){ if(sectionStatusEl){ sectionStatusEl.classList.remove('saved'); sectionStatusEl.classList.add('dirty'); sectionStatusEl.textContent = msg||'Errore'; } };
+
+    if(section === 'anagrafica'){
+      if(!profValidateAnagrafica()){ statusErr('Compila correttamente i campi obbligatori'); return false; }
+      payload = {
+        first_name:    getProfVal('pfFirstName'),
+        last_name:     getProfVal('pfLastName'),
+        full_name:     (getProfVal('pfFirstName')+' '+getProfVal('pfLastName')).trim(),
+        birth_date:    getProfVal('pfBirthDate'),
+        birth_place:   getProfVal('pfBirthPlace'),
+        birth_country: (getProfVal('pfBirthCountry')||'IT').toUpperCase(),
+        nationality:   (getProfVal('pfNationality') ||'IT').toUpperCase(),
+        fiscal_code:   getProfVal('pfFiscalCode').toUpperCase() || null,
+      };
+    }
+    else if(section === 'indirizzo'){
+      if(!profValidateIndirizzo()){ statusErr('Compila tutti i campi'); return false; }
+      payload = {
+        res_address:  getProfVal('pfResAddress'),
+        res_civic:    getProfVal('pfResCivic'),
+        res_zip:      getProfVal('pfResZip'),
+        res_city:     getProfVal('pfResCity'),
+        res_province: getProfVal('pfResProvince').toUpperCase(),
+        res_country:  (getProfVal('pfResCountry')||'IT').toUpperCase(),
+      };
+    }
+    else if(section === 'documento'){
+      if(!profValidateDocumento()){ statusErr('Documento: compila i campi obbligatori (rilascio, scadenza, fronte)'); return false; }
+      payload = {
+        id_doc_type:        getProfVal('pfDocType'),
+        id_doc_number:      getProfVal('pfDocNumber'),
+        id_doc_issuer:      getProfVal('pfDocIssuer'),
+        id_doc_issue_date:  getProfVal('pfDocIssueDate'),
+        id_doc_expiry_date: getProfVal('pfDocExpiryDate'),
+      };
+    }
+    else if(section === 'consensi'){
+      var privacy   = document.getElementById('pfGdprPrivacy').checked;
+      var tos       = document.getElementById('pfGdprTos').checked;
+      var marketing = document.getElementById('pfGdprMarketing').checked;
+      var profiling = document.getElementById('pfGdprProfiling').checked;
+      if(!privacy || !tos){ statusErr('I consensi Privacy e Termini sono obbligatori'); return false; }
+      var nowIso = new Date().toISOString();
+      payload = {
+        gdpr_privacy_accepted_at:   privacy ? (_prof.data?.gdpr_privacy_accepted_at || nowIso) : null,
+        gdpr_tos_accepted_at:       tos     ? (_prof.data?.gdpr_tos_accepted_at     || nowIso) : null,
+        gdpr_marketing_accepted:    marketing,
+        gdpr_marketing_accepted_at: marketing ? (_prof.data?.gdpr_marketing_accepted_at || nowIso) : null,
+        gdpr_profiling_accepted:    profiling,
+        gdpr_profiling_accepted_at: profiling ? (_prof.data?.gdpr_profiling_accepted_at || nowIso) : null,
+      };
+    }
+
+    await supa('PATCH','profiles?id=eq.'+_session.user.id, payload);
+
+    // Ricalcolo kyc_level lato server: ricarica + aggiorna kyc_level se passa la soglia
+    await profRecomputeKycLevel();
+    if(!silent){
+      await profileLoad();
+      statusOk('✓ Salvato');
+      showToast('Modifiche salvate', 'ok');
+    } else {
+      // In modalità silent (chiamata da profSaveAll), non ricarichiamo qui
+      // — sarà profSaveAll a fare il reload finale per evitare race
+      statusOk('✓ Salvato');
+    }
+    return true;
+  }catch(e){
+    if(!silent) showToast('Errore salvataggio: '+(e.message||e), 'err');
+    var s = document.getElementById(section+'Status');
+    if(s){ s.classList.remove('saved'); s.classList.add('dirty'); s.textContent='Errore'; }
+    return false;
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+
+async function profRecomputeKycLevel(){
+  // Ricarica il profilo per avere lo stato completo
+  try{
+    var rows = await supa('GET','profiles?select=*&id=eq.'+_session.user.id);
+    var p = (rows && rows[0]) || {};
+    var newLevel = 0;
+    if(p.phone_verified_at) newLevel = 1;
+    var hasAnag = p.first_name && p.last_name && p.birth_date && p.birth_place && p.fiscal_code;
+    var hasAddr = p.res_address && p.res_zip && p.res_city;
+    var hasDoc  = p.id_doc_type && p.id_doc_number && p.id_doc_front_path && p.id_doc_expiry_date;
+    var hasGdpr = p.gdpr_privacy_accepted_at && p.gdpr_tos_accepted_at;
+    if(newLevel>=1 && hasAnag && hasAddr && hasDoc && hasGdpr) newLevel = 2;
+    if((p.kyc_level||0) !== newLevel){
+      // Quando passa a L2 imposta status='review' (admin deve approvare)
+      var newStatus = newLevel >= 2 ? 'review' : 'pending';
+      await supa('PATCH','profiles?id=eq.'+_session.user.id, { kyc_level: newLevel, kyc_status: newStatus });
+    }
+  }catch(e){ /* best-effort */ }
+}
+
+// ───── Save-all / Discard-all / Confirm modal ─────
+
+// Mappa quale section di un campo (per dirty tracking)
+var PROF_FIELD_SECTION = {
+  pfFirstName:'anagrafica', pfLastName:'anagrafica', pfBirthDate:'anagrafica',
+  pfBirthPlace:'anagrafica', pfBirthCountry:'anagrafica', pfNationality:'anagrafica',
+  pfFiscalCode:'anagrafica',
+  pfResAddress:'indirizzo', pfResCivic:'indirizzo', pfResZip:'indirizzo',
+  pfResCity:'indirizzo', pfResProvince:'indirizzo', pfResCountry:'indirizzo',
+  pfDocType:'documento', pfDocNumber:'documento', pfDocIssuer:'documento',
+  pfDocIssueDate:'documento', pfDocExpiryDate:'documento',
+  pfGdprPrivacy:'consensi', pfGdprTos:'consensi',
+  pfGdprMarketing:'consensi', pfGdprProfiling:'consensi',
+};
+
+// Set delle sezioni con modifiche pendenti
+function profDirtySections(){
+  var s = new Set();
+  Object.keys(PROF_FIELD_SECTION).forEach(function(id){
+    var el = document.getElementById(id);
+    if(el && el.classList.contains('dirty')) s.add(PROF_FIELD_SECTION[id]);
+  });
+  return s;
+}
+
+function profUpdateSaveAllBar(){
+  var saveBtn    = document.getElementById('profSaveAllBtn');
+  var discardBtn = document.getElementById('profDiscardBtn');
+  var countEl    = document.getElementById('profSaveAllCount');
+  if(!saveBtn) return;
+  var sections = profDirtySections();
+  var n = sections.size;
+  // Save button: enabled solo se ci sono modifiche
+  if(n > 0){
+    saveBtn.disabled = false;
+    saveBtn.classList.add('has-changes');
+    if(countEl) countEl.textContent = String(n);
+    var labels = { anagrafica:'Anagrafica', indirizzo:'Residenza',
+                   documento:'Documento', consensi:'Consensi' };
+    var titles = Array.from(sections).map(function(s){ return labels[s]||s; });
+    saveBtn.title = 'Salva ' + n + ' sezione' + (n>1?'i':'') + ': ' + titles.join(', ');
+  } else {
+    saveBtn.disabled = true;
+    saveBtn.classList.remove('has-changes');
+    if(countEl) countEl.textContent = '0';
+    saveBtn.title = 'Nessuna modifica da salvare';
+  }
+  // Discard button: stesso enable/disable
+  if(discardBtn){
+    discardBtn.disabled = (n === 0);
+    discardBtn.title = (n === 0)
+      ? 'Nessuna modifica da annullare'
+      : 'Annulla ' + n + ' modifiche non salvate';
+  }
+}
+
+// Listener globale per dirty tracking dei campi profilo
+document.addEventListener('input', function(e){
+  if(e.target && e.target.id && PROF_FIELD_SECTION[e.target.id]){
+    var el = e.target;
+    el.classList.remove('saved','error');
+    var fld = el.closest('.prof-field');
+    if(fld) fld.classList.remove('field-saved');
+    if(el.value !== '' && el.value !== el.dataset.savedValue){
+      el.classList.add('dirty');
+    } else {
+      el.classList.remove('dirty');
+    }
+    profUpdateSaveAllBar();
+  }
+});
+document.addEventListener('change', function(e){
+  if(e.target && e.target.id && PROF_FIELD_SECTION[e.target.id]
+     && (e.target.type === 'checkbox' || e.target.tagName === 'SELECT')){
+    var el = e.target;
+    el.classList.remove('saved','error');
+    el.classList.add('dirty');
+    profUpdateSaveAllBar();
+  }
+});
+
+// Salva tutti gli step con modifiche pendenti
+async function profSaveAll(){
+  var sections = profDirtySections();
+  if(sections.size === 0){
+    showToast('Nessuna modifica da salvare', 'info');
+    return;
+  }
+  var btn = document.getElementById('profSaveAllBtn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Salvataggio in corso...'; }
+  var ok = 0, fail = 0;
+  var order = ['anagrafica','indirizzo','documento','consensi'];
+  for(var i=0; i<order.length; i++){
+    var s = order[i];
+    if(!sections.has(s)) continue;
+    try{
+      var success = await profSave(s, /*silent*/ true);
+      if(success) ok++; else fail++;
+    }catch(e){ fail++; }
+  }
+  if(btn){ btn.disabled = false; btn.textContent = 'Salva tutto'; }
+  if(fail === 0){
+    showToast('Tutte le modifiche salvate ('+ok+' sezioni)', 'ok');
+  } else {
+    showToast('Salvate '+ok+' sezioni, '+fail+' errori. Controlla i campi obbligatori.', 'err');
+  }
+  await profileLoad();
+}
+
+// Annulla tutte le modifiche pendenti — chiede conferma
+function profDiscardAll(){
+  var sections = profDirtySections();
+  if(sections.size === 0) return;
+  profConfirm({
+    title: 'Annullare le modifiche?',
+    body:  'Le modifiche non salvate verranno perse e i campi torneranno ai valori salvati. Continuare?',
+    okLabel: 'Annulla modifiche',
+    okClass: 'btn-danger',
+    onOk: function(){
+      // Ripristina dal DB
+      profHydrate();
+      profUpdateSaveAllBar();
+      showToast('Modifiche annullate', 'info');
+    }
+  });
+}
+
+// Confirm modal (sostituto di window.confirm)
+// ───── Telefono / OTP ─────
+function profRenderPhoneStatus(){
+  var p = _prof.data || {};
+  var statusEl = document.getElementById('pfPhoneStatus');
+  if(!statusEl) return;
+  if(p.phone_verified_at && p.phone_e164){
+    statusEl.innerHTML = '<span class="prof-verified">Verificato il '+ new Date(p.phone_verified_at).toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'numeric'}) +' — '+ p.phone_e164 +'</span>';
+    var btn = document.getElementById('pfVerifyBtn');
+    if(btn) btn.textContent = 'Cambia numero';
+  } else {
+    statusEl.innerHTML = '<span style="font-size:11.5px;color:var(--text-muted)">Numero non ancora verificato.</span>';
+  }
+}
+
+function profNormalizePhone(cc, num){
+  cc = (cc||'').trim();
+  num = (num||'').replace(/[\s.\-()]/g,'');
+  if(!cc.startsWith('+')) cc = '+'+cc.replace(/^\+/,'');
+  if(num.startsWith('+')) return num.replace(/[^\d+]/g,'');
+  return cc + num.replace(/^0+/,''); // strip eventuali zeri iniziali
+}
+
+async function profPhoneVerify(){
+  var cc = getProfVal('pfPhoneCC');
+  var num = getProfVal('pfPhoneNum');
+  var e164 = profNormalizePhone(cc, num);
+  if(!/^\+\d{8,15}$/.test(e164)){
+    var err = document.getElementById('errPhone');
+    if(err){ err.textContent = 'Formato non valido. Esempio: +39 333 1234567'; err.style.display=''; }
+    return;
+  }
+  var errEl = document.getElementById('errPhone');
+  if(errEl) errEl.style.display='none';
+
+  var btn = document.getElementById('pfVerifyBtn');
+  if(btn) btn.disabled = true;
+
+  try{
+    var token = (_session && _session.access_token) || SUPA_KEY;
+    var r = await fetch(SUPA_URL+'/functions/v1/sms-otp-send', {
+      method:'POST',
+      headers:{
+        'Authorization':'Bearer '+token,
+        'Content-Type':'application/json',
+        'apikey':SUPA_KEY,
+      },
+      body: JSON.stringify({ purpose:'phone_verify', phone_e164:e164 }),
+    });
+    var body = await r.json().catch(function(){ return {}; });
+    if(!r.ok){
+      var msg = body.error || ('Errore '+r.status);
+      if(body.error === 'rate_limit_user_hour')  msg = 'Troppi tentativi: riprova tra un\'ora.';
+      if(body.error === 'rate_limit_phone_day') msg = 'Limite giornaliero raggiunto su questo numero.';
+      if(body.error === 'send_failed')         msg = 'Invio fallito. Verifica il numero.';
+      showToast(msg, 'err');
+      return;
+    }
+    _prof.otp.id        = body.otp_id;
+    _prof.otp.expiresAt = new Date(body.expires_at);
+    _prof.otp.attempts  = 0;
+    _prof.otp.max       = body.attempts_max || 3;
+    _prof.otp.channel   = body.channel || 'sms';
+    document.getElementById('profOtpChannel').textContent = body.channel === 'whatsapp' ? 'WhatsApp' : 'SMS';
+    document.getElementById('profOtpPhone').textContent = body.masked_phone || e164;
+    profOtpOpen();
+  }catch(e){
+    showToast('Errore: '+(e.message||e), 'err');
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+
+function profOtpOpen(){
+  document.getElementById('profOtpBg').classList.add('show');
+  document.getElementById('profOtpError').style.display='none';
+  // Reset cells
+  document.querySelectorAll('.prof-otp-cell').forEach(function(c){ c.value=''; c.classList.remove('filled'); });
+  // Focus first
+  setTimeout(function(){
+    var first = document.querySelector('.prof-otp-cell[data-otp-idx="0"]');
+    if(first) first.focus();
+  }, 100);
+  profOtpStartCountdown();
+  profOtpStartResendCooldown();
+}
+function profOtpClose(){
+  document.getElementById('profOtpBg').classList.remove('show');
+  if(_prof.otp.tickerH){ clearInterval(_prof.otp.tickerH); _prof.otp.tickerH=null; }
+  if(_prof.otp.resendH){ clearInterval(_prof.otp.resendH); _prof.otp.resendH=null; }
+}
+function profOtpStartCountdown(){
+  if(_prof.otp.tickerH) clearInterval(_prof.otp.tickerH);
+  var update = function(){
+    var ms = _prof.otp.expiresAt - new Date();
+    var el = document.getElementById('profOtpCountdown');
+    if(!el) return;
+    if(ms <= 0){
+      el.textContent = 'scaduto';
+      el.className = 'prof-otp-countdown expired';
+      clearInterval(_prof.otp.tickerH);
+      var sub = document.getElementById('profOtpSubmit');
+      if(sub) sub.disabled = true;
+      return;
+    }
+    var s = Math.floor(ms/1000);
+    var m = Math.floor(s/60);
+    var sec = s%60;
+    el.textContent = m+':'+(sec<10?'0':'')+sec;
+    el.className = 'prof-otp-countdown' + (s<60 ? ' warn' : '');
+  };
+  update();
+  _prof.otp.tickerH = setInterval(update, 1000);
+}
+function profOtpStartResendCooldown(){
+  var btn = document.getElementById('profOtpResend');
+  if(!btn) return;
+  var seconds = 60;
+  btn.disabled = true;
+  btn.textContent = 'Reinvia codice ('+seconds+'s)';
+  if(_prof.otp.resendH) clearInterval(_prof.otp.resendH);
+  _prof.otp.resendH = setInterval(function(){
+    seconds--;
+    if(seconds <= 0){
+      clearInterval(_prof.otp.resendH);
+      btn.disabled = false;
+      btn.textContent = 'Reinvia codice';
+    } else {
+      btn.textContent = 'Reinvia codice ('+seconds+'s)';
+    }
+  }, 1000);
+}
+async function profOtpResend(){
+  var btn = document.getElementById('profOtpResend');
+  if(btn && btn.disabled) return;
+  // Riusa lo stesso numero
+  await profPhoneVerify();
+}
+
+async function profOtpSubmit(){
+  var code = '';
+  document.querySelectorAll('.prof-otp-cell').forEach(function(c){ code += c.value; });
+  if(code.length !== 6 || !/^\d{6}$/.test(code)){
+    var e = document.getElementById('profOtpError');
+    if(e){ e.textContent = 'Inserisci tutte e 6 le cifre.'; e.style.display=''; }
+    return;
+  }
+  var sub = document.getElementById('profOtpSubmit');
+  if(sub) sub.disabled = true;
+
+  try{
+    var token = (_session && _session.access_token) || SUPA_KEY;
+    var r = await fetch(SUPA_URL+'/functions/v1/sms-otp-verify', {
+      method:'POST',
+      headers:{
+        'Authorization':'Bearer '+token,
+        'Content-Type':'application/json',
+        'apikey':SUPA_KEY,
+      },
+      body: JSON.stringify({ otp_id: _prof.otp.id, code: code }),
+    });
+    var body = await r.json().catch(function(){ return {}; });
+    if(!r.ok){
+      var e = document.getElementById('profOtpError');
+      var msg = 'Codice non valido';
+      if(body.error === 'otp_invalid' && body.attempts_remaining != null){
+        msg = 'Codice errato — '+body.attempts_remaining+' tentativi rimanenti';
+        var att = document.getElementById('profOtpAttempts');
+        if(att) att.textContent = body.attempts_remaining+' tentativi rimanenti';
+      } else if(body.error === 'otp_expired'){
+        msg = 'Codice scaduto, richiedine uno nuovo';
+      } else if(body.error === 'otp_max_attempts_reached'){
+        msg = 'Troppi tentativi falliti, richiedi un nuovo codice';
+      } else if(body.error === 'otp_already_consumed'){
+        msg = 'Questo codice è già stato usato';
+      }
+      if(e){ e.textContent = msg; e.style.display=''; }
+      return;
+    }
+    // Successo
+    profOtpClose();
+    await profileLoad();
+    showToast('Telefono verificato con successo', 'ok');
+  }catch(e){
+    showToast('Errore: '+(e.message||e), 'err');
+  }finally{
+    if(sub) sub.disabled = false;
+  }
+}
+
+// OTP cell auto-advance
+document.addEventListener('input', function(e){
+  var t = e.target;
+  if(!t.matches('.prof-otp-cell')) return;
+  var v = t.value.replace(/\D/g,'').slice(0,1);
+  t.value = v;
+  if(v) t.classList.add('filled'); else t.classList.remove('filled');
+  if(v){
+    var idx = Number(t.dataset.otpIdx);
+    var next = document.querySelector('.prof-otp-cell[data-otp-idx="'+(idx+1)+'"]');
+    if(next) next.focus();
+    // Auto-submit se completo
+    var all = '';
+    document.querySelectorAll('.prof-otp-cell').forEach(function(c){ all += c.value; });
+    if(all.length === 6) profOtpSubmit();
+  }
+});
+document.addEventListener('keydown', function(e){
+  var t = e.target;
+  if(!t.matches('.prof-otp-cell')) return;
+  if(e.key === 'Backspace' && !t.value){
+    var idx = Number(t.dataset.otpIdx);
+    var prev = document.querySelector('.prof-otp-cell[data-otp-idx="'+(idx-1)+'"]');
+    if(prev){ prev.focus(); prev.value=''; prev.classList.remove('filled'); }
+  }
+});
+document.addEventListener('paste', function(e){
+  if(!e.target.matches('.prof-otp-cell')) return;
+  e.preventDefault();
+  var data = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g,'').slice(0,6);
+  if(!data) return;
+  document.querySelectorAll('.prof-otp-cell').forEach(function(c, i){
+    c.value = data[i] || '';
+    if(data[i]) c.classList.add('filled'); else c.classList.remove('filled');
+  });
+  if(data.length === 6) profOtpSubmit();
+});
+
+// ───── Documento upload ─────
+function profDocBackVisibility(){
+  var t = getProfVal('pfDocType');
+  var wrap = document.getElementById('pfDocBackWrap');
+  if(!wrap) return;
+  // Per il passaporto il retro non c'è (e per coerenza è meglio mostrarlo solo se compilato)
+  wrap.style.display = (t === 'PASSAPORTO') ? 'none' : '';
+}
+document.addEventListener('change', function(e){
+  if(e.target.id === 'pfDocType') profDocBackVisibility();
+});
+
+async function profUploadDoc(side, file){
+  if(!file) return;
+  if(file.size > 10*1024*1024){ showToast('File troppo grande (max 10MB)', 'err'); return; }
+  if(!/^(image\/(jpeg|png|webp)|application\/pdf)$/.test(file.type)){
+    showToast('Formato non supportato. Usa JPG, PNG o PDF.', 'err');
+    return;
+  }
+
+  var label = document.getElementById('pfDoc'+(side==='front'?'Front':'Back')+'Label');
+  if(label) label.textContent = 'Caricamento...';
+
+  try{
+    var ext = (file.name.match(/\.([a-zA-Z0-9]+)$/)||['','bin'])[1].toLowerCase();
+    if(file.type === 'application/pdf') ext = 'pdf';
+    else if(file.type === 'image/png') ext = 'png';
+    else if(file.type === 'image/webp') ext = 'webp';
+    else ext = 'jpg';
+
+    var path = _session.user.id + '/' + side + '.' + ext;
+    var token = (_session && _session.access_token) || SUPA_KEY;
+
+    // Upsert (se l'utente ricarica un nuovo documento)
+    var r = await fetch(SUPA_URL+'/storage/v1/object/kyc-documents/'+path, {
+      method:'POST',
+      headers:{
+        'Authorization':'Bearer '+token,
+        'apikey':SUPA_KEY,
+        'Content-Type':file.type,
+        'x-upsert':'true',
+      },
+      body: file,
+    });
+    if(!r.ok){
+      var err = await r.text();
+      throw new Error('Upload fallito: '+err);
+    }
+
+    // Aggiorna profile con il path (NON l'URL pubblico, il bucket è privato)
+    var col = side === 'front' ? 'id_doc_front_path' : 'id_doc_back_path';
+    var patch = {};
+    patch[col] = path;
+    await supa('PATCH','profiles?id=eq.'+_session.user.id, patch);
+
+    profRenderDocPreview(side, path);
+    if(label) label.textContent = 'Sostituisci ' + (side==='front'?'fronte':'retro');
+    showToast('File caricato', 'ok');
+    // Ricarica per aggiornare strip e stepper
+    await profileLoad();
+  }catch(e){
+    if(label) label.textContent = 'Carica ' + (side==='front'?'fronte':'retro');
+    showToast('Errore upload: '+(e.message||e), 'err');
+  }
+}
+
+function profRenderDocPreview(side, path){
+  var prev = document.getElementById('pfDoc'+(side==='front'?'Front':'Back')+'Preview');
+  var drop = document.getElementById('pfDoc'+(side==='front'?'Front':'Back')+'Drop');
+  var label = document.getElementById('pfDoc'+(side==='front'?'Front':'Back')+'Label');
+  if(!prev || !drop) return;
+  if(path){
+    drop.classList.add('has-file');
+    prev.style.display='';
+    var name = path.split('/').pop();
+    prev.innerHTML = '<span class="name">📄 '+esc(name)+'</span>'+
+                     '<button class="btn-ghost sm" onclick="profDocOpenSigned(\''+esc(path)+'\')" title="Visualizza">Visualizza</button>';
+    if(label) label.textContent = 'Sostituisci ' + (side==='front'?'fronte':'retro');
+  } else {
+    drop.classList.remove('has-file');
+    prev.style.display='none';
+    prev.innerHTML='';
+    if(label) label.textContent = 'Carica ' + (side==='front'?'fronte':'retro');
+  }
+}
+
+async function profDocOpenSigned(path){
+  // Genera signed URL temporanea (60s) per visualizzare il file privato
+  try{
+    var token = (_session && _session.access_token) || SUPA_KEY;
+    var r = await fetch(SUPA_URL+'/storage/v1/object/sign/kyc-documents/'+path, {
+      method:'POST',
+      headers:{
+        'Authorization':'Bearer '+token,
+        'apikey':SUPA_KEY,
+        'Content-Type':'application/json',
+      },
+      body: JSON.stringify({ expiresIn: 60 }),
+    });
+    if(!r.ok){ throw new Error('Errore '+r.status); }
+    var body = await r.json();
+    var url = SUPA_URL + '/storage/v1' + body.signedURL;
+    window.open(url, '_blank');
+  }catch(e){
+    showToast('Impossibile aprire il file: '+(e.message||e), 'err');
+  }
+}
+
+// ───── Wrapper esc se non già definito ─────
+if(typeof esc !== 'function'){
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+}
+
+// ───── Toast wrapper (riusa quello globale se presente) ─────
+function showToast(msg, kind){
+  if(typeof toast === 'function'){ try{ toast(msg, kind); return; }catch(e){} }
+  // fallback
+  var t = document.getElementById('toast');
+  if(t){
+    t.textContent = msg;
+    t.className = (kind||'ok')+' show';
+    clearTimeout(window._tT);
+    window._tT = setTimeout(function(){ t.classList.remove('show'); }, 2400);
+    return;
+  }
+  alert(msg);
+}
+// Fine PR4
+// ═══════════════════════════════════════════════════════════════════════
+
+
+// Bootstrap robusto: aspetta che il parent abbia finito di parsare.
+function _waitParentReady(cb){
+  var tries = 0;
+  function check(){
+    var ready = (window.parent && window.parent !== window
+                 && typeof window.parent.profConfirm === 'function'
+                 && typeof window.parent.supa === 'function');
+    if(ready){ cb(); return; }
+    if(++tries > 50){ console.warn('[profile] parent never ready, giving up'); cb(); return; }
+    setTimeout(check, 100);
+  }
+  check();
+}
+document.addEventListener("DOMContentLoaded", function(){
+  _waitParentReady(function(){
+    if(typeof profileLoad === 'function'){
+      try{ profileLoad(); }catch(e){ console.error("[profile frame]", e); }
+    }
+  });
+});
+
+window.addEventListener('message', function(ev){
+  if(!ev.data) return;
+  if(ev.data.type === 'rb-profile-refresh'){
+    try{ profileLoad(); }catch(_){}
+  }
+});
+</script>
+</body>
+</html>
