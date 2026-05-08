@@ -13107,6 +13107,9 @@ async function ctrLoad(){
 // e ricarica la pagina).
 async function ctrAutoPrepareMissing(){
   if(_ctrAutoPrepInFlight) return;
+  // Skip se la view non e' disponibile in DB (migration non applicata).
+  // Senza questo flag ogni apertura del tab Contratti lancia un 404 in console.
+  if(window._ctrPendingViewMissing) return;
   var list = document.getElementById('ctrList');
   if(!list) return;
 
@@ -13116,9 +13119,15 @@ async function ctrAutoPrepareMissing(){
     pending = await supa('GET','v_my_orders_pending_contract?select=*');
   }catch(e){
     // View non esiste (migration 058 non ancora applicata) o altro
-    // errore di accesso: fail silently. Niente toast, l'utente non sa
-    // di questa funzionalità interna; vedrà comunque la lista contratti.
-    console.warn('v_my_orders_pending_contract non disponibile:', e && (e.message||e));
+    // errore di accesso: fail silently. Memorizziamo per non ripetere
+    // la chiamata fallita ad ogni apertura tab.
+    var msg = e && (e.message||String(e));
+    if(msg && (msg.indexOf('PGRST205') > -1 || msg.indexOf('not find') > -1 || msg.indexOf('404') > -1)){
+      window._ctrPendingViewMissing = true;
+      console.warn('[contracts] v_my_orders_pending_contract: view DB mancante (migration 058 non applicata) — auto-prepare disabilitata in questa sessione');
+    } else {
+      console.warn('v_my_orders_pending_contract non disponibile:', msg);
+    }
     return;
   }
 

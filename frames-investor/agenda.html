@@ -129,10 +129,28 @@ function renderAgendaItem(e, isPast){
 
 
 // Bootstrap del frame
-document.addEventListener("DOMContentLoaded", function(){
-  if(typeof agendaLoad === 'function'){
-    try{ agendaLoad(); }catch(e){ console.error("[agenda frame]", e); }
+// IMPORTANTE: il parent rareblock-dashboard.html potrebbe non aver ancora
+// finito di parsare i suoi <script> quando il frame raggiunge DOMContentLoaded.
+// Aspettiamo che le utility del parent (uiLoading, supa, etc.) siano disponibili
+// PRIMA di chiamare agendaLoad. Pattern usato: poll ogni 100ms (max 5s).
+function _waitParentReady(cb){
+  var tries = 0;
+  function check(){
+    var ready = (window.parent && window.parent !== window
+                 && typeof window.parent.uiLoading === 'function'
+                 && typeof window.parent.supa === 'function');
+    if(ready){ cb(); return; }
+    if(++tries > 50){ console.warn('[agenda] parent never ready, giving up'); cb(); return; }
+    setTimeout(check, 100);
   }
+  check();
+}
+document.addEventListener("DOMContentLoaded", function(){
+  _waitParentReady(function(){
+    if(typeof agendaLoad === 'function'){
+      try{ agendaLoad(); }catch(e){ console.error("[agenda frame]", e); }
+    }
+  });
 });
 </script>
 </body>

@@ -149,10 +149,27 @@ async function txLoad(){
 }
 
 
-document.addEventListener("DOMContentLoaded", function(){
-  if(typeof txLoad === 'function'){
-    try{ txLoad(); }catch(e){ console.error("[tx frame]", e); }
+// Bootstrap robusto: aspetta che il parent abbia finito di parsare i suoi
+// <script> (puo' succedere che DOMContentLoaded del frame arrivi PRIMA che
+// il parent abbia definito uiLoading/supa/etc. — race condition).
+function _waitParentReady(cb){
+  var tries = 0;
+  function check(){
+    var ready = (window.parent && window.parent !== window
+                 && typeof window.parent.skelRows === 'function'
+                 && typeof window.parent.supa === 'function');
+    if(ready){ cb(); return; }
+    if(++tries > 50){ console.warn('[tx] parent never ready, giving up'); cb(); return; }
+    setTimeout(check, 100);
   }
+  check();
+}
+document.addEventListener("DOMContentLoaded", function(){
+  _waitParentReady(function(){
+    if(typeof txLoad === 'function'){
+      try{ txLoad(); }catch(e){ console.error("[tx frame]", e); }
+    }
+  });
 });
 </script>
 </body>

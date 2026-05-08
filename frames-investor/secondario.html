@@ -247,11 +247,26 @@ function marketRender(){
 }
 
 
-// Bootstrap del frame
-document.addEventListener("DOMContentLoaded", function(){
-  if(typeof marketLoad === 'function'){
-    try{ marketLoad(); }catch(e){ console.error("[market frame]", e); }
+// Bootstrap robusto: aspetta che il parent abbia finito di parsare i suoi
+// <script> (race condition: DOMContentLoaded del frame puo' arrivare prima).
+function _waitParentReady(cb){
+  var tries = 0;
+  function check(){
+    var ready = (window.parent && window.parent !== window
+                 && typeof window.parent.fmt2 === 'function'
+                 && typeof window.parent.supa === 'function');
+    if(ready){ cb(); return; }
+    if(++tries > 50){ console.warn('[market] parent never ready, giving up'); cb(); return; }
+    setTimeout(check, 100);
   }
+  check();
+}
+document.addEventListener("DOMContentLoaded", function(){
+  _waitParentReady(function(){
+    if(typeof marketLoad === 'function'){
+      try{ marketLoad(); }catch(e){ console.error("[market frame]", e); }
+    }
+  });
 });
 
 // Listener per refresh dal parent (es. dopo checkout o sell complete)
