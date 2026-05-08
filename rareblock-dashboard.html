@@ -15338,11 +15338,36 @@ function _frameMarket(){
     return (f && f.contentWindow) ? f.contentWindow : null;
   }catch(_){ return null; }
 }
-function openSellModal(){
+async function openSellModal(){
   if(!_session){ alert('Accedi per vendere le tue quote'); return; }
   var fw = _frameMarket();
   var holdings = (fw && fw._myHoldingsForSell) || [];
+  // Se il frame Market non ha ancora caricato le holdings (es. utente clicca
+  // "Vendi" senza aver mai aperto Marketplace o prima del fetch), facciamo
+  // un fetch diretto qui per non lasciare il select vuoto.
+  if(!holdings.length){
+    try{
+      var uid = _session.user && _session.user.id;
+      if(uid){
+        holdings = (await supa('GET','inv_holdings?user_id=eq.'+uid))||[];
+        if(fw) fw._myHoldingsForSell = holdings; // sincronizza il frame
+      }
+    }catch(e){ console.warn('[openSellModal] holdings fetch failed:', e); }
+  }
+  if(!holdings.length){
+    alert('Non hai quote disponibili da vendere.');
+    return;
+  }
   var products = (fw && fw._mktProducts) || _mktProducts;
+  // Anche _mktProducts potrebbe essere vuoto (se Marketplace mai aperto)
+  if(!products.length){
+    try{
+      products = (await supa('GET','v_inv_products_with_cover?order=created_at.desc&limit=500'))
+              || (await supa('GET','inv_products?order=created_at.desc&limit=500'))
+              || [];
+      window._mktProducts = products;
+    }catch(e){ console.warn('[openSellModal] products fetch failed:', e); }
+  }
   var sel = document.getElementById('sellProduct');
   sel.innerHTML = holdings.map(function(h){
     var p = products.find(function(x){ return x.id===h.product_id; });
@@ -15354,15 +15379,15 @@ function openSellModal(){
   document.getElementById('sellSt').innerHTML='';
   document.getElementById('sellModalBg').classList.add('show');
 }
-function openSellFromHolding(hid, pid, qty){
-  openSellModal();
-  setTimeout(function(){
-    var sel=document.getElementById('sellProduct');
-    for(var i=0;i<sel.options.length;i++){
-      if(sel.options[i].value===pid){ sel.selectedIndex=i; break; }
-    }
-    sellUpdateMax();
-  },50);
+async function openSellFromHolding(hid, pid, qty){
+  await openSellModal();
+  // Pre-select il prodotto richiesto (openSellModal e' async ora)
+  var sel=document.getElementById('sellProduct');
+  if(!sel) return;
+  for(var i=0;i<sel.options.length;i++){
+    if(sel.options[i].value===pid){ sel.selectedIndex=i; break; }
+  }
+  sellUpdateMax();
 }
 function sellUpdateMax(){
   var opt = document.getElementById('sellProduct').selectedOptions[0];
