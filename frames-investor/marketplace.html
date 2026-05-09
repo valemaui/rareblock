@@ -7211,6 +7211,17 @@ if(typeof mktLoad === 'function'){
   window.mktLoad = async function(){
     var r = await _origMktLoad.apply(this, arguments);
     _syncMktStateToParent();
+    // Notifica al parent che il frame Marketplace ha finito di caricare:
+    // serve perche' il drop banner HTML (dropBannerWrap/Banner/Content)
+    // vive in questo frame ma la logica dropRenderBanner gira nel parent.
+    // Il parent ascolta 'rb-mkt-frame-ready' per re-renderizzare il banner.
+    try{
+      if(window.parent && window.parent !== window){
+        if(typeof window.parent.dropRenderBanner === 'function'){
+          window.parent.dropRenderBanner();
+        }
+      }
+    }catch(_){}
     return r;
   };
 }

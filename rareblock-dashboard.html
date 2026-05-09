@@ -8793,7 +8793,15 @@ var _dropLastError = null;
 
 function dropSetupScrollDismiss(){
   if(_dropScrollObserver || _dropBannerDismissed) return;
-  var wrap = document.getElementById('dropBannerWrap');
+  // Banner vive nel frame Marketplace
+  var doc = (function(){
+    try{
+      var f = document.getElementById('mktFrame');
+      if(f && f.contentDocument) return f.contentDocument;
+    }catch(_){}
+    return document;
+  })();
+  var wrap = doc.getElementById('dropBannerWrap');
   if(!wrap) return;
 
   // Trova il container scrollabile più vicino (mkt-wrap o ancestor scroll).
@@ -8950,9 +8958,18 @@ function dropMsToParts(ms){
 }
 
 function dropRenderBanner(){
-  var wrap = document.getElementById('dropBannerWrap');
-  var banner = document.getElementById('dropBanner');
-  var content = document.getElementById('dropBannerContent');
+  // Il banner HTML vive nel frame Marketplace (frames-investor/marketplace.html).
+  // Cerco gli elementi nel document del frame; fallback parent per pre-refactor.
+  var doc = (function(){
+    try{
+      var f = document.getElementById('mktFrame');
+      if(f && f.contentDocument) return f.contentDocument;
+    }catch(_){}
+    return document;
+  })();
+  var wrap = doc.getElementById('dropBannerWrap');
+  var banner = doc.getElementById('dropBanner');
+  var content = doc.getElementById('dropBannerContent');
   if(!wrap || !banner || !content) return;
 
   // Se già dismissato dallo scroll, non riapparire fino al reload
@@ -8995,8 +9012,15 @@ function dropRenderBanner(){
 function dropTick(){
   var cfg = _dropConfig;
   if(!cfg || !cfg.target_at){ return; }
-  var content = document.getElementById('dropBannerContent');
-  var banner = document.getElementById('dropBanner');
+  var doc = (function(){
+    try{
+      var f = document.getElementById('mktFrame');
+      if(f && f.contentDocument) return f.contentDocument;
+    }catch(_){}
+    return document;
+  })();
+  var content = doc.getElementById('dropBannerContent');
+  var banner = doc.getElementById('dropBanner');
   if(!content || !banner) return;
   var rem = dropParseTarget(cfg.target_at) - Date.now();
   if(rem <= 0){
