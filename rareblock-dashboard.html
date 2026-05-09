@@ -3837,6 +3837,40 @@ async function supaAuth(path, body){
 
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+// ── Utilities aggiuntive (usate da modali shared rimaste nel parent
+// dopo F8.6/F8.7. Erano implicitamente "ovunque" quando il dashboard
+// era monolitico; ora servono come globali per i moduli rimasti) ──
+function escAttr(s){ return esc(s); }
+function escHtml(s){ return esc(s); }
+function fmtDateIt(d){
+  if(!d) return '—';
+  try{
+    var dt = new Date(d);
+    return dt.toLocaleDateString('it-IT', { day:'2-digit', month:'2-digit', year:'numeric' });
+  }catch(e){ return String(d); }
+}
+function showToast(msg, type){
+  // Toast leggero in fondo a destra. Se gia' c'e' window.toast (definita
+  // altrove), usa quella. Fallback: alert nei casi estremi (non blocca).
+  if(typeof toast === 'function' && toast !== showToast){
+    try{ return toast(msg, type); }catch(_){}
+  }
+  try{
+    var el = document.createElement('div');
+    el.className = 'rb-toast rb-toast-' + (type || 'info');
+    el.textContent = msg;
+    el.style.cssText = 'position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px 16px;color:var(--text);font-size:13px;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:360px;'
+      + (type==='ok'||type==='success' ? 'border-color:#3fb950;color:#3fb950;' : '')
+      + (type==='err'||type==='error' ? 'border-color:#f85149;color:#f85149;' : '');
+    document.body.appendChild(el);
+    setTimeout(function(){ try{ el.remove(); }catch(_){} }, 3500);
+  }catch(_){}
+}
+function setText(idOrEl, text){
+  var el = typeof idOrEl === 'string' ? document.getElementById(idOrEl) : idOrEl;
+  if(el) el.textContent = (text == null ? '' : String(text));
+}
+
 function fmt2(v){ return (parseFloat(v)||0).toFixed(2); }
 // Prezzi card/lista: stile IWC '6 200 €' (spazio narrow non-breaking come separatore migliaia, simbolo dopo)
 function fmtPrice(v){
