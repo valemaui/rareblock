@@ -3559,6 +3559,328 @@ body{display:flex;flex-direction:column}
 
 
 
+
+/* ═══════════════════════════════════════════════════════════════════
+   DROP COUNTDOWN — Banner cinematic 16:9 (copia per il frame)
+   Originale nel parent (sezione admin preview), copiato qui per
+   renderizzare correttamente il banner che vive in questo frame.
+   ═══════════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════
+   DROP COUNTDOWN — Banner cinematic 16:9
+   Visibile in cima al marketplace investor quando admin attiva un drop.
+   Tre righe:
+     1. Logo wordmark RareBlock
+     2. Nome prodotto (configurabile)
+     3. Data target + countdown live tabular
+   Estetica: dorato luxury, sole/aurora gradient, simile a teaser cinematici.
+   ════════════════════════════════════════════════════════════════════ */
+.drop-banner-wrap{
+  width:100%;
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+  flex:0 0 auto;
+}
+.drop-banner{
+  position:relative;
+  width:100%;
+  aspect-ratio:4/1;
+  max-height:360px;
+  min-height:200px;
+  border-radius:0;
+  overflow:hidden;
+  cursor:default;
+  isolation:isolate;
+  container-type:inline-size;
+  background:
+    radial-gradient(ellipse 90% 60% at 50% 80%, rgba(255,210,120,.95) 0%, rgba(220,160,60,.55) 28%, rgba(60,30,10,.0) 60%),
+    radial-gradient(circle at 50% 78%, rgba(255,240,200,1) 0%, rgba(255,200,100,.75) 8%, rgba(180,120,40,.0) 35%),
+    linear-gradient(180deg, #2a1a08 0%, #6e4218 28%, #b97a2b 58%, #f3c66a 78%, #f7e1a3 92%, #d8a850 100%);
+  box-shadow:
+    0 1px 0 rgba(255,225,160,.18) inset,
+    0 -1px 0 rgba(40,20,5,.4) inset;
+  transition:transform .35s cubic-bezier(.2,.7,.2,1);
+}
+.drop-banner.clickable{ cursor:pointer; }
+.drop-banner.clickable:hover{
+  transform:translateY(-2px);
+  box-shadow:
+    0 24px 56px -18px rgba(220,160,60,.65),
+    0 2px 0 rgba(255,225,160,.22) inset,
+    0 0 0 1px rgba(220,180,90,.5);
+}
+/* Strada/orizzonte simulati con gradient lineare */
+.drop-banner::before{
+  content:"";
+  position:absolute; inset:auto 0 0 0;
+  height:34%;
+  background:
+    linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(60,30,10,.18) 35%, rgba(60,30,10,.55) 100%),
+    repeating-linear-gradient(180deg, rgba(255,235,180,.0) 0 18px, rgba(255,235,180,.06) 18px 19px);
+  z-index:0;
+  pointer-events:none;
+}
+/* Vignettatura ai lati */
+.drop-banner::after{
+  content:"";
+  position:absolute; inset:0;
+  background:
+    radial-gradient(ellipse 120% 80% at 50% 100%, rgba(0,0,0,0) 40%, rgba(20,10,0,.45) 100%),
+    linear-gradient(90deg, rgba(20,10,0,.35) 0%, rgba(0,0,0,0) 18%, rgba(0,0,0,0) 82%, rgba(20,10,0,.35) 100%);
+  pointer-events:none;
+  z-index:1;
+}
+/* Sole pulsante (bagliore al centro) */
+.drop-banner-sun{
+  position:absolute;
+  left:50%; top:88%;
+  transform:translate(-50%,-50%);
+  width:14%; aspect-ratio:1/1;
+  border-radius:50%;
+  background:radial-gradient(circle, rgba(255,250,220,1) 0%, rgba(255,225,140,.8) 18%, rgba(255,200,90,.0) 70%);
+  filter:blur(2px);
+  z-index:0;
+  animation:dropSunPulse 4.2s ease-in-out infinite;
+  pointer-events:none;
+}
+@keyframes dropSunPulse{
+  0%,100%{ opacity:.85; transform:translate(-50%,-50%) scale(1); }
+  50%   { opacity:1;   transform:translate(-50%,-50%) scale(1.06); }
+}
+/* Lens flare diagonale */
+.drop-banner-flare{
+  position:absolute;
+  left:-10%; top:-10%; width:140%; height:140%;
+  background:linear-gradient(115deg, rgba(255,240,200,0) 40%, rgba(255,250,220,.18) 50%, rgba(255,240,200,0) 60%);
+  z-index:1;
+  pointer-events:none;
+  mix-blend-mode:screen;
+}
+/* Contenuto */
+.drop-banner-content{
+  position:absolute; inset:0;
+  z-index:2;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  padding:4% 6%;
+  box-sizing:border-box;
+  gap:clamp(6px, 1.4cqw, 14px);
+}
+/* Riga 1: Logo wordmark */
+.drop-banner-logo{
+  font-family:'Montserrat', var(--font);
+  font-weight:400;
+  font-size:clamp(11px, 1.3cqw, 16px);
+  letter-spacing:.32em;
+  text-transform:uppercase;
+  color:#fff8e3;
+  text-shadow:
+    0 1px 0 rgba(40,20,5,.5),
+    0 2px 18px rgba(40,20,5,.65),
+    0 0 30px rgba(40,20,5,.4);
+  position:relative;
+  z-index:3;
+}
+.drop-banner-logo > .gold{
+  color:#ffe9a8;
+  font-weight:600;
+  text-shadow:
+    0 1px 0 rgba(40,20,5,.55),
+    0 2px 18px rgba(40,20,5,.5),
+    0 0 14px rgba(255,210,120,.5);
+}
+/* Riga 2: Nome prodotto */
+.drop-banner-title{
+  font-family:'Fraunces', 'Times New Roman', serif;
+  font-weight:600;
+  font-size:clamp(24px, 4.2cqw, 64px);
+  line-height:1;
+  letter-spacing:-.005em;
+  text-transform:uppercase;
+  background:linear-gradient(180deg, #2a1404 0%, #5a2f0a 38%, #c98e34 75%, #f6dd9a 100%);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  text-shadow:0 2px 22px rgba(80,40,10,.18);
+  filter:drop-shadow(0 0 24px rgba(255,220,140,.25));
+  max-width:90%;
+  white-space:normal;
+  word-break:normal;
+  overflow-wrap:break-word;
+  text-wrap:balance;
+}
+.drop-banner-title.live{
+  background:linear-gradient(180deg, #fff5d4 0%, #f7d77a 50%, #b97a2b 100%);
+  -webkit-background-clip:text;
+  background-clip:text;
+}
+/* Subtitle opzionale */
+.drop-banner-sub{
+  font-family:'Fraunces', serif;
+  font-style:italic;
+  font-weight:400;
+  font-size:clamp(10px, 1.15cqw, 14px);
+  color:rgba(50,25,5,.82);
+  letter-spacing:.08em;
+  margin-top:-2px;
+  max-width:80%;
+}
+/* Riga 3: Countdown */
+.drop-banner-countdown{
+  font-family:'JetBrains Mono', var(--mono);
+  font-weight:600;
+  font-size:clamp(20px, 3.5cqw, 48px);
+  letter-spacing:.04em;
+  color:#2a1404;
+  text-shadow:0 2px 14px rgba(255,235,180,.35);
+  font-variant-numeric:tabular-nums;
+  display:flex; align-items:baseline; gap:clamp(3px,.5cqw,10px);
+}
+.drop-banner-countdown .num{
+  display:inline-block;
+  min-width:2ch;
+  text-align:center;
+}
+.drop-banner-countdown .sep{
+  color:rgba(40,20,5,.6);
+  font-weight:400;
+}
+.drop-banner-countdown .lbl{
+  font-family:'Montserrat', var(--font);
+  font-size:clamp(8px,.75cqw,10px);
+  font-weight:600;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:rgba(50,25,5,.65);
+  display:block;
+  text-align:center;
+  margin-top:3px;
+}
+.drop-banner-cd-unit{ display:flex; flex-direction:column; align-items:center; }
+/* Data target piccola */
+.drop-banner-target{
+  font-family:'JetBrains Mono', var(--mono);
+  font-size:clamp(9px, .9cqw, 12px);
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:rgba(50,25,5,.7);
+  margin-top:-2px;
+}
+/* Stato LIVE quando scaduto */
+.drop-banner.live{
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 50%, rgba(255,225,140,.95) 0%, rgba(220,160,60,.7) 32%, rgba(60,30,10,0) 65%),
+    linear-gradient(180deg, #1a0e02 0%, #3a1f06 30%, #8c5a18 60%, #d8a850 90%, #f3c66a 100%);
+}
+.drop-banner-live-badge{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:5px 12px;
+  border-radius:999px;
+  background:rgba(40,20,5,.85);
+  color:#f6dd9a;
+  font-family:'Montserrat',var(--font);
+  font-size:clamp(9px,.85cqw,12px);
+  font-weight:600;
+  letter-spacing:.22em;
+  text-transform:uppercase;
+  border:1px solid rgba(246,221,154,.45);
+  margin-bottom:4px;
+}
+.drop-banner-live-badge::before{
+  content:"";
+  width:7px; height:7px; border-radius:50%;
+  background:#ff5b3d;
+  box-shadow:0 0 0 0 rgba(255,91,61,.7);
+  animation:dropLivePulse 1.4s ease-in-out infinite;
+}
+@keyframes dropLivePulse{
+  0%   { box-shadow:0 0 0 0   rgba(255,91,61,.7); }
+  70%  { box-shadow:0 0 0 10px rgba(255,91,61,0); }
+  100% { box-shadow:0 0 0 0   rgba(255,91,61,0); }
+}
+.drop-banner-cta{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:8px 18px;
+  border-radius:999px;
+  background:#2a1404;
+  color:#f6dd9a;
+  font-family:'Montserrat',var(--font);
+  font-size:clamp(10px,.95cqw,13px);
+  font-weight:600;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  border:1px solid rgba(246,221,154,.6);
+  text-decoration:none;
+  transition:transform .2s, background .2s;
+  margin-top:6px;
+}
+.drop-banner-cta:hover{ background:#3a1f06; transform:translateY(-1px); }
+.drop-banner-cta .arrow{ transition:transform .2s; }
+.drop-banner-cta:hover .arrow{ transform:translateX(3px); }
+
+/* Mobile compaction */
+@media (max-width: 720px){
+  .drop-banner-wrap{ margin-bottom:14px; }
+  .drop-banner{ aspect-ratio:5/3; max-height:260px; min-height:180px; }
+  .drop-banner-content{ gap:6px; padding:5% 5%; }
+  .drop-banner-countdown{ gap:3px; }
+}
+
+/* ── Admin: form drop countdown ───────────────────────────────────── */
+.drop-admin-form{
+  max-width:680px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+  padding:18px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+}
+.drop-admin-row{ display:flex; flex-direction:column; gap:6px; }
+.drop-admin-row label{
+  font-size:11px; font-weight:600; color:var(--text-muted);
+  text-transform:uppercase; letter-spacing:.5px; font-family:var(--mono);
+}
+.drop-admin-row input[type=text],
+.drop-admin-row input[type=datetime-local],
+.drop-admin-row select,
+.drop-admin-row textarea{
+  padding:9px 11px; font-size:13px;
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:var(--r); color:var(--text); font-family:var(--font);
+  outline:none; transition:border-color .12s;
+}
+.drop-admin-row input:focus,.drop-admin-row select:focus,.drop-admin-row textarea:focus{
+  border-color:var(--accent);
+}
+.drop-admin-row textarea{ resize:vertical; min-height:60px; }
+.drop-admin-toggle{
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+}
+.drop-admin-toggle input{ width:18px; height:18px; cursor:pointer; }
+.drop-admin-toggle-lbl{ font-size:13px; color:var(--text); font-weight:500; }
+.drop-admin-actions{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.drop-admin-status{
+  font-size:12px; color:var(--text-muted); font-family:var(--mono);
+  padding:6px 10px; background:var(--surface2);
+  border:1px solid var(--border); border-radius:var(--r);
+}
+.drop-admin-preview{
+  margin-top:8px;
+  border-top:1px solid var(--border);
+  padding-top:14px;
+}
+.drop-admin-preview-lbl{
+
+
 </style>
 </head>
 <body>
