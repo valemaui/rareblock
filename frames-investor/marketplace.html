@@ -4583,7 +4583,6 @@ body{display:flex;flex-direction:column}
   ['fmt2','fmtDate','fmtPrice','fmtMoney','typeBadge','payBadge','statusBadge',
    'showToast','toast','profConfirm','loadDiscountTiers','openLightbox',
    'buildGradingVerifyUrl','setText','escAttr','escHtml',
-   'calcDiscountedTotal','calcVolumeDiscount',
    'rbBillingLoad','rbBillingSave','rbShowKycGate','rbHideKycGate',
    'rbBuildKycGateModal','rbCoPayMethodForDb','showTab',
    'uiLoading','uiError','skelRows','uiErrorCell'].forEach(function(name){
@@ -4599,6 +4598,25 @@ body{display:flex;flex-direction:column}
     get: function(){ return p('_session') || null; }
   });
 })();
+
+// ── Funzioni callable dal parent (proxy diretti, non getter) ──
+// Object.defineProperty crea PROPERTIES dell'oggetto globale, ma in scope
+// chain resolution gli unqualified identifier richiedono VarBinding del
+// Global Environment Record. Le funzioni qui sotto sono dichiarate
+// esplicitamente per essere chiamate come 'calcDiscountedTotal(...)' senza
+// 'window.'. Riusano la fn del parent quando disponibile.
+function calcDiscountedTotal(unitPrice, qty, tiers){
+  var parentFn = (window.parent && window.parent !== window) ? window.parent.calcDiscountedTotal : null;
+  if(typeof parentFn === 'function') return parentFn(unitPrice, qty, tiers);
+  // Fallback minimal: nessuno sconto
+  var gross = (unitPrice||0) * (qty||0);
+  return { gross: gross, discount_pct: 0, discount_amount: 0, total: gross, tier: null };
+}
+function calcVolumeDiscount(tiers, qty){
+  var parentFn = (window.parent && window.parent !== window) ? window.parent.calcVolumeDiscount : null;
+  if(typeof parentFn === 'function') return parentFn(tiers, qty);
+  return { pct: 0, applied: false, tier: null };
+}
 
 var _mktProducts = [];
 var _mktStats = {};
