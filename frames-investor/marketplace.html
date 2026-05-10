@@ -3151,7 +3151,11 @@ body{display:flex;flex-direction:column}
 /* ═══ PRODUCT DETAIL VIEW (auction-style) ═══ */
 #productDetailView{
   position:fixed;
-  top: var(--header-h, 48px);    /* lascia visibile la nav RareBlock in alto */
+  /* Nel frame: top 0 (l'iframe e' gia' posizionato sotto la nav del parent
+     da CSS dell'iframe nel parent stesso). Originale era 'top: var(--header-h, 48px)'
+     ma --header-h non e' definita nel frame e il top:48px lasciava visibile
+     un buco grigio sopra. */
+  top:0;
   left:0;right:0;bottom:0;
   background:var(--bg);
   z-index:90;
@@ -6921,8 +6925,12 @@ var _pdvImgIdx  = 0;
 var _pdvDiscTiers = [];
 
 async function openProductDetail(pid){
+  console.log('[openProductDetail] pid=', pid, 'mktProducts.length=', (_mktProducts||[]).length);
   _pdvProduct = _mktProducts.find(function(p){return p.id===pid});
-  if(!_pdvProduct) return;
+  if(!_pdvProduct){
+    console.warn('[openProductDetail] product not found in _mktProducts. mktProducts=', _mktProducts);
+    return;
+  }
   var p = _pdvProduct;
 
   // Carica foto del prodotto (lista completa per gallery)
