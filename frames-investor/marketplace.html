@@ -4617,6 +4617,24 @@ function calcVolumeDiscount(tiers, qty){
   if(typeof parentFn === 'function') return parentFn(tiers, qty);
   return { pct: 0, applied: false, tier: null };
 }
+function renderDiscountSummary(tiers, currentQty){
+  var parentFn = (window.parent && window.parent !== window) ? window.parent.renderDiscountSummary : null;
+  if(typeof parentFn === 'function') return parentFn(tiers, currentQty);
+  return ''; // Empty fallback
+}
+function uiEmpty(iconName, title, hint, ctaLabel, ctaFn){
+  var parentFn = (window.parent && window.parent !== window) ? window.parent.uiEmpty : null;
+  if(typeof parentFn === 'function') return parentFn(iconName, title, hint, ctaLabel, ctaFn);
+  // Fallback HTML inline
+  return '<div class="empty-state"><div class="icon"><span class="rb-i rb-i-'+(iconName||'info')+'"></span></div>'
+       + '<h3>'+(title||'')+'</h3><p>'+(hint||'')+'</p>'
+       + (ctaLabel ? '<button class="btn primary sm" onclick="'+(ctaFn||'')+'" style="margin-top:14px">'+ctaLabel+'</button>' : '')
+       + '</div>';
+}
+function dropBannerClick(){
+  var parentFn = (window.parent && window.parent !== window) ? window.parent.dropBannerClick : null;
+  if(typeof parentFn === 'function') return parentFn();
+}
 
 var _mktProducts = [];
 var _mktStats = {};
