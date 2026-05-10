@@ -852,9 +852,10 @@ body{display:flex;flex-direction:column}
   width: 100%;
   height: 100%;
   object-fit: contain;
-  /* Padding aumentato da 14% a 20% per restituire l'eleganza del design
-     pre-refactor — immagini con piu' aria intorno, meno "shouty". */
-  padding: 20%;
+  /* Padding 28% — restituisce le proporzioni eleganti del pre-refactor.
+     Le immagini occupano una quota ridotta della card, lasciando ampio
+     spazio bianco di "respiro" intorno (look editoriale luxury). */
+  padding: 28%;
   transition: transform .4s cubic-bezier(.2,.8,.2,1);
 }
 .iwc-mode .prod-card:hover .prod-card-img img{ transform: scale(1.04); }
@@ -6964,12 +6965,8 @@ var _pdvImgIdx  = 0;
 var _pdvDiscTiers = [];
 
 async function openProductDetail(pid){
-  console.log('[openProductDetail] pid=', pid, 'mktProducts.length=', (_mktProducts||[]).length);
   _pdvProduct = _mktProducts.find(function(p){return p.id===pid});
-  if(!_pdvProduct){
-    console.warn('[openProductDetail] product not found in _mktProducts. mktProducts=', _mktProducts);
-    return;
-  }
+  if(!_pdvProduct) return;
   var p = _pdvProduct;
 
   // Carica foto del prodotto (lista completa per gallery)
@@ -7277,10 +7274,6 @@ function pdvSyncQuickBidActive(){
 
 function pdvUpdatePreview(){
   if(!_pdvProduct) return;
-  // DEBUG: verify calcDiscountedTotal availability
-  console.log('[pdvUpdatePreview] typeof calcDiscountedTotal =', typeof calcDiscountedTotal,
-              ' window.calcDiscountedTotal =', typeof window.calcDiscountedTotal,
-              ' parent.calcDiscountedTotal =', typeof (window.parent && window.parent.calcDiscountedTotal));
   var q = parseInt(document.getElementById('pdvBidQty').value)||0;
   var calc = calcDiscountedTotal(_pdvProduct.price_per_quote, q, _pdvDiscTiers);
   var preview = document.getElementById('pdvBidPreview');
