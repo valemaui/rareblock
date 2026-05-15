@@ -7163,26 +7163,24 @@ function _cmPrimaryVersionFor(setId, variant, rarity, name){
   var n = (name||'').toLowerCase();
 
   // ── e-Card sets (Expedition / Aquapolis / Skyridge) ────────────────────
-  // Verificato empiricamente su CM (2026-05-15) con vari casi:
-  //   - Charizard EX39 (Rare Holo)    \u2192 Charizard-EX39        (no V2, \u00e8 gi\u00e0 holo)
-  //   - Octillery AQ26 (Rare)         \u2192 Octillery-V2-AQ26      (V2 = Reverse Holo)
-  //   - Darkness Energy EX158 (Rare)  \u2192 Darkness-Energy-EX158  (no V2, energie speciali)
-  //   - Wartortle EX92 (Common)       \u2192 Wartortle-EX92         (no V2 default; V2 esiste come reverse holo opzionale)
-  // Pattern: Rare Holo \u00e8 GIA' la versione holo \u2192 nessuna Reverse Holo separata.
-  //          Rare normale \u2192 esiste anche come Reverse Holo (V2), che spesso \u00e8
-  //                       la versione pi\u00f9 quotata sul mercato.
+  // Verificato empiricamente su CM (2026-05-15) per Charizard #39 Expedition:
+  //   - /Charizard-EX39    = Rare (versione foil normale)        \u2190 PRINCIPALE
+  //   - /Charizard-V2-EX39 = Reverse Holo (variante con foil-on-base) \u2190 SECONDARIA
+  // Pokemon TCG API ritorna rarity="Rare" per #39 (anche se la stessa carta
+  // ha la sua Reverse Holo come variante). La V2 \u00e8 sempre la versione
+  // Reverse Holo, mai la principale. Listings a \u20ac0.10 su V2-EX39 sono
+  // venditori-spam, non outlier da analizzare.
+  //
+  // Strategia conservativa: SEMPRE no-V come default. V2 solo se l'utente
+  // specifica esplicitamente variant=Reverse Holo. I fallback variants
+  // (buildCMDirectUrlVariants) gestiscono i casi dove no-V non ha listings
+  // e bisogna tentare V1/V2 alternative.
   if(setId === 'ecard1' || setId === 'ecard2' || setId === 'ecard3'){
-    // Energie: anche se rare, hanno UNA sola versione su CM
-    if(n.indexOf('energy') >= 0 || r.indexOf('energy') >= 0) return '';
-    // Rare Holo: nessuna Reverse Holo separata, URL diretto no-V
-    if(r.indexOf('rare holo') >= 0) return '';
-    // Variant esplicito Reverse Holo \u2192 V2 (vale anche per Common/Uncommon che hanno reverse)
+    // Variant esplicito \u2192 rispetta scelta utente
     if(v === 'reverse holo') return 'V2';
-    // Variant Holo (raro per e-Card, ma se l'utente lo specifica) \u2192 V2
     if(v === 'holo') return 'V2';
-    // Rare normale (no holo) \u2192 V2 (Reverse Holo \u00e8 la versione di mercato principale)
-    if(r === 'rare' || (r.indexOf('rare') >= 0 && r.indexOf('holo') < 0)) return 'V2';
-    // Common, Uncommon \u2192 versione base no-V (Reverse Holo esiste come secondaria)
+    if(v === 'shadowless') return 'V1';
+    // Default per TUTTI: no-V (versione principale/base della carta)
     return '';
   }
 
@@ -7644,7 +7642,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-05-15-1430';
+var RB_BUILD = '2026-05-15-1500';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
