@@ -175,170 +175,34 @@ async function cachePut(url: string, html: string, status: number, via: string):
 }
 
 // ═════════════════════════════════════════════════════════════════════
-//  PROXY FALLBACK — ScrapingBee
+//  PROXY FALLBACK — RIMOSSO
 // ─────────────────────────────────────────────────────────────────────
-//  Strategia: il fetch diretto da Deno Deploy IP datacenter viene blocked
-//  da CM (Cloudflare Enterprise) e da eBay (soft-block 451). Quando
-//  abbiamo SCRAPINGBEE_API_KEY in env, ritentiamo via proxy residenziale.
+//  Storico: questa sezione conteneva fetchViaProxy() basato su
+//  ScrapingBee (residential premium_proxy a 25 crediti/chiamata). È
+//  stato rimosso integralmente perché il provider non è più attivo
+//  sul progetto e non vogliamo lasciare path di chiamata che possano
+//  riattivarsi accidentalmente con una env var.
 //
-//  Costo: free tier 1.000 chiamate/mese (basta per uso personale leggero).
-//  Setup: registrarsi su scrapingbee.com, copiare API key, e in Supabase
-//        Dashboard → Edge Functions → Secrets aggiungere
-//        SCRAPINGBEE_API_KEY = <chiave>.
-//        Il proxy viene attivato automaticamente al primo deploy successivo.
+//  Conseguenze attuali:
+//   • Cardmarket: il direct fetch da Deno Deploy viene quasi sempre
+//     blocked dal Cloudflare Enterprise WAF → la verify CM tramite
+//     edge function ritorna 0 listings. Il client (pokemon-db.html)
+//     gestisce questo caso mostrando l'input manuale del prezzo.
+//   • eBay (modulo Analizza): direct fetch già fallisce per soft-block;
+//     era già "proxy disabled" anche col proxy attivo, ora resta uguale.
+//   • PriceCharting: direct fetch di solito funziona, nessun impatto.
 //
-//  CIRCUIT BREAKER: se ScrapingBee ritorna 402 Payment Required (crediti
-//  esauriti), disabilitiamo il proxy in memoria per 1 ora. Evita di
-//  bruciare retry inutili e accumulare logging warning.
+//  Strategia alternativa raccomandata per CM:
+//   • Estensione RareBlock Hunter v2.5+ (rbExtFetch): fetcha HTML lato
+//     browser usando cookie+IP residenziale dell'utente, passa l'HTML
+//     all'edge via provided_html. Vedi modulo Analizza per esempio.
+//   • Userscript Tampermonkey CM Price Bridge v2.2 (legacy): apre tab
+//     CM nel browser dell'utente, posta i listings via postMessage.
+//
+//  Per riattivare ScrapingBee (sconsigliato): ripristinare da git
+//  history il commit precedente a questa rimozione e settare le env
+//  PROXY_ENABLED=true + SCRAPINGBEE_API_KEY.
 // ═════════════════════════════════════════════════════════════════════
-const SCRAPINGBEE_KEY = Deno.env.get('SCRAPINGBEE_API_KEY') || '';
-// Feature flag: di default proxy DISABILITATO. Strategia primaria è
-// l'estensione RareBlock Hunter v2.5+ che fornisce HTML via cookie utente
-// (gratis, illimitato, IP residenziale).
-//
-// Il proxy ScrapingBee resta nel codice come "ultima spiaggia" se serve
-// riattivarlo (es. utente senza extension che vuole pagare per coverage).
-// Per riattivarlo: settare env PROXY_ENABLED=true in Supabase Dashboard →
-// Edge Functions → Secrets, e assicurarsi che SCRAPINGBEE_API_KEY sia
-// valorizzata. Modifiche al codice NON necessarie.
-const PROXY_ENABLED = (Deno.env.get('PROXY_ENABLED') || '').toLowerCase() === 'true';
-const PROXY_AVAILABLE = PROXY_ENABLED && SCRAPINGBEE_KEY.length > 10;
-let _proxyCircuitOpenUntil = 0;  // timestamp epoch ms; se now()<questo, skip proxy
-const CIRCUIT_OPEN_MS = 60 * 60 * 1000;  // 1 ora
-
-async function fetchViaProxy(url: string, opts?: { js?: boolean; premium?: boolean; stealth?: boolean }): Promise<{ html: string; ok: boolean; status: number; _proxyDiag?: any }> {
-  if (!PROXY_AVAILABLE) return { html: '', ok: false, status: 0 };
-  // Circuit breaker
-  if (Date.now() < _proxyCircuitOpenUntil) {
-    const remainMs = _proxyCircuitOpenUntil - Date.now();
-    return {
-      html: '', ok: false, status: 0,
-      _proxyDiag: {
-        circuit_open: true,
-        reason: 'no_credits',
-        retry_in_min: Math.round(remainMs / 60000),
-      }
-    };
-  }
-  try {
-    // stealth_proxy ha priorità: usa il pool "anti-bot extreme" e non si combina
-    // con premium_proxy. Costo 75 crediti, ma necessario per eBay sold pages
-    // che bloccano anche residential standard.
-    const stealth = !!opts?.stealth;
-    const params = new URLSearchParams({
-      api_key:     SCRAPINGBEE_KEY,
-      url:         url,
-      // render_js=false è gratuito. true costa 5x crediti ma necessario per
-      // pagine con CF JS challenge. Per CM/eBay HTML statico false basta.
-      render_js:   opts?.js ? 'true' : 'false',
-      // ScrapingBee proxy modes:
-      //   • datacenter (default):       1 credito  — bloccato da CM/eBay
-      //   • premium_proxy=true:        25 crediti  — residential, basta per CM
-      //   • stealth_proxy=true:        75 crediti  — anti-bot extreme, eBay
-      //  stealth e premium sono mutuamente esclusivi: stealth wins.
-      ...(stealth
-        ? { stealth_proxy: 'true' }
-        : { premium_proxy: opts?.premium ? 'true' : 'false' }
-      ),
-      block_resources: 'true',  // skip immagini/CSS/font, solo HTML
-    });
-    const proxyUrl = `https://app.scrapingbee.com/api/v1/?${params.toString()}`;
-    const resp = await fetch(proxyUrl);
-    const html = await resp.text();
-
-    // ── Circuit breaker su 402 Payment Required (crediti esauriti) ──
-    // ScrapingBee ritorna 402 quando il piano free e' sforato. Inutile
-    // continuare a chiamare per la prossima ora.
-    if (resp.status === 402) {
-      _proxyCircuitOpenUntil = Date.now() + CIRCUIT_OPEN_MS;
-      console.error('[proxy] 402 Payment Required — crediti ScrapingBee esauriti. Circuit breaker aperto per 60 min.');
-      return {
-        html: '', ok: false, status: 402,
-        _proxyDiag: {
-          circuit_open: true,
-          reason: 'no_credits',
-          status: 402,
-          message: html.substring(0, 200),
-        }
-      };
-    }
-    // 401 = api key invalida/revocata
-    if (resp.status === 401) {
-      _proxyCircuitOpenUntil = Date.now() + CIRCUIT_OPEN_MS;
-      console.error('[proxy] 401 Unauthorized — API key ScrapingBee invalida. Circuit aperto.');
-      return {
-        html: '', ok: false, status: 401,
-        _proxyDiag: { circuit_open: true, reason: 'unauthorized', status: 401 }
-      };
-    }
-    // ScrapingBee ritorna 200 anche con upstream 4xx/5xx; il vero status
-    // upstream è in header Spb-original-status.
-    const upstreamStatus = parseInt(resp.headers.get('Spb-original-status') || '0', 10) || resp.status;
-
-    // ── Validazione soft-block ──
-    // Anche con proxy residential, eBay/CM possono ritornare pagine di
-    // blocco che però rispondono 200 con html valido e listings finti
-    // (raccomandazioni). Bisogna scartare attivamente:
-    //   • CF challenge generico (qualsiasi sito)
-    //   • eBay "Pardon Our Interruption" + varianti
-    //   • CM consent/geo-block wall
-    const isEbay = url.includes('ebay.');
-    const isCm = url.includes('cardmarket.com');
-    const cfChallenge = /Just a moment|cf-browser-verification|challenge-platform/i.test(html);
-    const ebayBlock = isEbay && (
-      /Pardon Our Interruption|Robot or human|Please verify yourself|Botbot Be Gone/i.test(html) ||
-      // signin redirect: eBay redirige a /signin se sospettoso
-      /signin\.ebay\.[a-z.]+\/(?:ws\/)?eBayISAPI\.dll\?SignIn/i.test(html) ||
-      // pagina senza markup di SRP (no risultati validi)
-      (html.length < 50000 && !/srp-results|s-item|\/itm\//i.test(html))
-    );
-    const cmBlock = isCm && (
-      /Just a moment|cf-browser-verification/i.test(html) ||
-      // CM consent wall (cookie-only, no contenuto)
-      (html.length < 30000 && /cookieconsent|consent_banner/i.test(html) && !/article-row|article_/i.test(html))
-    );
-
-    const ok = resp.ok && html.length > 1000 && !cfChallenge && !ebayBlock && !cmBlock;
-    if (!ok) {
-      // Log dettagliato per capire perché il filtro ha scartato:
-      // - cosa ha matchato (cf/ebay/cm)
-      // - dimensione html
-      // - tag <title> (utile per identificare "Pardon Our Interruption" vs altro)
-      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-      const title = titleMatch ? titleMatch[1].trim().substring(0, 100) : '(no title)';
-      // Conta pattern positivi che AVREMMO voluto trovare:
-      const itmCount = (html.match(/\/itm\//g) || []).length;
-      const sItemCount = (html.match(/s-item/g) || []).length;
-      const srpResultsHit = /srp-results/i.test(html);
-      console.warn(
-        `[proxy] block detected: cf=${cfChallenge} ebay=${ebayBlock} cm=${cmBlock} ` +
-        `status=${upstreamStatus} len=${html.length} title="${title}" ` +
-        `itm=${itmCount} s-item=${sItemCount} srp=${srpResultsHit}`
-      );
-    } else if (isEbay) {
-      // Anche su success, log info per validare che siamo sulla pagina giusta
-      const itmCount = (html.match(/\/itm\//g) || []).length;
-      console.log(`[proxy] eBay OK: len=${html.length} itm-links=${itmCount}`);
-    }
-    // _proxyDiag esposto per ispezione frontend (solo su block)
-    let _proxyDiag: any = null;
-    if (!ok) {
-      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-      const title = titleMatch ? titleMatch[1].trim().substring(0, 100) : '(no title)';
-      _proxyDiag = {
-        cf: cfChallenge, ebay: ebayBlock, cm: cmBlock,
-        status: upstreamStatus, len: html.length, title,
-        itm: (html.match(/\/itm\//g) || []).length,
-        s_item: (html.match(/s-item/g) || []).length,
-        srp: /srp-results/i.test(html),
-      };
-    }
-    return { html, ok, status: upstreamStatus, _proxyDiag } as any;
-  } catch (e) {
-    console.warn('[proxy] fetch failed:', String(e));
-    return { html: '', ok: false, status: 0 };
-  }
-}
 
 async function fetchWithRetry(url: string, maxRetries = 2, referer?: string): Promise<{ html: string; ok: boolean; status: number }> {
   // ── CACHE READ ──
@@ -396,47 +260,13 @@ async function fetchWithRetry(url: string, maxRetries = 2, referer?: string): Pr
 
       if (tooShort || cfChallenge || ebaySoftBlock) {
         if (attempt === maxRetries) {
-          // ── Ultima spiaggia: proxy residenziale ScrapingBee se configurato ──
-          // Solo se PROXY_AVAILABLE (env SCRAPINGBEE_API_KEY presente).
-          // Per CM blockato da CF Enterprise serve premium_proxy (residenziale).
-          // Per eBay soft-block 451 anche datacenter proxy spesso basta.
-          if (PROXY_AVAILABLE && (isCm || isEbay)) {
-            console.log(`[fetchWithRetry] direct fetch blocked (status=${cfChallenge?403:451}), falling back to ScrapingBee for ${isCm ? 'CM' : 'eBay'}`);
-            // CM richiede sempre residential (CF Enterprise blocca DC).
-            // eBay: blocca anche il pool DC ScrapingBee → forziamo residential
-            // anche qui. Costo 25 crediti vs 1, ma con cache TTL 12h una carta
-            // = 1 fetch/12h. Tradeoff accettabile per avere dati attendibili.
-            // CM: residential premium (25 crediti) basta, CF Enterprise OK.
-            // eBay: DISABLED. Anche stealth_proxy (75 crediti) non bypassa il
-            //       blocco. Per ora restituiamo direttamente 451 senza
-            //       chiamare il proxy: meglio "non disponibile" che bruciare
-            //       crediti per dati non utilizzabili. Da rivalutare se si
-            //       cambia provider o eBay rilassa la WAF.
-            if (isEbay) {
-              return {
-                html, ok: false,
-                status: ebaySoftBlock ? 451 : 403,
-                via: 'ebay_disabled',
-                _proxyDiag: { reason: 'eBay proxy disabled (provider non supportato attualmente)' },
-              } as any;
-            }
-            const proxyOpts = { js: false, premium: true };
-            const proxied = await fetchViaProxy(url, proxyOpts);
-            if (proxied.ok && proxied.html) {
-              console.log(`[fetchWithRetry] proxy success (CM residential): ${proxied.html.length} chars`);
-              await cachePut(url, proxied.html, proxied.status, 'proxy_premium');
-              return { ...proxied, via: 'proxy_premium' } as any;
-            }
-            console.warn(`[fetchWithRetry] proxy also failed (premium): status=${proxied.status} len=${proxied.html.length}`);
-            return {
-              html, ok: false,
-              status: cfChallenge ? 403 : 403,
-              via: 'proxy_failed',
-              _proxyDiag: (proxied as any)._proxyDiag,
-            } as any;
-          }
-          // Restituiamo comunque l'HTML per la diagnostica client
-          return { html, ok: false, status: cfChallenge ? 403 : (ebaySoftBlock ? 451 : 403), via: 'no_proxy' } as any;
+          // Nessun fallback proxy disponibile (ScrapingBee rimosso): ritorna
+          // l'HTML grezzo con ok=false, il client gestisce con input manuale.
+          return {
+            html, ok: false,
+            status: cfChallenge ? 403 : (ebaySoftBlock ? 451 : 403),
+            via: 'direct_blocked',
+          } as any;
         }
         continue;
       }
@@ -474,12 +304,10 @@ function detectSource(url: string, hint?: string): 'cardmarket'|'pricecharting'|
   return 'unknown';
 }
 
-// Log boot config: utile per debug ("perché non sta passando dal proxy?")
+// Log boot config
 console.log(
   `[smooth-endpoint] boot: ` +
-  `PROXY_ENABLED=${PROXY_ENABLED} ` +
-  `KEY_PRESENT=${SCRAPINGBEE_KEY.length > 10} ` +
-  `PROXY_AVAILABLE=${PROXY_AVAILABLE} ` +
+  `PROXY=removed ` +
   `CACHE_AVAILABLE=${CACHE_AVAILABLE}`
 );
 
@@ -2112,8 +1940,8 @@ async function handleEbaySoldCascade(urls: string[], minHits: number, merge = fa
     type FetchResult = {
       url: string; html: string; ok: boolean; status: number;
       currency: string;
-      via?: string;          // 'cache_hit'|'direct'|'proxy_premium'|'proxy_stealth'|'proxy_failed'
-      _proxyDiag?: any;      // Diagnostica proxy quando ok=false
+      via?: string;          // 'cache_hit'|'direct'|'direct_blocked'
+      _proxyDiag?: any;      // legacy: residuo dal vecchio proxy, ora sempre null
     };
     const fetchTasks: Array<() => Promise<FetchResult>> = urlsCapped.map(url => async () => {
       let u = url;
