@@ -7045,20 +7045,18 @@ const CM_SET_ABBREV={
 
 // Set per cui possiamo costruire URL diretto affidabile
 // Esclusi: DP (livelli), Platinum (livelli), XY-SV (versioni V1/V2/V3)
-// Inclusi ma con fallback livello 2 in fetchCmPriceLive: ecard1 (Expedition).
-//   La maggior parte delle carte usa pattern semplice {NameSlug}-EX{N} (es. Dual-Ball-EX139).
-//   Le poche carte holo con V1/V2 falliscono al livello 1 e vengono recuperate
-//   tramite retry su URL ricerca (browse + searchString).
-//   ecard2 (Aquapolis) ed ecard3 (Skyridge) restano fuori: la frequenza di
-//   pattern V1/V2/no-V irregolari è troppo alta per avere un primo tentativo
-//   utile, meglio andare diretto su livello 2.
+// Inclusi con fallback livello 2 in fetchCmPriceLive: ecard1/ecard2/ecard3
+// (Expedition, Aquapolis, Skyridge). La maggior parte delle carte usa pattern
+// semplice {NameSlug}-{EX|AQ|SK}{N} (es. Dual-Ball-EX139, Primeape-AQ29).
+// Le poche carte holo con V1/V2 irregolare vengono recuperate via retry L2
+// (browse + searchString) dentro fetchCmPriceLive.
 const CM_DIRECT_SETS = new Set([
   // WotC
   'base1','base2','base3','base4','base5','base6',
   'gym1','gym2',
   'neo1','neo2','neo3','neo4','si1',
   // E-Card
-  'ecard1',
+  'ecard1','ecard2','ecard3',
   // EX
   'ex1','ex2','ex3','ex4','ex5','ex6','ex7','ex8',
   'ex9','ex10','ex11','ex12','ex13','ex14','ex15','ex16',
@@ -7185,6 +7183,51 @@ function buildCMSearchUrl(name, setId, number, cond, lang, variant, first1st, se
   const searchStr = number ? name+' '+(number+'').split('/')[0] : name;
   return 'https://www.cardmarket.com/it/Pokemon/Products/Singles/'+setSlug
     +'?searchString='+encodeURIComponent(searchStr)+'&'+params.toString();
+}
+
+// Set in cui le carte possono avere pattern slug irregolare V1/V2/no-V mescolati:
+// es. Expedition ha "Venusaur-EX67" (no-V) accanto a "Venusaur-V1-EX30" e "Venusaur-V2-EX68".
+// Per questi set, fetchCmPriceLive ritenta in cascata se il primo URL fallisce.
+// Gli altri set in CM_DIRECT_SETS hanno pattern stabile → un solo tentativo basta.
+const CM_AMBIGUOUS_VERSION_SETS = new Set([
+  'base1',                    // Base Set (Shadowless vs Unlimited via V1/V2)
+  'ecard1','ecard2','ecard3', // Expedition, Aquapolis, Skyridge (holo reprint via V1/V2)
+  'xy12',                     // Evolutions (Base tribute, alcune holo V1)
+]);
+
+// Costruisce TUTTE le varianti di URL diretto (no-V, V1, V2) per set ambigui.
+// Ritorna [] se il set non è ambiguo o mancano dati: in quel caso basta un solo
+// tentativo via buildCMDirectUrl. Le varianti sono ordinate con primary first
+// (in base a CM_V1_SETS), così il primo tentativo è quello statisticamente
+// più probabile per il set.
+function buildCMDirectUrlVariants(name, setId, number, cond, lang, variant, first1st, setName){
+  const resolvedSetId = setId || CM_SET_NAME_TO_ID[setName||''] || null;
+  const setSlug   = CM_SET_SLUG[resolvedSetId]   || null;
+  const setAbbrev = CM_SET_ABBREV[resolvedSetId] || null;
+  const nameSlug  = buildCardmarketSlug(name || '');
+
+  if(!setSlug || !setAbbrev || !nameSlug || !number || !CM_DIRECT_SETS.has(resolvedSetId)) return [];
+  if(!CM_AMBIGUOUS_VERSION_SETS.has(resolvedSetId)) return [];
+
+  const numClean = (number+'').split('/')[0].replace(/^0+/, '') || '0';
+  const params = new URLSearchParams();
+  params.set('language',     CM_LANG_ID[lang||'ITA'] || 5);
+  params.set('minCondition', CM_COND_ID[cond||'NM']  || 2);
+  if(variant==='Reverse Holo') params.set('isReverseHolo','Y');
+  params.set('isFirstEd', first1st ? 'Y' : 'N');
+  const qs = params.toString();
+
+  const baseSlug = nameSlug + '-'    + setAbbrev + numClean;
+  const v1Slug   = nameSlug + '-V1-' + setAbbrev + numClean;
+  const v2Slug   = nameSlug + '-V2-' + setAbbrev + numClean;
+
+  // Ordina primary first in base a CM_V1_SETS (default V1 per base1/xy12)
+  const useV1Default = CM_V1_SETS[resolvedSetId] || false;
+  const slugs = useV1Default ? [v1Slug, baseSlug, v2Slug] : [baseSlug, v1Slug, v2Slug];
+
+  return slugs.map(function(s){
+    return 'https://www.cardmarket.com/it/Pokemon/Products/Singles/'+setSlug+'/'+s+'?'+qs;
+  });
 }
 
 function openCardmarketAdd(){
@@ -7574,9 +7617,27 @@ async function fetchCmPriceLive(opts){
 
   var srv = await _vpServerSideCMScrape(cmUrl);
 
-  // Fallback livello 2: se URL diretto non ha listings (carta con V1/V2 irregolare,
-  // es. ecard1 Venusaur-V2-EX68), ritenta con URL ricerca dentro lo stesso set
-  // (più affidabile di un 404 sul pattern semplice).
+  // Fallback A: per set "ambigui" (Base, e-Card, Evolutions) ritenta le altre
+  // varianti del cardSlug (V1, V2, no-V) se il primo tentativo è vuoto. Le
+  // pagine V1/V2 sono detail pages parsabili dall'edge function, quindi è il
+  // retry più efficace per recuperare carte irregolari (es. Venusaur-V2-EX68).
+  if(isDirect && (!srv.listings || !srv.listings.length)){
+    var variants = buildCMDirectUrlVariants(name, setId, number, cond, lang, variant, first1st, setName);
+    variants = variants.filter(function(u){ return u !== cmUrl; });
+    for(var i=0; i<variants.length; i++){
+      var srvV = await _vpServerSideCMScrape(variants[i]);
+      if(srvV.listings && srvV.listings.length){
+        srv = srvV;
+        cmUrl = variants[i];
+        break;
+      }
+    }
+  }
+
+  // Fallback B: search URL livello 2 (browse set + searchString). Tentato come
+  // ultima spiaggia — l'edge function ha parser limitato per le pagine di
+  // ricerca, quindi spesso ritorna 0 listings anche qui. Ma resta utile per
+  // futuri set non in CM_DIRECT_SETS dove il pattern semplice è inapplicabile.
   if(isDirect && (!srv.listings || !srv.listings.length)){
     var searchUrl = buildCMSearchUrl(name, setId, number, cond, lang, variant, first1st, setName);
     if(searchUrl && searchUrl !== cmUrl){
