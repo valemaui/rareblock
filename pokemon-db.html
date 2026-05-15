@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<!-- Aggressive no-cache: il file viene aggiornato frequentemente con fix critiche,
+     non vogliamo che il browser/CDN serva versioni vecchie. -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
 <title>RareBlock — Collector</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -7636,6 +7641,12 @@ function _finishAlignOverlay(stats, cancelled){
 }
 
 // ── CM Price Log — floating overlay ──────────────────────────────────────────
+// Build marker: usato dal cmLogger e altri overlay per indicare a colpo
+// d'occhio quale versione del codice sta girando lato client. Bump manualmente
+// quando si fa una fix critica che dipende da una nuova logica nel browser.
+var RB_BUILD = '2026-05-15-1430';
+window.RB_BUILD = RB_BUILD;
+
 function cmLogger(label){
   const old = document.getElementById('cmLogOverlay');
   if(old) old.remove();
@@ -7647,11 +7658,16 @@ function cmLogger(label){
   const t = document.createElement('span');
   t.className = 'cm-log-title';
   t.textContent = label || 'CM Price Log';
+  // Build marker piccolo accanto al titolo (utile per debug cache stale)
+  const bm = document.createElement('span');
+  bm.style.cssText = 'font-size:9px;color:var(--text-subtle);font-family:var(--mono);margin-left:8px;opacity:.6';
+  bm.textContent = 'build ' + RB_BUILD;
+  bm.title = 'Versione codice client. Se vedi un build vecchio, fai hard refresh (Ctrl+Shift+R) o svuota cache.';
   const x = document.createElement('button');
   x.className = 'cm-log-close';
   x.textContent = '\u00d7';
   x.onclick = function(){ el.remove(); };
-  head.appendChild(t); head.appendChild(x);
+  head.appendChild(t); head.appendChild(bm); head.appendChild(x);
   const body = document.createElement('div');
   body.className = 'cm-log-body';
   el.appendChild(head); el.appendChild(body);
@@ -7931,22 +7947,35 @@ async function fetchCmPriceLive(opts){
 
   // Anti-fake-page guard: mirror dell'euristica server-side. Quando CM non
   // trova la carta a quell'URL, serve una pagina di "vetrina raccomandazioni"
-  // con N>=4 listings tutti a €0.10–€0.30 (energie/common cheap). L'edge
-  // function ha gi\u00e0 questo detector ma:
-  //   - se il deploy edge \u00e8 in ritardo
+  // con N>=3 listings tutti a €0.10–€0.30 (energie/common cheap). L'edge
+  // function ha già questo detector ma:
+  //   - se il deploy edge è in ritardo
   //   - se la cache CM Supabase serve HTML pre-detection
   // il client riceve comunque i listings fake. Il guard client-side li
   // intercetta e forza il fallback come se la pagina fosse vuota.
+  // Soglia aggressiva: 3+ listings + ratio €0.10 >= 50% (era 4+ con 60%).
   function _isFakeCmListings(listings){
-    if(!listings || listings.length < 4) return false;
+    if(!listings || listings.length < 3) return false;
     var maxP = 0, cents10 = 0;
     for(var i=0; i<listings.length; i++){
       var p = +listings[i].price;
       if(p > maxP) maxP = p;
       if(Math.abs(p - 0.10) < 0.01) cents10++;
     }
-    return maxP < 0.50 && (cents10 / listings.length) >= 0.60;
+    return maxP < 0.50 && (cents10 / listings.length) >= 0.50;
   }
+
+  // Espongo i parametri usati per il calcolo dell'URL primary nei tentativi —
+  // utile per diagnosticare casi dove la rarity ricevuta dalla TCG API non
+  // \u00e8 quella che ci si aspetta e _cmPrimaryVersionFor sceglie la versione
+  // sbagliata.
+  var primaryV = _cmPrimaryVersionFor(setId, variant, rarity, name);
+  attempts.push({
+    url:'(meta)',
+    kind:'CALC',
+    count:0,
+    error:'name="'+name+'" setId="'+(setId||'?')+'" rarity="'+(rarity||'\u2205')+'" variant="'+variant+'" \u2192 primaryV="'+(primaryV||'no-V')+'"',
+  });
 
   var srv = await _vpServerSideCMScrape(cmUrl);
   if(_isFakeCmListings(srv.listings)){

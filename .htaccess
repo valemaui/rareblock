@@ -1,0 +1,27 @@
+# RareBlock - Aruba Apache configuration
+# Disabilita cache aggressiva sui file HTML che cambiano spesso.
+# Manteniamo cache lunghe per asset stabili (immagini, font).
+
+<IfModule mod_headers.c>
+  # HTML: mai cache (cambia con ogni deploy critico)
+  <FilesMatch "\.(html|htm)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+
+  # JSON / userscript / manifest: cache breve
+  <FilesMatch "\.(json|user\.js|webmanifest)$">
+    Header set Cache-Control "no-cache, must-revalidate, max-age=0"
+  </FilesMatch>
+
+  # Asset statici (immagini, font, css/js esterni): cache lunga
+  <FilesMatch "\.(jpg|jpeg|png|gif|svg|webp|ico|woff|woff2|ttf|eot)$">
+    Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
+</IfModule>
+
+# Forza redirect www (se serve)
+# RewriteEngine On
+# RewriteCond %{HTTP_HOST} ^rareblock\.eu$ [NC]
+# RewriteRule ^(.*)$ https://www.rareblock.eu/$1 [L,R=301]
