@@ -7427,9 +7427,24 @@ function buildCMSearchUrl(name, setId, number, cond, lang, variant, first1st, se
 // Per questi set, fetchCmPriceLive ritenta in cascata se il primo URL fallisce.
 // Gli altri set in CM_DIRECT_SETS hanno pattern stabile → un solo tentativo basta.
 const CM_AMBIGUOUS_VERSION_SETS = new Set([
-  'base1',                    // Base Set (Shadowless vs Unlimited via V1/V2)
-  'ecard1','ecard2','ecard3', // Expedition, Aquapolis, Skyridge (holo reprint via V1/V2)
-  'xy12',                     // Evolutions (Base tribute, alcune holo V1)
+  'base1',                              // Base Set (Shadowless vs Unlimited via V1/V2)
+  'ecard1','ecard2','ecard3',           // Expedition, Aquapolis, Skyridge (holo reprint via V1/V2)
+  'xy12',                               // Evolutions (Base tribute, alcune holo V1)
+  // Neo sets: alcune Common hanno V1/V2 quando hanno pi\u00f9 versioni nel set
+  //   (es. Totodile-V1-NG81 vs Totodile-NG80, entrambi Totodile in Neo Genesis).
+  //   La numerazione TCG API corrisponde al print order; su CM la stessa carta
+  //   pu\u00f2 essere a "no-V" (versione primaria) o "V1" (variante).
+  'neo1','neo2','neo3','neo4',          // Neo Genesis, Discovery, Revelation, Destiny
+  // WotC altri set con varianti note: Jungle/Fossil/Team Rocket usano "V1" per
+  //   alcune carte holo. Sicuro aggiungerli al fallback list (costo solo se
+  //   primary fallisce).
+  'base2','base3','base5','base6',      // Jungle, Fossil, Team Rocket, Legendary Coll
+  // EX series: pattern stabile in maggioranza ma qualche edge case con V1/V2
+  //   per le carte ristampate. Safe-add al fallback.
+  'ex1','ex2','ex3','ex4','ex5','ex6','ex7','ex8',
+  'ex9','ex10','ex11','ex12','ex13','ex14','ex15','ex16',
+  // HGSS series: stessa logica
+  'hgss1','hgss2','hgss3','hgss4','col1',
 ]);
 
 // Costruisce TUTTE le varianti di URL diretto (no-V, V1, V2) per set ambigui.
@@ -7672,7 +7687,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-05-15-1545';
+var RB_BUILD = '2026-05-15-1615';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -7974,23 +7989,32 @@ async function fetchCmPriceLive(opts){
   var attempts = [];
 
   // Anti-fake-page guard: mirror dell'euristica server-side. Quando CM non
-  // trova la carta a quell'URL, serve una pagina di "vetrina raccomandazioni"
-  // con N>=3 listings tutti a €0.10–€0.30 (energie/common cheap). L'edge
-  // function ha già questo detector ma:
-  //   - se il deploy edge è in ritardo
-  //   - se la cache CM Supabase serve HTML pre-detection
-  // il client riceve comunque i listings fake. Il guard client-side li
-  // intercetta e forza il fallback come se la pagina fosse vuota.
-  // Soglia aggressiva: 3+ listings + ratio €0.10 >= 50% (era 4+ con 60%).
+  // trova la carta a quell'URL (es. /Totodile-NG81 non esiste perch\u00e9 la
+  // versione vera \u00e8 /Totodile-V1-NG81), serve una pagina con 1-2 listings
+  // dummy o di seller spam, tipicamente a \u20ac0.02\u2013\u20ac0.10.
+  //
+  // Regole:
+  //   - 1-2 listings TUTTI a \u20ac0.10 o sotto \u2192 quasi sicuramente fake/sbagliata
+  //   - 3+ listings con maxPrice<\u20ac0.50 e \u226550% a \u20ac0.10 \u2192 vetrina spam
+  //
+  // Falsi positivi possibili: carte ultracommon (es. Energy basic 1\u00aa edizione)
+  // possono avere 1-2 listings legittimi a \u20ac0.10. Il rischio \u00e8 accettabile:
+  // il fallback variants tenter\u00e0 comunque V1/V2 e se restituisce listings veri
+  // li userà; altrimenti l'utente vede errore esplicito e inserisce manuale.
   function _isFakeCmListings(listings){
-    if(!listings || listings.length < 3) return false;
-    var maxP = 0, cents10 = 0;
+    if(!listings || !listings.length) return false;
+    var maxP = 0, cents10 = 0, allLow = true;
     for(var i=0; i<listings.length; i++){
       var p = +listings[i].price;
       if(p > maxP) maxP = p;
-      if(Math.abs(p - 0.10) < 0.01) cents10++;
+      if(p > 0.10) allLow = false;
+      if(Math.abs(p - 0.10) < 0.01 || p < 0.10) cents10++;
     }
-    return maxP < 0.50 && (cents10 / listings.length) >= 0.50;
+    // Pattern 1: 1-2 listings totali, tutti \u2264 \u20ac0.10 \u2192 fake
+    if(listings.length <= 2 && allLow) return true;
+    // Pattern 2: 3+ listings, max <\u20ac0.50, almeno 50% a \u20ac0.10 \u2192 vetrina
+    if(listings.length >= 3 && maxP < 0.50 && (cents10/listings.length) >= 0.50) return true;
+    return false;
   }
 
   // Espongo i parametri usati per il calcolo dell'URL primary nei tentativi —
