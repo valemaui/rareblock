@@ -2571,15 +2571,15 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                       <div class="pq-specs">
                         <div class="pq-spec">
                           <label for="pLang">Lingua</label>
-                          <select id="pLang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select>
+                          <select id="pLang" onchange="_scheduleAutoVerify('p')"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select>
                         </div>
                         <div class="pq-spec">
                           <label for="pCond">Condizione</label>
-                          <select id="pCond" onchange="updatePrevPrice()"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select>
+                          <select id="pCond" onchange="updatePrevPrice();_scheduleAutoVerify('p')"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select>
                         </div>
                         <div class="pq-spec">
                           <label for="pVar">Variante</label>
-                          <select id="pVar" onchange="updatePrevPrice()"><option>Normal</option><option>Holo</option><option>Reverse Holo</option><option>Full Art</option><option>Secret Rare</option><option>Shadowless</option></select>
+                          <select id="pVar" onchange="updatePrevPrice();_scheduleAutoVerify('p')"><option>Normal</option><option>Holo</option><option>Reverse Holo</option><option>Full Art</option><option>Secret Rare</option><option>Shadowless</option></select>
                         </div>
                       </div>
                     </div>
@@ -2593,7 +2593,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                     <div class="pq-toggle-wrap">
                       <label>Edizione</label>
                       <label class="pq-1st-toggle" id="p1stToggle" title="Prima edizione">
-                        <input type="checkbox" id="p1st" onchange="updatePrevPrice();_pqToggle1st(this)"/>
+                        <input type="checkbox" id="p1st" onchange="updatePrevPrice();_pqToggle1st(this);_scheduleAutoVerify('p')"/>
                         <span>1ª</span>
                       </label>
                     </div>
@@ -7028,9 +7028,39 @@ function showPrevQuickAdd(c){
     if(img) addZoom(img,lgSrc,true);
   }
   updatePrevPrice();
+  // Auto-verify CM al cambio carta: parte una verify silent dopo 600ms cos\u00ec
+  // l'utente vede il banner CM live popolato senza dover cliccare \u20ac.
+  // Delay maggiore di 400ms (debounce normale) per non bloccare il rendering
+  // iniziale e dare tempo all'utente di vedere le info della carta prima.
+  _scheduleAutoVerify('p', 600);
 }
 
 // Toggle visuale per il pulsante "1\u00aa ed" (preventivo add)
+// ─── AUTO-VERIFY CM ─────────────────────────────────────────────────────────
+// Trigger verify CM in modalit\u00e0 silent (no overlay log popup) quando:
+//  - una carta viene selezionata in showPrevQuickAdd
+//  - l'utente cambia un dropdown Lingua/Condizione/Variante
+//  - l'utente toggla "1\u00aa edizione"
+// Debounce 400ms: se l'utente cambia velocemente pi\u00f9 dropdown, parte
+// un'unica verify dopo che si \u00e8 fermato. La cache Supabase 24h rende
+// le verify ripetute con stessi parametri praticamente gratis (cache hit).
+var _autoVerifyTimer = null;
+function _scheduleAutoVerify(prefix, delayMs){
+  delayMs = (typeof delayMs === 'number') ? delayMs : 400;
+  if(_autoVerifyTimer){ clearTimeout(_autoVerifyTimer); _autoVerifyTimer = null; }
+  _autoVerifyTimer = setTimeout(function(){
+    _autoVerifyTimer = null;
+    // Solo per prefix='p' per ora (preventivo). Espandere a q/s/m se serve.
+    if(prefix === 'p' && !prevCard) return;
+    try {
+      verifyPriceAdd(prefix, {silent: true});
+    } catch(e){
+      console.warn('[autoVerify] errore:', e);
+    }
+  }, delayMs);
+}
+window._scheduleAutoVerify = _scheduleAutoVerify;
+
 function _pqToggle1st(input){
   const lbl=document.getElementById('p1stToggle');
   if(!lbl||!input) return;
@@ -7642,7 +7672,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-05-15-1500';
+var RB_BUILD = '2026-05-15-1545';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -8130,7 +8160,13 @@ async function verifyPrice(idx){
   }
 }
 
-async function verifyPriceAdd(prefix){
+async function verifyPriceAdd(prefix, opts){
+  opts = opts || {};
+  // Silent mode (no overlay log popup, no alert): usato dall'auto-verify
+  // triggerato al cambio di carta/dropdown. Il banner CM live sotto il pannello
+  // resta visibile, ma niente popup invasivi.
+  var silent = !!opts.silent;
+
   const card = (prefix==='q') ? quickCard : (prefix==='s') ? selCard : (prefix==='p') ? prevCard : null;
 
   const condId  = prefix==='m' ? 'mcond' : prefix+'Cond';
@@ -8148,20 +8184,25 @@ async function verifyPriceAdd(prefix){
   const setName  = card?.set?.name || '';
   const rarity   = card?.rarity || '';
 
-  if(!name){ alert('Nessuna carta selezionata'); return; }
+  if(!name){
+    if(!silent) alert('Nessuna carta selezionata');
+    return;
+  }
 
   const btn = document.getElementById(prefix+'VerifyBtn');
   if(btn){ btn.classList.add('loading'); btn.innerHTML='<span class="rb-i rb-i-clock"></span>'; }
 
-  // Overlay log floating (stesso pattern di verifyPrice tabella)
-  const log = cmLogger(name+(number?' \u00b7 #'+number:''));
+  // Overlay log floating SOLO se non-silent (click manuale dell'utente)
+  const log = silent ? null : cmLogger(name+(number?' \u00b7 #'+number:''));
 
   // Rimuovi feedback precedente
   const prevFb = document.getElementById(prefix+'VerifyFeedback');
   if(prevFb) prevFb.remove();
 
-  log.log(cond+' \u00b7 '+lang+' \u00b7 '+variant+(first1st?' \u00b7 1st ed':''), 'data');
-  log.log('\u{1F680} Scraping server-side\u2026','info');
+  if(log){
+    log.log(cond+' \u00b7 '+lang+' \u00b7 '+variant+(first1st?' \u00b7 1st ed':''), 'data');
+    log.log('\u{1F680} Scraping server-side\u2026','info');
+  }
 
   try{
     const t0 = Date.now();
@@ -8172,37 +8213,53 @@ async function verifyPriceAdd(prefix){
     });
     const elapsed = Date.now()-t0;
 
-    // Logga tutti i tentativi (L1-base, L1-V1, L1-V2, L2-search)
-    _logCmAttempts(log, res.attempts);
-    log.log('Totale '+((res.attempts||[]).length)+' tentativ' + ((res.attempts||[]).length===1?'o':'i')+' \u00b7 '+elapsed+'ms', 'data');
+    // Logga tutti i tentativi (L1-base, L1-V1, L1-V2, L2-search) solo se log presente
+    if(log){
+      _logCmAttempts(log, res.attempts);
+      log.log('Totale '+((res.attempts||[]).length)+' tentativ' + ((res.attempts||[]).length===1?'o':'i')+' \u00b7 '+elapsed+'ms', 'data');
+    }
 
     // Stash dello stato per replay via bottone "\u21bb"
     const _stashTitle = name+(number?' \u00b7 #'+number:'');
     const _stashHeader = cond+' \u00b7 '+lang+' \u00b7 '+variant+(first1st?' \u00b7 1st ed':'');
 
     if(!res.ok){
-      log.log('Errore finale: '+(res.error||'nessun dato'), 'err');
-      log.log('Apri uno degli URL qui sopra e verifica manualmente, poi inserisci il prezzo', 'warn');
+      if(log){
+        log.log('Errore finale: '+(res.error||'nessun dato'), 'err');
+        log.log('Apri uno degli URL qui sopra e verifica manualmente, poi inserisci il prezzo', 'warn');
+      }
       _saveCmStash(prefix, {
         title: _stashTitle, headerInfo: _stashHeader,
         attempts: res.attempts, elapsedMs: elapsed,
         ok: false, error: res.error, cmUrl: res.cmUrl,
       });
-      if(btn){ btn.classList.remove('loading'); btn.textContent='€'; }
+      if(btn){
+        btn.classList.remove('loading');
+        // In silent mode mostra icona warning sul bottone; manuale resta \u20ac
+        if(silent){
+          btn.innerHTML='\u26a0';
+          btn.title='Auto-verify fallito: '+(res.error||'nessun dato')+'. Clicca per riprovare con log dettagliato.';
+        } else {
+          btn.textContent='\u20ac';
+          btn.title='Verifica prezzo live su Cardmarket';
+        }
+      }
       return;
     }
 
-    // Log delle prime 5 listings
+    // Log delle prime 5 listings (solo non-silent)
     const listings = res.listings;
-    var logParts = listings.slice(0,5).map(function(l){
-      var condShort = {Mint:'MT','Near Mint':'NM',Excellent:'EX',Good:'GD','Light Played':'LP',Played:'PL',Poor:'PO'};
-      var cs = condShort[l.condition] || l.condition || '?';
-      return cs+' <b>\u20ac'+l.price.toFixed(2)+'</b>';
-    });
-    log.log('CM listing: '+logParts.join(' \u00b7 '), 'data');
-    if(res.smart && res.smart.outlierRemoved > 0)
-      log.log('<span class="rb-i rb-i-warn"></span> '+res.smart.outlierRemoved+' outlier rimossi', 'warn');
-    log.log('<span class="rb-i rb-i-check"></span> Prezzo smart (mediana top-3): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
+    if(log){
+      var logParts = listings.slice(0,5).map(function(l){
+        var condShort = {Mint:'MT','Near Mint':'NM',Excellent:'EX',Good:'GD','Light Played':'LP',Played:'PL',Poor:'PO'};
+        var cs = condShort[l.condition] || l.condition || '?';
+        return cs+' <b>\u20ac'+l.price.toFixed(2)+'</b>';
+      });
+      log.log('CM listing: '+logParts.join(' \u00b7 '), 'data');
+      if(res.smart && res.smart.outlierRemoved > 0)
+        log.log('<span class="rb-i rb-i-warn"></span> '+res.smart.outlierRemoved+' outlier rimossi', 'warn');
+      log.log('<span class="rb-i rb-i-check"></span> Prezzo smart (mediana top-3): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
+    }
 
     _saveCmStash(prefix, {
       title: _stashTitle, headerInfo: _stashHeader,
@@ -8215,7 +8272,7 @@ async function verifyPriceAdd(prefix){
     if(prefix==='q'){
       document.getElementById('qSell').value = bestPrice.toFixed(2);
       const priceEl = document.getElementById('qmPriceVal');
-      if(priceEl){ priceEl.textContent = '€'+bestPrice.toFixed(2); priceEl.style.color='var(--success)'; }
+      if(priceEl){ priceEl.textContent = '\u20ac'+bestPrice.toFixed(2); priceEl.style.color='var(--success)'; }
       const factEl = document.getElementById('qmPriceFactor');
       if(factEl){ factEl.textContent = 'CM live \u00b7 '+cond+' \u00b7 '+lang+' \u00b7 mediana top-3'; }
       const rowEl = document.getElementById('qmPriceRow');
@@ -8228,16 +8285,35 @@ async function verifyPriceAdd(prefix){
       const msell = document.getElementById('msell');
       if(msell) msell.value = bestPrice.toFixed(2);
     } else if(prefix==='p'){
-      document.getElementById('pCmPrice').value = bestPrice.toFixed(2);
+      const pcp = document.getElementById('pCmPrice');
+      pcp.value = bestPrice.toFixed(2);
+      // In auto-verify: il prezzo \u00e8 fresco di CM, rimuovi flag manual cos\u00ec
+      // ai prossimi cambi di Cond/Var/1st il ricalcolo via updatePrevPrice
+      // pu\u00f2 anche aggiornarlo (e poi l'auto-verify lo sovrascriver\u00e0 dal CM).
+      if(silent) delete pcp.dataset.manual;
+      else pcp.dataset.manual = '1';
     }
     showAddVerifyFeedback(prefix, listings, bestPrice, cond, lang);
 
-    // Auto-close overlay dopo successo
-    setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 2000);
+    // Auto-close overlay dopo successo (solo se log esiste)
+    if(log) setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 2000);
   }catch(e){
-    log.log('Errore: '+(e.message||String(e)), 'err');
+    if(log) log.log('Errore: '+(e.message||String(e)), 'err');
+    if(btn && silent){
+      btn.innerHTML='\u26a0';
+      btn.title='Auto-verify errore: '+(e.message||String(e));
+    }
   }finally{
-    if(btn){ btn.classList.remove('loading'); btn.textContent='€'; }
+    if(btn){
+      btn.classList.remove('loading');
+      // Solo se non c'\u00e8 un errore visualizzato lascia \u20ac
+      if(btn.innerHTML.indexOf('\u26a0') < 0 && btn.innerHTML.indexOf('clock') < 0){
+        btn.textContent='\u20ac';
+      } else if(btn.innerHTML.indexOf('clock') >= 0){
+        // Loading state rimasto: reset a \u20ac
+        btn.textContent='\u20ac';
+      }
+    }
   }
 }
 
