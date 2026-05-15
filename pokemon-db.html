@@ -2554,7 +2554,8 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
               <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:stretch">
                 <input id="pq" type="text" placeholder="Nome + numero..." style="flex:1 1 100px;min-width:100px" onkeydown="if(event.key==='Enter')prevSearch()"/>
                 <div id="pq-setpicker" style="flex:1 1 130px;min-width:130px;position:relative"></div>
-                <button class="btn btn-primary" onclick="prevSearch()" title="Cerca" style="flex-shrink:0;padding:5px 10px;font-size:12px"><span class="rb-i rb-i-search"></span></button>
+                <button class="btn btn-primary" onclick="prevSearch()" title="Cerca nel ns DB (nomi inglesi)" style="flex-shrink:0;padding:5px 10px;font-size:12px"><span class="rb-i rb-i-search"></span></button>
+                <button class="btn" onclick="openCmFallbackSearch()" title="Cerca su Cardmarket (supporta nomi italiani, francesi, tedeschi). Apre una nuova tab con i risultati \u2014 leggi il nome ufficiale inglese della carta e poi rifa la ricerca qui." style="flex-shrink:0;padding:5px 10px;font-size:12px">🌍</button>
               </div>
               <div class="status info" id="pst" style="padding:0"></div>
               <div id="prevResults" class="prev-panel-results" style="display:none"></div>
@@ -7486,6 +7487,38 @@ function buildCMDirectUrlVariants(name, setId, number, cond, lang, variant, firs
   });
 }
 
+// Cerca su Cardmarket usando la query attuale (nome carta + eventuale set
+// selezionato dal picker). Utile come fallback quando il nostro DB
+// (Pokemon TCG API) non trova nulla perch\u00e9 contiene solo nomi inglesi e
+// l'utente sta cercando con nome italiano/francese/tedesco (es. "Bandana"
+// invece di "Focus Trainer"). CM ha indice multilingua: trova la carta,
+// l'utente legge il nome inglese ufficiale, torna qui e rifa la ricerca.
+function openCmFallbackSearch(){
+  var raw = (document.getElementById('pq')||{}).value || '';
+  raw = raw.trim();
+  var setInp = document.getElementById('pq-setpicker-input');
+  var setSel = setInp && typeof rbResolveSetFromInput === 'function'
+    ? rbResolveSetFromInput(setInp) : null;
+  if(!raw && !setSel){
+    alert('Scrivi prima il nome della carta nel campo di ricerca');
+    return;
+  }
+  var setSlug = setSel && setSel.id && typeof CM_SET_SLUG !== 'undefined'
+    ? CM_SET_SLUG[setSel.id] : null;
+  // Se set noto \u2192 cerca dentro quel set (filtro pi\u00f9 stretto, meno rumore).
+  // Altrimenti \u2192 cerca globalmente su tutti i Pokemon singles.
+  var url;
+  if(setSlug){
+    url = 'https://www.cardmarket.com/it/Pokemon/Products/Singles/'+setSlug
+        + '?searchString='+encodeURIComponent(raw);
+  } else {
+    url = 'https://www.cardmarket.com/it/Pokemon/Products/Search'
+        + '?searchString='+encodeURIComponent(raw)+'&searchMode=v2';
+  }
+  window.open(url, '_blank', 'noopener');
+}
+window.openCmFallbackSearch = openCmFallbackSearch;
+
 function openCardmarketAdd(){
   const c = quickCard || selCard;
   if(!c){ alert('Nessuna carta selezionata'); return; }
@@ -7687,7 +7720,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-05-15-1615';
+var RB_BUILD = '2026-05-15-1700';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
