@@ -5173,7 +5173,7 @@ async function verifyPriceColEdit(){
       log.log('Apri uno degli URL qui sopra e verifica manualmente, poi inserisci il prezzo', 'warn');
       _saveCmStash('colEdit', {
         title: _stashTitle, headerInfo: _stashHeader,
-        attempts: res.attempts, elapsedMs: elapsed, ok: false, error: res.error,
+        attempts: res.attempts, elapsedMs: elapsed, ok: false, error: res.error, cmUrl: res.cmUrl,
       });
       return;
     }
@@ -5191,7 +5191,7 @@ async function verifyPriceColEdit(){
     _saveCmStash('colEdit', {
       title: _stashTitle, headerInfo: _stashHeader,
       attempts: res.attempts, listings: res.listings, smart: res.smart,
-      finalPrice: res.price, elapsedMs: elapsed, ok: true,
+      finalPrice: res.price, elapsedMs: elapsed, ok: true, cmUrl: res.cmUrl,
     });
 
     document.getElementById('colEmCm').value = res.price.toFixed(2);
@@ -6880,7 +6880,7 @@ async function verifyPriceEdit(){
       log.log('Apri uno degli URL qui sopra e verifica manualmente, poi inserisci il prezzo', 'warn');
       _saveCmStash('em', {
         title: _stashTitle, headerInfo: _stashHeader,
-        attempts: res.attempts, elapsedMs: elapsed, ok: false, error: res.error,
+        attempts: res.attempts, elapsedMs: elapsed, ok: false, error: res.error, cmUrl: res.cmUrl,
       });
       return;
     }
@@ -6898,7 +6898,7 @@ async function verifyPriceEdit(){
     _saveCmStash('em', {
       title: _stashTitle, headerInfo: _stashHeader,
       attempts: res.attempts, listings: res.listings, smart: res.smart,
-      finalPrice: res.price, elapsedMs: elapsed, ok: true,
+      finalPrice: res.price, elapsedMs: elapsed, ok: true, cmUrl: res.cmUrl,
     });
 
     document.getElementById('emCm').value = res.price.toFixed(2);
@@ -7151,22 +7151,29 @@ const CM_COND_ID={'MINT':1,'NM':2,'EX':3,'GD':4,'LP':5,'PL':6,'PO':7,'INK/ALT':7
 //
 // Discriminiamo in base a rarity (TCG API) + variant (input utente) per
 // portare dritti alla pagina corretta senza chiamate edge extra.
-function _cmPrimaryVersionFor(setId, variant, rarity){
+function _cmPrimaryVersionFor(setId, variant, rarity, name){
   if(!setId) return '';
   var r = (rarity||'').toLowerCase();
   var v = (variant||'').toLowerCase();
+  var n = (name||'').toLowerCase();
 
   // e-Card: V2 = Reverse Holo (versione standard di mercato per tutte le rare)
   if(setId === 'ecard1' || setId === 'ecard2' || setId === 'ecard3'){
-    // Variant esplicito Reverse Holo o Holo → V2
+    // ECCEZIONE ENERGIE: le carte Energy in Expedition/Aquapolis/Skyridge anche
+    // se rare hanno tipicamente UNA sola versione su CM (no V1/V2). Es:
+    // Darkness Energy #158 \u2192 Darkness-Energy-EX158 (no V2). Riconosciute
+    // sia per nome ("Energy" \u00e8 nel nome di tutte le energie basic+special)
+    // sia per type rarity (qualche dataset usa "Rare Holo Energy").
+    if(n.indexOf('energy') >= 0 || r.indexOf('energy') >= 0) return '';
+    // Variant esplicito Reverse Holo o Holo \u2192 V2
     if(v === 'reverse holo' || v === 'holo') return 'V2';
     // Tutte le rare (Rare, Rare Holo) hanno Reverse Holo come versione CM principale
     if(r.indexOf('rare') >= 0) return 'V2';
-    // Common, Uncommon → versione base non-holo
+    // Common, Uncommon \u2192 versione base non-holo
     return '';
   }
 
-  // xy12 Evolutions: V1 è la holo reprint stile Base Set
+  // xy12 Evolutions: V1 \u00e8 la holo reprint stile Base Set
   if(setId === 'xy12'){
     if(v === 'holo' || v === 'reverse holo') return 'V1';
     if(r.indexOf('rare holo') >= 0) return 'V1';
@@ -7329,8 +7336,9 @@ function buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, se
     // Numero ripulito: rimuovi suffisso "/totale" e zeri leading
     // Es: "26" → "26", "01" → "1", "26/40" → "26", "001" → "1"
     const numClean = (number+'').split('/')[0].replace(/^0+/, '') || '0';
-    // Versione primaria basata su rarity + variant (es. ecard2 Rare Holo → V2)
-    const primaryV = _cmPrimaryVersionFor(resolvedSetId, variant, rarity);
+    // Versione primaria basata su rarity + variant + name (es. ecard2 Rare Holo \u2192 V2,
+    // ecard1 Darkness Energy \u2192 no-V perch\u00e9 energie sono caso speciale)
+    const primaryV = _cmPrimaryVersionFor(resolvedSetId, variant, rarity, name);
     const versionPrefix = primaryV ? '-'+primaryV+'-' : '-';
     const cardSlug = nameSlug + versionPrefix + setAbbrev + numClean;
     return 'https://www.cardmarket.com/it/Pokemon/Products/Singles/'+setSlug+'/'+cardSlug+'?'+qs;
@@ -7412,7 +7420,7 @@ function buildCMDirectUrlVariants(name, setId, number, cond, lang, variant, firs
   };
 
   // Ordina primary first in base a _cmPrimaryVersionFor, poi le altre due
-  const primary = _cmPrimaryVersionFor(resolvedSetId, variant, rarity);
+  const primary = _cmPrimaryVersionFor(resolvedSetId, variant, rarity, name);
   const order = primary === 'V2' ? ['V2', '',   'V1']
               : primary === 'V1' ? ['V1', '',   'V2']
               :                    ['',   'V2', 'V1'];
@@ -7425,11 +7433,20 @@ function buildCMDirectUrlVariants(name, setId, number, cond, lang, variant, firs
 function openCardmarketAdd(){
   const c = quickCard || selCard;
   if(!c){ alert('Nessuna carta selezionata'); return; }
-  const cond  = document.getElementById(quickCard?'qCond':'sCond')?.value||'NM';
-  const lang  = document.getElementById(quickCard?'qLang':'sLang')?.value||'ITA';
-  const variant= document.getElementById(quickCard?'qVar':'sVar')?.value||'Normal';
-  const first1st= document.getElementById(quickCard?'q1st':'s1st')?.checked||false;
-  window.open(buildCMDirectUrl(c.name, c.set?.id, c.number, cond, lang, variant, first1st),'_blank');
+  const prefix = quickCard ? 'q' : 's';
+  const cond  = document.getElementById(prefix+'Cond')?.value||'NM';
+  const lang  = document.getElementById(prefix+'Lang')?.value||'ITA';
+  const variant= document.getElementById(prefix+'Var')?.value||'Normal';
+  const first1st= document.getElementById(prefix+'1st')?.checked||false;
+  // Riusa l'URL del verify riuscito se ancora presente nello stash (sempre
+  // pi\u00f9 affidabile del calcolo deterministico, soprattutto per carte con
+  // pattern V1/V2 imprevedibile).
+  const stash = _cmStash && _cmStash[prefix];
+  if(stash && stash.cmUrl){
+    window.open(stash.cmUrl, '_blank');
+    return;
+  }
+  window.open(buildCMDirectUrl(c.name, c.set?.id, c.number, cond, lang, variant, first1st, c.set?.name, c.rarity),'_blank');
 }
 
 function openCardmarket(){
@@ -7438,7 +7455,13 @@ function openCardmarket(){
   const cond=document.getElementById('pCond').value||'NM';
   const variant=document.getElementById('pVar').value||'Normal';
   const is1st=document.getElementById('p1st').checked;
-  window.open(buildCMDirectUrl(prevCard.name, prevCard.set?.id, prevCard.number, cond, lang, variant, is1st),'_blank');
+  // Riusa l'URL del verify riuscito se disponibile
+  const stash = _cmStash && _cmStash['p'];
+  if(stash && stash.cmUrl){
+    window.open(stash.cmUrl, '_blank');
+    return;
+  }
+  window.open(buildCMDirectUrl(prevCard.name, prevCard.set?.id, prevCard.number, cond, lang, variant, is1st, prevCard.set?.name, prevCard.rarity),'_blank');
 }
 
 // ── VERIFICA PREZZI LIVE ──────────────────────────────────────────────────────
@@ -8100,7 +8123,7 @@ async function verifyPriceAdd(prefix){
       _saveCmStash(prefix, {
         title: _stashTitle, headerInfo: _stashHeader,
         attempts: res.attempts, elapsedMs: elapsed,
-        ok: false, error: res.error,
+        ok: false, error: res.error, cmUrl: res.cmUrl,
       });
       if(btn){ btn.classList.remove('loading'); btn.textContent='€'; }
       return;
@@ -8121,7 +8144,7 @@ async function verifyPriceAdd(prefix){
     _saveCmStash(prefix, {
       title: _stashTitle, headerInfo: _stashHeader,
       attempts: res.attempts, listings: listings, smart: res.smart,
-      finalPrice: res.price, elapsedMs: elapsed, ok: true,
+      finalPrice: res.price, elapsedMs: elapsed, ok: true, cmUrl: res.cmUrl,
     });
 
     // Applica il prezzo nel campo target

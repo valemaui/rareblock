@@ -496,6 +496,31 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
 
   const prices = listings.map(l => l.price);
 
+  // ─── FAKE-PAGE DETECTION ───────────────────────────────────────────────
+  // Quando l'URL CM non corrisponde a una carta esistente, CM redirige (o
+  // serve) una pagina con "carte raccomandate" / vetrina prodotti minor
+  // che hanno prezzi tipicamente uniformi a €0.10–€0.50 (le carte energy
+  // basiche, common di set vecchi, ecc.). Riconoscibili da pattern:
+  //   • TUTTI i listings sotto soglia bassa (max < €0.50)
+  //   • Almeno 4 listings (singole carte rare possono legittimamente avere
+  //     1-2 listings a €0.10, ma non 4+ tutti uniformi)
+  //   • Prezzo modale = €0.10 con >= 60% dei listings
+  // Quando matchato: ritorniamo error esplicito invece di listings inutili,
+  // cos\u00ec il client capisce che la pagina \u00e8 sbagliata e ritenta variant
+  // (V1/V2) o fallback search.
+  if (listings.length >= 4) {
+    const maxPrice = Math.max(...prices);
+    const cents10 = listings.filter(l => Math.abs(l.price - 0.10) < 0.01).length;
+    const cents10Ratio = cents10 / listings.length;
+    if (maxPrice < 0.50 && cents10Ratio >= 0.60) {
+      return json({
+        error: 'pagina CM probabilmente non valida (prezzi uniformi a €0.10 = vetrina raccomandazioni)',
+        listings: [], prices: [], url, source: 'cardmarket', count: 0,
+        _fake_page: { maxPrice, cents10Count: cents10, cents10Ratio: Math.round(cents10Ratio*100)/100, listingCount: listings.length },
+      });
+    }
+  }
+
   // Diagnostica: sempre inclusa quando debug=true, oppure sempre disponibile
   // un sottoinsieme leggero per identificare problemi di extraction in produzione.
   const baseResp: Record<string, unknown> = {
