@@ -2368,7 +2368,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
       <div class="field"><label for="colEmVar">Variante</label><select id="colEmVar"><option>Normal</option><option>Holo</option><option>Reverse Holo</option><option>Full Art</option><option>Secret Rare</option><option>Rainbow Rare</option><option>Gold</option><option>Promo</option><option>Shadowless</option></select></div>
       <div class="field"><label for="colEmQty">Quantità</label><input id="colEmQty" type="number" value="1" min="1" step="1"/></div>
       <div class="field"><label for="colEmSell">Prezzo vendita (€)</label><input id="colEmSell" type="number" step="0.01" min="0" placeholder="0.00"/></div>
-      <div class="field"><label for="colEmCm">CM avg30 (€)</label><input id="colEmCm" type="number" step="0.01" min="0" placeholder="0.00"/></div>
+      <div class="field"><label for="colEmCm">CM avg30 (€)</label><div style="display:flex;gap:5px"><input id="colEmCm" type="number" step="0.01" min="0" placeholder="0.00" style="flex:1"/><button class="btn-verify" id="colEmVerifyBtn" onclick="verifyPriceColEdit()" title="Verifica prezzo live su Cardmarket" style="flex-shrink:0">€</button></div></div>
       <div class="field full" style="grid-column:1/-1">
         <label for="colEmNotes">Note</label>
         <textarea id="colEmNotes" rows="2" placeholder="Note opzionali (provenienza, storia, ecc.)" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:var(--r);font-size:12px;font-family:var(--font);resize:vertical"></textarea>
@@ -2561,6 +2561,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
     <div class="modal-cm-row">
       <span class="modal-cm-label">CM price (€)</span>
       <input id="emCm" type="number" placeholder="0.00" step="0.01" class="modal-cm-input" oninput="emUpdatePrice()"/>
+      <button class="btn-verify" id="emVerifyBtn" onclick="verifyPriceEdit()" title="Verifica prezzo live su Cardmarket" style="flex-shrink:0">€</button>
       <button class="btn modal-cm-refresh" onclick="refreshEditPrice()" title="Ricalcola dal database"><span class="rb-i rb-i-refresh"></span> Ricalcola</button>
       <label class="sc-1st-sm" title="Prima edizione" style="margin-left:4px">
         <input type="checkbox" id="em1st" onchange="refreshEditPrice()"/>
@@ -4151,8 +4152,6 @@ function showQuickMatch(c){
   document.getElementById('qmSet').textContent=(c.set?.name||'')+(c.number?' · #'+c.number:'')+(c.rarity?' · '+c.rarity:'');
   document.getElementById('qmRarity').textContent='';
   updateQuickPrice();
-  // Auto-verifica prezzo live in background (nessuna tab CM aperta)
-  autoVerifyPriceAdd('q');
 }
 
 function updateQuickPrice(){
@@ -4235,8 +4234,6 @@ function pickCard(c,el){
     (c.images?.small?`<img src="${c.images.small}"/>`:'')
     +`<div><div class="sel-name">${c.name}</div><div class="sel-meta">${c.set?.name||''} · #${c.number||'?'} · ${c.rarity||'?'}${priceStr}</div></div>`;
   updateSelPrice();
-  // Auto-verifica prezzo live in background
-  autoVerifyPriceAdd('s');
 }
 
 function updateSelPrice(){
@@ -5035,6 +5032,67 @@ async function colDeleteFromModal(){
   }
 }
 window.colDeleteFromModal = colDeleteFromModal;
+
+// ─── Verifica prezzo CM live dal modal di edit collezione ────────────────────
+// Usa il record corrente in window._colEditing + i valori form attuali.
+// Risolve set_id automaticamente via cache TCG dentro fetchCmPriceLive.
+async function verifyPriceColEdit(){
+  const c = window._colEditing;
+  if(!c){ alert('Nessuna carta in modifica'); return; }
+  const btn = document.getElementById('colEmVerifyBtn');
+  if(btn){ btn.classList.add('loading'); btn.innerHTML='<span class="rb-i rb-i-clock"></span>'; }
+
+  const cond     = document.getElementById('colEmCond').value || 'NM';
+  const lang     = document.getElementById('colEmLang').value || 'ITA';
+  const variant  = document.getElementById('colEmVar').value  || 'Normal';
+  const first1st = document.getElementById('colEm1st').checked;
+
+  const log = cmLogger((c.name||'')+(c.card_number?' \u00b7 #'+c.card_number:''));
+  log.log(cond+' \u00b7 '+lang+' \u00b7 '+variant+(first1st?' \u00b7 1st ed':''), 'data');
+  log.log('\u{1F680} Scraping server-side\u2026','info');
+
+  try{
+    const t0 = Date.now();
+    const res = await fetchCmPriceLive({
+      name:        c.name || '',
+      setId:       null,  // verrà risolto da cache TCG
+      number:      c.card_number || '',
+      condition:   cond,
+      language:    lang,
+      variant:     variant,
+      first_edition: first1st,
+      setName:     c.set_name || '',
+    });
+    const elapsed = Date.now()-t0;
+
+    const urlShort = (res.cmUrl||'').replace('https://www.cardmarket.com','CM');
+    log.log((res.isDirect?'URL diretto':'URL ricerca')+' \u2192 <a>'+urlShort+'</a> ('+elapsed+'ms)', res.isDirect?'ok':'warn', res.cmUrl);
+
+    if(!res.ok){
+      log.log('Errore: '+(res.error||'nessun dato'), 'err');
+      if(!res.isDirect) log.log('Set non in CM_DIRECT_SETS \u2014 inserisci prezzo manuale', 'warn');
+      return;
+    }
+    // Log dettagliato
+    var logParts = res.listings.slice(0,5).map(function(l){
+      var condShort = {Mint:'MT','Near Mint':'NM',Excellent:'EX',Good:'GD','Light Played':'LP',Played:'PL',Poor:'PO'};
+      var cs = condShort[l.condition] || l.condition || '?';
+      return cs+' <b>\u20ac'+l.price.toFixed(2)+'</b>';
+    });
+    log.log('CM listing: '+logParts.join(' \u00b7 '), 'data');
+    if(res.smart && res.smart.outlierRemoved > 0)
+      log.log('<span class="rb-i rb-i-warn"></span> '+res.smart.outlierRemoved+' outlier rimossi', 'warn');
+    log.log('<span class="rb-i rb-i-check"></span> Prezzo smart (mediana top-3): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
+
+    document.getElementById('colEmCm').value = res.price.toFixed(2);
+    setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 2000);
+  }catch(e){
+    log.log('Errore: '+(e.message||String(e)), 'err');
+  }finally{
+    if(btn){ btn.classList.remove('loading'); btn.textContent='\u20ac'; }
+  }
+}
+window.verifyPriceColEdit = verifyPriceColEdit;
 
 // Permetti di chiudere col edit modal con Esc (oltre al click sul backdrop)
 document.addEventListener('keydown', function(e){
@@ -6668,6 +6726,67 @@ function refreshEditPrice(){
   }
   emUpdatePrice();
 }
+
+// ─── Verifica prezzo CM live dal modal di edit preventivo ────────────────────
+async function verifyPriceEdit(){
+  if(editIdx===null || !activePrev){ alert('Nessun item in modifica'); return; }
+  const c = activePrev.items[editIdx];
+  if(!c){ alert('Item non trovato'); return; }
+  const btn = document.getElementById('emVerifyBtn');
+  if(btn){ btn.classList.add('loading'); btn.innerHTML='<span class="rb-i rb-i-clock"></span>'; }
+
+  const cond     = document.getElementById('emCond').value || 'NM';
+  const lang     = document.getElementById('emLang').value || 'ITA';
+  const variant  = document.getElementById('emVar').value  || 'Normal';
+  const first1st = document.getElementById('em1st').checked;
+
+  const log = cmLogger((c.name||'')+(c.number?' \u00b7 #'+c.number:''));
+  log.log(cond+' \u00b7 '+lang+' \u00b7 '+variant+(first1st?' \u00b7 1st ed':''), 'data');
+  log.log('\u{1F680} Scraping server-side\u2026','info');
+
+  try{
+    const t0 = Date.now();
+    const res = await fetchCmPriceLive({
+      name:        c.name || '',
+      setId:       c.set_id || null,
+      number:      c.number || '',
+      condition:   cond,
+      language:    lang,
+      variant:     variant,
+      first_edition: first1st,
+      setName:     c.set || '',
+    });
+    const elapsed = Date.now()-t0;
+
+    const urlShort = (res.cmUrl||'').replace('https://www.cardmarket.com','CM');
+    log.log((res.isDirect?'URL diretto':'URL ricerca')+' \u2192 <a>'+urlShort+'</a> ('+elapsed+'ms)', res.isDirect?'ok':'warn', res.cmUrl);
+
+    if(!res.ok){
+      log.log('Errore: '+(res.error||'nessun dato'), 'err');
+      if(!res.isDirect) log.log('Set non in CM_DIRECT_SETS \u2014 inserisci prezzo manuale', 'warn');
+      return;
+    }
+
+    var logParts = res.listings.slice(0,5).map(function(l){
+      var condShort = {Mint:'MT','Near Mint':'NM',Excellent:'EX',Good:'GD','Light Played':'LP',Played:'PL',Poor:'PO'};
+      var cs = condShort[l.condition] || l.condition || '?';
+      return cs+' <b>\u20ac'+l.price.toFixed(2)+'</b>';
+    });
+    log.log('CM listing: '+logParts.join(' \u00b7 '), 'data');
+    if(res.smart && res.smart.outlierRemoved > 0)
+      log.log('<span class="rb-i rb-i-warn"></span> '+res.smart.outlierRemoved+' outlier rimossi', 'warn');
+    log.log('<span class="rb-i rb-i-check"></span> Prezzo smart (mediana top-3): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
+
+    document.getElementById('emCm').value = res.price.toFixed(2);
+    if(typeof emUpdatePrice==='function') emUpdatePrice();
+    setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 2000);
+  }catch(e){
+    log.log('Errore: '+(e.message||String(e)), 'err');
+  }finally{
+    if(btn){ btn.classList.remove('loading'); btn.textContent='\u20ac'; }
+  }
+}
+
 async function saveEditModal(){
   if(editIdx===null||!activePrev)return;
   const c=activePrev.items[editIdx];
@@ -7402,6 +7521,55 @@ async function _vpServerSideCMScrape(cmUrl){
   }
 }
 
+// ─── Helper unificata: live CM fetch + smart-median extraction ───────────────
+// Usata da TUTTI gli entry point (verifyPriceAdd, verifyPrice, verifyPriceColEdit,
+// verifyPriceEdit). Server-side puro: nessuna tab CM aperta, nessun userscript.
+// Ritorna {ok, price, listings, smart, isDirect, cmUrl, error, debug}.
+async function fetchCmPriceLive(opts){
+  var name      = (opts && opts.name) || '';
+  var setId     = (opts && opts.setId) || null;
+  var number    = (opts && opts.number) || '';
+  var cond      = (opts && opts.condition) || 'NM';
+  var lang      = (opts && opts.language) || 'ITA';
+  var variant   = (opts && opts.variant) || 'Normal';
+  var first1st  = !!(opts && opts.first_edition);
+  var setName   = (opts && opts.setName) || '';
+
+  if(!name) return {ok:false, error:'nome carta mancante'};
+
+  // Risolvi set_id dalla cache se non fornito (es. carte preventivo legacy)
+  if(!setId){
+    var _cached = cache[name.toLowerCase().trim()];
+    var _hit = _cached ? (_cached.find(function(x){return x.number===number;}) || _cached[0]) : null;
+    if(_hit && _hit.set) setId = _hit.set.id;
+  }
+
+  var cmUrl = buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, setName);
+  var isDirect = cmUrl.indexOf('/Singles/') !== -1 && cmUrl.indexOf('searchString=') === -1;
+
+  var srv = await _vpServerSideCMScrape(cmUrl);
+  if(!srv.listings || !srv.listings.length){
+    return {
+      ok: false,
+      error: srv.error || (isDirect ? 'nessun listing trovato' : 'set non supportato per CM diretto'),
+      listings: [],
+      isDirect: isDirect,
+      cmUrl: cmUrl,
+      debug: srv.debug,
+    };
+  }
+  var smart = smartCMPrice(srv.listings, cond);
+  var price = (smart && smart.price > 0) ? smart.price : srv.listings[0].price;
+  return {
+    ok: true,
+    price: Math.round(price * 100) / 100,
+    listings: srv.listings,
+    smart: smart,
+    isDirect: isDirect,
+    cmUrl: cmUrl,
+  };
+}
+
 async function verifyPrice(idx){
   const btn = document.getElementById('vbtn_'+idx);
   try{
@@ -7423,95 +7591,55 @@ async function verifyPrice(idx){
     const isDirect = cmUrl.includes('/Singles/')&&!cmUrl.includes('searchString=');
     log.log((isDirect?'CM diretto':'CM ricerca')+' \u2192 <a>'+cmUrl.replace('https://www.cardmarket.com','CM')+'</a>',isDirect?'ok':'warn',cmUrl);
 
-    // ─── STRATEGIA 1: Server-side scrape (solo per URL diretti, zero tab aperte) ─
-    if(isDirect){
-      log.log('\u{1F680} Scraping server-side\u2026','info');
-      const srv = await _vpServerSideCMScrape(cmUrl);
-      if(srv.listings && srv.listings.length > 0){
-        const processed = _vpProcessListings(srv.listings, c.condition, log);
-        if(processed){
-          log.log('Server-side OK \u2014 nessuna tab aperta','ok');
-          await applyVerifiedPrice(idx, processed.finalPrice);
-          setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 2000);
-          return;
-        }
+    // ─── Server-side scrape (server-side only, zero tab aperte) ───────────────
+    log.log('\u{1F680} Scraping server-side\u2026','info');
+    const srv = await _vpServerSideCMScrape(cmUrl);
+    if(srv.listings && srv.listings.length > 0){
+      const processed = _vpProcessListings(srv.listings, c.condition, log);
+      if(processed){
+        log.log('Server-side OK \u2014 nessuna tab aperta','ok');
+        await applyVerifiedPrice(idx, processed.finalPrice);
+        setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 2000);
+        return;
       }
-      // Server-side fallito: logga il motivo + debug info e prosegui con fallback userscript
-      var dbgSummary = '';
-      if(srv.debug){
-        try{ console.log('[RareBlock] CM server-side debug:', srv.debug); }catch(e){}
-        var d = srv.debug;
-        var hints = [];
-        if(d.has_consent_wall) hints.push('cookie wall');
-        if(d.is_geo_block) hints.push('geo-block');
-        if(d.page_title) hints.push('title="'+(d.page_title.length>40?d.page_title.substring(0,40)+'\u2026':d.page_title)+'"');
-        if(d.has_next_data===false) hints.push('no NEXT_DATA');
-        if(d.html_length!=null) hints.push(d.html_length+' bytes');
-        dbgSummary = hints.length ? ' [' + hints.join(', ') + ']' : '';
-      }
-      log.log('Server-side fallito ('+(srv.error||'0 listings')+')'+dbgSummary+' \u2014 fallback userscript','warn');
-    } else {
-      log.log('URL di ricerca \u2014 userscript richiesto (no server-side)','info');
     }
 
-    // ─── STRATEGIA 2: Fallback userscript (tab aperta + attesa postMessage) ─────
-    const cmTab = window.open(cmUrl,'_blank');
-    log.log('In attesa prezzi dallo userscript\u2026 (timeout 30s)','info');
+    // Server-side fallito: logga motivo + debug e mostra input manuale
+    var dbgSummary = '';
+    if(srv.debug){
+      try{ console.log('[RareBlock] CM server-side debug:', srv.debug); }catch(e){}
+      var d = srv.debug;
+      var hints = [];
+      if(d.has_consent_wall) hints.push('cookie wall');
+      if(d.is_geo_block) hints.push('geo-block');
+      if(d.page_title) hints.push('title="'+(d.page_title.length>40?d.page_title.substring(0,40)+'\u2026':d.page_title)+'"');
+      if(d.has_next_data===false) hints.push('no NEXT_DATA');
+      if(d.html_length!=null) hints.push(d.html_length+' bytes');
+      dbgSummary = hints.length ? ' [' + hints.join(', ') + ']' : '';
+    }
+    var failReason = isDirect
+      ? 'Server-side fallito ('+(srv.error||'0 listings')+')'+dbgSummary
+      : 'Set non supportato per CM diretto \u2014 apri il link CM e inserisci prezzo manuale';
+    var failHint = isDirect
+      ? 'CM potrebbe aver bloccato la richiesta. Apri il link e inserisci prezzo manuale, o riprova fra qualche minuto'
+      : 'Per i set XY/SM/SWSH/SV serve URL diretto verificato (vedi CM_DIRECT_SETS)';
+    log.log(failReason, 'err');
+    log.log(failHint, 'warn');
 
-    const livePrices = await new Promise(function(resolve){
-      var timer = setTimeout(function(){ resolve({_timeout:true}); }, 30000);
-      window._rbRegisterPriceHandler(idx, function(prices, data, listings){
-        clearTimeout(timer);
-        resolve({
-          prices: prices,
-          listings: listings||[],
-          status: data && data.status,    // 'no_prices' se userscript ha finito senza trovare offerte
-          reason: data && data.reason,
-        });
-      });
-    });
-
-    if(livePrices && livePrices.prices && livePrices.prices.length > 0){
-      const processed = _vpProcessListings(livePrices.listings, c.condition, log);
-      var finalPrice = processed ? processed.finalPrice : livePrices.prices[0];
-
-      _vpCloseCMTab(cmTab);
-      await applyVerifiedPrice(idx, finalPrice);
-      setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 3000);
-    } else {
-      window._rbUnregisterPriceHandler(idx);
-
-      // Capisci il motivo: timeout reale, userscript ha detto "no_prices", o payload vuoto imprevisto
-      var failReason;
-      var failHint;
-      if(!livePrices || livePrices._timeout){
-        failReason = 'Timeout 30s — userscript non ha risposto';
-        failHint   = 'Verifica che Tampermonkey sia installato e che "RareBlock · CM Price Bridge v2.1" sia abilitato sul dominio cardmarket.com';
-      } else if(livePrices.status === 'no_prices'){
-        failReason = 'Userscript ha risposto: nessuna offerta sulla pagina';
-        failHint   = 'La carta potrebbe non avere offerte per la lingua/condizione scelte. Prova con lingua diversa o inserisci prezzo manualmente';
-      } else {
-        failReason = 'Payload vuoto ricevuto dallo userscript';
-        failHint   = 'Aggiorna lo userscript all\'ultima versione (v2.1) o inserisci prezzo manualmente';
-      }
-      log.log(failReason, 'err');
-      log.log(failHint, 'warn');
-
-      // Mostra input manuale nel log
-      const ov = document.getElementById('cmLogOverlay');
-      if(ov){
-        const b = ov.querySelector('.cm-log-body');
-        if(b){
-          const manWrap = document.createElement('div');
-          manWrap.style.cssText = 'padding:6px 12px 10px;display:flex;align-items:center;gap:8px';
-          manWrap.innerHTML = '<input id="rbManualPrice" type="number" step="0.01" min="0" placeholder="0.00"'
-            + ' style="width:90px;font-size:14px;font-family:var(--mono);padding:4px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text)">'
-            + '<button onclick="(function(){var v=parseFloat(document.getElementById(\'rbManualPrice\').value);if(v>0){applyVerifiedPrice('+idx+',v);document.getElementById(\'cmLogOverlay\').remove();}})()"'
-            + ' style="padding:4px 12px;background:var(--success);color:var(--bg);border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:13px">'
-            + '\u2713 Applica</button>';
-          b.appendChild(manWrap);
-          setTimeout(function(){ var inp=document.getElementById('rbManualPrice'); if(inp) inp.focus(); }, 100);
-        }
+    // Mostra input manuale nel log
+    const ov = document.getElementById('cmLogOverlay');
+    if(ov){
+      const b = ov.querySelector('.cm-log-body');
+      if(b){
+        const manWrap = document.createElement('div');
+        manWrap.style.cssText = 'padding:6px 12px 10px;display:flex;align-items:center;gap:8px';
+        manWrap.innerHTML = '<input id="rbManualPrice" type="number" step="0.01" min="0" placeholder="0.00"'
+          + ' style="width:90px;font-size:14px;font-family:var(--mono);padding:4px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text)">'
+          + '<button onclick="(function(){var v=parseFloat(document.getElementById(\'rbManualPrice\').value);if(v>0){applyVerifiedPrice('+idx+',v);document.getElementById(\'cmLogOverlay\').remove();}})()"'
+          + ' style="padding:4px 12px;background:var(--success);color:var(--bg);border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:13px">'
+          + '\u2713 Applica</button>';
+        b.appendChild(manWrap);
+        setTimeout(function(){ var inp=document.getElementById('rbManualPrice'); if(inp) inp.focus(); }, 100);
       }
     }
   }catch(e){
@@ -7520,100 +7648,6 @@ async function verifyPrice(idx){
     else alert('verifyPrice error: '+String(e));
   } finally {
     if(btn){ btn.classList.remove('loading'); btn.textContent='\u20ac'; }
-  }
-}
-
-async function autoVerifyPriceAdd(prefix){
-  const card = (prefix==='q') ? quickCard : selCard;
-  if(!card) return;
-
-  const cond    = document.getElementById(prefix+'Cond')?.value  || 'NM';
-  const lang    = document.getElementById(prefix+'Lang')?.value  || 'ITA';
-  const variant = document.getElementById(prefix+'Var')?.value   || 'Normal';
-  const first1st= document.getElementById(prefix+'1st')?.checked || false;
-  const cmUrl = buildCMDirectUrl(card.name, card.set?.id, card.number, cond, lang, variant, first1st);
-
-  const btn = document.getElementById(prefix+'VerifyBtn');
-  if(btn){ btn.classList.add('loading'); btn.innerHTML='<span class="rb-i rb-i-clock"></span>'; }
-
-  // Contenitore log sotto le form-actions
-  const formEl = document.getElementById(prefix==='q'?'quickAddForm':prefix==='s'?'selAddForm':'mform');
-  let logWrap = formEl ? formEl.querySelector('.cm-log-wrap') : null;
-  if(!logWrap && formEl){
-    logWrap = document.createElement('div');
-    logWrap.className = 'cm-log-wrap';
-    logWrap.style.cssText = 'padding:0 0 6px';
-    formEl.appendChild(logWrap);
-  }
-  const log = logWrap ? cmLogger(logWrap) : { log: function(){}, clear: function(){} };
-
-  log.log('Carta: <b>'+card.name+'</b> #'+(card.number||'?')+' · '+cond+' · '+lang);
-  const isDirect = cmUrl.includes('/Singles/') && !cmUrl.includes('searchString=');
-  const urlShort = cmUrl.replace('https://www.cardmarket.com','CM');
-  log.log((isDirect?'URL diretto → ':'URL ricerca → ')+'<a>'+urlShort+'</a>', isDirect?'ok':'warn', cmUrl);
-  log.log('Chiamata Edge Function cm-price…');
-
-  // Rimuovi feedback precedente
-  const prevFb = document.getElementById(prefix+'VerifyFeedback');
-  if(prevFb) prevFb.remove();
-
-  try {
-    const t0 = Date.now();
-    const res = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(window._rbSession?.access_token||SUPA_KEY)},
-      body: JSON.stringify({url: cmUrl, card_name: card.name, condition: cond})
-    });
-    const elapsed = Date.now()-t0;
-      const data = await res.json();
-      log.log('HTTP <b>'+res.status+'</b> ('+elapsed+'ms)', res.ok?'ok':'err');
-
-      if(!res.ok){
-        if(res.status === 404) log.log('Edge Function cm-price non deployata', 'err');
-        else log.log('Errore HTTP: '+(await res.text()).substring(0,150), 'err');
-      } else {
-        if(data.error){
-          log.log('Errore CM: '+data.error, 'err');
-        } else {
-          // Usa listings v3 se disponibili, altrimenti costruisci listing generici da prices
-          const listings = data.listings && data.listings.length
-            ? data.listings
-            : (data.prices||[]).map(function(p){ return {price:p, condition:'NM', condRank:2}; });
-
-          if(listings.length){
-            const smart = smartCMPrice(listings, cond);
-            const bestPrice = smart ? smart.price : listings[0].price;
-
-            // Log dettagliato
-            var logParts = listings.slice(0,5).map(function(l){
-              return (l.condition||'?')+' <b>€'+l.price.toFixed(2)+'</b>';
-            });
-            log.log('CM listing: '+logParts.join(' · '), 'data');
-            if(smart && smart.outlierRemoved > 0)
-              log.log('<span class="rb-i rb-i-warn"></span> '+smart.outlierRemoved+' outlier rimossi', 'warn');
-            log.log('<span class="rb-i rb-i-check"></span> Prezzo smart (mediana top-3): <b>€'+bestPrice.toFixed(2)+'</b>', 'ok');
-
-            if(prefix==='q'){
-              document.getElementById('qSell').value = bestPrice.toFixed(2);
-              const priceEl = document.getElementById('qmPriceVal');
-              if(priceEl){ priceEl.textContent = '€'+bestPrice.toFixed(2); priceEl.style.color='var(--success)'; }
-              const factEl = document.getElementById('qmPriceFactor');
-              if(factEl){ factEl.textContent = 'CM live · '+cond+' · '+lang+' · mediana top-3'; }
-              document.getElementById('qmPriceRow').style.display='flex';
-            } else {
-              document.getElementById('sSell').value = bestPrice.toFixed(2);
-            }
-            showAddVerifyFeedback(prefix, listings.map(function(l){return l.price;}), bestPrice, cond, lang);
-          } else {
-            log.log('Nessun prezzo estratto — CM potrebbe bloccare la richiesta', 'warn');
-          }
-        }
-      }
-    } catch(e){
-    log.log('Errore: '+e.message, 'err');
-    if(e.message.includes('Failed to fetch')) log.log('Edge Function non raggiungibile', 'warn');
-  } finally {
-    if(btn){ btn.classList.remove('loading'); btn.textContent='€'; }
   }
 }
 
@@ -7632,88 +7666,81 @@ async function verifyPriceAdd(prefix){
   const name     = card ? (card.name||'') : (document.getElementById('mname')?.value||'');
   const number   = card ? (card.number||'') : (document.getElementById('mnum')?.value||'');
   const setId    = card?.set?.id || null;
+  const setName  = card?.set?.name || '';
 
   if(!name){ alert('Nessuna carta selezionata'); return; }
 
   const btn = document.getElementById(prefix+'VerifyBtn');
   if(btn){ btn.classList.add('loading'); btn.innerHTML='<span class="rb-i rb-i-clock"></span>'; }
 
-  const cmUrl = buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st);
+  // Overlay log floating (stesso pattern di verifyPrice tabella)
+  const log = cmLogger(name+(number?' \u00b7 #'+number:''));
 
-  // Apri tab CM nel contesto del click utente
-  const cmTab = window.open(cmUrl, '_blank');
+  // Rimuovi feedback precedente
+  const prevFb = document.getElementById(prefix+'VerifyFeedback');
+  if(prevFb) prevFb.remove();
 
-  // Chiave unica per questo handler (evita collisioni con verifyPrice tabella)
-  const handlerKey = 'add_'+prefix+'_'+Date.now();
+  log.log(cond+' \u00b7 '+lang+' \u00b7 '+variant+(first1st?' \u00b7 1st ed':''), 'data');
+  log.log('\u{1F680} Scraping server-side\u2026','info');
 
-  function applyListings(listings){
-    if(!listings || !listings.length) return false;
-    // Chiudi tab CM — retry multiplo perché Chrome può bloccare il primo tentativo
-    var closeAttempts = 0;
-    function tryCmClose(){
-      if(closeAttempts++ > 5) return;
-      try{
-        if(cmTab && !cmTab.closed){ cmTab.close(); }
-        if(cmTab && !cmTab.closed) setTimeout(tryCmClose, 200);
-      }catch(e){}
+  try{
+    const t0 = Date.now();
+    const res = await fetchCmPriceLive({
+      name: name, setId: setId, number: number,
+      condition: cond, language: lang, variant: variant,
+      first_edition: first1st, setName: setName,
+    });
+    const elapsed = Date.now()-t0;
+
+    const urlShort = (res.cmUrl||'').replace('https://www.cardmarket.com','CM');
+    log.log((res.isDirect?'URL diretto':'URL ricerca')+' \u2192 <a>'+urlShort+'</a> ('+elapsed+'ms)', res.isDirect?'ok':'warn', res.cmUrl);
+
+    if(!res.ok){
+      log.log('Errore: '+(res.error||'nessun dato'), 'err');
+      if(!res.isDirect) log.log('Set non in CM_DIRECT_SETS \u2014 inserisci prezzo manuale', 'warn');
+      if(btn){ btn.classList.remove('loading'); btn.textContent='€'; }
+      return;
     }
-    tryCmClose();
-    const smart = smartCMPrice(listings, cond);
-    const bestPrice = smart ? smart.price : listings[0].price;
+
+    // Log delle prime 5 listings
+    const listings = res.listings;
+    var logParts = listings.slice(0,5).map(function(l){
+      var condShort = {Mint:'MT','Near Mint':'NM',Excellent:'EX',Good:'GD','Light Played':'LP',Played:'PL',Poor:'PO'};
+      var cs = condShort[l.condition] || l.condition || '?';
+      return cs+' <b>\u20ac'+l.price.toFixed(2)+'</b>';
+    });
+    log.log('CM listing: '+logParts.join(' \u00b7 '), 'data');
+    if(res.smart && res.smart.outlierRemoved > 0)
+      log.log('<span class="rb-i rb-i-warn"></span> '+res.smart.outlierRemoved+' outlier rimossi', 'warn');
+    log.log('<span class="rb-i rb-i-check"></span> Prezzo smart (mediana top-3): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
+
+    // Applica il prezzo nel campo target
+    const bestPrice = res.price;
     if(prefix==='q'){
       document.getElementById('qSell').value = bestPrice.toFixed(2);
-      updateQuickPrice();
+      const priceEl = document.getElementById('qmPriceVal');
+      if(priceEl){ priceEl.textContent = '€'+bestPrice.toFixed(2); priceEl.style.color='var(--success)'; }
+      const factEl = document.getElementById('qmPriceFactor');
+      if(factEl){ factEl.textContent = 'CM live \u00b7 '+cond+' \u00b7 '+lang+' \u00b7 mediana top-3'; }
+      const rowEl = document.getElementById('qmPriceRow');
+      if(rowEl) rowEl.style.display='flex';
     } else if(prefix==='s'){
       document.getElementById('sSell').value = bestPrice.toFixed(2);
-      updateSelPrice();
+      if(typeof updateSelPrice==='function') updateSelPrice();
     } else if(prefix==='m'){
       document.getElementById('mcm').value = bestPrice.toFixed(2);
-      document.getElementById('msell').value = bestPrice.toFixed(2);
+      const msell = document.getElementById('msell');
+      if(msell) msell.value = bestPrice.toFixed(2);
     } else if(prefix==='p'){
       document.getElementById('pCmPrice').value = bestPrice.toFixed(2);
     }
     showAddVerifyFeedback(prefix, listings.map(function(l){return l.price;}), bestPrice, cond, lang);
-    if(btn){ btn.classList.remove('loading'); btn.textContent='€'; }
-    return true;
-  }
 
-  // Attendi postMessage dallo userscript (primario — max 45s)
-  const fromUserscript = new Promise(function(resolve){
-    var timer = setTimeout(function(){ resolve(null); }, 45000);
-    window._rbRegisterPriceHandler(handlerKey, function(prices, data, listings){
-      clearTimeout(timer);
-      resolve(listings && listings.length ? listings
-        : prices.map(function(p){ return {price:p, condition:'NM', condRank:2}; }));
-    });
-  });
-
-  // Avvia Edge Function in parallelo (fallback)
-  const fromEdge = fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+(window._rbSession?.access_token||SUPA_KEY)},
-    body: JSON.stringify({url: cmUrl, card_name: name, condition: cond})
-  }).then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(data){
-      if(!data) return null;
-      if(data.listings && data.listings.length) return data.listings;
-      if(data.prices && data.prices.length) return data.prices.map(function(p){ return {price:p,condition:'NM',condRank:2}; });
-      return null;
-    }).catch(function(){ return null; });
-
-  // Vince chi risponde prima con dati validi
-  const listings = await Promise.race([
-    fromUserscript,
-    // Edge function: se risponde prima con dati, usala
-    fromEdge.then(function(ls){ return ls && ls.length ? ls : new Promise(function(){}); })
-  ]);
-
-  // Cancella handler userscript se ancora attivo
-  window._rbUnregisterPriceHandler && window._rbUnregisterPriceHandler(handlerKey);
-
-  if(listings && listings.length){
-    applyListings(listings);
-  } else {
-    // Nessun dato — lascia tab CM aperta, ripristina bottone
+    // Auto-close overlay dopo successo
+    setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 2000);
+  }catch(e){
+    log.log('Errore: '+(e.message||String(e)), 'err');
+  }finally{
     if(btn){ btn.classList.remove('loading'); btn.textContent='€'; }
   }
 }
