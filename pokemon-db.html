@@ -5062,6 +5062,7 @@ async function verifyPriceColEdit(){
       variant:     variant,
       first_edition: first1st,
       setName:     c.set_name || '',
+      rarity:      c.rarity || '',
     });
     const elapsed = Date.now()-t0;
 
@@ -6755,6 +6756,7 @@ async function verifyPriceEdit(){
       variant:     variant,
       first_edition: first1st,
       setName:     c.set || '',
+      rarity:      c.rarity || '',
     });
     const elapsed = Date.now()-t0;
 
@@ -6988,13 +6990,39 @@ const CM_LANG_ID={'ENG':1,'FRA':2,'DEU':3,'ESP':4,'ITA':5,'JPN':7,'POR':8,'KOR':
 // 1=MT 2=NM 3=EX 4=GD 5=LP 6=PL 7=PO
 const CM_COND_ID={'MINT':1,'NM':2,'EX':3,'GD':4,'LP':5,'PL':6,'PO':7,'INK/ALT':7};
 
-// Sets che usano il formato {Name}-V1-{Code}{Num} (solo Base Set: aveva shadowless/unlimited distinzione)
-// Tutti gli altri usano {Name}-{Code}{Num}
-// Set che usano pattern V1/V2 nel cardSlug. Per ora solo Base Set ed Evolutions:
-//  • base1: presente per ragioni storiche (set originale con multiple varianti)
-//  • xy12 Evolutions: tribute set di Base, CM applica V1 sulle holo rare reprint
-//    (es. Charizard EVO11 → Charizard-V1-EVO11)
-const CM_V1_SETS = {'base1': true, 'xy12': true};
+// ─── Risoluzione versione cardSlug primaria per set ambigui ──────────────────
+// Una stessa carta in un set "ambiguo" può esistere su CM con 3 prodotti distinti:
+//   {Name}-{Abbrev}{N}     (no-V)  → versione normale
+//   {Name}-V1-{Abbrev}{N}  (V1)    → variante "shadowless" o "holo tribute"
+//   {Name}-V2-{Abbrev}{N}  (V2)    → variante "Rare Holo" / "Crystal" / "reprint holo"
+// Discriminiamo in base a rarity (TCG API) + variant (input utente) per portare
+// dritti alla pagina corretta senza fare 3 chiamate edge.
+function _cmPrimaryVersionFor(setId, variant, rarity){
+  if(!setId) return '';
+  var r = (rarity||'').toLowerCase();
+  var v = (variant||'').toLowerCase();
+
+  // e-Card + Evolutions: V2 = versione holo (Crystal / Rare Holo reprint)
+  if(setId === 'ecard1' || setId === 'ecard2' || setId === 'ecard3'){
+    if(r.indexOf('holo') >= 0 || r.indexOf('crystal') >= 0) return 'V2';
+    if(v === 'holo' || v === 'reverse holo') return 'V2';
+    return '';  // versione base (no-V)
+  }
+  if(setId === 'xy12'){
+    // Evolutions: V1 è la holo reprint stile Base Set
+    if(r.indexOf('holo') >= 0) return 'V1';
+    if(v === 'holo' || v === 'reverse holo') return 'V1';
+    return '';
+  }
+
+  // Base Set: V1 = Shadowless (raro, prezzo alto), no-V = Unlimited
+  if(setId === 'base1'){
+    if(v === 'shadowless') return 'V1';
+    return '';
+  }
+
+  return '';
+}
 
 // Formato slug carta varia per set:
 //   Base Set:  Charizard-V1-BS4   (shadowless vs unlimited → CM usa versioni)
@@ -7118,11 +7146,13 @@ const CM_SET_NAME_TO_ID={
 
 // Costruisce URL alla pagina prodotto Cardmarket con filtri lingua/condizione/ed.
 // Accetta sia setId (TCG API ID) che setName (nome del set) come fallback per item vecchi
+// L'ultimo parametro `rarity` è opzionale (retro-compat): permette di scegliere
+// la versione corretta dei set ambigui (V1/V2/no-V) senza ricorrere alla cascata.
 // Strategia a cascata:
-//  1. Pagina prodotto diretta: /Singles/{SetSlug}/{NameSlug}[-V1-]{SetAbbrev}{Number}
+//  1. Pagina prodotto diretta: /Singles/{SetSlug}/{NameSlug}[-V1|V2-]{SetAbbrev}{Number}
 //  2. Browse set filtrato per nome: /Singles/{SetSlug}?searchString={Name}
 //  3. Ricerca generica: /Products/Search?searchString={Name}
-function buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, setName){
+function buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, setName, rarity){
   // Risolvi setId: usa quello fornito, poi prova dal nome del set
   const resolvedSetId = setId || CM_SET_NAME_TO_ID[setName||''] || null;
   const setSlug   = CM_SET_SLUG[resolvedSetId]   || null;
@@ -7141,10 +7171,10 @@ function buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, se
     // Numero ripulito: rimuovi suffisso "/totale" e zeri leading
     // Es: "26" → "26", "01" → "1", "26/40" → "26", "001" → "1"
     const numClean = (number+'').split('/')[0].replace(/^0+/, '') || '0';
-    const useV1 = CM_V1_SETS[resolvedSetId] || false;
-    const cardSlug = useV1
-      ? nameSlug + '-V1-' + setAbbrev + numClean
-      : nameSlug + '-'    + setAbbrev + numClean;
+    // Versione primaria basata su rarity + variant (es. ecard2 Rare Holo → V2)
+    const primaryV = _cmPrimaryVersionFor(resolvedSetId, variant, rarity);
+    const versionPrefix = primaryV ? '-'+primaryV+'-' : '-';
+    const cardSlug = nameSlug + versionPrefix + setAbbrev + numClean;
     return 'https://www.cardmarket.com/it/Pokemon/Products/Singles/'+setSlug+'/'+cardSlug+'?'+qs;
   }
 
@@ -7198,9 +7228,9 @@ const CM_AMBIGUOUS_VERSION_SETS = new Set([
 // Costruisce TUTTE le varianti di URL diretto (no-V, V1, V2) per set ambigui.
 // Ritorna [] se il set non è ambiguo o mancano dati: in quel caso basta un solo
 // tentativo via buildCMDirectUrl. Le varianti sono ordinate con primary first
-// (in base a CM_V1_SETS), così il primo tentativo è quello statisticamente
-// più probabile per il set.
-function buildCMDirectUrlVariants(name, setId, number, cond, lang, variant, first1st, setName){
+// in base a _cmPrimaryVersionFor (rarity+variant), così il primo retry è
+// quello statisticamente più probabile dato il contesto.
+function buildCMDirectUrlVariants(name, setId, number, cond, lang, variant, first1st, setName, rarity){
   const resolvedSetId = setId || CM_SET_NAME_TO_ID[setName||''] || null;
   const setSlug   = CM_SET_SLUG[resolvedSetId]   || null;
   const setAbbrev = CM_SET_ABBREV[resolvedSetId] || null;
@@ -7217,16 +7247,20 @@ function buildCMDirectUrlVariants(name, setId, number, cond, lang, variant, firs
   params.set('isFirstEd', first1st ? 'Y' : 'N');
   const qs = params.toString();
 
-  const baseSlug = nameSlug + '-'    + setAbbrev + numClean;
-  const v1Slug   = nameSlug + '-V1-' + setAbbrev + numClean;
-  const v2Slug   = nameSlug + '-V2-' + setAbbrev + numClean;
+  const slugByVer = {
+    '':   nameSlug + '-'    + setAbbrev + numClean,
+    'V1': nameSlug + '-V1-' + setAbbrev + numClean,
+    'V2': nameSlug + '-V2-' + setAbbrev + numClean,
+  };
 
-  // Ordina primary first in base a CM_V1_SETS (default V1 per base1/xy12)
-  const useV1Default = CM_V1_SETS[resolvedSetId] || false;
-  const slugs = useV1Default ? [v1Slug, baseSlug, v2Slug] : [baseSlug, v1Slug, v2Slug];
+  // Ordina primary first in base a _cmPrimaryVersionFor, poi le altre due
+  const primary = _cmPrimaryVersionFor(resolvedSetId, variant, rarity);
+  const order = primary === 'V2' ? ['V2', '',   'V1']
+              : primary === 'V1' ? ['V1', '',   'V2']
+              :                    ['',   'V2', 'V1'];
 
-  return slugs.map(function(s){
-    return 'https://www.cardmarket.com/it/Pokemon/Products/Singles/'+setSlug+'/'+s+'?'+qs;
+  return order.map(function(v){
+    return 'https://www.cardmarket.com/it/Pokemon/Products/Singles/'+setSlug+'/'+slugByVer[v]+'?'+qs;
   });
 }
 
@@ -7617,6 +7651,7 @@ async function fetchCmPriceLive(opts){
   var variant   = (opts && opts.variant) || 'Normal';
   var first1st  = !!(opts && opts.first_edition);
   var setName   = (opts && opts.setName) || '';
+  var rarity    = (opts && opts.rarity) || '';
 
   if(!name) return {ok:false, error:'nome carta mancante', attempts:[]};
 
@@ -7625,9 +7660,11 @@ async function fetchCmPriceLive(opts){
     var _cached = cache[name.toLowerCase().trim()];
     var _hit = _cached ? (_cached.find(function(x){return x.number===number;}) || _cached[0]) : null;
     if(_hit && _hit.set) setId = _hit.set.id;
+    // Recupera anche rarity dalla cache se mancante (importante per i set ambigui)
+    if(!rarity && _hit && _hit.rarity) rarity = _hit.rarity;
   }
 
-  var cmUrl = buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, setName);
+  var cmUrl = buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, setName, rarity);
   var isDirect = cmUrl.indexOf('/Singles/') !== -1 && cmUrl.indexOf('searchString=') === -1;
 
   // Traccia tutti i tentativi fatti — esposto al caller per logging dettagliato
@@ -7641,7 +7678,7 @@ async function fetchCmPriceLive(opts){
   // pagine V1/V2 sono detail pages parsabili dall'edge function, quindi è il
   // retry più efficace per recuperare carte irregolari (es. Venusaur-V2-EX68).
   if(isDirect && (!srv.listings || !srv.listings.length)){
-    var variants = buildCMDirectUrlVariants(name, setId, number, cond, lang, variant, first1st, setName);
+    var variants = buildCMDirectUrlVariants(name, setId, number, cond, lang, variant, first1st, setName, rarity);
     variants = variants.filter(function(u){ return u !== cmUrl; });
     for(var i=0; i<variants.length; i++){
       var srvV = await _vpServerSideCMScrape(variants[i]);
@@ -7795,6 +7832,7 @@ async function verifyPriceAdd(prefix){
   const number   = card ? (card.number||'') : (document.getElementById('mnum')?.value||'');
   const setId    = card?.set?.id || null;
   const setName  = card?.set?.name || '';
+  const rarity   = card?.rarity || '';
 
   if(!name){ alert('Nessuna carta selezionata'); return; }
 
@@ -7816,7 +7854,7 @@ async function verifyPriceAdd(prefix){
     const res = await fetchCmPriceLive({
       name: name, setId: setId, number: number,
       condition: cond, language: lang, variant: variant,
-      first_edition: first1st, setName: setName,
+      first_edition: first1st, setName: setName, rarity: rarity,
     });
     const elapsed = Date.now()-t0;
 
