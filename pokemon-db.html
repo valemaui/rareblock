@@ -6992,30 +6992,42 @@ const CM_COND_ID={'MINT':1,'NM':2,'EX':3,'GD':4,'LP':5,'PL':6,'PO':7,'INK/ALT':7
 
 // ─── Risoluzione versione cardSlug primaria per set ambigui ──────────────────
 // Una stessa carta in un set "ambiguo" può esistere su CM con 3 prodotti distinti:
-//   {Name}-{Abbrev}{N}     (no-V)  → versione normale
+//   {Name}-{Abbrev}{N}     (no-V)  → versione standard non-holo
 //   {Name}-V1-{Abbrev}{N}  (V1)    → variante "shadowless" o "holo tribute"
-//   {Name}-V2-{Abbrev}{N}  (V2)    → variante "Rare Holo" / "Crystal" / "reprint holo"
-// Discriminiamo in base a rarity (TCG API) + variant (input utente) per portare
-// dritti alla pagina corretta senza fare 3 chiamate edge.
+//   {Name}-V2-{Abbrev}{N}  (V2)    → variante "Reverse Holo" / "Crystal" / "foil reprint"
+//
+// Per i set e-Card (Expedition/Aquapolis/Skyridge), CM separa la versione
+// non-holo (base) dalla versione Reverse Holo (V2). Su Aquapolis es:
+//   Octillery-AQ26    → ~€0.10 (non-holo, poco richiesta)
+//   Octillery-V2-AQ26 → €X.XX  (Reverse Holo, quella di mercato)
+// Tutte le carte di rarity "Rare" (inclusa Rare Holo) hanno una controparte
+// Reverse Holo che è la versione standard di interesse collezionistico.
+//
+// Discriminiamo in base a rarity (TCG API) + variant (input utente) per
+// portare dritti alla pagina corretta senza chiamate edge extra.
 function _cmPrimaryVersionFor(setId, variant, rarity){
   if(!setId) return '';
   var r = (rarity||'').toLowerCase();
   var v = (variant||'').toLowerCase();
 
-  // e-Card + Evolutions: V2 = versione holo (Crystal / Rare Holo reprint)
+  // e-Card: V2 = Reverse Holo (versione standard di mercato per tutte le rare)
   if(setId === 'ecard1' || setId === 'ecard2' || setId === 'ecard3'){
-    if(r.indexOf('holo') >= 0 || r.indexOf('crystal') >= 0) return 'V2';
-    if(v === 'holo' || v === 'reverse holo') return 'V2';
-    return '';  // versione base (no-V)
-  }
-  if(setId === 'xy12'){
-    // Evolutions: V1 è la holo reprint stile Base Set
-    if(r.indexOf('holo') >= 0) return 'V1';
-    if(v === 'holo' || v === 'reverse holo') return 'V1';
+    // Variant esplicito Reverse Holo o Holo → V2
+    if(v === 'reverse holo' || v === 'holo') return 'V2';
+    // Tutte le rare (Rare, Rare Holo) hanno Reverse Holo come versione CM principale
+    if(r.indexOf('rare') >= 0) return 'V2';
+    // Common, Uncommon → versione base non-holo
     return '';
   }
 
-  // Base Set: V1 = Shadowless (raro, prezzo alto), no-V = Unlimited
+  // xy12 Evolutions: V1 è la holo reprint stile Base Set
+  if(setId === 'xy12'){
+    if(v === 'holo' || v === 'reverse holo') return 'V1';
+    if(r.indexOf('rare holo') >= 0) return 'V1';
+    return '';
+  }
+
+  // Base Set: V1 = Shadowless (raro), no-V = Unlimited (default)
   if(setId === 'base1'){
     if(v === 'shadowless') return 'V1';
     return '';
