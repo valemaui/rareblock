@@ -7045,16 +7045,20 @@ const CM_SET_ABBREV={
 
 // Set per cui possiamo costruire URL diretto affidabile
 // Esclusi: DP (livelli), Platinum (livelli), XY-SV (versioni V1/V2/V3)
-// Esclusi anche: ecard1/ecard2/ecard3 (Expedition, Aquapolis, Skyridge):
-//   queste serie usano pattern V1/V2/no-V imprevedibile per carta specifica
-//   (es. Venusaur-V2-EX68 vs Venusaur-EX67 vs Venusaur-V1-EX30 nello stesso set).
-//   Non potendo determinare a priori il prefisso versione, fallback su livello 2
-//   (browse Expedition-Base-Set?searchString=Venusaur 68) che è sempre stabile.
+// Inclusi ma con fallback livello 2 in fetchCmPriceLive: ecard1 (Expedition).
+//   La maggior parte delle carte usa pattern semplice {NameSlug}-EX{N} (es. Dual-Ball-EX139).
+//   Le poche carte holo con V1/V2 falliscono al livello 1 e vengono recuperate
+//   tramite retry su URL ricerca (browse + searchString).
+//   ecard2 (Aquapolis) ed ecard3 (Skyridge) restano fuori: la frequenza di
+//   pattern V1/V2/no-V irregolari è troppo alta per avere un primo tentativo
+//   utile, meglio andare diretto su livello 2.
 const CM_DIRECT_SETS = new Set([
   // WotC
   'base1','base2','base3','base4','base5','base6',
   'gym1','gym2',
   'neo1','neo2','neo3','neo4','si1',
+  // E-Card
+  'ecard1',
   // EX
   'ex1','ex2','ex3','ex4','ex5','ex6','ex7','ex8',
   'ex9','ex10','ex11','ex12','ex13','ex14','ex15','ex16',
@@ -7160,6 +7164,27 @@ function buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, se
   const globalSearch = number ? name+' '+(number+'').split('/')[0] : name;
   return 'https://www.cardmarket.com/it/Pokemon/Products/Search?category=-1'
     +'&searchString='+encodeURIComponent(globalSearch)+'&searchMode=v2&'+qs;
+}
+
+// Costruisce SOLO l'URL livello 2 (browse set + searchString).
+// Usato come fallback quando il livello 1 (URL diretto) ritorna 0 listings:
+// es. carte e-Card con pattern V1/V2 imprevedibile dove il /Singles/{SetSlug}/{cardSlug}
+// è 404 ma /Singles/{SetSlug}?searchString= trova comunque la carta.
+function buildCMSearchUrl(name, setId, number, cond, lang, variant, first1st, setName){
+  const resolvedSetId = setId || CM_SET_NAME_TO_ID[setName||''] || null;
+  const setSlug   = CM_SET_SLUG[resolvedSetId] || null;
+  const nameSlug  = buildCardmarketSlug(name || '');
+  if(!setSlug || !nameSlug) return null;
+
+  const params = new URLSearchParams();
+  params.set('language',     CM_LANG_ID[lang||'ITA'] || 5);
+  params.set('minCondition', CM_COND_ID[cond||'NM']  || 2);
+  if(variant==='Reverse Holo') params.set('isReverseHolo','Y');
+  params.set('isFirstEd', first1st ? 'Y' : 'N');
+
+  const searchStr = number ? name+' '+(number+'').split('/')[0] : name;
+  return 'https://www.cardmarket.com/it/Pokemon/Products/Singles/'+setSlug
+    +'?searchString='+encodeURIComponent(searchStr)+'&'+params.toString();
 }
 
 function openCardmarketAdd(){
@@ -7548,6 +7573,22 @@ async function fetchCmPriceLive(opts){
   var isDirect = cmUrl.indexOf('/Singles/') !== -1 && cmUrl.indexOf('searchString=') === -1;
 
   var srv = await _vpServerSideCMScrape(cmUrl);
+
+  // Fallback livello 2: se URL diretto non ha listings (carta con V1/V2 irregolare,
+  // es. ecard1 Venusaur-V2-EX68), ritenta con URL ricerca dentro lo stesso set
+  // (più affidabile di un 404 sul pattern semplice).
+  if(isDirect && (!srv.listings || !srv.listings.length)){
+    var searchUrl = buildCMSearchUrl(name, setId, number, cond, lang, variant, first1st, setName);
+    if(searchUrl && searchUrl !== cmUrl){
+      var srv2 = await _vpServerSideCMScrape(searchUrl);
+      if(srv2.listings && srv2.listings.length){
+        srv = srv2;
+        cmUrl = searchUrl;
+        isDirect = false;  // ora siamo su URL ricerca
+      }
+    }
+  }
+
   if(!srv.listings || !srv.listings.length){
     return {
       ok: false,
