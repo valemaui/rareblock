@@ -5065,12 +5065,12 @@ async function verifyPriceColEdit(){
     });
     const elapsed = Date.now()-t0;
 
-    const urlShort = (res.cmUrl||'').replace('https://www.cardmarket.com','CM');
-    log.log((res.isDirect?'URL diretto':'URL ricerca')+' \u2192 <a>'+urlShort+'</a> ('+elapsed+'ms)', res.isDirect?'ok':'warn', res.cmUrl);
+    _logCmAttempts(log, res.attempts);
+    log.log('Totale '+((res.attempts||[]).length)+' tentativ' + ((res.attempts||[]).length===1?'o':'i')+' \u00b7 '+elapsed+'ms', 'data');
 
     if(!res.ok){
-      log.log('Errore: '+(res.error||'nessun dato'), 'err');
-      if(!res.isDirect) log.log('Set non in CM_DIRECT_SETS \u2014 inserisci prezzo manuale', 'warn');
+      log.log('Errore finale: '+(res.error||'nessun dato'), 'err');
+      log.log('Apri uno degli URL qui sopra e verifica manualmente, poi inserisci il prezzo', 'warn');
       return;
     }
     // Log dettagliato
@@ -6758,12 +6758,12 @@ async function verifyPriceEdit(){
     });
     const elapsed = Date.now()-t0;
 
-    const urlShort = (res.cmUrl||'').replace('https://www.cardmarket.com','CM');
-    log.log((res.isDirect?'URL diretto':'URL ricerca')+' \u2192 <a>'+urlShort+'</a> ('+elapsed+'ms)', res.isDirect?'ok':'warn', res.cmUrl);
+    _logCmAttempts(log, res.attempts);
+    log.log('Totale '+((res.attempts||[]).length)+' tentativ' + ((res.attempts||[]).length===1?'o':'i')+' \u00b7 '+elapsed+'ms', 'data');
 
     if(!res.ok){
-      log.log('Errore: '+(res.error||'nessun dato'), 'err');
-      if(!res.isDirect) log.log('Set non in CM_DIRECT_SETS \u2014 inserisci prezzo manuale', 'warn');
+      log.log('Errore finale: '+(res.error||'nessun dato'), 'err');
+      log.log('Apri uno degli URL qui sopra e verifica manualmente, poi inserisci il prezzo', 'warn');
       return;
     }
 
@@ -7593,6 +7593,21 @@ async function _vpServerSideCMScrape(cmUrl){
 // Usata da TUTTI gli entry point (verifyPriceAdd, verifyPrice, verifyPriceColEdit,
 // verifyPriceEdit). Server-side puro: nessuna tab CM aperta, nessun userscript.
 // Ritorna {ok, price, listings, smart, isDirect, cmUrl, error, debug}.
+// Helper: logga gli attempts del fetchCmPriceLive in un cmLogger.
+// Mostra una riga per ogni tentativo con kind (L1-base/L1-V1/L1-V2/L2-search),
+// count listings e URL accorciato. Cliccabile per aprire la pagina CM.
+function _logCmAttempts(log, attempts){
+  if(!log || !attempts || !attempts.length) return;
+  attempts.forEach(function(a){
+    var shortUrl = (a.url||'').replace('https://www.cardmarket.com','CM');
+    var status = a.count > 0 ? 'ok' : (a.error ? 'err' : 'warn');
+    var msg = '<b>'+a.kind+'</b> \u2192 <a>'+shortUrl+'</a> \u2192 '
+      + (a.count > 0 ? '<b>'+a.count+'</b> listing'
+         : (a.error ? '<i>'+a.error+'</i>' : '<i>0 listing</i>'));
+    log.log(msg, status, a.url);
+  });
+}
+
 async function fetchCmPriceLive(opts){
   var name      = (opts && opts.name) || '';
   var setId     = (opts && opts.setId) || null;
@@ -7603,7 +7618,7 @@ async function fetchCmPriceLive(opts){
   var first1st  = !!(opts && opts.first_edition);
   var setName   = (opts && opts.setName) || '';
 
-  if(!name) return {ok:false, error:'nome carta mancante'};
+  if(!name) return {ok:false, error:'nome carta mancante', attempts:[]};
 
   // Risolvi set_id dalla cache se non fornito (es. carte preventivo legacy)
   if(!setId){
@@ -7615,7 +7630,11 @@ async function fetchCmPriceLive(opts){
   var cmUrl = buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, setName);
   var isDirect = cmUrl.indexOf('/Singles/') !== -1 && cmUrl.indexOf('searchString=') === -1;
 
+  // Traccia tutti i tentativi fatti — esposto al caller per logging dettagliato
+  var attempts = [];
+
   var srv = await _vpServerSideCMScrape(cmUrl);
+  attempts.push({url:cmUrl, kind:(isDirect?'L1-base':'L2-search'), count:(srv.listings||[]).length, error:srv.error||null});
 
   // Fallback A: per set "ambigui" (Base, e-Card, Evolutions) ritenta le altre
   // varianti del cardSlug (V1, V2, no-V) se il primo tentativo è vuoto. Le
@@ -7626,6 +7645,10 @@ async function fetchCmPriceLive(opts){
     variants = variants.filter(function(u){ return u !== cmUrl; });
     for(var i=0; i<variants.length; i++){
       var srvV = await _vpServerSideCMScrape(variants[i]);
+      var vKind = variants[i].indexOf('-V1-')>=0 ? 'L1-V1'
+                : variants[i].indexOf('-V2-')>=0 ? 'L1-V2'
+                : 'L1-noV';
+      attempts.push({url:variants[i], kind:vKind, count:(srvV.listings||[]).length, error:srvV.error||null});
       if(srvV.listings && srvV.listings.length){
         srv = srvV;
         cmUrl = variants[i];
@@ -7642,6 +7665,7 @@ async function fetchCmPriceLive(opts){
     var searchUrl = buildCMSearchUrl(name, setId, number, cond, lang, variant, first1st, setName);
     if(searchUrl && searchUrl !== cmUrl){
       var srv2 = await _vpServerSideCMScrape(searchUrl);
+      attempts.push({url:searchUrl, kind:'L2-search', count:(srv2.listings||[]).length, error:srv2.error||null});
       if(srv2.listings && srv2.listings.length){
         srv = srv2;
         cmUrl = searchUrl;
@@ -7658,6 +7682,7 @@ async function fetchCmPriceLive(opts){
       isDirect: isDirect,
       cmUrl: cmUrl,
       debug: srv.debug,
+      attempts: attempts,
     };
   }
   var smart = smartCMPrice(srv.listings, cond);
@@ -7669,6 +7694,7 @@ async function fetchCmPriceLive(opts){
     smart: smart,
     isDirect: isDirect,
     cmUrl: cmUrl,
+    attempts: attempts,
   };
 }
 
@@ -7794,12 +7820,13 @@ async function verifyPriceAdd(prefix){
     });
     const elapsed = Date.now()-t0;
 
-    const urlShort = (res.cmUrl||'').replace('https://www.cardmarket.com','CM');
-    log.log((res.isDirect?'URL diretto':'URL ricerca')+' \u2192 <a>'+urlShort+'</a> ('+elapsed+'ms)', res.isDirect?'ok':'warn', res.cmUrl);
+    // Logga tutti i tentativi (L1-base, L1-V1, L1-V2, L2-search)
+    _logCmAttempts(log, res.attempts);
+    log.log('Totale '+((res.attempts||[]).length)+' tentativ' + ((res.attempts||[]).length===1?'o':'i')+' \u00b7 '+elapsed+'ms', 'data');
 
     if(!res.ok){
-      log.log('Errore: '+(res.error||'nessun dato'), 'err');
-      if(!res.isDirect) log.log('Set non in CM_DIRECT_SETS \u2014 inserisci prezzo manuale', 'warn');
+      log.log('Errore finale: '+(res.error||'nessun dato'), 'err');
+      log.log('Apri uno degli URL qui sopra e verifica manualmente, poi inserisci il prezzo', 'warn');
       if(btn){ btn.classList.remove('loading'); btn.textContent='€'; }
       return;
     }
