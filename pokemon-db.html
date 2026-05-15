@@ -7157,19 +7157,27 @@ function _cmPrimaryVersionFor(setId, variant, rarity, name){
   var v = (variant||'').toLowerCase();
   var n = (name||'').toLowerCase();
 
-  // e-Card: V2 = Reverse Holo (versione standard di mercato per tutte le rare)
+  // ── e-Card sets (Expedition / Aquapolis / Skyridge) ────────────────────
+  // Verificato empiricamente su CM (2026-05-15) con vari casi:
+  //   - Charizard EX39 (Rare Holo)    \u2192 Charizard-EX39        (no V2, \u00e8 gi\u00e0 holo)
+  //   - Octillery AQ26 (Rare)         \u2192 Octillery-V2-AQ26      (V2 = Reverse Holo)
+  //   - Darkness Energy EX158 (Rare)  \u2192 Darkness-Energy-EX158  (no V2, energie speciali)
+  //   - Wartortle EX92 (Common)       \u2192 Wartortle-EX92         (no V2 default; V2 esiste come reverse holo opzionale)
+  // Pattern: Rare Holo \u00e8 GIA' la versione holo \u2192 nessuna Reverse Holo separata.
+  //          Rare normale \u2192 esiste anche come Reverse Holo (V2), che spesso \u00e8
+  //                       la versione pi\u00f9 quotata sul mercato.
   if(setId === 'ecard1' || setId === 'ecard2' || setId === 'ecard3'){
-    // ECCEZIONE ENERGIE: le carte Energy in Expedition/Aquapolis/Skyridge anche
-    // se rare hanno tipicamente UNA sola versione su CM (no V1/V2). Es:
-    // Darkness Energy #158 \u2192 Darkness-Energy-EX158 (no V2). Riconosciute
-    // sia per nome ("Energy" \u00e8 nel nome di tutte le energie basic+special)
-    // sia per type rarity (qualche dataset usa "Rare Holo Energy").
+    // Energie: anche se rare, hanno UNA sola versione su CM
     if(n.indexOf('energy') >= 0 || r.indexOf('energy') >= 0) return '';
-    // Variant esplicito Reverse Holo o Holo \u2192 V2
-    if(v === 'reverse holo' || v === 'holo') return 'V2';
-    // Tutte le rare (Rare, Rare Holo) hanno Reverse Holo come versione CM principale
-    if(r.indexOf('rare') >= 0) return 'V2';
-    // Common, Uncommon \u2192 versione base non-holo
+    // Rare Holo: nessuna Reverse Holo separata, URL diretto no-V
+    if(r.indexOf('rare holo') >= 0) return '';
+    // Variant esplicito Reverse Holo \u2192 V2 (vale anche per Common/Uncommon che hanno reverse)
+    if(v === 'reverse holo') return 'V2';
+    // Variant Holo (raro per e-Card, ma se l'utente lo specifica) \u2192 V2
+    if(v === 'holo') return 'V2';
+    // Rare normale (no holo) \u2192 V2 (Reverse Holo \u00e8 la versione di mercato principale)
+    if(r === 'rare' || (r.indexOf('rare') >= 0 && r.indexOf('holo') < 0)) return 'V2';
+    // Common, Uncommon \u2192 versione base no-V (Reverse Holo esiste come secondaria)
     return '';
   }
 
@@ -7921,7 +7929,29 @@ async function fetchCmPriceLive(opts){
   // Traccia tutti i tentativi fatti — esposto al caller per logging dettagliato
   var attempts = [];
 
+  // Anti-fake-page guard: mirror dell'euristica server-side. Quando CM non
+  // trova la carta a quell'URL, serve una pagina di "vetrina raccomandazioni"
+  // con N>=4 listings tutti a €0.10–€0.30 (energie/common cheap). L'edge
+  // function ha gi\u00e0 questo detector ma:
+  //   - se il deploy edge \u00e8 in ritardo
+  //   - se la cache CM Supabase serve HTML pre-detection
+  // il client riceve comunque i listings fake. Il guard client-side li
+  // intercetta e forza il fallback come se la pagina fosse vuota.
+  function _isFakeCmListings(listings){
+    if(!listings || listings.length < 4) return false;
+    var maxP = 0, cents10 = 0;
+    for(var i=0; i<listings.length; i++){
+      var p = +listings[i].price;
+      if(p > maxP) maxP = p;
+      if(Math.abs(p - 0.10) < 0.01) cents10++;
+    }
+    return maxP < 0.50 && (cents10 / listings.length) >= 0.60;
+  }
+
   var srv = await _vpServerSideCMScrape(cmUrl);
+  if(_isFakeCmListings(srv.listings)){
+    srv = {listings:[], error:'pagina CM probabilmente non valida (vetrina \u20ac0.10)', _fake:true};
+  }
   attempts.push({url:cmUrl, kind:(isDirect?'L1-base':'L2-search'), count:(srv.listings||[]).length, error:srv.error||null});
 
   // Fallback A: per set "ambigui" (Base, e-Card, Evolutions) ritenta le altre
@@ -7933,6 +7963,9 @@ async function fetchCmPriceLive(opts){
     variants = variants.filter(function(u){ return u !== cmUrl; });
     for(var i=0; i<variants.length; i++){
       var srvV = await _vpServerSideCMScrape(variants[i]);
+      if(_isFakeCmListings(srvV.listings)){
+        srvV = {listings:[], error:'pagina CM probabilmente non valida (vetrina \u20ac0.10)', _fake:true};
+      }
       var vKind = variants[i].indexOf('-V1-')>=0 ? 'L1-V1'
                 : variants[i].indexOf('-V2-')>=0 ? 'L1-V2'
                 : 'L1-noV';
@@ -7953,6 +7986,9 @@ async function fetchCmPriceLive(opts){
     var searchUrl = buildCMSearchUrl(name, setId, number, cond, lang, variant, first1st, setName);
     if(searchUrl && searchUrl !== cmUrl){
       var srv2 = await _vpServerSideCMScrape(searchUrl);
+      if(_isFakeCmListings(srv2.listings)){
+        srv2 = {listings:[], error:'pagina CM probabilmente non valida (vetrina \u20ac0.10)', _fake:true};
+      }
       attempts.push({url:searchUrl, kind:'L2-search', count:(srv2.listings||[]).length, error:srv2.error||null});
       if(srv2.listings && srv2.listings.length){
         srv = srv2;
