@@ -719,6 +719,8 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .pq-1st-toggle{display:inline-flex;align-items:center;gap:5px;font-size:10px;color:var(--text-muted);cursor:pointer;padding:0 9px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;height:32px;user-select:none;letter-spacing:.06em;text-transform:uppercase;font-weight:700;transition:all .12s;flex-shrink:0}
 .pq-1st-toggle input{margin:0;cursor:pointer;width:11px;height:11px}
 .pq-1st-toggle.checked{background:rgba(201,168,76,.12);border-color:rgba(201,168,76,.45);color:var(--gold,#c9a84c)}
+.pq-toggle-wrap{display:flex;flex-direction:column;gap:2px;flex-shrink:0}
+.pq-toggle-wrap > label:first-child{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-subtle);cursor:default}
 .pq-price-wrap{display:flex;flex-direction:column;gap:2px;flex:1;min-width:140px}
 .pq-price-wrap label{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-subtle)}
 .pq-price-inputs{display:flex;gap:3px}
@@ -737,10 +739,16 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .pq-cm-prices::-webkit-scrollbar-thumb{background:rgba(122,154,110,.3);border-radius:2px}
 .pq-cm-chip{font-size:12px;font-family:var(--mono);font-weight:600;padding:3px 9px;border-radius:4px;background:rgba(122,154,110,.12);color:var(--success);cursor:pointer;border:1px solid rgba(122,154,110,.3);transition:all .12s;white-space:nowrap;flex-shrink:0}
 .pq-cm-chip:hover{background:rgba(122,154,110,.22);transform:translateY(-1px)}
-.pq-cm-chip.applied{background:var(--success);color:var(--bg);border-color:var(--success);box-shadow:0 1px 4px rgba(122,154,110,.4)}
-.pq-cm-chip.smart{background:rgba(201,168,76,.15);color:var(--gold,#c9a84c);border-color:rgba(201,168,76,.4)}
+/* Stato "con foto del venditore": verde pieno + testo scuro (più visibile) */
+.pq-cm-chip.with-photo{background:var(--success);color:var(--bg);border-color:var(--success);font-weight:700}
+.pq-cm-chip.with-photo:hover{filter:brightness(1.08)}
+/* Stato "selezionato": blu accent, distinto da verde e oro */
+.pq-cm-chip.applied{background:#4a7cc5;color:#fff;border-color:#5a8cd5;box-shadow:0 1px 4px rgba(74,124,197,.45)}
+.pq-cm-chip.with-photo.applied{background:#4a7cc5;color:#fff;border-color:#5a8cd5}
+/* Smart (mediana non in listings): oro con stella */
+.pq-cm-chip.smart{background:rgba(201,168,76,.18);color:var(--gold,#c9a84c);border-color:rgba(201,168,76,.45)}
 .pq-cm-chip.smart::before{content:'★\00a0';font-size:9px;opacity:.9}
-.pq-cm-chip.smart.applied{background:var(--gold,#c9a84c);color:var(--bg);border-color:var(--gold,#c9a84c);box-shadow:0 1px 4px rgba(201,168,76,.4)}
+.pq-cm-chip.smart.applied{background:var(--gold,#c9a84c);color:var(--bg);border-color:var(--gold,#c9a84c);box-shadow:0 1px 4px rgba(201,168,76,.45)}
 .pq-cm-footer{font-size:9px;color:var(--text-subtle);text-align:right;font-style:italic}
 
 
@@ -2535,10 +2543,10 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
               <button class="btn-icon" onclick="togglePrevSearch()"><span class="rb-i rb-i-x"></span></button>
             </div>
             <div class="prev-panel-body">
-              <div style="display:flex;gap:6px;flex-wrap:wrap">
-                <input id="pq" type="text" placeholder="Nome + numero..." style="flex:1 1 140px;min-width:140px" onkeydown="if(event.key==='Enter')prevSearch()"/>
-                <div id="pq-setpicker" style="flex:1 1 160px;min-width:160px;position:relative"></div>
-                <button class="btn btn-primary" onclick="prevSearch()" style="flex-shrink:0">Cerca</button>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:stretch">
+                <input id="pq" type="text" placeholder="Nome + numero..." style="flex:1 1 100px;min-width:100px" onkeydown="if(event.key==='Enter')prevSearch()"/>
+                <div id="pq-setpicker" style="flex:1 1 130px;min-width:130px;position:relative"></div>
+                <button class="btn btn-primary" onclick="prevSearch()" title="Cerca" style="flex-shrink:0;padding:5px 10px;font-size:12px"><span class="rb-i rb-i-search"></span></button>
               </div>
               <div class="status info" id="pst" style="padding:0"></div>
               <div id="prevResults" class="prev-panel-results" style="display:none"></div>
@@ -2574,10 +2582,13 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                       <label for="pQty">Qtà</label>
                       <input id="pQty" type="number" value="1" min="1" max="99"/>
                     </div>
-                    <label class="pq-1st-toggle" id="p1stToggle" title="Prima edizione">
-                      <input type="checkbox" id="p1st" onchange="updatePrevPrice();_pqToggle1st(this)"/>
-                      <span>1ª ed</span>
-                    </label>
+                    <div class="pq-toggle-wrap">
+                      <label>Edizione</label>
+                      <label class="pq-1st-toggle" id="p1stToggle" title="Prima edizione">
+                        <input type="checkbox" id="p1st" onchange="updatePrevPrice();_pqToggle1st(this)"/>
+                        <span>1ª ed</span>
+                      </label>
+                    </div>
                     <div class="pq-price-wrap">
                       <label for="pCmPrice">Prezzo CM (€)</label>
                       <div class="pq-price-inputs">
@@ -6972,6 +6983,9 @@ function showPrevResults(cards){
 
 function showPrevQuickAdd(c){
   const qa=document.getElementById('prevQuickAdd');qa.style.display='block';
+  // Auto-close griglia risultati: una volta scelta la carta, mostriamo solo i dettagli.
+  const results=document.getElementById('prevResults');
+  if(results) results.style.display='none';
   setTimeout(()=>qa.scrollIntoView({behavior:'smooth',block:'nearest'}),50);
   const smSrc=c.images?.small||'';
   const lgSrc=c.images?.large||c.images?.small||'';
@@ -8110,7 +8124,7 @@ async function verifyPriceAdd(prefix){
     } else if(prefix==='p'){
       document.getElementById('pCmPrice').value = bestPrice.toFixed(2);
     }
-    showAddVerifyFeedback(prefix, listings.map(function(l){return l.price;}), bestPrice, cond, lang);
+    showAddVerifyFeedback(prefix, listings, bestPrice, cond, lang);
 
     // Auto-close overlay dopo successo
     setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 2000);
@@ -8121,22 +8135,42 @@ async function verifyPriceAdd(prefix){
   }
 }
 
-function showAddVerifyFeedback(prefix, prices, applied, cond, lang){
-  // Dedup prezzi (round 2 decimals per stabilit\u00e0) preservando l'ordine di apparizione
-  // (i listings arrivano gi\u00e0 ordinati per prezzo crescente dall'edge function).
+function showAddVerifyFeedback(prefix, listingsOrPrices, applied, cond, lang){
+  // Backward compat: il chiamante pu\u00f2 passare sia listings (oggetti) sia prezzi (numeri)
+  var hasObjects = listingsOrPrices && listingsOrPrices.length && typeof listingsOrPrices[0] === 'object';
+  // Dedup prezzi (round 2 decimals) preservando ordine. Quando dedup, prendiamo
+  // il flag has_photo da QUALSIASI listing dello stesso prezzo abbia foto (cos\u00ec
+  // l'utente vede il chip verde-pieno anche se solo 1 dei venditori a quel
+  // prezzo ha allegato foto).
   var seen = {};
-  var unique = [];
-  (prices||[]).forEach(function(p){
-    var k = Math.round(p*100)/100;
-    if(!seen[k]){ seen[k] = true; unique.push(k); }
+  var unique = [];  // array di {price:number, has_photo:boolean}
+  (listingsOrPrices||[]).forEach(function(item){
+    var price = hasObjects ? item.price : item;
+    var hp = hasObjects ? !!item.has_photo : false;
+    var k = Math.round(price*100)/100;
+    if(!seen[k]){
+      seen[k] = { price: k, has_photo: hp };
+      unique.push(seen[k]);
+    } else if(hp && !seen[k].has_photo){
+      seen[k].has_photo = true;
+    }
   });
-  var topUnique = unique.slice(0, 5);
+  var topUnique = unique.slice(0, 6);
+
   // Se "applied" (mediana smart) non corrisponde a nessun prezzo unique,
   // lo prepongo come chip "smart" marcato con stella - cos\u00ec l'utente sa
   // che \u00e8 un valore calcolato (mediana top-3) e non un listing diretto.
   var appliedRounded = Math.round(applied*100)/100;
-  var appliedInList = topUnique.indexOf(appliedRounded) >= 0;
+  var appliedInList = topUnique.some(function(u){ return u.price === appliedRounded; });
   var smartChip = !appliedInList && applied > 0 ? appliedRounded : null;
+
+  function chipClasses(u, isApplied, isSmart){
+    var c = ['pq-cm-chip'];
+    if(isSmart) c.push('smart');
+    if(isApplied) c.push('applied');
+    if(u && u.has_photo && !isSmart) c.push('with-photo');
+    return c.join(' ');
+  }
 
   // Banner refactor per prefix='p' (preventivo): titolo sopra, chip su una riga
   if(prefix === 'p'){
@@ -8153,17 +8187,23 @@ function showAddVerifyFeedback(prefix, prices, applied, cond, lang){
     if(smartChip != null){
       chipsHtml += '<span class="pq-cm-chip smart applied" title="Mediana smart top-3 (non corrisponde a un listing diretto)" onclick="applyAddPrice(\''+prefix+'\','+smartChip.toFixed(2)+',this)">\u20ac'+smartChip.toFixed(2)+'</span>';
     }
-    chipsHtml += topUnique.map(function(p){
-      var isApplied = (p === appliedRounded) && !smartChip;
-      return '<span class="pq-cm-chip'+(isApplied?' applied':'')+'" onclick="applyAddPrice(\''+prefix+'\','+p.toFixed(2)+',this)">\u20ac'+p.toFixed(2)+'</span>';
+    chipsHtml += topUnique.map(function(u){
+      var isApplied = (u.price === appliedRounded) && !smartChip;
+      var title = u.has_photo ? 'Listing con foto della carta' : 'Listing senza foto';
+      return '<span class="'+chipClasses(u, isApplied, false)+'" title="'+title+'" onclick="applyAddPrice(\''+prefix+'\','+u.price.toFixed(2)+',this)">\u20ac'+u.price.toFixed(2)+'</span>';
     }).join('');
+    var hasPhotoCount = topUnique.filter(function(u){ return u.has_photo; }).length;
     el.innerHTML =
       '<div class="pq-cm-header">'
         +'<span>CM live \u00b7 '+cond+' \u00b7 '+lang+'</span>'
         +'<button class="pq-cm-close" onclick="document.getElementById(\''+feedbackId+'\').remove()" title="Chiudi"><span class="rb-i rb-i-x"></span></button>'
       +'</div>'
       +'<div class="pq-cm-prices">'+chipsHtml+'</div>'
-      +'<div class="pq-cm-footer">Clicca un prezzo per applicarlo'+(smartChip!=null?' \u00b7 \u2605 = mediana smart top-3':'')+'</div>';
+      +'<div class="pq-cm-footer">'
+        +'Clicca un prezzo per applicarlo'
+        +(smartChip!=null?' \u00b7 \u2605 mediana smart top-3':'')
+        +(hasPhotoCount>0?' \u00b7 verde pieno = con foto del venditore':'')
+      +'</div>';
     return;
   }
 
@@ -8177,9 +8217,9 @@ function showAddVerifyFeedback(prefix, prices, applied, cond, lang){
     const form = document.getElementById(prefix==='q'?'quickAddForm':prefix==='s'?'selAddForm':'mform');
     if(form) form.appendChild(el);
   }
-  // Stessa dedup anche per gli altri prefix
   el.innerHTML = '<span style="font-size:10px;font-weight:600;color:var(--success);text-transform:uppercase;letter-spacing:.5px">CM live \u00b7 '+cond+' \u00b7 '+lang+'</span>'
-    + topUnique.map(function(p){
+    + topUnique.map(function(u){
+        var p = u.price;
         return '<span style="font-size:12px;font-family:var(--mono);font-weight:600;padding:2px 8px;border-radius:4px;background:'+(p===appliedRounded?'var(--success)':'rgba(122,154,110,.1)')+';color:'+(p===appliedRounded?'var(--bg)':'var(--success)')+';cursor:pointer;border:1px solid rgba(122,154,110,.3)" onclick="applyAddPrice(\''+prefix+'\','+p.toFixed(2)+',this)">\u20ac'+p.toFixed(2)+'</span>';
       }).join('')
     + '<span style="font-size:10px;color:var(--text-subtle);margin-left:auto">Clicca per applicare \u00b7 <span style="cursor:pointer;color:var(--accent)" onclick="document.getElementById(\''+feedbackId+'\').remove()"><span class="rb-i rb-i-x"></span></span></span>';

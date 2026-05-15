@@ -20,7 +20,7 @@ const COND_ORDER: Record<string,number> = {
   'MT':1,'NM':2,'EX':3,'GD':4,'LP':5,'PL':6,'PO':7,
 };
 
-interface Listing { price: number; condition: string; condRank: number; seller?: string; comment?: string; grading?: { house: string; score: number; raw: string } | null; language?: string | null; }
+interface Listing { price: number; condition: string; condRank: number; seller?: string; comment?: string; grading?: { house: string; score: number; raw: string } | null; language?: string | null; has_photo?: boolean; }
 
 const USER_AGENTS = [
   // Desktop Chrome — ultime versioni stabili (più aggiornate possibili).
@@ -664,12 +664,14 @@ function extractCMListings(html: string): Listing[] {
     const comment = extractCommentFromRow(row);
     const grading = comment ? parseGradingFromText(comment) : null;
     const language = extractLanguageFromRow(row);
+    const hasPhoto = detectListingPhoto(row);
     if (price) {
       const finalCond = cond || 'Near Mint';
       const listing: Listing = { price, condition: finalCond, condRank: COND_ORDER[finalCond] || 2 };
       if (comment) listing.comment = comment;
       if (grading) listing.grading = grading;
       if (language) listing.language = language;
+      if (hasPhoto) listing.has_photo = true;
       listings.push(listing);
     }
   }
@@ -724,11 +726,13 @@ function extractCMListings(html: string): Listing[] {
     const comment = extractCommentFromRow(window);
     const grading = comment ? parseGradingFromText(comment) : null;
     const language = extractLanguageFromRow(window);
+    const hasPhoto = detectListingPhoto(window);
 
     const listing: Listing = { price, condition: cond, condRank: COND_ORDER[cond] || 2 };
     if (comment) listing.comment = comment;
     if (grading) listing.grading = grading;
     if (language) listing.language = language;
+    if (hasPhoto) listing.has_photo = true;
     listings.push(listing);
 
     if (listings.length >= 40) break; // safety cap
@@ -765,10 +769,39 @@ function extractCMListings(html: string): Listing[] {
   return listings.slice(0, 30).sort((a, b) => a.price - b.price);
 }
 
-// Estrae il commento/nota del seller dalla row CM. La struttura tipica è:
-//  <span class="article-comments">[testo del commento]</span>
-// oppure attributi tooltip / data-bs-title sul container del commento.
-// Limitiamo a 200 char per sicurezza.
+// Estrae il commento/nota del seller dalla row CM.
+
+// Detect: il venditore ha allegato una foto della carta a questo listing?
+// Su CM ogni article-row pu\u00f2 avere un'icona "camera" o un thumbnail che
+// indica "questa inserzione ha una foto reale del prodotto" (utile per
+// verificare condizioni dichiarate). I venditori senza foto hanno la
+// stessa row senza l'icona/thumbnail.
+//
+// Pattern noti su CM (cercati nel testo della row):
+//   - <a class="article-image-link" ...>     ← link verso modal con foto
+//   - icon-image / icon-camera / fa-camera   ← icone Bootstrap/FontAwesome
+//   - data-images-count="N" con N>0          ← attributo data
+//   - <img.*\/articles\/.../products\/...    ← thumbnail diretto in row
+//   - "hasPicture":true                      ← residuo JSON inline
+//
+// Se nessun pattern fa match, ritorna false. Best-effort: meglio un
+// false negative (chip verde scuro invece di verde pieno) che un false
+// positive.
+function detectListingPhoto(row: string): boolean {
+  if (!row) return false;
+  // Pattern 1: link "article-image-link" / classe article-extra-image / icon-image
+  if (/article-image-link|article-extra-image|icon-image|icon-camera|fa-camera/i.test(row)) return true;
+  // Pattern 2: attributo data-images-count o data-image-count diverso da 0
+  const dcMatch = row.match(/data-images?-count\s*=\s*["']?(\d+)/i);
+  if (dcMatch && parseInt(dcMatch[1], 10) > 0) return true;
+  // Pattern 3: thumbnail diretto verso /articles/ o /productPics/
+  if (/<img[^>]+(?:articles|productPics|article-image|seller-image)/i.test(row)) return true;
+  // Pattern 4: JSON residuo
+  if (/"hasPicture"\s*:\s*true|"imagesCount"\s*:\s*[1-9]/i.test(row)) return true;
+  return false;
+}
+
+
 // Estrae la lingua del listing CM. Pattern visti su CM moderno:
 //   <span ... onmouseover="showMsgBox(this,`Italiano`)" title="Italiano" ...></span>
 // Whitelist con normalizzazione a codice ISO per consistenza con il resto
@@ -1002,9 +1035,25 @@ function extractFromNextData(obj: unknown, depth = 0): Listing[] {
           const cmtField = i.comments ?? i.comment ?? i.description ?? i.note ?? i.sellerComment;
           const comment = cmtField ? String(cmtField).trim().substring(0, 300) : null;
           const grading = comment ? parseGradingFromText(comment) : null;
+          // Detect foto allegata dal seller: CM espone questa info come bool
+          // (hasImage / hasPicture) o come count (imagesCount / picturesCount)
+          // o come array (images / pictures) non vuoto.
+          let hasPhoto = false;
+          const hi = i.hasImage ?? i.hasPicture ?? i.has_image ?? i.has_picture;
+          if (hi === true || hi === 'true' || hi === 1) hasPhoto = true;
+          if (!hasPhoto) {
+            const ic = i.imagesCount ?? i.picturesCount ?? i.images_count;
+            if (typeof ic === 'number' && ic > 0) hasPhoto = true;
+            else if (typeof ic === 'string' && parseInt(ic, 10) > 0) hasPhoto = true;
+          }
+          if (!hasPhoto) {
+            const imgs = i.images ?? i.pictures ?? i.articleImages;
+            if (Array.isArray(imgs) && imgs.length > 0) hasPhoto = true;
+          }
           const listing: Listing = { price: Math.round(price * 100) / 100, condition: cond, condRank };
           if (comment) listing.comment = comment;
           if (grading) listing.grading = grading;
+          if (hasPhoto) listing.has_photo = true;
           listings.push(listing);
         }
         if (listings.length > 0) return listings.sort((a,b) => a.price - b.price).slice(0, 30);
