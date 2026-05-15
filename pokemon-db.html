@@ -784,6 +784,13 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
 .modal-bg.show{display:flex}
 .modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;width:460px;max-width:95vw;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+/* Edit modal usa la stessa struttura .pq-* del pannello add. Aggiungiamo padding
+   esterno al wrap visto che dentro al modal non c'\u00e8 un parent che lo padding-a. */
+.modal .pq-add-wrap{padding:18px 18px 12px;gap:14px}
+.modal .pq-header{padding:12px 14px;background:linear-gradient(180deg,var(--surface2),rgba(0,0,0,.18))}
+.modal .pq-cm-banner{margin:0 18px 12px}
+.modal .sc-thumb-wrap{position:relative}
+.modal .sc-thumb-wrap .pq-header-img{cursor:zoom-in}
 .modal-card-header{display:flex;gap:14px;align-items:center;padding:20px 20px 16px;border-bottom:1px solid var(--border)}
 .modal-card-img{width:64px;height:90px;border-radius:8px;object-fit:contain;background:var(--surface2);flex-shrink:0;border:1px solid var(--border)}
 .modal-card-img-ph{width:64px;height:90px;background:var(--surface2);border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px;border:1px solid var(--border)}
@@ -2641,36 +2648,59 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 <!-- EDIT MODAL -->
 <div class="modal-bg" id="editModalBg" onclick="if(event.target===this)closeEditModal()">
   <div class="modal">
-    <div class="modal-card-header">
-      <div class="sc-thumb-wrap" onclick="emZoom()" title="Zoom carta" style="flex-shrink:0">
-        <img id="emImg" class="modal-card-img" style="display:none"/>
-        <div class="modal-card-img-ph" id="emImgPh">🃏</div>
-        <div class="sc-thumb-zoom-hint"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35M11 8v6M8 11h6"/></svg></div>
+    <div class="pq-add-wrap">
+      <!-- Header carta: img + info + 3 dropdowns specs (mirror del pannello add) -->
+      <div class="pq-header">
+        <div class="sc-thumb-wrap" onclick="emZoom()" title="Zoom carta" style="flex-shrink:0">
+          <img id="emImg" class="pq-header-img" style="display:none"/>
+          <div class="pq-header-img" id="emImgPh" style="display:flex;align-items:center;justify-content:center;font-size:24px">🃏</div>
+          <div class="sc-thumb-zoom-hint"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35M11 8v6M8 11h6"/></svg></div>
+        </div>
+        <div class="pq-header-info">
+          <div class="pq-card-name"><span id="emName">—</span></div>
+          <div class="pq-card-meta" id="emMeta">—</div>
+          <div class="pq-card-price" id="emPriceDisplay">—</div>
+          <div class="pq-specs">
+            <div class="pq-spec">
+              <label for="emLang">Lingua</label>
+              <select id="emLang" onchange="_scheduleAutoVerify('em')"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select>
+            </div>
+            <div class="pq-spec">
+              <label for="emCond">Condizione</label>
+              <select id="emCond" onchange="refreshEditPrice();_scheduleAutoVerify('em')"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select>
+            </div>
+            <div class="pq-spec">
+              <label for="emVar">Variante</label>
+              <select id="emVar" onchange="refreshEditPrice();_scheduleAutoVerify('em')"><option>Normal</option><option>Holo</option><option>Reverse Holo</option><option>Full Art</option><option>Secret Rare</option><option>Rainbow Rare</option><option>Gold</option><option>Promo</option><option>Shadowless</option></select>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="modal-card-info">
-        <div class="modal-card-name" id="emName"></div>
-        <div class="modal-card-set" id="emMeta"></div>
-        <div class="modal-card-price" id="emPriceDisplay" style="margin-top:6px">—</div>
+      <!-- Add row: Qtà + 1ª ed + Prezzo+bottoni (mirror del pannello add) -->
+      <div class="pq-add-row">
+        <div class="pq-qty-wrap">
+          <label for="emQty">Qtà</label>
+          <input id="emQty" type="number" value="1" min="1" max="99"/>
+        </div>
+        <div class="pq-toggle-wrap">
+          <label>Edizione</label>
+          <label class="pq-1st-toggle" id="em1stToggle" title="Prima edizione">
+            <input type="checkbox" id="em1st" onchange="refreshEditPrice();_emToggle1st(this);_scheduleAutoVerify('em')"/>
+            <span>1ª</span>
+          </label>
+        </div>
+        <div class="pq-price-wrap">
+          <label for="emCm">Prezzo CM (€)</label>
+          <div class="pq-price-inputs">
+            <input id="emCm" type="number" placeholder="0.00" step="0.01" oninput="emUpdatePrice()"/>
+            <button class="btn-verify" id="emVerifyBtn" onclick="verifyPriceEdit()" title="Verifica prezzo live su Cardmarket">€</button>
+            <button class="btn-verify replay-disabled" id="emReplayBtn" onclick="replayCmLog('em')" title="Riapri ultimo log verifica (nessuno disponibile)">↻</button>
+            <button class="btn" onclick="refreshEditPrice()" title="Ricalcola dal database TCG (avg30 NM)"><span class="rb-i rb-i-refresh"></span></button>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="modal-fields">
-      <div class="field"><label for="emCond">Condizione</label><select id="emCond" onchange="refreshEditPrice()"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select></div>
-      <div class="field"><label for="emLang">Lingua</label><select id="emLang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select></div>
-      <div class="field"><label for="emVar">Variante</label><select id="emVar" onchange="refreshEditPrice()"><option>Normal</option><option>Holo</option><option>Reverse Holo</option><option>Full Art</option><option>Secret Rare</option><option>Rainbow Rare</option><option>Gold</option><option>Promo</option><option>Shadowless</option></select></div>
-      <div class="field"><label for="emQty">Quantità</label><input id="emQty" type="number" value="1" min="1"/></div>
-    </div>
-    <div class="modal-cm-row">
-      <span class="modal-cm-label">CM price (€)</span>
-      <input id="emCm" type="number" placeholder="0.00" step="0.01" class="modal-cm-input" oninput="emUpdatePrice()"/>
-      <button class="btn-verify" id="emVerifyBtn" onclick="verifyPriceEdit()" title="Verifica prezzo live su Cardmarket" style="flex-shrink:0">€</button>
-      <button class="btn-verify replay-disabled" id="emReplayBtn" onclick="replayCmLog('em')" title="Riapri ultimo log verifica (nessuno disponibile)" style="flex-shrink:0">↻</button>
-      <button class="btn modal-cm-refresh" onclick="refreshEditPrice()" title="Ricalcola dal database"><span class="rb-i rb-i-refresh"></span> Ricalcola</button>
-      <label class="sc-1st-sm" title="Prima edizione" style="margin-left:4px">
-        <input type="checkbox" id="em1st" onchange="refreshEditPrice()"/>
-        <span>1ST ED.</span>
-      </label>
-    </div>
-    <!-- Replace panel -->
+    <!-- Replace panel (resta sotto, invariato) -->
     <div class="modal-replace-panel" id="emReplacePanel">
       <div class="modal-replace-search" style="flex-wrap:wrap;gap:4px">
         <input type="text" id="emReplaceQ" placeholder="Nome carta..." style="font-size:12px;flex:1 1 140px;min-width:120px" onkeydown="if(event.key==='Enter')emDoReplace()"/>
@@ -6727,7 +6757,19 @@ function openEditModal(idx){
   const tcgCard2 = _cached2 ? (_cached2.find(function(x){return x.number===c.number;})||_cached2[0]) : null;
   const setId2 = c.set_id || (tcgCard2&&tcgCard2.set ? tcgCard2.set.id : null);
   document.getElementById('emCmLink').href = buildCMDirectUrl(c.name, setId2, c.number, c.condition||'NM', c.language||'ITA', c.variant||'Normal', c.first_edition||false, c.set||'');
+  // Sincronizza il visual del toggle "1\u00aa" (gold quando checked)
+  if(typeof _emToggle1st === 'function') _emToggle1st(document.getElementById('em1st'));
+  // Reset stash precedente (era di un'altra carta) e nascondi banner
+  if(typeof _cmStash !== 'undefined') _cmStash['em'] = null;
+  const emRep = document.getElementById('emReplayBtn');
+  if(emRep) emRep.classList.add('replay-disabled');
+  const oldFb = document.getElementById('emVerifyFeedback');
+  if(oldFb) oldFb.remove();
   document.getElementById('editModalBg').classList.add('show');
+  // Auto-verify CM all'apertura: parte una verify silent dopo 600ms per
+  // popolare il banner CM live con i prezzi attuali della carta che si sta
+  // modificando. Cache 24h Supabase \u2192 quasi sempre istantaneo.
+  if(typeof _scheduleAutoVerify === 'function') _scheduleAutoVerify('em', 600);
 }
 
 function emZoom(){
@@ -6821,8 +6863,9 @@ function emPickReplace(c,el){
 function emUpdatePrice(){
   const v=parseFloat(document.getElementById('emCm').value)||0;
   const el=document.getElementById('emPriceDisplay');
-  if(v>0){el.textContent='€'+v.toFixed(2);el.className='modal-card-price';}
-  else{el.textContent='n.q.';el.className='modal-card-price nq';}
+  if(!el) return;
+  if(v>0){ el.textContent='\u20ac'+v.toFixed(2); el.style.opacity='1'; el.style.fontSize=''; }
+  else{ el.textContent='n.q.'; el.style.opacity='.55'; el.style.fontSize='12px'; }
 }
 function closeEditModal(){
   document.getElementById('editModalBg').classList.remove('show');
@@ -6844,10 +6887,18 @@ function refreshEditPrice(){
 }
 
 // ─── Verifica prezzo CM live dal modal di edit preventivo ────────────────────
-async function verifyPriceEdit(){
-  if(editIdx===null || !activePrev){ alert('Nessun item in modifica'); return; }
+async function verifyPriceEdit(opts){
+  opts = opts || {};
+  var silent = !!opts.silent;
+  if(editIdx===null || !activePrev){
+    if(!silent) alert('Nessun item in modifica');
+    return;
+  }
   const c = activePrev.items[editIdx];
-  if(!c){ alert('Item non trovato'); return; }
+  if(!c){
+    if(!silent) alert('Item non trovato');
+    return;
+  }
   const btn = document.getElementById('emVerifyBtn');
   if(btn){ btn.classList.add('loading'); btn.innerHTML='<span class="rb-i rb-i-clock"></span>'; }
 
@@ -6856,9 +6907,16 @@ async function verifyPriceEdit(){
   const variant  = document.getElementById('emVar').value  || 'Normal';
   const first1st = document.getElementById('em1st').checked;
 
-  const log = cmLogger((c.name||'')+(c.number?' \u00b7 #'+c.number:''));
-  log.log(cond+' \u00b7 '+lang+' \u00b7 '+variant+(first1st?' \u00b7 1st ed':''), 'data');
-  log.log('\u{1F680} Scraping server-side\u2026','info');
+  // Overlay log solo se non-silent (click manuale)
+  const log = silent ? null : cmLogger((c.name||'')+(c.number?' \u00b7 #'+c.number:''));
+  if(log){
+    log.log(cond+' \u00b7 '+lang+' \u00b7 '+variant+(first1st?' \u00b7 1st ed':''), 'data');
+    log.log('\u{1F680} Scraping server-side\u2026','info');
+  }
+
+  // Rimuovi banner CM live precedente (se presente)
+  const prevFb = document.getElementById('emVerifyFeedback');
+  if(prevFb) prevFb.remove();
 
   try{
     const t0 = Date.now();
@@ -6875,31 +6933,47 @@ async function verifyPriceEdit(){
     });
     const elapsed = Date.now()-t0;
 
-    _logCmAttempts(log, res.attempts);
-    log.log('Totale '+((res.attempts||[]).length)+' tentativ' + ((res.attempts||[]).length===1?'o':'i')+' \u00b7 '+elapsed+'ms', 'data');
+    if(log){
+      _logCmAttempts(log, res.attempts);
+      log.log('Totale '+((res.attempts||[]).length)+' tentativ' + ((res.attempts||[]).length===1?'o':'i')+' \u00b7 '+elapsed+'ms', 'data');
+    }
 
     const _stashTitle = (c.name||'')+(c.number?' \u00b7 #'+c.number:'');
     const _stashHeader = cond+' \u00b7 '+lang+' \u00b7 '+variant+(first1st?' \u00b7 1st ed':'');
 
     if(!res.ok){
-      log.log('Errore finale: '+(res.error||'nessun dato'), 'err');
-      log.log('Apri uno degli URL qui sopra e verifica manualmente, poi inserisci il prezzo', 'warn');
+      if(log){
+        log.log('Errore finale: '+(res.error||'nessun dato'), 'err');
+        log.log('Apri uno degli URL qui sopra e verifica manualmente, poi inserisci il prezzo', 'warn');
+      }
       _saveCmStash('em', {
         title: _stashTitle, headerInfo: _stashHeader,
         attempts: res.attempts, elapsedMs: elapsed, ok: false, error: res.error, cmUrl: res.cmUrl,
       });
+      if(btn){
+        btn.classList.remove('loading');
+        if(silent){
+          btn.innerHTML='\u26a0';
+          btn.title='Auto-verify fallito: '+(res.error||'nessun dato')+'. Clicca per riprovare con log dettagliato.';
+        } else {
+          btn.textContent='\u20ac';
+          btn.title='Verifica prezzo live su Cardmarket';
+        }
+      }
       return;
     }
 
-    var logParts = res.listings.slice(0,5).map(function(l){
-      var condShort = {Mint:'MT','Near Mint':'NM',Excellent:'EX',Good:'GD','Light Played':'LP',Played:'PL',Poor:'PO'};
-      var cs = condShort[l.condition] || l.condition || '?';
-      return cs+' <b>\u20ac'+l.price.toFixed(2)+'</b>';
-    });
-    log.log('CM listing: '+logParts.join(' \u00b7 '), 'data');
-    if(res.smart && res.smart.outlierRemoved > 0)
-      log.log('<span class="rb-i rb-i-warn"></span> '+res.smart.outlierRemoved+' outlier rimossi', 'warn');
-    log.log('<span class="rb-i rb-i-check"></span> Prezzo smart (mediana top-3): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
+    if(log){
+      var logParts = res.listings.slice(0,5).map(function(l){
+        var condShort = {Mint:'MT','Near Mint':'NM',Excellent:'EX',Good:'GD','Light Played':'LP',Played:'PL',Poor:'PO'};
+        var cs = condShort[l.condition] || l.condition || '?';
+        return cs+' <b>\u20ac'+l.price.toFixed(2)+'</b>';
+      });
+      log.log('CM listing: '+logParts.join(' \u00b7 '), 'data');
+      if(res.smart && res.smart.outlierRemoved > 0)
+        log.log('<span class="rb-i rb-i-warn"></span> '+res.smart.outlierRemoved+' outlier rimossi', 'warn');
+      log.log('<span class="rb-i rb-i-check"></span> Prezzo smart (mediana top-3): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
+    }
 
     _saveCmStash('em', {
       title: _stashTitle, headerInfo: _stashHeader,
@@ -6909,13 +6983,38 @@ async function verifyPriceEdit(){
 
     document.getElementById('emCm').value = res.price.toFixed(2);
     if(typeof emUpdatePrice==='function') emUpdatePrice();
-    setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 2000);
+
+    // Banner CM live con chip prezzi (3 stati: con foto / senza / selezionato)
+    if(typeof showAddVerifyFeedback === 'function'){
+      showAddVerifyFeedback('em', res.listings, res.price, cond, lang);
+    }
+
+    if(log) setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 2000);
   }catch(e){
-    log.log('Errore: '+(e.message||String(e)), 'err');
+    if(log) log.log('Errore: '+(e.message||String(e)), 'err');
+    if(btn && silent){
+      btn.innerHTML='\u26a0';
+      btn.title='Auto-verify errore: '+(e.message||String(e));
+    }
   }finally{
-    if(btn){ btn.classList.remove('loading'); btn.textContent='\u20ac'; }
+    if(btn){
+      btn.classList.remove('loading');
+      if(btn.innerHTML.indexOf('\u26a0') < 0 && btn.innerHTML.indexOf('clock') < 0){
+        btn.textContent='\u20ac';
+      } else if(btn.innerHTML.indexOf('clock') >= 0){
+        btn.textContent='\u20ac';
+      }
+    }
   }
 }
+
+// Toggle visuale per il pulsante "1\u00aa" nel modal edit
+function _emToggle1st(input){
+  const lbl=document.getElementById('em1stToggle');
+  if(!lbl||!input) return;
+  if(input.checked) lbl.classList.add('checked'); else lbl.classList.remove('checked');
+}
+window._emToggle1st = _emToggle1st;
 
 async function saveEditModal(){
   if(editIdx===null||!activePrev)return;
@@ -7051,7 +7150,14 @@ function _scheduleAutoVerify(prefix, delayMs){
   if(_autoVerifyTimer){ clearTimeout(_autoVerifyTimer); _autoVerifyTimer = null; }
   _autoVerifyTimer = setTimeout(function(){
     _autoVerifyTimer = null;
-    // Solo per prefix='p' per ora (preventivo). Espandere a q/s/m se serve.
+    // 'em' = edit modal (uses verifyPriceEdit). Others use verifyPriceAdd.
+    if(prefix === 'em'){
+      if(typeof editIdx === 'undefined' || editIdx === null) return;
+      try { verifyPriceEdit({silent: true}); }
+      catch(e){ console.warn('[autoVerify em] errore:', e); }
+      return;
+    }
+    // Prefix add ('p', 'q', 's', 'm'). Per 'p' richiede prevCard.
     if(prefix === 'p' && !prevCard) return;
     try {
       verifyPriceAdd(prefix, {silent: true});
@@ -7720,7 +7826,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-05-15-1700';
+var RB_BUILD = '2026-05-15-1800';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -8411,11 +8517,15 @@ function showAddVerifyFeedback(prefix, listingsOrPrices, applied, cond, lang){
     return c.join(' ');
   }
 
-  // Banner refactor per prefix='p' (preventivo): titolo sopra, chip su una riga
-  if(prefix === 'p'){
+  // Banner refactor per prefix='p' (preventivo add) e 'em' (preventivo edit modal):
+  // titolo sopra, chip su una riga con 3 stati (con foto / senza / selezionato).
+  if(prefix === 'p' || prefix === 'em'){
     const feedbackId = prefix+'VerifyFeedback';
     let el = document.getElementById(feedbackId);
-    const wrap = document.querySelector('#prevQuickAdd .pq-add-wrap');
+    // Container parent: il pannello add per 'p', il modal body per 'em'
+    const wrap = prefix === 'em'
+      ? document.querySelector('#editModalBg .pq-add-wrap')
+      : document.querySelector('#prevQuickAdd .pq-add-wrap');
     if(!el){
       el = document.createElement('div');
       el.id = feedbackId;
@@ -8495,6 +8605,9 @@ function applyAddPrice(prefix, price, el){
     const inp = document.getElementById('pCmPrice');
     inp.value = price.toFixed(2);
     inp.dataset.manual = '1';  // marca come manualmente modificato per evitare overwrite
+  } else if(prefix==='em'){
+    const inp = document.getElementById('emCm');
+    if(inp){ inp.value = price.toFixed(2); if(typeof emUpdatePrice==='function') emUpdatePrice(); }
   }
 }
 
