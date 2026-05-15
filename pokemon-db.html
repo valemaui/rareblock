@@ -2285,6 +2285,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                 <button class="btn" onclick="cancelQuick()">Annulla</button>
                 <button class="btn" onclick="openCardmarketAdd()" title="Apri su Cardmarket">↗ CM</button>
                 <button class="btn-verify" id="qVerifyBtn" onclick="verifyPriceAdd('q')" title="Verifica prezzo live su Cardmarket">€</button>
+                <button class="btn-verify" id="qReplayBtn" onclick="replayCmLog('q')" title="Riapri ultimo log verifica" style="display:none">↻</button>
                 <button class="btn btn-primary" id="qAddBtn" onclick="addQuickCard()">Aggiungi</button>
               </div>
             </div>
@@ -2311,6 +2312,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                 <button class="btn" onclick="cancelSel()">Annulla</button>
                 <button class="btn" onclick="openCardmarketAdd()" title="Apri su Cardmarket">↗ CM</button>
                 <button class="btn-verify" id="sVerifyBtn" onclick="verifyPriceAdd('s')" title="Verifica prezzo live su Cardmarket">€</button>
+                <button class="btn-verify" id="sReplayBtn" onclick="replayCmLog('s')" title="Riapri ultimo log verifica" style="display:none">↻</button>
                 <button class="btn btn-primary" id="sAddBtn" onclick="addSelCard()">Aggiungi</button>
               </div>
             </div>
@@ -2331,7 +2333,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                 <div class="field"><label for="mqty">Quantità</label><input id="mqty" type="number" value="1" min="1"/></div>
                 <div class="field"><label for="mbuy">Acquisto (€)</label><input id="mbuy" type="number" placeholder="0.00" step="0.01"/></div>
                 <div class="field"><label for="msell">Vendita (€)</label><input id="msell" type="number" placeholder="0.00" step="0.01"/></div>
-                <div class="field"><label for="mcm">CM price (€)</label><div style="display:flex;gap:5px"><input id="mcm" type="number" placeholder="0.00" step="0.01" style="flex:1"/><button class="btn-verify" id="mVerifyBtn" onclick="verifyPriceAdd('m')" title="Verifica prezzo live su Cardmarket" style="flex-shrink:0">€</button></div></div>
+                <div class="field"><label for="mcm">CM price (€)</label><div style="display:flex;gap:5px"><input id="mcm" type="number" placeholder="0.00" step="0.01" style="flex:1"/><button class="btn-verify" id="mVerifyBtn" onclick="verifyPriceAdd('m')" title="Verifica prezzo live su Cardmarket" style="flex-shrink:0">€</button><button class="btn-verify" id="mReplayBtn" onclick="replayCmLog('m')" title="Riapri ultimo log verifica" style="flex-shrink:0;display:none">↻</button></div></div>
                 <div class="field"><label for="mimg">URL immagine</label><input id="mimg" type="text" placeholder="https://..."/></div>
                 <div class="field full"><label for="mnotes">Note</label><input id="mnotes" type="text"/></div>
               </div>
@@ -2368,7 +2370,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
       <div class="field"><label for="colEmVar">Variante</label><select id="colEmVar"><option>Normal</option><option>Holo</option><option>Reverse Holo</option><option>Full Art</option><option>Secret Rare</option><option>Rainbow Rare</option><option>Gold</option><option>Promo</option><option>Shadowless</option></select></div>
       <div class="field"><label for="colEmQty">Quantità</label><input id="colEmQty" type="number" value="1" min="1" step="1"/></div>
       <div class="field"><label for="colEmSell">Prezzo vendita (€)</label><input id="colEmSell" type="number" step="0.01" min="0" placeholder="0.00"/></div>
-      <div class="field"><label for="colEmCm">CM avg30 (€)</label><div style="display:flex;gap:5px"><input id="colEmCm" type="number" step="0.01" min="0" placeholder="0.00" style="flex:1"/><button class="btn-verify" id="colEmVerifyBtn" onclick="verifyPriceColEdit()" title="Verifica prezzo live su Cardmarket" style="flex-shrink:0">€</button></div></div>
+      <div class="field"><label for="colEmCm">CM avg30 (€)</label><div style="display:flex;gap:5px"><input id="colEmCm" type="number" step="0.01" min="0" placeholder="0.00" style="flex:1"/><button class="btn-verify" id="colEmVerifyBtn" onclick="verifyPriceColEdit()" title="Verifica prezzo live su Cardmarket" style="flex-shrink:0">€</button><button class="btn-verify" id="colEditReplayBtn" onclick="replayCmLog('colEdit')" title="Riapri ultimo log verifica" style="flex-shrink:0;display:none">↻</button></div></div>
       <div class="field full" style="grid-column:1/-1">
         <label for="colEmNotes">Note</label>
         <textarea id="colEmNotes" rows="2" placeholder="Note opzionali (provenienza, storia, ecc.)" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:var(--r);font-size:12px;font-family:var(--font);resize:vertical"></textarea>
@@ -2504,7 +2506,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                 <div class="check-row" style="margin-bottom:8px"><input type="checkbox" id="p1st" onchange="updatePrevPrice()"/><span>Prima edizione</span></div>
                 <div class="field" style="margin-bottom:8px">
                   <label for="pCmPrice">Prezzo CM (€)</label>
-                  <div style="display:flex;gap:6px"><input id="pCmPrice" type="number" placeholder="0.00" step="0.01"/><button class="btn-verify" id="pVerifyBtn" onclick="verifyPriceAdd('p')" title="Verifica prezzo live su Cardmarket">€</button><button class="btn" onclick="openCardmarket()" style="flex-shrink:0;padding:5px 8px">↗</button></div>
+                  <div style="display:flex;gap:6px"><input id="pCmPrice" type="number" placeholder="0.00" step="0.01"/><button class="btn-verify" id="pVerifyBtn" onclick="verifyPriceAdd('p')" title="Verifica prezzo live su Cardmarket">€</button><button class="btn-verify" id="pReplayBtn" onclick="replayCmLog('p')" title="Riapri ultimo log verifica" style="display:none">↻</button><button class="btn" onclick="openCardmarket()" style="flex-shrink:0;padding:5px 8px">↗</button></div>
                 </div>
                 <div style="display:flex;gap:6px">
                   <button class="btn btn-primary" onclick="addToPrev()" style="flex:1">Aggiungi</button>
@@ -2562,6 +2564,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
       <span class="modal-cm-label">CM price (€)</span>
       <input id="emCm" type="number" placeholder="0.00" step="0.01" class="modal-cm-input" oninput="emUpdatePrice()"/>
       <button class="btn-verify" id="emVerifyBtn" onclick="verifyPriceEdit()" title="Verifica prezzo live su Cardmarket" style="flex-shrink:0">€</button>
+      <button class="btn-verify" id="emReplayBtn" onclick="replayCmLog('em')" title="Riapri ultimo log verifica" style="flex-shrink:0;display:none">↻</button>
       <button class="btn modal-cm-refresh" onclick="refreshEditPrice()" title="Ricalcola dal database"><span class="rb-i rb-i-refresh"></span> Ricalcola</button>
       <label class="sc-1st-sm" title="Prima edizione" style="margin-left:4px">
         <input type="checkbox" id="em1st" onchange="refreshEditPrice()"/>
@@ -5069,9 +5072,16 @@ async function verifyPriceColEdit(){
     _logCmAttempts(log, res.attempts);
     log.log('Totale '+((res.attempts||[]).length)+' tentativ' + ((res.attempts||[]).length===1?'o':'i')+' \u00b7 '+elapsed+'ms', 'data');
 
+    const _stashTitle = (c.name||'')+(c.card_number?' \u00b7 #'+c.card_number:'');
+    const _stashHeader = cond+' \u00b7 '+lang+' \u00b7 '+variant+(first1st?' \u00b7 1st ed':'');
+
     if(!res.ok){
       log.log('Errore finale: '+(res.error||'nessun dato'), 'err');
       log.log('Apri uno degli URL qui sopra e verifica manualmente, poi inserisci il prezzo', 'warn');
+      _saveCmStash('colEdit', {
+        title: _stashTitle, headerInfo: _stashHeader,
+        attempts: res.attempts, elapsedMs: elapsed, ok: false, error: res.error,
+      });
       return;
     }
     // Log dettagliato
@@ -5084,6 +5094,12 @@ async function verifyPriceColEdit(){
     if(res.smart && res.smart.outlierRemoved > 0)
       log.log('<span class="rb-i rb-i-warn"></span> '+res.smart.outlierRemoved+' outlier rimossi', 'warn');
     log.log('<span class="rb-i rb-i-check"></span> Prezzo smart (mediana top-3): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
+
+    _saveCmStash('colEdit', {
+      title: _stashTitle, headerInfo: _stashHeader,
+      attempts: res.attempts, listings: res.listings, smart: res.smart,
+      finalPrice: res.price, elapsedMs: elapsed, ok: true,
+    });
 
     document.getElementById('colEmCm').value = res.price.toFixed(2);
     setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 2000);
@@ -6763,9 +6779,16 @@ async function verifyPriceEdit(){
     _logCmAttempts(log, res.attempts);
     log.log('Totale '+((res.attempts||[]).length)+' tentativ' + ((res.attempts||[]).length===1?'o':'i')+' \u00b7 '+elapsed+'ms', 'data');
 
+    const _stashTitle = (c.name||'')+(c.number?' \u00b7 #'+c.number:'');
+    const _stashHeader = cond+' \u00b7 '+lang+' \u00b7 '+variant+(first1st?' \u00b7 1st ed':'');
+
     if(!res.ok){
       log.log('Errore finale: '+(res.error||'nessun dato'), 'err');
       log.log('Apri uno degli URL qui sopra e verifica manualmente, poi inserisci il prezzo', 'warn');
+      _saveCmStash('em', {
+        title: _stashTitle, headerInfo: _stashHeader,
+        attempts: res.attempts, elapsedMs: elapsed, ok: false, error: res.error,
+      });
       return;
     }
 
@@ -6778,6 +6801,12 @@ async function verifyPriceEdit(){
     if(res.smart && res.smart.outlierRemoved > 0)
       log.log('<span class="rb-i rb-i-warn"></span> '+res.smart.outlierRemoved+' outlier rimossi', 'warn');
     log.log('<span class="rb-i rb-i-check"></span> Prezzo smart (mediana top-3): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
+
+    _saveCmStash('em', {
+      title: _stashTitle, headerInfo: _stashHeader,
+      attempts: res.attempts, listings: res.listings, smart: res.smart,
+      finalPrice: res.price, elapsedMs: elapsed, ok: true,
+    });
 
     document.getElementById('emCm').value = res.price.toFixed(2);
     if(typeof emUpdatePrice==='function') emUpdatePrice();
@@ -7654,6 +7683,61 @@ function _logCmAttempts(log, attempts){
   });
 }
 
+// ─── Stash dell'ultimo risultato verify CM per riapertura overlay ───────────
+// L'overlay log si auto-chiude dopo 2s. Per permettere all'utente di
+// riconsultare i dati (URL tentati, listings raw, prezzo smart) c'è un
+// bottone "\u21bb" accanto a ogni "\u20ac" che chiama replayCmLog(key) e
+// ricostruisce l'overlay con gli stessi log. Stato globale per entry point.
+// Chiavi usate: 'q','s','m','p' (add forms), 'colEdit', 'em' (edit modal).
+var _cmStash = {};
+
+function _saveCmStash(key, snapshot){
+  if(!key || !snapshot) return;
+  _cmStash[key] = Object.assign({}, snapshot, {ts: Date.now()});
+  // Rendi visibile il bottone "\u21bb" associato (era hidden se nessun dato)
+  var btn = document.getElementById(key+'ReplayBtn');
+  if(btn){ btn.style.display = 'inline-flex'; btn.removeAttribute('disabled'); }
+}
+
+function replayCmLog(key){
+  var s = _cmStash[key];
+  if(!s){ alert('Nessun log precedente per questo campo'); return; }
+  var log = cmLogger(s.title || 'CM Price Log');
+  // Header info (cond/lang/variant)
+  if(s.headerInfo) log.log(s.headerInfo, 'data');
+  // Marcatore temporale relativo
+  var agoSec = Math.round((Date.now() - (s.ts||Date.now()))/1000);
+  var agoStr = agoSec < 60 ? agoSec+'s fa'
+             : agoSec < 3600 ? Math.round(agoSec/60)+' min fa'
+             : Math.round(agoSec/3600)+'h fa';
+  log.log('<i>Log archiviato \u00b7 '+agoStr+'</i>', 'info');
+  // Replay attempts (URL tentati)
+  _logCmAttempts(log, s.attempts || []);
+  if(s.elapsedMs != null){
+    var n = (s.attempts||[]).length;
+    log.log('Totale '+n+' tentativ'+(n===1?'o':'i')+' \u00b7 '+s.elapsedMs+'ms', 'data');
+  }
+  // Esito
+  if(s.ok === false){
+    log.log('Errore finale: '+(s.error||'nessun dato'), 'err');
+    log.log('Apri uno degli URL qui sopra per verificare manualmente', 'warn');
+    return;
+  }
+  if(s.listings && s.listings.length){
+    var logParts = s.listings.slice(0,5).map(function(l){
+      var condShort = {Mint:'MT','Near Mint':'NM',Excellent:'EX',Good:'GD','Light Played':'LP',Played:'PL',Poor:'PO'};
+      var cs = condShort[l.condition] || l.condition || '?';
+      return cs+' <b>\u20ac'+l.price.toFixed(2)+'</b>';
+    });
+    log.log('CM listing: '+logParts.join(' \u00b7 '), 'data');
+    if(s.smart && s.smart.outlierRemoved > 0)
+      log.log('<span class="rb-i rb-i-warn"></span> '+s.smart.outlierRemoved+' outlier rimossi', 'warn');
+    if(s.finalPrice != null)
+      log.log('<span class="rb-i rb-i-check"></span> Prezzo smart (mediana top-3): <b>\u20ac'+(+s.finalPrice).toFixed(2)+'</b>', 'ok');
+  }
+}
+window.replayCmLog = replayCmLog;
+
 async function fetchCmPriceLive(opts){
   var name      = (opts && opts.name) || '';
   var setId     = (opts && opts.setId) || null;
@@ -7874,9 +7958,18 @@ async function verifyPriceAdd(prefix){
     _logCmAttempts(log, res.attempts);
     log.log('Totale '+((res.attempts||[]).length)+' tentativ' + ((res.attempts||[]).length===1?'o':'i')+' \u00b7 '+elapsed+'ms', 'data');
 
+    // Stash dello stato per replay via bottone "\u21bb"
+    const _stashTitle = name+(number?' \u00b7 #'+number:'');
+    const _stashHeader = cond+' \u00b7 '+lang+' \u00b7 '+variant+(first1st?' \u00b7 1st ed':'');
+
     if(!res.ok){
       log.log('Errore finale: '+(res.error||'nessun dato'), 'err');
       log.log('Apri uno degli URL qui sopra e verifica manualmente, poi inserisci il prezzo', 'warn');
+      _saveCmStash(prefix, {
+        title: _stashTitle, headerInfo: _stashHeader,
+        attempts: res.attempts, elapsedMs: elapsed,
+        ok: false, error: res.error,
+      });
       if(btn){ btn.classList.remove('loading'); btn.textContent='€'; }
       return;
     }
@@ -7892,6 +7985,12 @@ async function verifyPriceAdd(prefix){
     if(res.smart && res.smart.outlierRemoved > 0)
       log.log('<span class="rb-i rb-i-warn"></span> '+res.smart.outlierRemoved+' outlier rimossi', 'warn');
     log.log('<span class="rb-i rb-i-check"></span> Prezzo smart (mediana top-3): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
+
+    _saveCmStash(prefix, {
+      title: _stashTitle, headerInfo: _stashHeader,
+      attempts: res.attempts, listings: listings, smart: res.smart,
+      finalPrice: res.price, elapsedMs: elapsed, ok: true,
+    });
 
     // Applica il prezzo nel campo target
     const bestPrice = res.price;
