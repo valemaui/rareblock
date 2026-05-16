@@ -137,7 +137,26 @@ body{display:flex;flex-direction:column}
 /* Card head con riepilogo valore mercato a destra */
 .anl-card-head-v2{display:flex;align-items:stretch;gap:0;padding:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden}
 .anl-card-head-v2 .anl-card-info{flex:1;display:flex;align-items:center;gap:14px;padding:14px 16px;min-width:0}
-.anl-card-head-v2 .anl-card-img{width:54px;height:auto;border-radius:3px;flex-shrink:0;border:1px solid var(--border)}
+.anl-card-head-v2 .anl-card-img{width:80px;height:auto;border-radius:5px;flex-shrink:0;border:1px solid var(--border);transition:transform .12s,border-color .12s}
+.anl-card-head-v2 .anl-card-img.zoomable{cursor:zoom-in}
+.anl-card-head-v2 .anl-card-img.zoomable:hover{transform:scale(1.04);border-color:var(--accent)}
+.anl-card-head-v2 .anl-card-img-ph{width:80px;height:112px;border-radius:5px;flex-shrink:0;border:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:36px;color:var(--text-subtle)}
+.anl-card-head-v2 .anl-card-aux{font-size:10px;color:var(--text-subtle);font-family:var(--mono);letter-spacing:0.04em;margin-top:1px}
+/* TCG quick stats strip — dati dalla TCG API senza chiamate extra */
+.anl-tcg-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;overflow:hidden;margin-top:-1px}
+.anl-tcg-cell{background:var(--surface);padding:9px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.anl-tcg-cell-lbl{font-size:9px;color:var(--text-muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.08em;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.anl-tcg-cell-val{font-size:15px;font-weight:600;font-family:var(--mono);color:var(--text);letter-spacing:-0.01em;line-height:1.1}
+.anl-tcg-cell-sub{font-size:9px;color:var(--text-subtle);font-family:var(--mono);letter-spacing:0.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.anl-tcg-cell-sub.up{color:var(--success,#7a9a6e)}
+.anl-tcg-cell-sub.dn{color:var(--danger,#c8503c)}
+.anl-tcg-cell-sub.neutral{color:var(--text-subtle)}
+
+/* Overlay zoom carta */
+.anl-zoom-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;z-index:9999;cursor:zoom-out;backdrop-filter:blur(4px)}
+.anl-zoom-overlay.show{display:flex;animation:anlFadeIn .15s ease-out}
+.anl-zoom-overlay img{max-width:min(85vw,500px);max-height:90vh;border-radius:10px;box-shadow:0 12px 50px rgba(0,0,0,.6);border:2px solid rgba(255,255,255,.1)}
+@keyframes anlFadeIn{from{opacity:0}to{opacity:1}}
 .anl-card-head-v2 .anl-card-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
 .anl-card-head-v2 .anl-card-title{font-size:15px;font-weight:600;letter-spacing:-0.005em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2}
 .anl-card-head-v2 .anl-card-sub{font-size:11px;color:var(--text-muted);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3}
@@ -232,6 +251,12 @@ body{display:flex;flex-direction:column}
 <body>
 
 <div class="tab" id="tab-anl">
+
+  <!-- Overlay zoom carta (full-screen) -->
+  <div class="anl-zoom-overlay" id="anlZoomOverlay" onclick="anlCloseZoom()">
+    <img id="anlZoomImg" alt="Card zoom"/>
+  </div>
+
   <div class="anl-wrap">
 
     <!-- Form bar compatta su una riga -->
@@ -465,6 +490,35 @@ function anlOnScoreChange(){
 }
 window.anlOnScoreChange = anlOnScoreChange;
 
+// Zoom carta full-screen (click su .anl-card-img.zoomable)
+function anlZoomCard(imgEl){
+  if(!imgEl) return;
+  var src = imgEl.getAttribute('data-large') || imgEl.src;
+  if(!src) return;
+  var overlay = document.getElementById('anlZoomOverlay');
+  var bigImg = document.getElementById('anlZoomImg');
+  if(!overlay || !bigImg) return;
+  bigImg.src = src;
+  overlay.classList.add('show');
+}
+window.anlZoomCard = anlZoomCard;
+
+function anlCloseZoom(){
+  var overlay = document.getElementById('anlZoomOverlay');
+  if(overlay) overlay.classList.remove('show');
+  var bigImg = document.getElementById('anlZoomImg');
+  if(bigImg) bigImg.removeAttribute('src');
+}
+window.anlCloseZoom = anlCloseZoom;
+
+// ESC chiude zoom
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape'){
+    var overlay = document.getElementById('anlZoomOverlay');
+    if(overlay && overlay.classList.contains('show')) anlCloseZoom();
+  }
+});
+
 function anlRerender(){
   if(!anlCurrentCard) return;
   anlRenderAll(anlCurrentCard);
@@ -580,8 +634,15 @@ function anlRenderAll(card){
   var graded = anlMode==='graded';
   var lang = document.getElementById('anlLang').value;
 
-  var img=(card.images&&card.images.small)||'';
+  var imgSmall=(card.images&&card.images.small)||'';
+  var imgLarge=(card.images&&card.images.large)||imgSmall;
   var setN=card.set?card.set.name:'';
+  var setLogo=(card.set&&card.set.images&&card.set.images.symbol)||'';
+  var releaseY=(card.set&&card.set.releaseDate||'').slice(0,4);
+  var artist=card.artist||'';
+  var hp=card.hp||'';
+  var typeStr=(card.types&&card.types.join(' / '))||(card.supertype==='Trainer'?'Trainer':(card.supertype==='Energy'?'Energy':''));
+  var is1st = document.getElementById('anl1st').value === 'yes';
 
   // BOX 1: Card head v2 con riepilogo valore mercato a destra
   var badges='';
@@ -592,27 +653,83 @@ function anlRenderAll(card){
     badges+='<span class="anl-card-badge hi">'+lang+'</span>';
   } else {
     var cond=document.getElementById('anlCond').value;
-    var is1st=document.getElementById('anl1st').value==='yes';
     badges+='<span class="anl-card-badge hi">'+cond+'</span>';
     badges+='<span class="anl-card-badge hi">'+lang+'</span>';
-    if(is1st) badges+='<span class="anl-card-badge ac">1ª Ed</span>';
   }
+  // 1\u00aa Ed badge: SEMPRE visibile in entrambe modalit\u00e0 se selezionata.
+  // Per le carte WotC old, la 1\u00aa edition cambia drasticamente il prezzo
+  // anche quando \u00e8 gradata (es. Charizard Base PSA 9: 1st ed ~15k, Unlimited ~4k).
+  if(is1st) badges+='<span class="anl-card-badge ac">1\u00aa Ed</span>';
+
+  // Mini-strip TCG: dati riassuntivi gi\u00e0 disponibili dalla TCG API (gratis,
+  // nessuna chiamata extra). Mostrati se almeno uno \u00e8 popolato.
+  var cmPrices = (card.cardmarket && card.cardmarket.prices) || null;
+  var tcgStripHtml = '';
+  if(cmPrices){
+    var trend = cmPrices.trendPrice;
+    var avg7  = cmPrices.avg7;
+    var avg30 = cmPrices.avg30;
+    var avg1  = cmPrices.avg1;
+    var rh = cmPrices.reverseHoloTrend;
+    var lowSt = cmPrices.lowPriceExPlus;
+    var fmt = function(v){ return (v != null && v > 0) ? '\u20ac'+v.toFixed(2) : '\u2014'; };
+    // Trend delta % avg7 vs avg30 \u2192 indicatore direzionale
+    var deltaPct = (avg7 && avg30) ? ((avg7-avg30)/avg30*100) : null;
+    var deltaTxt = deltaPct != null
+      ? (deltaPct > 0 ? '\u25b2 +' : (deltaPct < 0 ? '\u25bc ' : '\u25ac '))+Math.abs(deltaPct).toFixed(1)+'%'
+      : '';
+    var deltaCls = deltaPct == null ? 'neutral'
+                 : (deltaPct > 1 ? 'up' : (deltaPct < -1 ? 'dn' : 'neutral'));
+    var stripCells = [];
+    if(trend != null) stripCells.push({lbl:'Trend CM', val:fmt(trend), sub:'medio attuale'});
+    if(avg7 != null)  stripCells.push({lbl:'Avg 7gg',  val:fmt(avg7),  sub:deltaTxt, subCls:deltaCls});
+    if(avg30 != null) stripCells.push({lbl:'Avg 30gg', val:fmt(avg30), sub:'baseline'});
+    if(avg1 != null)  stripCells.push({lbl:'Ultimo',   val:fmt(avg1),  sub:'vendita 24h'});
+    if(lowSt != null && lowSt > 0) stripCells.push({lbl:'Low EX+', val:fmt(lowSt), sub:'da CM'});
+    if(rh != null && rh > 0) stripCells.push({lbl:'Reverse Holo', val:fmt(rh), sub:'trend'});
+    if(stripCells.length){
+      tcgStripHtml = '<div class="anl-tcg-strip">'
+        + stripCells.slice(0,6).map(function(c){
+            return '<div class="anl-tcg-cell">'
+                 +   '<div class="anl-tcg-cell-lbl">'+c.lbl+'</div>'
+                 +   '<div class="anl-tcg-cell-val">'+c.val+'</div>'
+                 +   '<div class="anl-tcg-cell-sub'+(c.subCls?' '+c.subCls:'')+'">'+(c.sub||'')+'</div>'
+                 + '</div>';
+          }).join('')
+        + '</div>';
+    }
+  }
+
+  // Card aux info: anno · illustratore · HP · type (se Pokemon)
+  var auxBits = [];
+  if(releaseY) auxBits.push(releaseY);
+  if(hp) auxBits.push('HP '+hp);
+  if(typeStr) auxBits.push(typeStr);
+  if(artist) auxBits.push('illus. '+anlEsc(artist));
+  var auxHtml = auxBits.length ? '<div class="anl-card-aux">'+auxBits.join(' \u00b7 ')+'</div>' : '';
+
+  // Foto zoomabile: click apre overlay con immagine grande
+  var imgHtml = imgSmall
+    ? '<img class="anl-card-img zoomable" src="'+imgSmall+'" data-large="'+anlEsc(imgLarge)+'" alt="" title="Click per ingrandire" onclick="anlZoomCard(this)">'
+    : '<div class="anl-card-img-ph">\u{1F0CF}</div>';
 
   var headHtml='<div class="anl-card-head-v2">'
     +'<div class="anl-card-info">'
-    +(img?'<img class="anl-card-img" src="'+img+'" alt="">':'')
+    + imgHtml
     +'<div class="anl-card-main">'
     +  '<div class="anl-card-title">'+anlEsc(card.name)+' <span style="color:var(--text-muted);font-family:var(--mono);font-size:12px;font-weight:400">#'+anlEsc(card.number)+'</span></div>'
-    +  '<div class="anl-card-sub">'+anlEsc(setN)+(card.rarity?' · '+anlEsc(card.rarity):'')+'</div>'
+    +  '<div class="anl-card-sub">'+anlEsc(setN)+(card.rarity?' \u00b7 '+anlEsc(card.rarity):'')+'</div>'
+    +  auxHtml
     +  '<div class="anl-card-meta-row">'+badges+'</div>'
     +'</div>'
     +'</div>'
     +'<div class="anl-card-summary">'
-    +  '<div class="anl-card-summary-label">Valore mercato · oggi</div>'
-    +  '<div class="anl-card-summary-price mute" id="anlTodayPrice">—</div>'
-    +  '<div class="anl-card-summary-method" id="anlTodayMethod">caricamento sorgenti…</div>'
+    +  '<div class="anl-card-summary-label">Valore mercato \u00b7 oggi</div>'
+    +  '<div class="anl-card-summary-price mute" id="anlTodayPrice">\u2014</div>'
+    +  '<div class="anl-card-summary-method" id="anlTodayMethod">caricamento sorgenti\u2026</div>'
     +'</div>'
-    +'</div>';
+    +'</div>'
+    + tcgStripHtml;
 
   // BOX 2: Sorgenti con toggle on/off
   var bodyHtml='<div class="anl-sources-v2">'
