@@ -25,30 +25,24 @@ body{display:flex;flex-direction:column}
 
 /* Top bar compatta — form su UNA riga */
 /* ──────────────────────────────────────────────────────────────────
-   TOP BAR — 2 fasce visive:
-   Row 1 (primary):  brand + Carta + Set + bottone Analizza (CTA)
-   Row 2 (options):  Tipo + Lingua + Cond/1\u00aaEd o Casa/Grado
-   Divider verticale e background pi\u00f9 scuro sulla riga opzioni per
-   gerarchia visiva chiara.
+   TOP BAR — riga unica con gerarchia visiva basata sulle dimensioni:
+   - Carta + Set + Bottone Analizza: 36px alti, prominenti (PRIMARI)
+   - Tutti gli altri filtri: 28px, compatti, raggruppati con divider
    ────────────────────────────────────────────────────────────────── */
-.anl-topbar{border-bottom:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;background:var(--surface);position:relative;z-index:10}
-.anl-topbar-row{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;padding:12px 20px}
-.anl-topbar-row-primary{background:var(--surface)}
-.anl-topbar-row-options{background:rgba(0,0,0,.16);border-top:1px solid var(--border);padding:9px 20px;align-items:flex-end}
-.anl-tt{display:flex;flex-direction:column;gap:1px;min-width:0;align-self:center;margin-right:8px}
-.anl-tt-title{font-size:15px;font-weight:600;letter-spacing:-0.01em;color:var(--text)}
+.anl-topbar{padding:10px 20px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;position:relative;z-index:10}
+.anl-tt{display:flex;flex-direction:column;gap:1px;min-width:0;align-self:center;margin-right:6px}
+.anl-tt-title{font-size:14px;font-weight:600;letter-spacing:-0.01em;color:var(--text)}
 .anl-tt-sub{font-size:10px;color:var(--text-muted);font-family:var(--mono);letter-spacing:0.04em}
-/* Divider tra il segmented Tipo e i parametri */
-.anl-options-divider{width:1px;height:24px;background:var(--border);align-self:center;margin:0 4px}
+/* Divider verticale tra Set e parametri filtraggio */
+.anl-options-divider{width:1px;height:24px;background:var(--border);align-self:flex-end;margin:0 4px 6px}
 
 .anl-f{display:flex;flex-direction:column;gap:3px}
 .anl-f > label,
 .anl-f > .rb-pseudo-label{font-size:9px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:500;margin:0;padding:0;line-height:1.2;display:block}
 .anl-f input, .anl-f select{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12px;padding:5px 8px;outline:none;font-family:var(--font);height:28px;transition:border-color 0.12s;box-sizing:border-box}
-/* Row primary: input Carta + Set pi\u00f9 alti per matchare il bottone CTA */
-.anl-topbar-row-primary .anl-f input,
-.anl-topbar-row-primary .anl-f select,
-.anl-topbar-row-primary #anlCardName-setpicker input{height:36px;font-size:13px;padding:6px 10px}
+/* Carta + Set: input pi\u00f9 alti (36px) per indicare priorit\u00e0 vs filtri (28px) */
+.anl-f-name input,
+.anl-f-set #anlCardName-setpicker input{height:36px;font-size:13px;padding:6px 10px}
 .anl-f input:focus, .anl-f select:focus{border-color:var(--border-focus)}
 .anl-f-name{min-width:200px;max-width:260px;flex:2 1 200px}
 .anl-f-set{min-width:200px;max-width:260px;flex:2 1 200px;position:relative;z-index:100}
@@ -276,100 +270,95 @@ body{display:flex;flex-direction:column}
 
   <div class="anl-wrap">
 
-    <!-- Form bar refactored: 2 fasce visive (primaria + opzioni) -->
+    <!-- Form bar refactored: tutto su una riga con gerarchia visiva (size) -->
     <div class="anl-topbar">
-      <!-- Fascia primaria: brand + carta + set + CTA principale -->
-      <div class="anl-topbar-row anl-topbar-row-primary">
-        <div class="anl-tt">
-          <span class="anl-tt-title">Analizza</span>
-          <span class="anl-tt-sub">valore di mercato + proiezione</span>
-        </div>
-
-        <div class="anl-f anl-f-name">
-          <label for="anlCardName">Carta</label>
-          <input type="text" id="anlCardName" placeholder="es. Charizard 4"
-            onkeydown="if(event.key==='Enter')anlSearch()"/>
-        </div>
-
-        <div class="anl-f anl-f-set">
-          <div class="rb-pseudo-label">Set</div>
-          <div id="anlCardName-setpicker" style="position:relative"></div>
-        </div>
-
-        <button class="anl-btn" id="anlBtn" onclick="anlSearch()">
-          <span class="rb-i rb-i-search" style="margin-right:6px"></span>Analizza
-        </button>
-        <button class="anl-btn-ghost" id="anlBtnReset" onclick="anlReset()" style="display:none">Reset</button>
+      <div class="anl-tt">
+        <span class="anl-tt-title">Analizza</span>
+        <span class="anl-tt-sub">valore di mercato + proiezione</span>
       </div>
 
-      <!-- Fascia opzioni: segmented Tipo + parametri filtraggio dinamici -->
-      <div class="anl-topbar-row anl-topbar-row-options">
+      <div class="anl-f anl-f-name">
+        <label for="anlCardName">Carta</label>
+        <input type="text" id="anlCardName" placeholder="es. Charizard 4"
+          onkeydown="if(event.key==='Enter')anlSearch()"/>
+      </div>
+
+      <div class="anl-f anl-f-set">
+        <div class="rb-pseudo-label">Set</div>
+        <div id="anlCardName-setpicker" style="position:relative"></div>
+      </div>
+
+      <div class="anl-options-divider"></div>
+
+      <div class="anl-f anl-f-mode">
+        <label>Tipo</label>
         <div class="anl-seg" role="tablist" aria-label="Modalit\u00e0">
           <button class="anl-seg-btn active" id="anlSegRaw" role="tab" aria-selected="true" onclick="anlSetMode('raw')">Raw</button>
           <button class="anl-seg-btn" id="anlSegGr" role="tab" aria-selected="false" onclick="anlSetMode('graded')">Gradata</button>
         </div>
-
-        <div class="anl-options-divider"></div>
-
-        <div class="anl-f anl-f-lang">
-          <label for="anlLang">Lingua</label>
-          <select id="anlLang">
-            <option value="ITA">ITA</option>
-            <option value="ENG" selected>ENG</option>
-            <option value="JPN">JPN</option>
-            <option value="FRA">FRA</option>
-            <option value="DEU">DEU</option>
-            <option value="ESP">ESP</option>
-            <option value="POR">POR</option>
-            <option value="KOR">KOR</option>
-          </select>
-        </div>
-
-        <!-- Fields RAW -->
-        <div class="anl-f anl-f-cond" id="anlFCond">
-          <label for="anlCond">Condizione</label>
-          <select id="anlCond">
-            <option>MINT</option>
-            <option selected>NM</option>
-            <option>EX</option>
-            <option>GD</option>
-            <option>LP</option>
-            <option>PL</option>
-            <option>PO</option>
-            <option>INK/ALT</option>
-          </select>
-        </div>
-        <div class="anl-f anl-f-1st" id="anlF1st">
-          <label for="anl1st">1\u00aa Ed</label>
-          <select id="anl1st">
-            <option value="no" selected>No</option>
-            <option value="yes">S\u00ec</option>
-          </select>
-        </div>
-
-        <!-- Fields GRADED -->
-        <div class="anl-f anl-f-house" id="anlFHouse" style="display:none">
-          <label for="anlHouse">Casa</label>
-          <select id="anlHouse" onchange="anlOnHouseChange()">
-            <option value="PSA" selected>PSA</option>
-            <option value="BGS">BGS</option>
-            <option value="CGC">CGC</option>
-            <option value="SGC">SGC</option>
-            <option value="HGA">HGA</option>
-            <option value="GMA">GMA</option>
-            <option value="TAG">TAG</option>
-            <option value="ARS">ARS</option>
-            <option value="GG">GetGraded</option>
-            <option value="OTHER">Altra</option>
-          </select>
-        </div>
-        <div class="anl-f anl-f-grade" id="anlFGrade" style="display:none">
-          <label for="anlGradeScore">Grado</label>
-          <select id="anlGradeScore" onchange="anlOnScoreChange()"></select>
-        </div>
-
-        <span class="anl-spacer"></span>
       </div>
+
+      <div class="anl-f anl-f-lang">
+        <label for="anlLang">Lingua</label>
+        <select id="anlLang">
+          <option value="ITA">ITA</option>
+          <option value="ENG" selected>ENG</option>
+          <option value="JPN">JPN</option>
+          <option value="FRA">FRA</option>
+          <option value="DEU">DEU</option>
+          <option value="ESP">ESP</option>
+          <option value="POR">POR</option>
+          <option value="KOR">KOR</option>
+        </select>
+      </div>
+
+      <!-- Fields RAW -->
+      <div class="anl-f anl-f-cond" id="anlFCond">
+        <label for="anlCond">Condizione</label>
+        <select id="anlCond">
+          <option>MINT</option>
+          <option selected>NM</option>
+          <option>EX</option>
+          <option>GD</option>
+          <option>LP</option>
+          <option>PL</option>
+          <option>PO</option>
+          <option>INK/ALT</option>
+        </select>
+      </div>
+      <div class="anl-f anl-f-1st" id="anlF1st">
+        <label for="anl1st">1\u00aa Ed</label>
+        <select id="anl1st">
+          <option value="no" selected>No</option>
+          <option value="yes">S\u00ec</option>
+        </select>
+      </div>
+
+      <!-- Fields GRADED -->
+      <div class="anl-f anl-f-house" id="anlFHouse" style="display:none">
+        <label for="anlHouse">Casa</label>
+        <select id="anlHouse" onchange="anlOnHouseChange()">
+          <option value="PSA" selected>PSA</option>
+          <option value="BGS">BGS</option>
+          <option value="CGC">CGC</option>
+          <option value="SGC">SGC</option>
+          <option value="HGA">HGA</option>
+          <option value="GMA">GMA</option>
+          <option value="TAG">TAG</option>
+          <option value="ARS">ARS</option>
+          <option value="GG">GetGraded</option>
+          <option value="OTHER">Altra</option>
+        </select>
+      </div>
+      <div class="anl-f anl-f-grade" id="anlFGrade" style="display:none">
+        <label for="anlGradeScore">Grado</label>
+        <select id="anlGradeScore" onchange="anlOnScoreChange()"></select>
+      </div>
+
+      <button class="anl-btn" id="anlBtn" onclick="anlSearch()">
+        <span class="rb-i rb-i-search" style="margin-right:6px"></span>Analizza
+      </button>
+      <button class="anl-btn-ghost" id="anlBtnReset" onclick="anlReset()" style="display:none">Reset</button>
     </div>
 
     <div class="anl-wrap-scroll">
