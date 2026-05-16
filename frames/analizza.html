@@ -795,8 +795,10 @@ function anlSourcesScaffold(card){
   var pcQ=(card.name+(setNm?' '+setNm:'')).trim();
   var pcUrl='https://www.pricecharting.com/search-products?q='+encodeURIComponent(pcQ)+'&type=prices';
 
-  // CM URL
-  var cmUrl=(rbParentFn("buildCMDirectUrl")||function(){return"#"})(card.name,setId,card.number,cond,lang,'Normal',is1st,setNm);
+  // CM URL — passiamo TUTTI i parametri inclusi setName e rarity per
+  // permettere a _cmPrimaryVersionFor di scegliere la variant corretta
+  // (es. rarity 'Rare Holo' su e-Card \u2192 no-V, su Fossil \u2192 V1)
+  var cmUrl=(rbParentFn("buildCMDirectUrl")||function(){return"#"})(card.name,setId,card.number,cond,lang,'Normal',is1st,setNm,card.rarity||'');
 
   // Tag/titolo CM neutri — ora il box mostra dati gradati reali se disponibili,
   // quindi non ha senso dire "riferimento raw" anche in mode graded.
@@ -834,7 +836,7 @@ function anlSourcesScaffold(card){
         return parts.join(' · ');
      })()+'</div>'
   +  '<div id="anlSrcCmTable" class="anl-cm-grade-table" style="display:none"></div>'
-  +  '<a class="anl-src-link" id="anlSrcCmLink" href="'+cmUrl+'" target="_blank" rel="noopener">apri →</a>'
+  +  '<a class="anl-src-link" id="anlSrcCmLink" href="'+cmUrl+'" target="_blank" rel="noopener" title="DEBUG: name=&quot;'+anlEsc(card.name)+'&quot; setId=&quot;'+anlEsc(setId||'')+'&quot; number=&quot;'+anlEsc(card.number||'')+'&quot; rarity=&quot;'+anlEsc(card.rarity||'')+'&quot;">apri →</a>'
   +'</div>';
 }
 
@@ -1782,7 +1784,7 @@ async function anlStartLiveFetches(card){
       var lang = document.getElementById('anlLang').value;
       var is1st= document.getElementById('anl1st').value==='yes';
       var setId= card.set?card.set.id:null;
-      var cmUrl = (rbParentFn("buildCMDirectUrl")||function(){return"#"})(card.name, setId, card.number, cond, lang, 'Normal', is1st, setNm);
+      var cmUrl = (rbParentFn("buildCMDirectUrl")||function(){return"#"})(card.name, setId, card.number, cond, lang, 'Normal', is1st, setNm, card.rarity||'');
       // In graded mode forziamo minCondition a NM per non perdere listings (anche
       // i venditori di carte gradate spesso non impostano la condizione raw).
       // Per non interferire col link "apri →" esterno costruisco un URL parallelo.
