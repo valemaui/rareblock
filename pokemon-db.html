@@ -7380,6 +7380,19 @@ function _cmPrimaryVersionFor(setId, variant, rarity, name){
     return '';
   }
 
+  // ── WotC non-Base (Jungle, Fossil, Team Rocket, Legendary Coll, Gym H&C) ──
+  // Pattern opposto di Base Set: la pagina principale su CM \u00e8 sotto V1 (es.
+  // /Fossil/Gengar-V1-FO5 ha 256 listings, trend \u20ac157, mentre /Fossil/Gengar-FO5
+  // \u00e8 vuota o redirige). Probabilmente perch\u00e9 in questi set non esiste lo
+  // "Shadowless" che differenzia Base Set, quindi CM ha consolidato tutte le
+  // copie (1st ed + Unlimited) sotto V1, e il filtro isFirstEd=Y/N seleziona
+  // server-side.
+  // Verificato empiricamente (2026-05-15) per Gengar #5 Fossil Holo Rare.
+  if(setId === 'base2' || setId === 'base3' || setId === 'base5' || setId === 'base6'
+     || setId === 'gym1' || setId === 'gym2'){
+    return 'V1';
+  }
+
   return '';
 }
 
@@ -7589,9 +7602,9 @@ const CM_AMBIGUOUS_VERSION_SETS = new Set([
   //   pu\u00f2 essere a "no-V" (versione primaria) o "V1" (variante).
   'neo1','neo2','neo3','neo4',          // Neo Genesis, Discovery, Revelation, Destiny
   // WotC altri set con varianti note: Jungle/Fossil/Team Rocket usano "V1" per
-  //   alcune carte holo. Sicuro aggiungerli al fallback list (costo solo se
-  //   primary fallisce).
+  //   tutte le carte (verificato empiricamente). Aggiunto anche Gym Heroes/Challenge.
   'base2','base3','base5','base6',      // Jungle, Fossil, Team Rocket, Legendary Coll
+  'gym1','gym2',                        // Gym Heroes, Gym Challenge
   // EX series: pattern stabile in maggioranza ma qualche edge case con V1/V2
   //   per le carte ristampate. Safe-add al fallback.
   'ex1','ex2','ex3','ex4','ex5','ex6','ex7','ex8',
@@ -7872,7 +7885,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-05-15-2000';
+var RB_BUILD = '2026-05-15-2030';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
