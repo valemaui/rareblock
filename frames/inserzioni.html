@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<title>Inserzioni</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400;9..144,600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../shared/rareblock-shared.css"/>
+<style>
+html,body{height:100%;overflow:hidden}
+body{display:flex;flex-direction:column}
+
+/* ── Inserzioni layout ── */
+.ins-wrap{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.ins-topbar{padding:12px 20px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ins-tt{display:flex;flex-direction:column;gap:1px}
+.ins-tt-title{font-size:14px;font-weight:600;letter-spacing:-0.01em}
+.ins-tt-sub{font-size:10px;color:var(--text-muted);font-family:var(--mono);letter-spacing:0.04em}
+.ins-spacer{flex:1}
+.ins-stats-bar{display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)}
+.ins-stat{flex:1;padding:9px 12px;text-align:center;border-right:1px solid var(--border)}
+.ins-stat:last-child{border-right:none}
+.ins-stat-val{font-size:15px;font-weight:600;font-family:var(--mono);line-height:1.2}
+.ins-stat-lbl{font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-family:var(--mono)}
+
+.ins-filters{padding:10px 20px;border-bottom:1px solid var(--border);background:rgba(0,0,0,.18);display:flex;gap:8px;flex-shrink:0;align-items:center;flex-wrap:wrap}
+.ins-chip{font-size:11px;padding:4px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:14px;color:var(--text-muted);cursor:pointer;transition:all .12s;font-family:var(--mono);letter-spacing:.04em;text-transform:uppercase;font-weight:500}
+.ins-chip:hover{background:var(--surface3);color:var(--text)}
+.ins-chip.active{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600}
+
+.ins-main{flex:1;overflow-y:auto;display:flex;flex-direction:column;min-height:0}
+.ins-table{width:100%;border-collapse:collapse;font-size:13px}
+.ins-table th{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-family:var(--mono);padding:9px 12px;border-bottom:1px solid var(--border);text-align:left;background:var(--surface);position:sticky;top:0;z-index:2}
+.ins-table td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.ins-table tr:hover td{background:rgba(255,255,255,.025)}
+.ins-table .ins-card-cell{display:flex;flex-direction:column;gap:1px;min-width:160px}
+.ins-table .ins-card-name{font-weight:500;font-size:13px}
+.ins-table .ins-card-meta{font-size:10px;color:var(--text-muted);font-family:var(--mono);letter-spacing:.04em}
+
+.ins-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;font-family:var(--mono);letter-spacing:.04em;text-transform:uppercase}
+.ins-badge.draft{background:rgba(160,160,160,.15);color:var(--text-muted);border:1px solid rgba(160,160,160,.3)}
+.ins-badge.ready{background:rgba(200,160,80,.16);color:#c9a84c;border:1px solid rgba(200,160,80,.4)}
+.ins-badge.published{background:rgba(74,124,197,.16);color:#7aa8e0;border:1px solid rgba(74,124,197,.4)}
+.ins-badge.sold{background:rgba(122,154,110,.18);color:var(--success);border:1px solid rgba(122,154,110,.4)}
+.ins-badge.unsold{background:rgba(200,80,60,.12);color:var(--danger);border:1px solid rgba(200,80,60,.3)}
+.ins-badge.cancelled{background:rgba(100,100,100,.12);color:var(--text-subtle);border:1px solid rgba(100,100,100,.25)}
+
+.ins-platform{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-family:var(--mono);font-weight:500;text-transform:uppercase;letter-spacing:.06em}
+.ins-platform.ebay{color:#e53238}
+.ins-platform.vinted{color:#09b1ba}
+.ins-platform.other{color:var(--text-muted)}
+
+.ins-row-actions{display:flex;gap:4px;justify-content:flex-end}
+.ins-row-btn{background:none;border:1px solid var(--border);cursor:pointer;color:var(--text-muted);padding:4px 8px;border-radius:4px;font-size:11px;transition:all .12s;font-family:var(--font)}
+.ins-row-btn:hover{color:var(--text);border-color:var(--text-muted)}
+.ins-row-btn.danger:hover{color:var(--danger);border-color:var(--danger)}
+
+.ins-empty{text-align:center;padding:60px 20px;color:var(--text-muted)}
+.ins-empty-title{font-size:18px;font-family:var(--serif);margin-bottom:8px;color:var(--text)}
+.ins-empty-sub{font-size:13px;max-width:420px;margin:0 auto;line-height:1.5}
+
+.ins-btn{padding:7px 14px;background:var(--accent);color:var(--bg);font-weight:600;font-size:12px;border:none;border-radius:var(--r);cursor:pointer;font-family:var(--font);display:inline-flex;align-items:center;gap:5px}
+.ins-btn:hover{background:var(--accent-hover)}
+.ins-btn-ghost{padding:6px 12px;background:transparent;color:var(--text-muted);font-size:11px;border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-family:var(--font)}
+.ins-btn-ghost:hover{color:var(--text);border-color:var(--text-muted)}
+
+/* ── Drawer create/edit ── */
+.ins-drawer-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:flex-start;justify-content:flex-end;z-index:1000;backdrop-filter:blur(2px)}
+.ins-drawer-bg.show{display:flex}
+.ins-drawer{width:100%;max-width:560px;height:100vh;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;animation:slideIn .18s ease-out}
+@keyframes slideIn{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}
+.ins-drawer-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.ins-drawer-title{font-size:14px;font-weight:600;flex:1}
+.ins-drawer-close{background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:18px;padding:2px 6px;border-radius:4px}
+.ins-drawer-close:hover{color:var(--text);background:var(--surface2)}
+.ins-drawer-body{flex:1;overflow-y:auto;padding:16px 18px}
+.ins-drawer-foot{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;background:var(--surface2)}
+.ins-field{display:flex;flex-direction:column;gap:4px;margin-bottom:14px}
+.ins-field > label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-subtle);font-family:var(--mono)}
+.ins-field input, .ins-field select, .ins-field textarea{background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:13px;padding:8px 10px;border-radius:var(--r);outline:none;font-family:var(--font);width:100%;box-sizing:border-box}
+.ins-field textarea{resize:vertical;min-height:90px;font-family:var(--font);line-height:1.5}
+.ins-field-row{display:flex;gap:10px}
+.ins-field-row > .ins-field{flex:1}
+.ins-card-preview{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:14px;display:flex;flex-direction:column;gap:3px}
+.ins-card-preview-name{font-weight:600;font-size:13px}
+.ins-card-preview-meta{font-size:11px;color:var(--text-muted);font-family:var(--mono);letter-spacing:.04em}
+.ins-search-results{position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r) var(--r);max-height:260px;overflow-y:auto;z-index:50;display:none;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.ins-search-item{padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.ins-search-item:hover{background:var(--surface2)}
+.ins-search-item:last-child{border-bottom:none}
+.ins-search-item-meta{color:var(--text-muted);font-family:var(--mono);font-size:10px;letter-spacing:.04em}
+.ins-pricing-hint{background:rgba(122,154,110,.08);border:1px solid rgba(122,154,110,.25);border-radius:var(--r);padding:8px 10px;margin-bottom:14px;font-size:11px;color:var(--text-muted)}
+.ins-pricing-hint b{color:var(--success);font-family:var(--mono);font-weight:600}
+.ins-pricing-hint .price-suggestion{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
+.ins-pricing-hint .price-suggestion:hover{color:var(--text)}
+.ins-platform-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.ins-platform-card{padding:14px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;text-align:center;transition:all .12s}
+.ins-platform-card:hover{border-color:var(--text-muted)}
+.ins-platform-card.active{border-color:var(--accent);background:rgba(74,124,197,.08)}
+.ins-platform-card-name{font-size:12px;font-weight:600;letter-spacing:.04em}
+.ins-platform-card-sub{font-size:9px;color:var(--text-muted);margin-top:2px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em}
+</style>
+</head>
+<body>
+
+<div class="ins-wrap">
+
+  <!-- Top bar -->
+  <div class="ins-topbar">
+    <div class="ins-tt">
+      <span class="ins-tt-title">Inserzioni</span>
+      <span class="ins-tt-sub">gestione pubblicazioni eBay · Vinted</span>
+    </div>
+    <span class="ins-spacer"></span>
+    <button class="ins-btn-ghost" onclick="insReload()" title="Ricarica">↻</button>
+    <button class="ins-btn" onclick="insOpenCreate()">+ Nuova inserzione</button>
+  </div>
+
+  <!-- Stats -->
+  <div class="ins-stats-bar" id="insStatsBar">
+    <div class="ins-stat"><div class="ins-stat-val" id="isTotal">—</div><div class="ins-stat-lbl">Totale</div></div>
+    <div class="ins-stat"><div class="ins-stat-val" id="isDraft">—</div><div class="ins-stat-lbl">Bozze</div></div>
+    <div class="ins-stat"><div class="ins-stat-val" id="isPublished">—</div><div class="ins-stat-lbl">Pubblicate</div></div>
+    <div class="ins-stat"><div class="ins-stat-val" id="isSold">—</div><div class="ins-stat-lbl">Vendute</div></div>
+    <div class="ins-stat"><div class="ins-stat-val" id="isRevenue">—</div><div class="ins-stat-lbl">Ricavi</div></div>
+  </div>
+
+  <!-- Filters -->
+  <div class="ins-filters">
+    <span class="ins-chip active" data-filter="all" onclick="insSetFilter('all')">Tutte</span>
+    <span class="ins-chip" data-filter="draft" onclick="insSetFilter('draft')">Bozze</span>
+    <span class="ins-chip" data-filter="ready" onclick="insSetFilter('ready')">Pronte</span>
+    <span class="ins-chip" data-filter="published" onclick="insSetFilter('published')">Pubblicate</span>
+    <span class="ins-chip" data-filter="sold" onclick="insSetFilter('sold')">Vendute</span>
+    <span class="ins-chip" data-filter="unsold" onclick="insSetFilter('unsold')">Invendute</span>
+    <span class="ins-spacer"></span>
+    <span class="ins-chip" data-platform="all" onclick="insSetPlatformFilter('all')">Tutte piattaforme</span>
+    <span class="ins-chip" data-platform="ebay" onclick="insSetPlatformFilter('ebay')">eBay</span>
+    <span class="ins-chip" data-platform="vinted" onclick="insSetPlatformFilter('vinted')">Vinted</span>
+  </div>
+
+  <!-- Main table -->
+  <div class="ins-main" id="insMain">
+    <div class="ins-empty">
+      <div class="ins-empty-title">Caricamento…</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Drawer crea/modifica -->
+<div class="ins-drawer-bg" id="insDrawerBg" onclick="if(event.target===this)insCloseDrawer()">
+  <div class="ins-drawer">
+    <div class="ins-drawer-head">
+      <span class="ins-drawer-title" id="insDrawerTitle">Nuova inserzione</span>
+      <button class="ins-drawer-close" onclick="insCloseDrawer()">×</button>
+    </div>
+    <div class="ins-drawer-body" id="insDrawerBody">
+      <!-- Form renderizzato da JS -->
+    </div>
+    <div class="ins-drawer-foot">
+      <button class="ins-btn-ghost" onclick="insCloseDrawer()">Annulla</button>
+      <button class="ins-btn-ghost" onclick="insSaveDraft()" id="insSaveDraftBtn">Salva bozza</button>
+      <button class="ins-btn" onclick="insMarkReady()" id="insReadyBtn">Pronta per pubblicare</button>
+    </div>
+  </div>
+</div>
+
+<script src="../shared/rareblock-shared.js" defer></script>
+<script defer>
+// ═══════════════════════════════════════════════════════════════════════════
+// INSERZIONI — gestione inserzioni eBay/Vinted/altre piattaforme
+// ═══════════════════════════════════════════════════════════════════════════
+// Lifecycle: draft → ready → published → sold|unsold|cancelled
+// Storage: tabella rb_listings (vedi supabase/migrations/2026_05_15_listings.sql)
+//
+// Step 1 attuale: CRUD bozze + filtri + lista. Niente pubblicazione automatica.
+// Step 2 (next): copia clipboard + apertura piattaforma con campi precompilati.
+// Step 3 (next): integrazione eBay Sell APIs con OAuth.
+// ═══════════════════════════════════════════════════════════════════════════
+
+var insListings = [];           // cache locale lista
+var insFilterStatus = 'all';
+var insFilterPlatform = 'all';
+var insEditingId = null;        // id riga in editing (drawer aperto)
+var insDraftData = {};          // dati form in editing
+
+var SUPA_URL = 'https://rbjaaeyjeeqfpbzyavag.supabase.co';
+
+// Bridge verso il parent per fetch/auth helpers (riusiamo getHDR/supa del Collector)
+function rbParentFn(name){
+  try { return window.parent && window.parent[name]; } catch(_){ return null; }
+}
+function getHDR(){
+  var fn = rbParentFn('getHDR');
+  return fn ? fn() : {'Content-Type':'application/json'};
+}
+
+function insEsc(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+// ── Load listings dal DB ──────────────────────────────────────────────────
+async function insLoad(){
+  var main = document.getElementById('insMain');
+  main.innerHTML = '<div class="ins-empty"><div class="ins-empty-title">Caricamento…</div></div>';
+  try {
+    var r = await fetch(SUPA_URL+'/rest/v1/rb_listings?select=*&order=created_at.desc&limit=500', {headers: getHDR()});
+    if(!r.ok){
+      // 404 = tabella non esiste: probabilmente la migration non è stata eseguita
+      if(r.status === 404 || (await r.text()).indexOf('does not exist') >= 0){
+        main.innerHTML =
+          '<div class="ins-empty">'
+            +'<div class="ins-empty-title">Tabella non inizializzata</div>'
+            +'<div class="ins-empty-sub">'
+              +'La funzionalità Inserzioni richiede una migration SQL sul tuo database Supabase. '
+              +'Esegui <b>supabase/migrations/2026_05_15_listings.sql</b> dalla SQL Editor '
+              +'del Dashboard Supabase, poi ricarica questa pagina.'
+            +'</div>'
+          +'</div>';
+        return;
+      }
+      throw new Error('HTTP '+r.status);
+    }
+    insListings = await r.json();
+    insRender();
+    insRenderStats();
+  } catch(e){
+    console.error('[ins] load failed:', e);
+    main.innerHTML = '<div class="ins-empty"><div class="ins-empty-title">Errore</div><div class="ins-empty-sub">'+insEsc(e.message||String(e))+'</div></div>';
+  }
+}
+
+function insReload(){ insLoad(); }
+window.insReload = insReload;
+
+// ── Filtri ────────────────────────────────────────────────────────────────
+function insSetFilter(f){
+  insFilterStatus = f;
+  document.querySelectorAll('.ins-chip[data-filter]').forEach(function(c){
+    c.classList.toggle('active', c.getAttribute('data-filter')===f);
+  });
+  insRender();
+}
+window.insSetFilter = insSetFilter;
+
+function insSetPlatformFilter(p){
+  insFilterPlatform = p;
+  document.querySelectorAll('.ins-chip[data-platform]').forEach(function(c){
+    c.classList.toggle('active', c.getAttribute('data-platform')===p);
+  });
+  insRender();
+}
+window.insSetPlatformFilter = insSetPlatformFilter;
+
+// ── Stats bar ─────────────────────────────────────────────────────────────
+function insRenderStats(){
+  var byStatus = {};
+  var revenue = 0;
+  insListings.forEach(function(l){
+    byStatus[l.status] = (byStatus[l.status]||0) + 1;
+    if(l.status === 'sold' && l.sold_price) revenue += +l.sold_price;
+  });
+  function setV(id, v){ var el = document.getElementById(id); if(el) el.textContent = v; }
+  setV('isTotal',     insListings.length);
+  setV('isDraft',     byStatus.draft || 0);
+  setV('isPublished', byStatus.published || 0);
+  setV('isSold',      byStatus.sold || 0);
+  setV('isRevenue',   revenue > 0 ? '€'+revenue.toFixed(0) : '—');
+}
+
+// ── Render tabella ────────────────────────────────────────────────────────
+function insRender(){
+  var main = document.getElementById('insMain');
+  var filtered = insListings.filter(function(l){
+    if(insFilterStatus !== 'all' && l.status !== insFilterStatus) return false;
+    if(insFilterPlatform !== 'all' && l.platform !== insFilterPlatform) return false;
+    return true;
+  });
+  if(!filtered.length){
+    if(!insListings.length){
+      main.innerHTML =
+        '<div class="ins-empty">'
+          +'<div class="ins-empty-title">Nessuna inserzione</div>'
+          +'<div class="ins-empty-sub">Clicca <b>+ Nuova inserzione</b> in alto a destra per creare la prima bozza. '
+          +'Puoi selezionare una carta dalla tua collezione e creare un\'inserzione pronta da pubblicare.</div>'
+        +'</div>';
+    } else {
+      main.innerHTML = '<div class="ins-empty"><div class="ins-empty-title">Nessun risultato con questi filtri</div></div>';
+    }
+    return;
+  }
+
+  var statusLabels = {
+    draft: 'Bozza', ready: 'Pronta', published: 'Pubblicata',
+    sold: 'Venduta', unsold: 'Invenduta', cancelled: 'Annullata'
+  };
+  var platformLabels = { ebay: 'eBay', vinted: 'Vinted', other: 'Altro' };
+
+  var html = '<table class="ins-table"><thead><tr>'
+    +'<th>Carta</th>'
+    +'<th>Piattaforma</th>'
+    +'<th>Stato</th>'
+    +'<th style="text-align:right">Prezzo</th>'
+    +'<th>Titolo</th>'
+    +'<th>Creata</th>'
+    +'<th></th>'
+    +'</tr></thead><tbody>';
+  filtered.forEach(function(l){
+    var created = l.created_at ? new Date(l.created_at).toLocaleDateString('it') : '';
+    var priceStr = l.status === 'sold' && l.sold_price
+      ? '<span style="color:var(--success);font-weight:600">€'+(+l.sold_price).toFixed(2)+'</span>'
+      : '€'+(+l.price).toFixed(2);
+    var titleTrunc = l.title && l.title.length > 50 ? l.title.substring(0,50)+'…' : (l.title||'—');
+    html += '<tr>'
+      +'<td><div class="ins-card-cell">'
+        +'<div class="ins-card-name">'+insEsc(l.card_name)+'</div>'
+        +'<div class="ins-card-meta">'+insEsc(l.card_set||'')+(l.card_number?' · #'+insEsc(l.card_number):'')+(l.card_graded?' · '+insEsc(l.card_grade_house+' '+l.card_grade_score):' · '+insEsc(l.card_condition||''))+'</div>'
+      +'</div></td>'
+      +'<td><span class="ins-platform '+l.platform+'">'+platformLabels[l.platform]+'</span></td>'
+      +'<td><span class="ins-badge '+l.status+'">'+statusLabels[l.status]+'</span></td>'
+      +'<td style="text-align:right;font-family:var(--mono);font-weight:500">'+priceStr+'</td>'
+      +'<td style="color:var(--text-muted);font-size:12px">'+insEsc(titleTrunc)+'</td>'
+      +'<td style="color:var(--text-subtle);font-size:11px;font-family:var(--mono)">'+created+'</td>'
+      +'<td><div class="ins-row-actions">'
+        +'<button class="ins-row-btn" onclick="insOpenEdit(\''+l.id+'\')">Apri</button>'
+        +(l.ext_url ? '<a class="ins-row-btn" href="'+insEsc(l.ext_url)+'" target="_blank" rel="noopener" style="text-decoration:none">↗</a>' : '')
+        +'<button class="ins-row-btn danger" onclick="insDelete(\''+l.id+'\')" title="Elimina">🗑</button>'
+      +'</div></td>'
+      +'</tr>';
+  });
+  html += '</tbody></table>';
+  main.innerHTML = html;
+}
+
+// ── Drawer: crea nuova bozza ──────────────────────────────────────────────
+function insOpenCreate(){
+  insEditingId = null;
+  insDraftData = {
+    platform: 'ebay',
+    card_first_ed: false,
+    card_graded: false,
+    status: 'draft',
+    currency: 'EUR'
+  };
+  document.getElementById('insDrawerTitle').textContent = 'Nuova inserzione';
+  insRenderDrawer();
+  document.getElementById('insDrawerBg').classList.add('show');
+}
+window.insOpenCreate = insOpenCreate;
+
+function insOpenEdit(id){
+  var l = insListings.find(function(x){ return x.id === id; });
+  if(!l) return;
+  insEditingId = id;
+  insDraftData = Object.assign({}, l);
+  document.getElementById('insDrawerTitle').textContent = 'Modifica inserzione';
+  insRenderDrawer();
+  document.getElementById('insDrawerBg').classList.add('show');
+}
+window.insOpenEdit = insOpenEdit;
+
+function insCloseDrawer(){
+  document.getElementById('insDrawerBg').classList.remove('show');
+  insEditingId = null;
+  insDraftData = {};
+}
+window.insCloseDrawer = insCloseDrawer;
+
+// ── Render del form drawer ────────────────────────────────────────────────
+function insRenderDrawer(){
+  var d = insDraftData;
+  var hasCard = !!d.card_name;
+  var html = '';
+
+  // Piattaforma (3 card)
+  html += '<div class="ins-field">'
+    +'<label>Piattaforma</label>'
+    +'<div class="ins-platform-grid">'
+      +'<div class="ins-platform-card'+(d.platform==='ebay'?' active':'')+'" onclick="insSelectPlatform(\'ebay\')">'
+        +'<div class="ins-platform-card-name">eBay</div>'
+        +'<div class="ins-platform-card-sub">Fee ~10%</div>'
+      +'</div>'
+      +'<div class="ins-platform-card'+(d.platform==='vinted'?' active':'')+'" onclick="insSelectPlatform(\'vinted\')">'
+        +'<div class="ins-platform-card-name">Vinted</div>'
+        +'<div class="ins-platform-card-sub">Fee buyer</div>'
+      +'</div>'
+      +'<div class="ins-platform-card'+(d.platform==='other'?' active':'')+'" onclick="insSelectPlatform(\'other\')">'
+        +'<div class="ins-platform-card-name">Altra</div>'
+        +'<div class="ins-platform-card-sub">Manuale</div>'
+      +'</div>'
+    +'</div>'
+  +'</div>';
+
+  // Carta — se non c'è ancora, mostra search
+  if(!hasCard){
+    html += '<div class="ins-field" style="position:relative">'
+      +'<label>Carta dalla collezione</label>'
+      +'<input type="text" id="insCardSearch" placeholder="Nome carta..." oninput="insSearchCards()" autocomplete="off"/>'
+      +'<div class="ins-search-results" id="insSearchResults"></div>'
+    +'</div>';
+  } else {
+    html += '<div class="ins-card-preview">'
+      +'<div class="ins-card-preview-name">'+insEsc(d.card_name)+(d.card_number?' <span style="color:var(--text-muted);font-weight:400">#'+insEsc(d.card_number)+'</span>':'')+'</div>'
+      +'<div class="ins-card-preview-meta">'+insEsc(d.card_set||'—')+(d.card_rarity?' · '+insEsc(d.card_rarity):'')+(d.card_condition?' · '+insEsc(d.card_condition):'')+(d.card_first_ed?' · 1ª Ed':'')+'</div>'
+      +'<div style="margin-top:6px"><button class="ins-btn-ghost" onclick="insChangeCard()" style="font-size:10px;padding:3px 8px">Cambia carta</button></div>'
+    +'</div>';
+  }
+
+  // Pricing hint (CM avg30 se disponibile)
+  if(hasCard && d.card_cm_avg30){
+    var suggested = (+d.card_cm_avg30 * 0.95).toFixed(2);   // 5% sotto avg per vendita rapida
+    html += '<div class="ins-pricing-hint">'
+      +'CM avg30: <b>€'+(+d.card_cm_avg30).toFixed(2)+'</b> · '
+      +'<span class="price-suggestion" onclick="insSetPrice('+suggested+')">suggerito €'+suggested+' (−5% per uscita rapida)</span>'
+    +'</div>';
+  }
+
+  // Titolo
+  html += '<div class="ins-field">'
+    +'<label>Titolo <span style="color:var(--text-subtle);font-weight:400;text-transform:none;letter-spacing:0">(eBay: max 80 caratteri)</span></label>'
+    +'<input type="text" id="insTitle" value="'+insEsc(d.title||insSuggestTitle())+'" maxlength="80" oninput="insUpdateField(\'title\', this.value)"/>'
+  +'</div>';
+
+  // Prezzo + spedizione
+  html += '<div class="ins-field-row">'
+    +'<div class="ins-field">'
+      +'<label>Prezzo (€)</label>'
+      +'<input type="number" id="insPrice" step="0.01" min="0" value="'+(d.price||'')+'" oninput="insUpdateField(\'price\', this.value)"/>'
+    +'</div>'
+    +'<div class="ins-field">'
+      +'<label>Spedizione (€)</label>'
+      +'<input type="number" id="insShipping" step="0.01" min="0" value="'+(d.shipping_cost||'')+'" oninput="insUpdateField(\'shipping_cost\', this.value)" placeholder="0 = inclusa"/>'
+    +'</div>'
+  +'</div>';
+
+  // Descrizione
+  html += '<div class="ins-field">'
+    +'<label>Descrizione</label>'
+    +'<textarea id="insDesc" placeholder="Descrizione carta, condizione, spedizione…" oninput="insUpdateField(\'description\', this.value)">'+insEsc(d.description||insSuggestDescription())+'</textarea>'
+    +'<button class="ins-btn-ghost" style="margin-top:6px;align-self:flex-start;font-size:10px" onclick="insRegenDescription()">↻ Rigenera testo standard</button>'
+  +'</div>';
+
+  // Stato + ext fields se published
+  if(d.status === 'published' || d.status === 'sold' || d.status === 'unsold'){
+    html += '<div class="ins-field-row">'
+      +'<div class="ins-field">'
+        +'<label>URL inserzione esterna</label>'
+        +'<input type="url" id="insExtUrl" value="'+insEsc(d.ext_url||'')+'" oninput="insUpdateField(\'ext_url\', this.value)" placeholder="https://..."/>'
+      +'</div>'
+    +'</div>';
+  }
+  if(d.status === 'sold'){
+    html += '<div class="ins-field-row">'
+      +'<div class="ins-field">'
+        +'<label>Prezzo vendita (€)</label>'
+        +'<input type="number" step="0.01" value="'+(d.sold_price||'')+'" oninput="insUpdateField(\'sold_price\', this.value)"/>'
+      +'</div>'
+      +'<div class="ins-field">'
+        +'<label>Buyer (opzionale)</label>'
+        +'<input type="text" value="'+insEsc(d.buyer_handle||'')+'" oninput="insUpdateField(\'buyer_handle\', this.value)" placeholder="username"/>'
+      +'</div>'
+    +'</div>';
+  }
+
+  // Cambio stato manuale se siamo in edit
+  if(insEditingId){
+    html += '<div class="ins-field">'
+      +'<label>Stato</label>'
+      +'<select onchange="insUpdateField(\'status\', this.value)">'
+        +['draft','ready','published','sold','unsold','cancelled'].map(function(s){
+          return '<option value="'+s+'"'+(d.status===s?' selected':'')+'>'+({draft:'Bozza',ready:'Pronta',published:'Pubblicata',sold:'Venduta',unsold:'Invenduta',cancelled:'Annullata'}[s])+'</option>';
+        }).join('')
+      +'</select>'
+    +'</div>';
+  }
+
+  document.getElementById('insDrawerBody').innerHTML = html;
+}
+
+function insSelectPlatform(p){ insDraftData.platform = p; insRenderDrawer(); }
+window.insSelectPlatform = insSelectPlatform;
+
+function insUpdateField(f, v){ insDraftData[f] = v; }
+window.insUpdateField = insUpdateField;
+
+function insSetPrice(p){
+  insDraftData.price = +p;
+  var inp = document.getElementById('insPrice');
+  if(inp) inp.value = p;
+}
+window.insSetPrice = insSetPrice;
+
+// ── Genera titolo automatico ─────────────────────────────────────────────
+function insSuggestTitle(){
+  var d = insDraftData;
+  if(!d.card_name) return '';
+  // Pattern: "Pokemon [Nome] #[N] [Set] [Lang] [Cond/Grade] [1st Ed]"
+  // eBay best practice: title ricco di keyword ricercabili
+  var parts = ['Pokémon', d.card_name];
+  if(d.card_number) parts.push('#'+d.card_number);
+  if(d.card_set) parts.push(d.card_set);
+  if(d.card_rarity && d.card_rarity.toLowerCase().indexOf('holo') >= 0) parts.push('Holo');
+  if(d.card_language && d.card_language !== 'ITA') parts.push(d.card_language);
+  if(d.card_graded && d.card_grade_house && d.card_grade_score){
+    parts.push(d.card_grade_house+' '+d.card_grade_score);
+  } else if(d.card_condition){
+    parts.push(d.card_condition);
+  }
+  if(d.card_first_ed) parts.push('1ª Ed');
+  var t = parts.join(' ');
+  return t.length > 80 ? t.substring(0,77)+'...' : t;
+}
+
+// ── Genera descrizione standard ─────────────────────────────────────────
+function insSuggestDescription(){
+  var d = insDraftData;
+  if(!d.card_name) return '';
+  var lines = [];
+  lines.push('Carta Pokémon TCG · '+(d.card_name)+(d.card_number?' #'+d.card_number:''));
+  if(d.card_set) lines.push('Set: '+d.card_set);
+  if(d.card_rarity) lines.push('Rarità: '+d.card_rarity);
+  if(d.card_language) lines.push('Lingua: '+d.card_language);
+  if(d.card_first_ed) lines.push('1ª Edizione');
+  if(d.card_graded && d.card_grade_house && d.card_grade_score){
+    lines.push('Gradazione: '+d.card_grade_house+' '+d.card_grade_score);
+  } else if(d.card_condition){
+    lines.push('Condizione: '+d.card_condition);
+  }
+  lines.push('');
+  lines.push('Carta originale, autentica, mai giocata. Spedizione tracciata in busta imbottita con protezione anti-piega.');
+  lines.push('');
+  lines.push('Acquisto sicuro: garanzia di restituzione entro 14 giorni in caso di problemi.');
+  return lines.join('\n');
+}
+
+function insRegenDescription(){
+  insDraftData.description = insSuggestDescription();
+  var ta = document.getElementById('insDesc');
+  if(ta) ta.value = insDraftData.description;
+}
+window.insRegenDescription = insRegenDescription;
+
+// ── Search carte dalla collezione ─────────────────────────────────────────
+var _insSearchTimer = null;
+function insSearchCards(){
+  var inp = document.getElementById('insCardSearch');
+  if(!inp) return;
+  var q = inp.value.trim();
+  if(_insSearchTimer) clearTimeout(_insSearchTimer);
+  if(q.length < 2){
+    document.getElementById('insSearchResults').style.display = 'none';
+    return;
+  }
+  _insSearchTimer = setTimeout(async function(){
+    try {
+      // Cerca nella tabella collection (full text su name)
+      var url = SUPA_URL+'/rest/v1/collection?select=id,name,set,set_id,card_number,rarity,condition,language,variant,first_edition,cm_avg30&name=ilike.*'+encodeURIComponent(q)+'*&order=name&limit=20';
+      var r = await fetch(url, {headers: getHDR()});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      var rows = await r.json();
+      var box = document.getElementById('insSearchResults');
+      if(!rows.length){
+        box.innerHTML = '<div class="ins-search-item" style="cursor:default;color:var(--text-subtle)">Nessuna carta in collezione</div>';
+      } else {
+        box.innerHTML = rows.map(function(c){
+          var meta = (c.set||'') + (c.card_number?' · #'+c.card_number:'') + (c.condition?' · '+c.condition:'');
+          return '<div class="ins-search-item" onclick="insSelectCard('+c.id+')">'
+            +'<span>'+insEsc(c.name)+'</span>'
+            +'<span class="ins-search-item-meta">'+insEsc(meta)+'</span>'
+          +'</div>';
+        }).join('');
+      }
+      box.style.display = 'block';
+    } catch(e){
+      console.warn('[ins] search failed:', e);
+    }
+  }, 250);
+}
+window.insSearchCards = insSearchCards;
+
+async function insSelectCard(collectionId){
+  try {
+    // Ricarica la riga completa dalla collezione
+    var r = await fetch(SUPA_URL+'/rest/v1/collection?id=eq.'+collectionId+'&select=*&limit=1', {headers: getHDR()});
+    var rows = await r.json();
+    if(!rows.length) return;
+    var c = rows[0];
+    insDraftData.collection_id   = c.id;
+    insDraftData.card_name       = c.name;
+    insDraftData.card_set        = c.set;
+    insDraftData.card_set_id     = c.set_id;
+    insDraftData.card_number     = c.card_number;
+    insDraftData.card_rarity     = c.rarity;
+    insDraftData.card_condition  = c.condition;
+    insDraftData.card_language   = c.language || 'ITA';
+    insDraftData.card_variant    = c.variant;
+    insDraftData.card_first_ed   = !!c.first_edition;
+    insDraftData.card_cm_avg30   = c.cm_avg30;   // hint pricing
+    // Suggested defaults
+    if(!insDraftData.price && c.cm_avg30) insDraftData.price = +(+c.cm_avg30 * 0.95).toFixed(2);
+    if(!insDraftData.title) insDraftData.title = insSuggestTitle();
+    if(!insDraftData.description) insDraftData.description = insSuggestDescription();
+    document.getElementById('insSearchResults').style.display = 'none';
+    insRenderDrawer();
+  } catch(e){
+    alert('Errore caricamento carta: '+(e.message||e));
+  }
+}
+window.insSelectCard = insSelectCard;
+
+function insChangeCard(){
+  insDraftData.collection_id = null;
+  insDraftData.card_name = null;
+  insDraftData.card_set = null;
+  insDraftData.card_set_id = null;
+  insDraftData.card_number = null;
+  insDraftData.card_rarity = null;
+  insDraftData.card_condition = null;
+  insDraftData.card_language = null;
+  insDraftData.card_variant = null;
+  insDraftData.card_first_ed = false;
+  insDraftData.card_cm_avg30 = null;
+  insRenderDrawer();
+}
+window.insChangeCard = insChangeCard;
+
+// ── Salva ─────────────────────────────────────────────────────────────────
+async function insSave(status){
+  if(!insDraftData.card_name){ alert('Seleziona una carta dalla collezione'); return; }
+  if(!insDraftData.title){ alert('Inserisci un titolo'); return; }
+  if(!insDraftData.price || +insDraftData.price <= 0){ alert('Prezzo non valido'); return; }
+
+  var payload = Object.assign({}, insDraftData, {status: status});
+  // Cast numerici e bool
+  payload.price = +payload.price;
+  if(payload.shipping_cost) payload.shipping_cost = +payload.shipping_cost;
+  if(payload.sold_price) payload.sold_price = +payload.sold_price;
+  payload.card_first_ed = !!payload.card_first_ed;
+  payload.card_graded   = !!payload.card_graded;
+  // Rimuovi campi calcolati che non vanno in DB
+  delete payload.card_cm_avg30;
+
+  var url, method;
+  if(insEditingId){
+    url = SUPA_URL+'/rest/v1/rb_listings?id=eq.'+insEditingId;
+    method = 'PATCH';
+    delete payload.id;
+    delete payload.created_at;
+    delete payload.user_id;
+  } else {
+    url = SUPA_URL+'/rest/v1/rb_listings';
+    method = 'POST';
+    // user_id viene popolato da auth.uid() nel default Supabase, ma per
+    // sicurezza lo mettiamo esplicito se disponibile dal parent.
+    try {
+      var s = window.parent && window.parent._rbSession;
+      if(s && s.user && s.user.id) payload.user_id = s.user.id;
+    } catch(_){}
+  }
+  try {
+    var headers = Object.assign({}, getHDR(), {'Prefer': 'return=representation'});
+    var r = await fetch(url, {method: method, headers: headers, body: JSON.stringify(payload)});
+    if(!r.ok){ var t = await r.text(); throw new Error(t); }
+    insCloseDrawer();
+    await insLoad();
+  } catch(e){
+    alert('Errore salvataggio: '+(e.message||e));
+  }
+}
+
+function insSaveDraft(){ insSave('draft'); }
+function insMarkReady(){ insSave('ready'); }
+window.insSaveDraft = insSaveDraft;
+window.insMarkReady = insMarkReady;
+
+// ── Elimina ───────────────────────────────────────────────────────────────
+async function insDelete(id){
+  if(!confirm('Elimina questa inserzione? Operazione irreversibile.')) return;
+  try {
+    var r = await fetch(SUPA_URL+'/rest/v1/rb_listings?id=eq.'+id, {method: 'DELETE', headers: getHDR()});
+    if(!r.ok && r.status !== 204){ var t = await r.text(); throw new Error(t); }
+    await insLoad();
+  } catch(e){
+    alert('Errore eliminazione: '+(e.message||e));
+  }
+}
+window.insDelete = insDelete;
+
+// ── Boot ─────────────────────────────────────────────────────────────────
+// Aspetta che il parent sia ready (HDR disponibile)
+function insBootWhenReady(){
+  if(window.parent && window.parent.getHDR){
+    insLoad();
+  } else {
+    setTimeout(insBootWhenReady, 200);
+  }
+}
+document.addEventListener('DOMContentLoaded', insBootWhenReady);
+// Se il tab è già visibile (DOM era già pronto), boot subito
+if(document.readyState !== 'loading') insBootWhenReady();
+
+// Esponi insLoad al parent così può ricaricare quando si apre il tab
+window.insLoad = insLoad;
+
+</script>
+</body>
+</html>

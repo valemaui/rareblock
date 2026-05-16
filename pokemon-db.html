@@ -2088,6 +2088,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
     <button class="nav-btn" onclick="showTab('anl')">Analizza</button>
     <button class="nav-btn" onclick="showTab('dash')"><span class="rb-i rb-i-chart"></span> Dashboard</button>
     <button class="nav-btn" onclick="showTab('vend')"><span class="rb-i rb-i-banknote"></span> Vendite</button>
+    <button class="nav-btn" onclick="showTab('ins')"><span class="rb-i rb-i-cart"></span> Inserzioni</button>
     <button class="nav-btn" onclick="showTab('wish')"><span class="rb-i rb-i-star"></span> Wishlist</button>
     <button class="nav-btn" onclick="showTab('hunt')"><span class="rb-i rb-i-radar"></span> Radar</button>
   </nav>
@@ -3184,6 +3185,12 @@ function showTab(t){
 
   try{ if(t==='col')  loadCollection();  }catch(e){ console.error('loadCollection:',e); }
   try{ if(t==='prev') renderPrevList();  }catch(e){ console.error('renderPrevList:',e); }
+  try{
+    if(t==='ins'){
+      var f = document.getElementById('insFrame');
+      if(f && f.contentWindow && f.contentWindow.insLoad) f.contentWindow.insLoad();
+    }
+  }catch(e){ console.error('insLoad:',e); }
 }
 
 function parseQuery(q){
@@ -7892,7 +7899,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-05-15-2345';
+var RB_BUILD = '2026-05-15-2400';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -10492,6 +10499,16 @@ function scReset(){
 <div class="tab" id="tab-vend" style="display:none;flex-direction:column;overflow:hidden">
   <iframe id="vendFrame" src="frames/vendite.html"
           title="Vendite"
+          style="flex:1;width:100%;border:0;background:var(--bg);display:block"></iframe>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     TAB INSERZIONI — gestione bozze e pubblicazioni eBay/Vinted
+     ═══════════════════════════════════════════════════════════ -->
+<div class="tab" id="tab-ins" style="display:none;flex-direction:column;overflow:hidden">
+  <iframe id="insFrame" src="frames/inserzioni.html?v=20260515-2400"
+          title="Inserzioni"
           style="flex:1;width:100%;border:0;background:var(--bg);display:block"></iframe>
 </div>
 
