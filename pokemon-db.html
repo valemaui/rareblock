@@ -4181,7 +4181,11 @@ window.rbMountSetPicker = function(opts){
     if(e.key==='Escape') close();
   });
   clearBtn.addEventListener('click', clear);
-  document.addEventListener('click', function(e){
+  // Click-outside chiude il dropdown. Va attaccato al doc CORRETTO:
+  // se il setpicker vive in un iframe (caso analizza), gli eventi click
+  // dell'iframe non bubblanno al document del parent. Usiamo 'doc' (che a
+  // questo punto \u00e8 stato auto-detected = iframe.contentDocument).
+  doc.addEventListener('click', function(e){
     if(!container.contains(e.target)) close();
   });
   // Registra listener su update msSetsAll per ri-render
@@ -7868,7 +7872,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-05-15-1930';
+var RB_BUILD = '2026-05-15-2000';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -10446,7 +10450,7 @@ function scReset(){
      TAB ANALIZZA — Valutazione carta (v4 data-driven)
      ═══════════════════════════════════════════════════════════ -->
 <div class="tab" id="tab-anl" style="display:none;flex-direction:column;overflow:hidden">
-  <iframe id="anlFrame" src="frames/analizza.html?v=20260515-1930"
+  <iframe id="anlFrame" src="frames/analizza.html?v=20260515-2000"
           title="Analizza"
           style="flex:1;width:100%;border:0;background:var(--bg);display:block"></iframe>
 </div>
