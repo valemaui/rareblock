@@ -7381,16 +7381,23 @@ function _cmPrimaryVersionFor(setId, variant, rarity, name){
   }
 
   // ── WotC non-Base (Jungle, Fossil, Team Rocket, Legendary Coll, Gym H&C) ──
-  // Pattern opposto di Base Set: la pagina principale su CM \u00e8 sotto V1 (es.
-  // /Fossil/Gengar-V1-FO5 ha 256 listings, trend \u20ac157, mentre /Fossil/Gengar-FO5
-  // \u00e8 vuota o redirige). Probabilmente perch\u00e9 in questi set non esiste lo
-  // "Shadowless" che differenzia Base Set, quindi CM ha consolidato tutte le
-  // copie (1st ed + Unlimited) sotto V1, e il filtro isFirstEd=Y/N seleziona
-  // server-side.
-  // Verificato empiricamente (2026-05-15) per Gengar #5 Fossil Holo Rare.
+  // Verificato empiricamente su CM (2026-05-15):
+  //   Gengar #5 Fossil Rare Holo  \u2192 /Fossil/Gengar-V1-FO5  (256 listings, trend \u20ac157)
+  //   Gengar #20 Fossil Rare      \u2192 /Fossil/Gengar-V2-FO20 (391 listings, trend \u20ac33)
+  // Pattern: in questi set CM separa la versione "holo principale" (V1) dalla
+  // versione "non-holo" / "reverse" (V2). Le Common e Uncommon stanno sotto
+  // no-V (URL diretto senza prefix).
+  //
+  // Discriminazione rarity:
+  //   Rare Holo / Rare Holo LV.X / Rare Holo ex   \u2192 V1
+  //   Rare (no holo) / Rare Secret / Rare Shining \u2192 V2
+  //   Common / Uncommon                            \u2192 no-V
   if(setId === 'base2' || setId === 'base3' || setId === 'base5' || setId === 'base6'
      || setId === 'gym1' || setId === 'gym2'){
-    return 'V1';
+    if(v === 'holo' || v === 'reverse holo') return 'V1';
+    if(r.indexOf('rare holo') >= 0) return 'V1';
+    if(r === 'rare' || (r.indexOf('rare') >= 0 && r.indexOf('holo') < 0)) return 'V2';
+    return '';  // Common/Uncommon
   }
 
   return '';
@@ -7885,7 +7892,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-05-15-2200';
+var RB_BUILD = '2026-05-15-2230';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
