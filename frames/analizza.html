@@ -17,10 +17,14 @@ body{display:flex;flex-direction:column}
 #tab-anl{background:var(--bg);flex-direction:column;min-height:0;overflow:hidden}
 #tab-anl.active{display:flex}
 
-.anl-wrap{flex:1;display:flex;flex-direction:column;min-height:0;overflow-y:auto}
+.anl-wrap{flex:1;display:flex;flex-direction:column;min-height:0}
+/* .anl-wrap-scroll: contenitore scrollabile per le sezioni sotto la topbar.
+   La topbar resta fuori dallo scroll cos\u00ec i dropdown del setpicker non
+   vengono clippati dall'overflow:hidden implicito dell'auto. */
+.anl-wrap-scroll{flex:1;overflow-y:auto;min-height:0}
 
 /* Top bar compatta — form su UNA riga */
-.anl-topbar{padding:10px 20px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px}
+.anl-topbar{padding:10px 20px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;position:relative;z-index:10}
 .anl-tt{display:flex;flex-direction:column;gap:1px;min-width:0}
 .anl-tt-title{font-size:13px;font-weight:600;letter-spacing:-0.01em}
 .anl-tt-sub{font-size:10px;color:var(--text-muted);font-family:var(--mono);letter-spacing:0.04em}
@@ -29,11 +33,11 @@ body{display:flex;flex-direction:column}
 .anl-f > label{font-size:9px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:500}
 .anl-f input, .anl-f select{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12px;padding:5px 8px;outline:none;font-family:var(--font);height:28px;transition:border-color 0.12s}
 .anl-f input:focus, .anl-f select:focus{border-color:var(--border-focus)}
-.anl-f-name{min-width:160px;max-width:200px}
-.anl-f-set{min-width:140px;max-width:170px}
+.anl-f-name{min-width:170px;max-width:220px;flex:1 1 170px}
+.anl-f-set{min-width:170px;max-width:220px;flex:1 1 170px;position:relative;z-index:100}
 .anl-f-lang{max-width:80px}
 .anl-f-cond{max-width:90px}
-.anl-f-1st{max-width:70px}
+.anl-f-1st{max-width:80px;min-width:70px}
 .anl-f-house{max-width:110px}
 .anl-f-grade{max-width:70px}
 
@@ -318,12 +322,14 @@ body{display:flex;flex-direction:column}
       <span class="anl-spacer"></span>
     </div>
 
-    <!-- Header carta (separato da body per sopravvivere a rerender) -->
-    <div class="anl-head" id="anlHead"></div>
+    <div class="anl-wrap-scroll">
+      <!-- Header carta (separato da body per sopravvivere a rerender) -->
+      <div class="anl-head" id="anlHead"></div>
 
-    <!-- Body -->
-    <div class="anl-body" id="anlBody">
-      <div class="anl-empty">Inserisci una carta e premi Analizza</div>
+      <!-- Body -->
+      <div class="anl-body" id="anlBody">
+        <div class="anl-empty">Inserisci una carta e premi Analizza</div>
+      </div>
     </div>
 
   </div>
