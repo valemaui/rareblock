@@ -1555,6 +1555,264 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 
 
 .rb-pseudo-label{display:block;font-size:11px;font-weight:600;color:var(--text-muted,#999);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em}
+
+/* ═════════════════════════════════════════════════════════════════════
+   VERIFICA SLAB — tool globale di lettura cert # da foto slab gradate
+   (PSA / BGS / CGC / SGC / TAG / ARS / HGA / GMA). Modal richiamabile
+   da topbar e da qualsiasi punto del portale via window.openSlabVerify().
+   ═════════════════════════════════════════════════════════════════════ */
+.slab-trigger-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  background:transparent;border:1px solid rgba(201,168,76,.28);
+  color:var(--gold,#c9a84c);
+  padding:5px 11px;border-radius:var(--r,6px);
+  font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;
+  font-family:var(--mono);cursor:pointer;
+  transition:all .15s ease;white-space:nowrap;
+}
+.slab-trigger-btn:hover{background:rgba(201,168,76,.08);border-color:rgba(201,168,76,.55);transform:translateY(-1px)}
+.slab-trigger-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+
+.slab-modal-bg{
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,.78);z-index:9500;
+  align-items:center;justify-content:center;
+  backdrop-filter:blur(3px);
+  padding:20px;
+  animation:slabFade .18s ease;
+}
+.slab-modal-bg.show{display:flex}
+@keyframes slabFade{from{opacity:0}to{opacity:1}}
+@keyframes slabUp{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+.slab-modal{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;
+  width:min(560px,96vw);max-height:92vh;
+  display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:0 18px 60px rgba(0,0,0,.6),0 0 0 1px rgba(201,168,76,.04);
+  animation:slabUp .22s ease;
+}
+.slab-modal-head{
+  padding:16px 20px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  background:linear-gradient(180deg,rgba(201,168,76,.04),transparent);
+  flex-shrink:0;
+}
+.slab-modal-title{
+  display:flex;align-items:center;gap:10px;
+  font-family:var(--serif,Fraunces),Georgia,serif;
+  font-size:18px;font-weight:300;font-style:italic;
+  letter-spacing:-.005em;color:var(--text);
+}
+.slab-modal-title-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:30px;height:30px;border-radius:50%;
+  background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.32);
+  color:var(--gold,#c9a84c);
+}
+.slab-modal-title-badge svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.slab-modal-close{
+  background:none;border:none;cursor:pointer;
+  color:var(--text-muted);font-size:22px;line-height:1;
+  padding:4px 10px;border-radius:4px;font-family:var(--mono);
+}
+.slab-modal-close:hover{background:var(--surface2);color:var(--text)}
+
+.slab-modal-body{
+  padding:18px 20px;display:flex;flex-direction:column;gap:14px;
+  overflow-y:auto;
+}
+
+.slab-dz{
+  border:1.5px dashed var(--border);border-radius:10px;
+  background:var(--surface2);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;text-align:center;padding:28px 18px;min-height:160px;
+  cursor:pointer;position:relative;overflow:hidden;
+  transition:border-color .15s,background .15s;
+}
+.slab-dz:hover,.slab-dz.over{border-color:var(--gold,#c9a84c);background:rgba(201,168,76,.04)}
+.slab-dz.loaded{padding:0;min-height:0;border-style:solid;cursor:default;background:var(--bg)}
+.slab-dz input[type=file]{display:none}
+.slab-dz-icon{
+  width:44px;height:44px;border-radius:50%;
+  background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.28);
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:2px;
+}
+.slab-dz-icon svg{width:20px;height:20px;stroke:var(--gold,#c9a84c);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.slab-dz-title{font-size:13px;font-weight:500;color:var(--text)}
+.slab-dz-hint{font-size:11px;color:var(--text-muted);line-height:1.6;font-family:var(--mono)}
+.slab-dz-hint kbd{
+  display:inline-block;padding:1px 6px;border-radius:3px;
+  background:var(--surface3,#2d333b);color:var(--text);
+  border:1px solid var(--border);font-family:var(--mono);font-size:10px;
+  margin:0 2px;
+}
+.slab-dz-preview{position:relative;width:100%}
+.slab-dz-preview img{
+  width:100%;display:block;max-height:280px;object-fit:contain;
+  border-radius:9px;background:var(--bg);
+}
+.slab-dz-preview .slab-dz-reset{
+  position:absolute;top:8px;right:8px;
+  background:rgba(0,0,0,.7);color:#fff;
+  border:1px solid rgba(255,255,255,.15);border-radius:50%;
+  width:28px;height:28px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;line-height:1;font-family:var(--mono);
+  transition:background .15s;
+}
+.slab-dz-preview .slab-dz-reset:hover{background:rgba(0,0,0,.9);border-color:rgba(255,255,255,.35)}
+
+.slab-grader-row{display:flex;flex-direction:column;gap:6px}
+.slab-grader-row label{
+  font-size:10.5px;font-family:var(--mono);font-weight:500;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);
+}
+.slab-grader-select{
+  font-size:13px;padding:8px 10px;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--r,6px);color:var(--text);
+  font-family:var(--font);cursor:pointer;
+  transition:border-color .12s;
+}
+.slab-grader-select:focus{outline:none;border-color:var(--gold,#c9a84c)}
+
+.slab-analyze-row{display:flex;gap:10px;align-items:center}
+.slab-analyze-btn{
+  flex:1;background:var(--gold,#c9a84c);color:var(--bg,#0c0c0b);
+  border:none;border-radius:var(--r,6px);
+  padding:11px 18px;font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  font-family:var(--mono);cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  transition:all .15s;
+}
+.slab-analyze-btn:hover:not(:disabled){filter:brightness(1.08);transform:translateY(-1px)}
+.slab-analyze-btn:disabled{opacity:.45;cursor:not-allowed}
+.slab-analyze-btn .slab-spinner{
+  width:13px;height:13px;border:2px solid rgba(0,0,0,.18);
+  border-top-color:rgba(0,0,0,.7);border-radius:50%;
+  animation:slabSpin .7s linear infinite;
+}
+@keyframes slabSpin{to{transform:rotate(360deg)}}
+
+.slab-status{
+  font-size:11.5px;font-family:var(--mono);color:var(--text-muted);
+  min-height:16px;line-height:1.4;
+}
+.slab-status.err{color:var(--danger,#f85149)}
+.slab-status.ok{color:var(--success,#3fb950)}
+.slab-status.info{color:var(--text-muted)}
+
+.slab-result{
+  display:none;border:1px solid rgba(201,168,76,.32);
+  background:linear-gradient(180deg,rgba(201,168,76,.05),rgba(201,168,76,.01));
+  border-radius:8px;padding:14px 16px;flex-direction:column;gap:12px;
+}
+.slab-result.show{display:flex}
+.slab-result-head{
+  display:flex;align-items:center;gap:10px;
+  padding-bottom:10px;border-bottom:1px solid rgba(201,168,76,.18);
+}
+.slab-result-grader-pill{
+  font-family:var(--display,Montserrat),system-ui;
+  font-size:12px;font-weight:300;letter-spacing:.16em;text-transform:uppercase;
+  padding:4px 10px;border-radius:20px;
+  background:rgba(201,168,76,.12);color:var(--gold,#c9a84c);
+  border:1px solid rgba(201,168,76,.4);
+}
+.slab-result-grade{
+  margin-left:auto;font-family:var(--serif,Fraunces),Georgia,serif;
+  font-size:22px;font-weight:300;color:var(--text);line-height:1;
+}
+.slab-result-grade-label{
+  font-size:9.5px;font-family:var(--mono);color:var(--text-muted);
+  letter-spacing:.1em;text-transform:uppercase;margin-bottom:2px;
+}
+.slab-result-grade-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.slab-result-cert{
+  display:flex;flex-direction:column;gap:4px;
+}
+.slab-result-cert-label{
+  font-size:10px;font-family:var(--mono);font-weight:500;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);
+}
+.slab-result-cert-row{
+  display:flex;align-items:center;gap:8px;
+}
+.slab-result-cert-num{
+  flex:1;font-family:var(--mono);font-size:18px;font-weight:500;
+  color:var(--text);letter-spacing:.04em;
+  padding:8px 12px;background:var(--surface);border:1px solid var(--border);
+  border-radius:6px;
+  user-select:all;-webkit-user-select:all;
+}
+.slab-result-copy{
+  background:transparent;border:1px solid var(--border);
+  color:var(--text-muted);padding:7px 10px;border-radius:6px;cursor:pointer;
+  font-size:11px;font-family:var(--mono);
+  transition:all .12s;display:inline-flex;align-items:center;gap:5px;
+}
+.slab-result-copy:hover{color:var(--text);border-color:var(--gold,#c9a84c)}
+.slab-result-copy.copied{color:var(--success,#3fb950);border-color:rgba(63,185,80,.4)}
+.slab-result-card{
+  font-size:12px;color:var(--text-muted);font-family:var(--font);
+  line-height:1.5;padding:8px 10px;background:var(--surface);
+  border-left:2px solid rgba(201,168,76,.4);border-radius:0 4px 4px 0;
+}
+.slab-result-card b{color:var(--text);font-weight:500}
+.slab-result-actions{display:flex;gap:8px;flex-wrap:wrap}
+.slab-verify-btn{
+  flex:1;min-width:160px;
+  background:var(--gold,#c9a84c);color:var(--bg,#0c0c0b);
+  border:none;border-radius:var(--r,6px);
+  padding:10px 14px;font-size:11.5px;font-weight:600;
+  letter-spacing:.1em;text-transform:uppercase;
+  font-family:var(--mono);cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  transition:all .15s;text-decoration:none;
+}
+.slab-verify-btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.slab-verify-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.slab-verify-secondary{
+  background:transparent;color:var(--text-muted);
+  border:1px solid var(--border);
+  padding:10px 14px;border-radius:var(--r,6px);
+  font-size:11px;font-family:var(--mono);cursor:pointer;
+  transition:all .12s;letter-spacing:.06em;text-transform:uppercase;
+}
+.slab-verify-secondary:hover{color:var(--text);border-color:var(--border-focus,#3d444d)}
+
+.slab-confidence{
+  font-size:10.5px;font-family:var(--mono);color:var(--text-subtle,#666);
+  display:flex;align-items:center;gap:5px;letter-spacing:.04em;
+}
+.slab-confidence .slab-conf-dot{
+  width:6px;height:6px;border-radius:50%;background:var(--success,#3fb950);
+  box-shadow:0 0 5px currentColor;
+}
+.slab-confidence.low .slab-conf-dot{background:#f5a623;box-shadow:0 0 5px #f5a623}
+.slab-confidence.bad .slab-conf-dot{background:var(--danger,#f85149);box-shadow:0 0 5px var(--danger,#f85149)}
+
+.slab-modal-foot{
+  padding:12px 20px;border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  flex-shrink:0;background:var(--surface);
+}
+.slab-foot-hint{
+  font-size:10.5px;color:var(--text-subtle,#666);font-family:var(--mono);
+  letter-spacing:.04em;
+}
+
+/* Mobile */
+@media (max-width:560px){
+  .slab-modal-bg{padding:10px}
+  .slab-modal-body{padding:14px}
+  .slab-result-actions .slab-verify-btn{min-width:100%}
+  .slab-result-actions .slab-verify-secondary{flex:1}
+}
 </style>
 
 </head>
@@ -2092,6 +2350,10 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
     <button class="nav-btn" onclick="showTab('wish')"><span class="rb-i rb-i-star"></span> Wishlist</button>
     <button class="nav-btn" onclick="showTab('hunt')"><span class="rb-i rb-i-radar"></span> Radar</button>
   </nav>
+  <button class="slab-trigger-btn" onclick="openSlabVerify()" title="Verifica codice slab gradata (PSA, BGS, CGC...)">
+    <svg viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4Z"/><path d="m9 12 2 2 4-4"/></svg>
+    <span>Verifica Slab</span>
+  </button>
   <div class="led-wrap">
     <div class="led checking" id="apiLed"></div>
     <span class="led-label" id="apiLabel">verifica...</span>
@@ -2869,6 +3131,16 @@ const SUPA_URL='https://rbjaaeyjeeqfpbzyavag.supabase.co';
 const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
 const TCG_URL='https://api.pokemontcg.io/v2/cards';
 const TCG_KEY='ca385a14-d149-4a9f-a275-3bda5b7b1555';
+
+// ── API keys placeholders (sostituiti da GitHub Actions in deploy) ───────
+// In repo restano come placeholder; il workflow deploy-ftp.yml fa sed-i
+// substituting ANTHROPIC_API_KEY_PLACEHOLDER e OPENROUTER_API_KEY_PLACEHOLDER
+// con i Secrets ANTHROPIC_KEY e OPENROUTER_KEY al deploy.
+// Esposti su window per uso cross-modulo (Scan, Slab Verify, future feature AI).
+var _K_  = 'ANTHROPIC_API_KEY_PLACEHOLDER';
+var _OR_ = 'OPENROUTER_API_KEY_PLACEHOLDER';
+window._K_  = _K_;   window._SC_AK = _K_;
+window._OR_ = _OR_;  window._SC_OR = _OR_;
 
 // HDR dinamico: usa JWT utente autenticato quando disponibile (RLS enforcement)
 // Fallback all'anon key per retrocompatibilità durante sviluppo
@@ -12441,6 +12713,607 @@ document.addEventListener('keydown', function(e){
     if(bg && bg.classList.contains('show')) closeTierModal();
   }
 });
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     VERIFICA SLAB — Modal globale di lettura cert # da foto slab gradata.
+     Richiamabile da topbar e ovunque via window.openSlabVerify().
+     Architettura: AI vision (OpenRouter → Anthropic fallback) → JSON parse
+     → mapping grader→URL → apertura pagina di verifica ufficiale.
+     ═══════════════════════════════════════════════════════════════════ -->
+<div id="slabModalBg" class="slab-modal-bg" onclick="slabOnBgClick(event)">
+  <div class="slab-modal" role="dialog" aria-labelledby="slabModalTitle" aria-modal="true">
+    <div class="slab-modal-head">
+      <div class="slab-modal-title" id="slabModalTitle">
+        <span class="slab-modal-title-badge">
+          <svg viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4Z"/><path d="m9 12 2 2 4-4"/></svg>
+        </span>
+        Verifica Slab
+      </div>
+      <button class="slab-modal-close" onclick="closeSlabVerify()" aria-label="Chiudi" type="button">×</button>
+    </div>
+
+    <div class="slab-modal-body">
+      <!-- DROPZONE -->
+      <div class="slab-dz" id="slabDz"
+           onclick="if(!slabState.imageBase64) document.getElementById('slabFile').click()"
+           ondragover="event.preventDefault();this.classList.add('over')"
+           ondragleave="this.classList.remove('over')"
+           ondrop="event.preventDefault();this.classList.remove('over');slabHandleFile(event.dataTransfer.files&&event.dataTransfer.files[0])">
+        <input type="file" id="slabFile" accept="image/*" onchange="slabHandleFile(this.files&&this.files[0])"/>
+        <div class="slab-dz-icon" id="slabDzIcon">
+          <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </div>
+        <div class="slab-dz-title" id="slabDzTitle">Carica foto della slab</div>
+        <div class="slab-dz-hint" id="slabDzHint">
+          Trascina, clicca o incolla con <kbd>Ctrl</kbd>+<kbd>V</kbd><br>
+          <span style="opacity:.7">PSA · BGS · CGC · SGC · TAG · ARS · HGA · GMA</span>
+        </div>
+        <div class="slab-dz-preview" id="slabDzPreview" style="display:none">
+          <img id="slabPreviewImg" alt="Anteprima slab"/>
+          <button class="slab-dz-reset" type="button" onclick="event.stopPropagation();slabReset()" title="Rimuovi immagine">×</button>
+        </div>
+      </div>
+
+      <!-- GRADER HINT (opzionale) -->
+      <div class="slab-grader-row">
+        <label for="slabGraderHint">Grader (opzionale — l'AI lo rileva automaticamente)</label>
+        <select id="slabGraderHint" class="slab-grader-select">
+          <option value="">Auto-rileva dall'immagine</option>
+          <option value="PSA">PSA</option>
+          <option value="BGS">BGS / Beckett</option>
+          <option value="CGC">CGC</option>
+          <option value="SGC">SGC</option>
+          <option value="TAG">TAG Grading</option>
+          <option value="ARS">ARS Grading</option>
+          <option value="HGA">HGA</option>
+          <option value="GMA">GMA Grading</option>
+        </select>
+      </div>
+
+      <!-- ANALYZE -->
+      <div class="slab-analyze-row">
+        <button id="slabAnalyzeBtn" class="slab-analyze-btn" onclick="slabAnalyze()" disabled type="button">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          Estrai numero
+        </button>
+      </div>
+      <div id="slabStatus" class="slab-status"></div>
+
+      <!-- RESULT -->
+      <div id="slabResult" class="slab-result">
+        <div class="slab-result-head">
+          <span class="slab-result-grader-pill" id="slabResGrader">—</span>
+          <div class="slab-result-grade-wrap">
+            <span class="slab-result-grade-label">Voto</span>
+            <span class="slab-result-grade" id="slabResGrade">—</span>
+          </div>
+        </div>
+        <div class="slab-result-cert">
+          <span class="slab-result-cert-label">Numero certificazione</span>
+          <div class="slab-result-cert-row">
+            <span class="slab-result-cert-num" id="slabResCert">—</span>
+            <button class="slab-result-copy" id="slabResCopy" onclick="slabCopyCert()" type="button" title="Copia">
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Copia
+            </button>
+          </div>
+        </div>
+        <div class="slab-result-card" id="slabResCard" style="display:none"></div>
+        <div class="slab-result-actions">
+          <a id="slabVerifyBtn" class="slab-verify-btn" href="#" target="_blank" rel="noopener noreferrer">
+            <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            Apri pagina di verifica
+          </a>
+          <button class="slab-verify-secondary" type="button" onclick="slabReset()">Nuova verifica</button>
+        </div>
+        <div class="slab-confidence" id="slabConfidence" style="display:none">
+          <span class="slab-conf-dot"></span>
+          <span id="slabConfidenceTxt">Affidabilità OCR</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="slab-modal-foot">
+      <span class="slab-foot-hint">L'AI legge solo il numero — la verifica è sul sito ufficiale del grader.</span>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   VERIFICA SLAB — modulo standalone, isolato (prefisso slab*).
+   Dipendenze runtime: window._K_ (Anthropic), window._OR_ (OpenRouter).
+   Nessuna dipendenza da scState o altri moduli. Esposto su window come
+   API pubblica: openSlabVerify(), closeSlabVerify().
+   ═══════════════════════════════════════════════════════════════════ */
+
+// ── Mappa grader → URL di verifica ufficiale ──────────────────────────
+// Aggiungere/aggiornare qui se un grader cambia formato URL.
+var SLAB_GRADERS = {
+  PSA: {
+    label: 'PSA',
+    pattern: /^\d{6,10}$/,
+    verifyUrl: function(c){ return 'https://www.psacard.com/cert/' + encodeURIComponent(c); }
+  },
+  BGS: {
+    label: 'BGS',
+    pattern: /^\d{7,12}$/,
+    verifyUrl: function(c){ return 'https://www.beckett.com/grading/card/' + encodeURIComponent(c); }
+  },
+  CGC: {
+    label: 'CGC',
+    pattern: /^\d{7,12}$/,
+    verifyUrl: function(c){ return 'https://www.cgccards.com/certlookup/' + encodeURIComponent(c) + '/'; }
+  },
+  SGC: {
+    label: 'SGC',
+    pattern: /^\d{6,12}$/,
+    verifyUrl: function(c){ return 'https://gosgc.com/Verify/SerialNumber/' + encodeURIComponent(c); }
+  },
+  TAG: {
+    label: 'TAG',
+    pattern: /^[A-Z0-9-]{6,18}$/i,
+    verifyUrl: function(c){ return 'https://my.taggrading.com/card/' + encodeURIComponent(c); }
+  },
+  ARS: {
+    label: 'ARS',
+    pattern: /^[A-Z0-9-]{6,16}$/i,
+    verifyUrl: function(c){ return 'https://arsgrading.com/cert-lookup?cert=' + encodeURIComponent(c); }
+  },
+  HGA: {
+    label: 'HGA',
+    pattern: /^[A-Z0-9-]{6,14}$/i,
+    verifyUrl: function(c){ return 'https://www.hga-grading.com/pop-report?search=' + encodeURIComponent(c); }
+  },
+  GMA: {
+    label: 'GMA',
+    pattern: /^\d{6,12}$/,
+    verifyUrl: function(c){ return 'https://gmagrading.com/grade-lookup/?cert=' + encodeURIComponent(c); }
+  },
+  OTHER: {
+    label: 'Altro',
+    pattern: /.+/,
+    verifyUrl: function(c){ return 'https://www.google.com/search?q=' + encodeURIComponent('cert verify ' + c); }
+  }
+};
+
+// ── State del modulo ─────────────────────────────────────────────────
+var slabState = {
+  imageFile: null,
+  imageBase64: null,
+  imageMediaType: 'image/jpeg',
+  busy: false,
+  lastResult: null,    // {grader, cert, grade, card_name, set, language, confidence}
+  pasteBound: false,
+  keyBound: false
+};
+
+// ── HELPERS ──────────────────────────────────────────────────────────
+function slabEscHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, function(m){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
+  });
+}
+
+function slabSetStatus(msg, kind){
+  var el = document.getElementById('slabStatus');
+  if(!el) return;
+  el.textContent = msg || '';
+  el.className = 'slab-status' + (kind ? ' ' + kind : '');
+}
+
+function slabNormalizeGraderCode(raw){
+  if(!raw) return null;
+  var u = String(raw).toUpperCase().trim();
+  // Alias comuni dal modello
+  if(u === 'BECKETT' || u === 'BGS/BECKETT') return 'BGS';
+  if(u === 'CGC CARDS' || u === 'CGC CARD') return 'CGC';
+  if(u === 'TAG GRADING') return 'TAG';
+  if(u === 'GMA GRADING') return 'GMA';
+  if(u === 'HYBRID' || u === 'HYBRID GRADING APPROACH') return 'HGA';
+  if(u === 'ARKHAM' || u === 'ARS GRADING') return 'ARS';
+  if(u === 'PROFESSIONAL SPORTS AUTHENTICATOR') return 'PSA';
+  return SLAB_GRADERS[u] ? u : null;
+}
+
+function slabBuildVerifyUrl(graderCode, cert){
+  if(!cert) return null;
+  var g = SLAB_GRADERS[graderCode] || SLAB_GRADERS.OTHER;
+  try { return g.verifyUrl(cert); } catch(_){ return null; }
+}
+
+// ── DROPZONE ─────────────────────────────────────────────────────────
+function slabHandleFile(file){
+  if(!file) return;
+  if(!file.type || !file.type.startsWith('image/')){
+    slabSetStatus('Seleziona un file immagine valido (JPG, PNG, WEBP).', 'err');
+    return;
+  }
+  // Limite ragionevole: 12 MB
+  if(file.size > 12 * 1024 * 1024){
+    slabSetStatus('Immagine troppo grande (max 12 MB). Comprimi o riduci la risoluzione.', 'err');
+    return;
+  }
+  slabState.imageFile = file;
+  slabState.imageMediaType = file.type || 'image/jpeg';
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var result = e.target.result || '';
+    var parts = String(result).split(',');
+    slabState.imageBase64 = parts[1] || null;
+    if(!slabState.imageBase64){
+      slabSetStatus('Impossibile leggere il file.', 'err');
+      return;
+    }
+    var dz = document.getElementById('slabDz');
+    var prev = document.getElementById('slabDzPreview');
+    var img = document.getElementById('slabPreviewImg');
+    if(img) img.src = result;
+    if(dz) dz.classList.add('loaded');
+    if(prev) prev.style.display = 'block';
+    var hideIds = ['slabDzIcon','slabDzTitle','slabDzHint'];
+    hideIds.forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.style.display = 'none';
+    });
+    var btn = document.getElementById('slabAnalyzeBtn');
+    if(btn) btn.disabled = false;
+    slabSetStatus('');
+    // Nascondi eventuale risultato precedente
+    var res = document.getElementById('slabResult');
+    if(res) res.classList.remove('show');
+  };
+  reader.onerror = function(){ slabSetStatus('Errore di lettura del file.', 'err'); };
+  reader.readAsDataURL(file);
+}
+
+function slabReset(){
+  slabState.imageFile = null;
+  slabState.imageBase64 = null;
+  slabState.lastResult = null;
+  var fi = document.getElementById('slabFile');
+  if(fi) fi.value = '';
+  var dz = document.getElementById('slabDz');
+  if(dz) dz.classList.remove('loaded');
+  var prev = document.getElementById('slabDzPreview');
+  if(prev) prev.style.display = 'none';
+  var img = document.getElementById('slabPreviewImg');
+  if(img) img.src = '';
+  ['slabDzIcon','slabDzTitle','slabDzHint'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.style.display = '';
+  });
+  var btn = document.getElementById('slabAnalyzeBtn');
+  if(btn) btn.disabled = true;
+  var res = document.getElementById('slabResult');
+  if(res) res.classList.remove('show');
+  slabSetStatus('');
+}
+
+// ── PASTE da clipboard (quando modal aperto) ─────────────────────────
+function slabHandlePaste(e){
+  var bg = document.getElementById('slabModalBg');
+  if(!bg || !bg.classList.contains('show')) return;
+  var items = (e.clipboardData || window.clipboardData || {}).items || [];
+  for(var i=0; i<items.length; i++){
+    var it = items[i];
+    if(it && it.kind === 'file' && it.type && it.type.indexOf('image/') === 0){
+      var file = it.getAsFile && it.getAsFile();
+      if(file){
+        e.preventDefault();
+        slabHandleFile(file);
+        return;
+      }
+    }
+  }
+}
+
+// ── ANALISI AI ───────────────────────────────────────────────────────
+// Pattern: provo prima OpenRouter (multi-model), poi Anthropic diretto.
+// JSON-only output, strict schema.
+async function slabAnalyze(){
+  if(slabState.busy) return;
+  if(!slabState.imageBase64){
+    slabSetStatus('Carica prima una foto della slab.', 'err');
+    return;
+  }
+  slabState.busy = true;
+
+  var btn = document.getElementById('slabAnalyzeBtn');
+  var originalBtnHtml = btn ? btn.innerHTML : '';
+  if(btn){
+    btn.disabled = true;
+    btn.innerHTML = '<span class="slab-spinner"></span> Analisi in corso...';
+  }
+
+  var hint = (document.getElementById('slabGraderHint')||{}).value || '';
+  var hintLine = hint
+    ? 'L\'utente suggerisce che il grader sia: ' + hint + '. Conferma o correggi.'
+    : 'Identifica autonomamente il grader.';
+
+  var prompt =
+    'Analizza questa foto di una slab (custodia rigida) di una carta da collezione gradata.\n' +
+    hintLine + '\n\n' +
+    'Estrai con precisione i seguenti dati dalla slab:\n' +
+    '1. grader: codice del grader fra ["PSA","BGS","CGC","SGC","TAG","ARS","HGA","GMA","OTHER"]. ' +
+    'Riconosci il logo e/o il marchio sull\'etichetta. Se non identificabile, usa "OTHER".\n' +
+    '2. cert: il numero di certificazione/serial number stampato sull\'etichetta. ' +
+    'Di solito 6-12 cifre per PSA/BGS/CGC/SGC/GMA, oppure alfanumerico per TAG/ARS/HGA. ' +
+    'NON inventare. Se illeggibile o parziale, restituisci null.\n' +
+    '3. grade: il voto numerico (es. "10", "9.5", "9") o testuale (es. "Gem Mint 10", "Pristine 10", "Black Label 10"). null se non visibile.\n' +
+    '4. card_name: nome della carta visibile sull\'etichetta (es. "Charizard Holo"). null se non leggibile.\n' +
+    '5. set: nome del set/edizione visibile sull\'etichetta. null se non visibile.\n' +
+    '6. language: lingua della carta se desumibile ("EN","JP","IT","DE","FR","ES","KR","CH"). null altrimenti.\n' +
+    '7. confidence: la tua affidabilità sull\'estrazione di grader e cert, valore da 0.0 a 1.0.\n\n' +
+    'Rispondi SOLO con un oggetto JSON valido, senza testo prima o dopo, senza backtick, senza markdown. ' +
+    'Esempio di output:\n' +
+    '{"grader":"PSA","cert":"12345678","grade":"10","card_name":"Charizard","set":"Base Set Unlimited","language":"EN","confidence":0.93}';
+
+  var parsed = null;
+  var lastErr = null;
+
+  // ── 1. OpenRouter — primario, multi-model ──────────────────────────
+  var orKey = window._OR_ || window._SC_OR || null;
+  if(orKey && orKey !== 'OPENROUTER_API_KEY_PLACEHOLDER'){
+    var OR_MODELS = [
+      'anthropic/claude-haiku-4-5',
+      'google/gemini-flash-1.5',
+      'google/gemini-2.0-flash-001',
+      'openai/gpt-4o-mini'
+    ];
+    for(var mi = 0; mi < OR_MODELS.length && !parsed; mi++){
+      var model = OR_MODELS[mi];
+      try {
+        slabSetStatus('Lettura con AI (' + model.split('/')[1] + ')…', 'info');
+        var ctrl = new AbortController();
+        var to = setTimeout(function(){ ctrl.abort(); }, 45000);
+        var r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST', signal: ctrl.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + orKey,
+            'HTTP-Referer': 'https://rareblock.eu',
+            'X-Title': 'RareBlock Slab Verify'
+          },
+          body: JSON.stringify({
+            model: model,
+            max_tokens: 600,
+            messages: [{ role: 'user', content: [
+              { type: 'image_url', image_url: { url: 'data:' + slabState.imageMediaType + ';base64,' + slabState.imageBase64 }},
+              { type: 'text', text: prompt }
+            ]}]
+          })
+        });
+        clearTimeout(to);
+        if(r.ok){
+          var d = await r.json();
+          var raw = ((d.choices||[])[0]||{}).message;
+          raw = raw ? (raw.content || '') : '';
+          raw = String(raw).replace(/[`]{3}json\s*/gi,'').replace(/```\s*/g,'').trim();
+          try { parsed = JSON.parse(raw); }
+          catch(pe){ lastErr = 'Parse error (' + model + '): ' + raw.substring(0,80); }
+        } else {
+          var et = await r.text().catch(function(){ return ''; });
+          lastErr = 'OR ' + r.status + ' (' + model + '): ' + et.substring(0,80);
+          if(r.status === 401 || r.status === 403) break;
+        }
+      } catch(e){
+        lastErr = model + ': ' + (e && e.message ? e.message : e);
+      }
+    }
+  }
+
+  // ── 2. Anthropic diretto — fallback ────────────────────────────────
+  if(!parsed){
+    var ak = window._K_ || window._SC_AK || null;
+    if(ak && ak !== 'ANTHROPIC_API_KEY_PLACEHOLDER'){
+      try {
+        slabSetStatus('Lettura con Claude (diretto)…', 'info');
+        var ctrl2 = new AbortController();
+        var to2 = setTimeout(function(){ ctrl2.abort(); }, 55000);
+        var r2 = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST', signal: ctrl2.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': ak,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 600,
+            messages: [{ role: 'user', content: [
+              { type: 'image', source: { type: 'base64', media_type: slabState.imageMediaType, data: slabState.imageBase64 }},
+              { type: 'text', text: prompt }
+            ]}]
+          })
+        });
+        clearTimeout(to2);
+        if(r2.ok){
+          var d2 = await r2.json();
+          var raw2 = ((d2.content||[])[0]||{}).text || '';
+          raw2 = raw2.replace(/[`]{3}json\s*/gi,'').replace(/```\s*/g,'').trim();
+          try { parsed = JSON.parse(raw2); }
+          catch(pe2){ lastErr = 'Parse error Anthropic: ' + raw2.substring(0,100); }
+        } else {
+          lastErr = 'Anthropic ' + r2.status;
+        }
+      } catch(e){
+        lastErr = 'Anthropic: ' + (e && e.message ? e.message : e);
+      }
+    }
+  }
+
+  // ── Cleanup UI ─────────────────────────────────────────────────────
+  slabState.busy = false;
+  if(btn){
+    btn.disabled = !slabState.imageBase64;
+    btn.innerHTML = originalBtnHtml;
+  }
+
+  if(!parsed){
+    slabSetStatus('Analisi fallita. ' + (lastErr || 'Nessuna chiave AI configurata.'), 'err');
+    return;
+  }
+
+  // Normalizza & valida
+  var graderCode = slabNormalizeGraderCode(parsed.grader);
+  var cert = parsed.cert ? String(parsed.cert).trim().replace(/\s+/g,'') : null;
+  if(!graderCode) graderCode = 'OTHER';
+
+  if(!cert){
+    slabSetStatus('Cert # non leggibile. Prova con una foto più nitida e in primo piano sull\'etichetta.', 'err');
+    return;
+  }
+
+  slabState.lastResult = {
+    grader: graderCode,
+    cert: cert,
+    grade: parsed.grade || null,
+    card_name: parsed.card_name || null,
+    set: parsed.set || null,
+    language: parsed.language || null,
+    confidence: typeof parsed.confidence === 'number' ? parsed.confidence : null
+  };
+
+  slabRenderResult();
+  slabSetStatus('Estrazione completata.', 'ok');
+}
+
+// ── RENDER RESULT ────────────────────────────────────────────────────
+function slabRenderResult(){
+  var r = slabState.lastResult;
+  if(!r) return;
+  var res = document.getElementById('slabResult');
+  if(!res) return;
+
+  var gPill = document.getElementById('slabResGrader');
+  if(gPill){
+    var meta = SLAB_GRADERS[r.grader] || SLAB_GRADERS.OTHER;
+    gPill.textContent = meta.label;
+  }
+  var gradeEl = document.getElementById('slabResGrade');
+  if(gradeEl) gradeEl.textContent = r.grade ? r.grade : '—';
+
+  var certEl = document.getElementById('slabResCert');
+  if(certEl) certEl.textContent = r.cert;
+
+  var cardLine = '';
+  if(r.card_name) cardLine += '<b>' + slabEscHtml(r.card_name) + '</b>';
+  if(r.set) cardLine += (cardLine ? ' · ' : '') + slabEscHtml(r.set);
+  if(r.language) cardLine += (cardLine ? ' · ' : '') + slabEscHtml(r.language);
+  var cardEl = document.getElementById('slabResCard');
+  if(cardEl){
+    if(cardLine){ cardEl.innerHTML = cardLine; cardEl.style.display = ''; }
+    else { cardEl.style.display = 'none'; }
+  }
+
+  var verifyUrl = slabBuildVerifyUrl(r.grader, r.cert);
+  var vb = document.getElementById('slabVerifyBtn');
+  if(vb){
+    if(verifyUrl){
+      vb.href = verifyUrl;
+      vb.style.display = '';
+    } else {
+      vb.style.display = 'none';
+    }
+  }
+
+  // Confidence
+  var confWrap = document.getElementById('slabConfidence');
+  var confTxt = document.getElementById('slabConfidenceTxt');
+  if(confWrap && confTxt){
+    if(r.confidence != null){
+      var pct = Math.round(r.confidence * 100);
+      confTxt.textContent = 'Affidabilità OCR: ' + pct + '%';
+      confWrap.classList.remove('low','bad');
+      if(r.confidence < 0.5) confWrap.classList.add('bad');
+      else if(r.confidence < 0.75) confWrap.classList.add('low');
+      confWrap.style.display = '';
+    } else {
+      confWrap.style.display = 'none';
+    }
+  }
+
+  res.classList.add('show');
+}
+
+// ── COPY CERT ────────────────────────────────────────────────────────
+function slabCopyCert(){
+  var r = slabState.lastResult;
+  if(!r || !r.cert) return;
+  var done = function(){
+    var btn = document.getElementById('slabResCopy');
+    if(!btn) return;
+    var prev = btn.innerHTML;
+    btn.classList.add('copied');
+    btn.innerHTML = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Copiato';
+    setTimeout(function(){
+      btn.classList.remove('copied');
+      btn.innerHTML = prev;
+    }, 1400);
+  };
+  try {
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(r.cert).then(done).catch(function(){
+        slabFallbackCopy(r.cert); done();
+      });
+    } else {
+      slabFallbackCopy(r.cert); done();
+    }
+  } catch(_){ slabFallbackCopy(r.cert); done(); }
+}
+function slabFallbackCopy(text){
+  try {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position='fixed'; ta.style.left='-9999px';
+    document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+  } catch(_){}
+}
+
+// ── OPEN / CLOSE ─────────────────────────────────────────────────────
+function openSlabVerify(){
+  var bg = document.getElementById('slabModalBg');
+  if(!bg) return;
+  bg.classList.add('show');
+  // Bind paste handler (una sola volta)
+  if(!slabState.pasteBound){
+    document.addEventListener('paste', slabHandlePaste);
+    slabState.pasteBound = true;
+  }
+  // Bind ESC handler (una sola volta)
+  if(!slabState.keyBound){
+    document.addEventListener('keydown', function(e){
+      if(e.key === 'Escape'){
+        var b = document.getElementById('slabModalBg');
+        if(b && b.classList.contains('show')) closeSlabVerify();
+      }
+    });
+    slabState.keyBound = true;
+  }
+}
+
+function closeSlabVerify(){
+  var bg = document.getElementById('slabModalBg');
+  if(!bg) return;
+  bg.classList.remove('show');
+  // Non resettiamo lo stato per permettere riapertura con risultato precedente.
+  // Reset esplicito via slabReset() o caricamento nuova immagine.
+}
+
+function slabOnBgClick(e){
+  // Chiudi solo se click sul background, non sul contenuto del modal
+  if(e && e.target && e.target.id === 'slabModalBg') closeSlabVerify();
+}
+
+// Esponi su window per chiamata da qualsiasi punto del portale
+window.openSlabVerify  = openSlabVerify;
+window.closeSlabVerify = closeSlabVerify;
+window.slabHandleFile  = slabHandleFile;
 </script>
 </body>
 </html><!-- v20260424 -->
