@@ -443,18 +443,41 @@ async function wlAutoLookup(){
       hits = await tcg('name:"' + safeName + '"' + setFilter);
       if(hits.length) tier = 'T2 (nome esatto' + (setFilter ? '+set' : '') + ')';
     }
-    // Tier 2bis: se aveva set ma non trova, riprova senza set filter
-    if(!hits.length && setFilter){
-      hits = await tcg('name:"' + safeName + '"');
-      if(hits.length) tier = 'T2b (nome senza set)';
-    }
-    // Tier 3: wildcard sulla prima parola (recupera typo/parziali)
-    if(!hits.length){
+    // NOTA: se l'utente ha selezionato un set e il nome non matcha lì,
+    // NON facciamo fallback "senza set" silenzioso (era T2b).
+    // Significherebbe restituire un prezzo CM di una stampa diversa,
+    // fuorviante. Andiamo direttamente a T3 (wildcard) solo se NESSUN
+    // set era selezionato, OR mostriamo errore esplicito (gestito sotto
+    // dal blocco setMismatch).
+    // Tier 3: wildcard sulla prima parola — solo se NESSUN set selezionato
+    if(!hits.length && !setFilter){
       var firstWord = safeName.split(/\s+/)[0];
       if(firstWord && firstWord.length >= 3){
         hits = await tcg('name:*' + firstWord + '*');
         if(hits.length) tier = 'T3 (wildcard *' + firstWord + '*)';
       }
+    }
+
+    // Se utente ha selezionato un set e NESSUN match: facciamo un probe
+    // diagnostico SENZA set per dirgli in quale set la carta esiste davvero.
+    // Non popoliamo i campi: lasciamo decidere all'utente.
+    if(!hits.length && setFilter){
+      var probe = await tcg('name:"' + safeName + '"');
+      if(probe.length){
+        var setsFound = Array.from(new Set(probe.map(function(x){
+          return x.set && x.set.name;
+        }).filter(Boolean))).slice(0, 4).join(', ');
+        wlSt(
+          '⚠ "' + name + '" NON esiste in ' + setSel.name +
+          '. Esiste invece in: ' + setsFound +
+          (probe.length > 4 ? ' (e altri)' : '') +
+          '. Modifica il set selezionato.',
+          'err'
+        );
+        return;
+      }
+      wlSt('Nessuna carta "' + name + '" trovata su TCG API (né in ' + setSel.name + ', né altrove)', 'err');
+      return;
     }
 
     if(!hits.length){
@@ -465,6 +488,24 @@ async function wlAutoLookup(){
     var c = hits[0];
     var p = c.cardmarket && c.cardmarket.prices;
     var ref = p ? (p.trendPrice || p.avg30 || p.averageSellPrice || 0) : 0;
+    var foundSetId   = c.set && c.set.id;
+    var foundSetName = c.set && c.set.name || '?';
+
+    // Se l'utente aveva selezionato un set ma il match è in un set DIVERSO,
+    // non scriviamo nulla automaticamente: ref_price_cm e numero appartengono
+    // ad un'altra stampa. Mostriamo solo un warning chiaro.
+    var setMismatch = (setSel && setSel.id && foundSetId && setSel.id !== foundSetId);
+
+    if(setMismatch){
+      wlSt(
+        '⚠ "' + name + '" NON esiste in ' + setSel.name +
+        ' · trovata invece in ' + foundSetName +
+        ' (più recente di ' + hits.length + ' stampe). Modifica set o nome.',
+        'err'
+      );
+      return;
+    }
+
     if(ref) document.getElementById('wlRefCm').value = ref.toFixed(2);
 
     // Auto-fill set se vuoto (set picker non popolato)
