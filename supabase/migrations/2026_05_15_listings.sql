@@ -15,8 +15,11 @@
 CREATE TABLE IF NOT EXISTS rb_listings (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id         UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  -- Origine (opzionale): se l'inserzione nasce da una carta in collezione
-  collection_id   BIGINT REFERENCES collection(id) ON DELETE SET NULL,
+  -- Origine (opzionale): id della carta nella tabella 'cards' del Collector.
+  -- TEXT invece di BIGINT/UUID: la tabella cards \u00e8 dell'app originale Collector,
+  -- non sappiamo a priori se id \u00e8 INT o UUID. Usiamo TEXT senza FK rigida cos\u00ec
+  -- evitiamo errori e l'app si occupa di gestire i join lato client.
+  collection_id   TEXT,
   -- Snapshot della carta (denormalizzato: l'inserzione sopravvive a delete della riga collezione)
   card_name       TEXT NOT NULL,
   card_set        TEXT,

@@ -559,8 +559,10 @@ function insSearchCards(){
   }
   _insSearchTimer = setTimeout(async function(){
     try {
-      // Cerca nella tabella collection (full text su name)
-      var url = SUPA_URL+'/rest/v1/collection?select=id,name,set,set_id,card_number,rarity,condition,language,variant,first_edition,cm_avg30&name=ilike.*'+encodeURIComponent(q)+'*&order=name&limit=20';
+      // Cerca nella tabella cards (full text su name). Colonne reali:
+      // name, set_name, set_id, card_number, rarity, condition, language,
+      // variant, first_edition, cm_price (vedi pokemon-db.html L5602).
+      var url = SUPA_URL+'/rest/v1/cards?select=id,name,set_name,set_id,card_number,rarity,condition,language,variant,first_edition,cm_price&name=ilike.*'+encodeURIComponent(q)+'*&order=name&limit=20';
       var r = await fetch(url, {headers: getHDR()});
       if(!r.ok) throw new Error('HTTP '+r.status);
       var rows = await r.json();
@@ -569,8 +571,8 @@ function insSearchCards(){
         box.innerHTML = '<div class="ins-search-item" style="cursor:default;color:var(--text-subtle)">Nessuna carta in collezione</div>';
       } else {
         box.innerHTML = rows.map(function(c){
-          var meta = (c.set||'') + (c.card_number?' · #'+c.card_number:'') + (c.condition?' · '+c.condition:'');
-          return '<div class="ins-search-item" onclick="insSelectCard('+c.id+')">'
+          var meta = (c.set_name||'') + (c.card_number?' \u00b7 #'+c.card_number:'') + (c.condition?' \u00b7 '+c.condition:'');
+          return '<div class="ins-search-item" onclick="insSelectCard('+JSON.stringify(c.id).replace(/"/g,'&quot;')+')">'
             +'<span>'+insEsc(c.name)+'</span>'
             +'<span class="ins-search-item-meta">'+insEsc(meta)+'</span>'
           +'</div>';
@@ -586,14 +588,17 @@ window.insSearchCards = insSearchCards;
 
 async function insSelectCard(collectionId){
   try {
-    // Ricarica la riga completa dalla collezione
-    var r = await fetch(SUPA_URL+'/rest/v1/collection?id=eq.'+collectionId+'&select=*&limit=1', {headers: getHDR()});
+    // Ricarica la riga completa dalla tabella cards
+    var idQuery = (typeof collectionId === 'string')
+      ? 'id=eq.'+encodeURIComponent(collectionId)
+      : 'id=eq.'+collectionId;
+    var r = await fetch(SUPA_URL+'/rest/v1/cards?'+idQuery+'&select=*&limit=1', {headers: getHDR()});
     var rows = await r.json();
     if(!rows.length) return;
     var c = rows[0];
-    insDraftData.collection_id   = c.id;
+    insDraftData.collection_id   = String(c.id);   // sempre stringa per DB
     insDraftData.card_name       = c.name;
-    insDraftData.card_set        = c.set;
+    insDraftData.card_set        = c.set_name;
     insDraftData.card_set_id     = c.set_id;
     insDraftData.card_number     = c.card_number;
     insDraftData.card_rarity     = c.rarity;
@@ -601,9 +606,11 @@ async function insSelectCard(collectionId){
     insDraftData.card_language   = c.language || 'ITA';
     insDraftData.card_variant    = c.variant;
     insDraftData.card_first_ed   = !!c.first_edition;
-    insDraftData.card_cm_avg30   = c.cm_avg30;   // hint pricing
+    // cm_price del Collector \u00e8 il "prezzo CM corrente" della carta. Lo usiamo
+    // come baseline per il suggerimento di pricing (-5% per uscita rapida).
+    insDraftData.card_cm_avg30   = c.cm_price;
     // Suggested defaults
-    if(!insDraftData.price && c.cm_avg30) insDraftData.price = +(+c.cm_avg30 * 0.95).toFixed(2);
+    if(!insDraftData.price && c.cm_price) insDraftData.price = +(+c.cm_price * 0.95).toFixed(2);
     if(!insDraftData.title) insDraftData.title = insSuggestTitle();
     if(!insDraftData.description) insDraftData.description = insSuggestDescription();
     document.getElementById('insSearchResults').style.display = 'none';
