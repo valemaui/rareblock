@@ -400,22 +400,73 @@ function wlSetMode(mode){
 window.wlSetMode = wlSetMode;
 
 // ── Lookup prezzo CM via TCG API ────────────────────────────────────────
+// 3-tier fallback (pattern Scan, vedi pokemon-db.html ~L9300):
+//   T1: name:"X" + number:N (+ set.id se selezionato)
+//   T2: name:"X"
+//   T3: name:*FirstWord* (wildcard, recupera typo/parziali)
+// orderBy=-set.releaseDate per privilegiare la stampa più recente.
 async function wlAutoLookup(){
   var name = (document.getElementById('wlName').value || '').trim();
   var num  = (document.getElementById('wlNumber').value || '').trim();
   if(!name){ wlSt('Inserisci il nome carta prima del lookup', 'err'); return; }
   wlSt('Cerco su TCG API…', 'info');
+
+  var safeName = name.replace(/"/g,'');
+  var numClean = num ? num.split('/')[0] : null;
+  var setSel = wlResolveSet();
+  var setFilter = (setSel && setSel.id) ? ' set.id:' + setSel.id : '';
+
+  async function tcg(q){
+    try{
+      var r = await fetch(
+        window.TCG_URL + '?q=' + encodeURIComponent(q) +
+        '&pageSize=30&orderBy=-set.releaseDate',
+        { headers: { 'X-Api-Key': window.TCG_KEY } }
+      );
+      if(!r.ok) return [];
+      var j = await r.json();
+      return j.data || [];
+    }catch(_){ return []; }
+  }
+
   try{
-    var q = 'name:"' + name + '"' + (num ? ' number:' + num.split('/')[0] : '');
-    var r = await fetch(window.TCG_URL + '?q=' + encodeURIComponent(q) + '&pageSize=1', {
-      headers: { 'X-Api-Key': window.TCG_KEY }
-    });
-    var j = await r.json();
-    var c = (j.data || [])[0];
-    if(!c){ wlSt('Carta non trovata su TCG API', 'err'); return; }
+    var hits = [];
+    var tier = '';
+
+    // Tier 1: nome + numero (+ set se selezionato)
+    if(numClean){
+      hits = await tcg('name:"' + safeName + '" number:' + numClean + setFilter);
+      if(hits.length) tier = 'T1 (nome+num' + (setFilter ? '+set' : '') + ')';
+    }
+    // Tier 2: nome esatto (+ set se selezionato)
+    if(!hits.length){
+      hits = await tcg('name:"' + safeName + '"' + setFilter);
+      if(hits.length) tier = 'T2 (nome esatto' + (setFilter ? '+set' : '') + ')';
+    }
+    // Tier 2bis: se aveva set ma non trova, riprova senza set filter
+    if(!hits.length && setFilter){
+      hits = await tcg('name:"' + safeName + '"');
+      if(hits.length) tier = 'T2b (nome senza set)';
+    }
+    // Tier 3: wildcard sulla prima parola (recupera typo/parziali)
+    if(!hits.length){
+      var firstWord = safeName.split(/\s+/)[0];
+      if(firstWord && firstWord.length >= 3){
+        hits = await tcg('name:*' + firstWord + '*');
+        if(hits.length) tier = 'T3 (wildcard *' + firstWord + '*)';
+      }
+    }
+
+    if(!hits.length){
+      wlSt('Nessun match su TCG API per "' + name + '"', 'err');
+      return;
+    }
+
+    var c = hits[0];
     var p = c.cardmarket && c.cardmarket.prices;
     var ref = p ? (p.trendPrice || p.avg30 || p.averageSellPrice || 0) : 0;
     if(ref) document.getElementById('wlRefCm').value = ref.toFixed(2);
+
     // Auto-fill set se vuoto (set picker non popolato)
     if(c.set && c.set.name){
       var picker = document.getElementById('wlSetPicker-input');
@@ -439,7 +490,19 @@ async function wlAutoLookup(){
       var total = c.set && c.set.printedTotal ? '/' + c.set.printedTotal : '';
       document.getElementById('wlNumber').value = c.number + total;
     }
-    wlSt(ref ? ('Ref CM €' + ref.toFixed(2) + ' · set: ' + (c.set && c.set.name || '?')) : 'Carta trovata · prezzo CM non disponibile', 'ok');
+    // Auto-correggi il nome solo se T3 (wildcard) ha trovato un match diverso —
+    // così l'utente vede subito la forma canonica dell'API.
+    if(tier.indexOf('T3') === 0 && c.name && c.name.toLowerCase() !== safeName.toLowerCase()){
+      document.getElementById('wlName').value = c.name;
+    }
+
+    var setLabel = (c.set && c.set.name) ? c.set.name : '?';
+    var found = hits.length > 1 ? ' · ' + hits.length + ' match (più recente mostrato)' : '';
+    wlSt(
+      (ref ? ('Ref CM €' + ref.toFixed(2)) : 'Trovata (no CM price)') +
+      ' · ' + setLabel + ' · ' + tier + found,
+      'ok'
+    );
   }catch(e){
     wlSt('Errore lookup: ' + (e.message || e), 'err');
   }
@@ -598,21 +661,41 @@ async function wlRefreshAllPrices(){
   if(!_wlTargets.length){ wlSt('Wishlist vuota', 'err'); return; }
   wlSt('Aggiornamento prezzi in corso…', 'info');
   var updated = 0, failed = 0;
+
+  async function tcgFetch(q){
+    try{
+      var r = await fetch(
+        window.TCG_URL + '?q=' + encodeURIComponent(q) + '&pageSize=1&orderBy=-set.releaseDate',
+        { headers: { 'X-Api-Key': window.TCG_KEY } }
+      );
+      if(!r.ok) return null;
+      var j = await r.json();
+      return (j.data || [])[0] || null;
+    }catch(_){ return null; }
+  }
+
   for(var i = 0; i < _wlTargets.length; i++){
     var t = _wlTargets[i];
+    var safeName = (t.card_name || '').replace(/"/g,'');
+    if(!safeName){ failed++; continue; }
     try{
-      var q = 'name:"' + t.card_name + '"';
-      if(t.card_number){
-        q += ' number:' + String(t.card_number).split('/')[0];
+      // T1: tutti i filtri (più specifico)
+      var q1 = 'name:"' + safeName + '"';
+      if(t.card_number) q1 += ' number:' + String(t.card_number).split('/')[0];
+      if(t.set_id)      q1 += ' set.id:' + t.set_id;
+      var c = await tcgFetch(q1);
+
+      // T2: senza set (alcuni target potrebbero avere set_id stale)
+      if(!c && t.set_id){
+        var q2 = 'name:"' + safeName + '"';
+        if(t.card_number) q2 += ' number:' + String(t.card_number).split('/')[0];
+        c = await tcgFetch(q2);
       }
-      if(t.set_id){
-        q += ' set.id:' + t.set_id;
+      // T3: solo nome esatto
+      if(!c){
+        c = await tcgFetch('name:"' + safeName + '"');
       }
-      var r = await fetch(window.TCG_URL + '?q=' + encodeURIComponent(q) + '&pageSize=1', {
-        headers: { 'X-Api-Key': window.TCG_KEY }
-      });
-      var j = await r.json();
-      var c = (j.data || [])[0];
+
       if(c){
         var p = c.cardmarket && c.cardmarket.prices;
         var price = p ? (p.trendPrice || p.avg30 || p.averageSellPrice || 0) : 0;
@@ -620,6 +703,8 @@ async function wlRefreshAllPrices(){
           await supa('PATCH', 'hunt_targets?id=eq.' + t.id, { ref_price_cm: price, updated_at: new Date().toISOString() });
           t.ref_price_cm = price;
           updated++;
+        } else {
+          failed++; // trovata ma senza prezzo CM
         }
       } else {
         failed++;
