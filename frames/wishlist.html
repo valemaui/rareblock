@@ -52,6 +52,20 @@ body{display:flex;flex-direction:column}
 .wl-cm-lookup .wl-field{flex:1;margin-bottom:0}
 .wl-cm-lookup .btn{height:30px;padding:0 10px;font-size:11px;white-space:nowrap}
 
+.wl-lookup-results{margin-top:6px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);max-height:280px;overflow-y:auto}
+.wl-lookup-header{padding:6px 10px;font-size:10.5px;font-family:var(--mono);color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,.15)}
+.wl-lookup-header .wl-lookup-close{cursor:pointer;color:var(--text-muted);font-size:14px;line-height:1;padding:2px 6px;border-radius:3px;transition:.15s}
+.wl-lookup-header .wl-lookup-close:hover{background:var(--surface);color:var(--text)}
+.wl-cand{display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;transition:.12s;font-size:12px}
+.wl-cand:last-child{border-bottom:none}
+.wl-cand:hover{background:rgba(184,151,96,.06);padding-left:14px}
+.wl-cand-img{width:32px;height:44px;object-fit:cover;border-radius:3px;background:var(--surface);flex-shrink:0;border:1px solid var(--border)}
+.wl-cand-body{flex:1;min-width:0}
+.wl-cand-name{font-weight:600;color:var(--text);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wl-cand-meta{font-size:10.5px;font-family:var(--mono);color:var(--text-muted);margin-top:2px;letter-spacing:.03em}
+.wl-cand-price{font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:600;text-align:right;white-space:nowrap;padding-left:6px}
+.wl-cand-price-empty{color:var(--text-muted);font-weight:400}
+
 .wl-status{font-size:11.5px;font-family:var(--mono);padding:6px 0;min-height:20px;letter-spacing:.02em}
 .wl-status.ok{color:var(--success)}
 .wl-status.err{color:var(--danger)}
@@ -256,6 +270,7 @@ body{display:flex;flex-direction:column}
           <span class="rb-i rb-i-refresh"></span>
         </button>
       </div>
+      <div id="wlLookupResults" class="wl-lookup-results" style="display:none"></div>
 
       <div class="wl-field">
         <label for="wlMaxPrice">Prezzo max €</label>
@@ -405,10 +420,27 @@ window.wlSetMode = wlSetMode;
 //   T2: name:"X"
 //   T3: name:*FirstWord* (wildcard, recupera typo/parziali)
 // orderBy=-set.releaseDate per privilegiare la stampa più recente.
+// ── Lookup TCG API → mostra lista candidati ─────────────────────────────
+// PRINCIPIO: NIENTE auto-popolamento implicito. Lookup ritorna fino a 30
+// candidati; l'utente clicca quello giusto. Questo evita errori silenziosi
+// (es. il sistema indovina la stampa più recente quando l'utente voleva
+// quella vintage). Per set vintage / numero piccolo gli ordinamenti vengono
+// regolati per privilegiare la stampa più vecchia.
+//
+// Se c'è UN solo candidato → riempi tutto in automatico (no friction).
+// Se ≥2 candidati → mostra lista in #wlLookupResults, attesa di click.
+
+// Stato per il pick
+var _wlLookupCands = [];
+
 async function wlAutoLookup(){
   var name = (document.getElementById('wlName').value || '').trim();
   var num  = (document.getElementById('wlNumber').value || '').trim();
   if(!name){ wlSt('Inserisci il nome carta prima del lookup', 'err'); return; }
+
+  // Chiudi eventuale lista precedente
+  var resEl = document.getElementById('wlLookupResults');
+  if(resEl){ resEl.style.display = 'none'; resEl.innerHTML = ''; }
   wlSt('Cerco su TCG API…', 'info');
 
   var safeName = name.replace(/"/g,'');
@@ -416,11 +448,17 @@ async function wlAutoLookup(){
   var setSel = wlResolveSet();
   var setFilter = (setSel && setSel.id) ? ' set.id:' + setSel.id : '';
 
+  // Quando l'utente NON ha selezionato un set ma ha specificato un numero
+  // piccolo (≤30 ⇒ probabile vintage), ordiniamo dalla più vecchia.
+  // Altrimenti dalla più recente.
+  var sortAsc = (!setFilter && numClean && parseInt(numClean,10) > 0 && parseInt(numClean,10) <= 30);
+  var orderBy = sortAsc ? '%2Bset.releaseDate' : '-set.releaseDate'; // %2B = '+'
+
   async function tcg(q){
     try{
       var r = await fetch(
         window.TCG_URL + '?q=' + encodeURIComponent(q) +
-        '&pageSize=30&orderBy=-set.releaseDate',
+        '&pageSize=30&orderBy=' + orderBy,
         { headers: { 'X-Api-Key': window.TCG_KEY } }
       );
       if(!r.ok) return [];
@@ -438,17 +476,11 @@ async function wlAutoLookup(){
       hits = await tcg('name:"' + safeName + '" number:' + numClean + setFilter);
       if(hits.length) tier = 'T1 (nome+num' + (setFilter ? '+set' : '') + ')';
     }
-    // Tier 2: nome esatto (+ set se selezionato)
+    // Tier 2: nome esatto (+ set se selezionato), SENZA numero
     if(!hits.length){
       hits = await tcg('name:"' + safeName + '"' + setFilter);
-      if(hits.length) tier = 'T2 (nome esatto' + (setFilter ? '+set' : '') + ')';
+      if(hits.length) tier = 'T2 (nome' + (setFilter ? '+set' : '') + ')';
     }
-    // NOTA: se l'utente ha selezionato un set e il nome non matcha lì,
-    // NON facciamo fallback "senza set" silenzioso (era T2b).
-    // Significherebbe restituire un prezzo CM di una stampa diversa,
-    // fuorviante. Andiamo direttamente a T3 (wildcard) solo se NESSUN
-    // set era selezionato, OR mostriamo errore esplicito (gestito sotto
-    // dal blocco setMismatch).
     // Tier 3: wildcard sulla prima parola — solo se NESSUN set selezionato
     if(!hits.length && !setFilter){
       var firstWord = safeName.split(/\s+/)[0];
@@ -458,9 +490,7 @@ async function wlAutoLookup(){
       }
     }
 
-    // Se utente ha selezionato un set e NESSUN match: facciamo un probe
-    // diagnostico SENZA set per dirgli in quale set la carta esiste davvero.
-    // Non popoliamo i campi: lasciamo decidere all'utente.
+    // Probe diagnostico se set selezionato ma nessun match
     if(!hits.length && setFilter){
       var probe = await tcg('name:"' + safeName + '"');
       if(probe.length){
@@ -476,7 +506,7 @@ async function wlAutoLookup(){
         );
         return;
       }
-      wlSt('Nessuna carta "' + name + '" trovata su TCG API (né in ' + setSel.name + ', né altrove)', 'err');
+      wlSt('Nessuna "' + name + '" su TCG API (né in ' + setSel.name + ', né altrove)', 'err');
       return;
     }
 
@@ -485,70 +515,117 @@ async function wlAutoLookup(){
       return;
     }
 
-    var c = hits[0];
-    var p = c.cardmarket && c.cardmarket.prices;
-    var ref = p ? (p.trendPrice || p.avg30 || p.averageSellPrice || 0) : 0;
-    var foundSetId   = c.set && c.set.id;
-    var foundSetName = c.set && c.set.name || '?';
+    _wlLookupCands = hits.slice(0, 30);
 
-    // Se l'utente aveva selezionato un set ma il match è in un set DIVERSO,
-    // non scriviamo nulla automaticamente: ref_price_cm e numero appartengono
-    // ad un'altra stampa. Mostriamo solo un warning chiaro.
-    var setMismatch = (setSel && setSel.id && foundSetId && setSel.id !== foundSetId);
-
-    if(setMismatch){
+    // CASO 1: match unico → popola direttamente (no friction)
+    if(_wlLookupCands.length === 1){
+      wlApplyCandidate(0);
+      var c1 = _wlLookupCands[0];
+      var p1 = c1.cardmarket && c1.cardmarket.prices;
+      var ref1 = p1 ? (p1.trendPrice || p1.avg30 || p1.averageSellPrice || 0) : 0;
       wlSt(
-        '⚠ "' + name + '" NON esiste in ' + setSel.name +
-        ' · trovata invece in ' + foundSetName +
-        ' (più recente di ' + hits.length + ' stampe). Modifica set o nome.',
-        'err'
+        (ref1 ? ('Ref CM €' + ref1.toFixed(2)) : 'Trovata (no CM price)') +
+        ' · ' + (c1.set && c1.set.name || '?') + ' · #' + (c1.number || '?') + ' · ' + tier,
+        'ok'
       );
       return;
     }
 
-    if(ref) document.getElementById('wlRefCm').value = ref.toFixed(2);
-
-    // Auto-fill set se vuoto (set picker non popolato)
-    if(c.set && c.set.name){
-      var picker = document.getElementById('wlSetPicker-input');
-      if(picker && !picker.value){
-        try {
-          var p2 = (window.parent && window.parent !== window) ? window.parent : window;
-          if(Array.isArray(p2.msSetsAll)){
-            var hit = p2.msSetsAll.find(function(s){ return s.id === c.set.id; });
-            if(hit){
-              picker._rbSelectedSet = hit;
-              picker.value = p2.auSetLabel ? p2.auSetLabel(hit) : hit.name;
-              var clr = document.getElementById('wlSetPicker-input-clear');
-              if(clr) clr.style.display = 'block';
-            }
-          }
-        } catch(_){}
-      }
-    }
-    // Auto-fill number se vuoto
-    if(c.number && !document.getElementById('wlNumber').value){
-      var total = c.set && c.set.printedTotal ? '/' + c.set.printedTotal : '';
-      document.getElementById('wlNumber').value = c.number + total;
-    }
-    // Auto-correggi il nome solo se T3 (wildcard) ha trovato un match diverso —
-    // così l'utente vede subito la forma canonica dell'API.
-    if(tier.indexOf('T3') === 0 && c.name && c.name.toLowerCase() !== safeName.toLowerCase()){
-      document.getElementById('wlName').value = c.name;
-    }
-
-    var setLabel = (c.set && c.set.name) ? c.set.name : '?';
-    var found = hits.length > 1 ? ' · ' + hits.length + ' match (più recente mostrato)' : '';
-    wlSt(
-      (ref ? ('Ref CM €' + ref.toFixed(2)) : 'Trovata (no CM price)') +
-      ' · ' + setLabel + ' · ' + tier + found,
-      'ok'
-    );
+    // CASO 2: ≥2 match → mostra lista candidati cliccabili
+    wlRenderCandidates(tier, sortAsc);
+    wlSt(_wlLookupCands.length + ' stampe trovate · ' + tier +
+      ' · clicca quella giusta sotto ↓',
+      'info');
   }catch(e){
     wlSt('Errore lookup: ' + (e.message || e), 'err');
   }
 }
 window.wlAutoLookup = wlAutoLookup;
+
+// Render lista candidati nel #wlLookupResults
+function wlRenderCandidates(tier, sortAsc){
+  var el = document.getElementById('wlLookupResults');
+  if(!el) return;
+  var rows = _wlLookupCands.map(function(c, i){
+    var p = c.cardmarket && c.cardmarket.prices;
+    var ref = p ? (p.trendPrice || p.avg30 || p.averageSellPrice || 0) : 0;
+    var year = (c.set && c.set.releaseDate) ? c.set.releaseDate.slice(0,4) : '';
+    var setName = (c.set && c.set.name) || '?';
+    var num = c.number || '?';
+    var total = c.set && c.set.printedTotal ? '/' + c.set.printedTotal : '';
+    var img = (c.images && c.images.small) || '';
+    var priceHtml = ref
+      ? '<div class="wl-cand-price">€' + ref.toFixed(2) + '</div>'
+      : '<div class="wl-cand-price wl-cand-price-empty">—</div>';
+    return '' +
+      '<div class="wl-cand" onclick="wlApplyCandidate(' + i + ');document.getElementById(\'wlLookupResults\').style.display=\'none\'">' +
+        (img ? '<img class="wl-cand-img" src="'+esc(img)+'" loading="lazy" alt=""/>' : '<div class="wl-cand-img"></div>') +
+        '<div class="wl-cand-body">' +
+          '<div class="wl-cand-name">' + esc(c.name || '?') + '</div>' +
+          '<div class="wl-cand-meta">' + esc(setName) + (year ? ' · ' + year : '') + ' · #' + esc(String(num)) + esc(total) + '</div>' +
+        '</div>' +
+        priceHtml +
+      '</div>';
+  }).join('');
+  el.innerHTML =
+    '<div class="wl-lookup-header">' +
+      '<span>' + _wlLookupCands.length + ' stampe · ' + esc(tier) +
+        (sortAsc ? ' · ordine: vecchie → nuove' : ' · ordine: nuove → vecchie') +
+      '</span>' +
+      '<span class="wl-lookup-close" onclick="document.getElementById(\'wlLookupResults\').style.display=\'none\'">×</span>' +
+    '</div>' +
+    rows;
+  el.style.display = 'block';
+}
+window.wlRenderCandidates = wlRenderCandidates;
+
+// Applica un candidato ai campi del form
+function wlApplyCandidate(idx){
+  var c = _wlLookupCands[idx];
+  if(!c) return;
+
+  // 1. Nome (forma canonica dall'API)
+  if(c.name) document.getElementById('wlName').value = c.name;
+
+  // 2. Numero (con printedTotal)
+  if(c.number){
+    var total = c.set && c.set.printedTotal ? '/' + c.set.printedTotal : '';
+    document.getElementById('wlNumber').value = c.number + total;
+  }
+
+  // 3. Set picker
+  if(c.set && c.set.id){
+    var picker = document.getElementById('wlSetPicker-input');
+    if(picker){
+      try {
+        var p2 = (window.parent && window.parent !== window) ? window.parent : window;
+        if(Array.isArray(p2.msSetsAll)){
+          var hit = p2.msSetsAll.find(function(s){ return s.id === c.set.id; });
+          if(hit){
+            picker._rbSelectedSet = hit;
+            picker.value = p2.auSetLabel ? p2.auSetLabel(hit) : hit.name;
+            var clr = document.getElementById('wlSetPicker-input-clear');
+            if(clr) clr.style.display = 'block';
+          }
+        }
+      } catch(_){}
+    }
+  }
+
+  // 4. Ref CM €
+  var p = c.cardmarket && c.cardmarket.prices;
+  var ref = p ? (p.trendPrice || p.avg30 || p.averageSellPrice || 0) : 0;
+  if(ref) document.getElementById('wlRefCm').value = ref.toFixed(2);
+
+  // Status di conferma
+  wlSt(
+    'Selezionato: ' + (c.name || '?') + ' · ' + (c.set && c.set.name || '?') +
+    ' · #' + (c.number || '?') +
+    (ref ? (' · €' + ref.toFixed(2)) : ' · no CM price'),
+    'ok'
+  );
+}
+window.wlApplyCandidate = wlApplyCandidate;
 
 // ── Risolvi set picker (cross-frame helper dal parent) ──────────────────
 function wlResolveSet(){
