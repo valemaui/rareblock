@@ -3,311 +3,935 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Wishlist</title>
+<title>Wishlist · RareBlock</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="../shared/rareblock-shared.css"/>
 <style>
-/* Wishlist module styles (estratto 1:1 da pokemon-db.html L1681-1713). */
+/* ═══ WISHLIST — refactor: backed by hunt_targets, mirrors Analizza picker ═══ */
 html,body{height:100%;overflow:hidden}
 body{display:flex;flex-direction:column}
-.wish-layout{display:flex;flex:1;overflow:hidden}
-.wish-sidebar{width:300px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--surface);overflow:hidden}
-.wish-sidebar-top{padding:14px;border-bottom:1px solid var(--border);flex-shrink:0}
-.wish-sidebar-top h3{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
-.wish-form-field{margin-bottom:8px}
-.wish-form-field label{display:block;font-size:11px;color:var(--text-muted);margin-bottom:3px;font-family:var(--mono)}
-.wish-form-field input,.wish-form-field select{width:100%;font-size:13px}
-.wish-sidebar-bottom{padding:10px 14px;border-top:1px solid var(--border);flex-shrink:0}
-.wish-main{flex:1;overflow-y:auto;display:flex;flex-direction:column}
-.wish-toolbar{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0}
-.wish-stats{display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0}
-.wish-stat{flex:1;padding:10px 12px;text-align:center;border-right:1px solid var(--border)}
-.wish-stat:last-child{border-right:none}
-.wish-stat-val{font-size:15px;font-weight:600;font-family:var(--mono)}
-.wish-stat-lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px}
-.wish-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;padding:16px}
-.wish-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:8px;position:relative;transition:border-color .15s}
-.wish-item.buyable{border-color:var(--success);background:rgba(122,154,110,.04)}
-.wish-item-name{font-size:13px;font-weight:600}
-.wish-item-meta{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
-.wish-item-prices{display:flex;gap:12px;align-items:center}
-.wish-item-max{font-size:12px;color:var(--text-muted)}
-.wish-item-max span{font-family:var(--mono);color:var(--text)}
-.wish-item-mkt{font-size:12px}
-.wish-item-mkt span{font-family:var(--mono);font-weight:600}
-.wish-item-badge{font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:10px;font-weight:600}
-.wish-item-badge.ok{background:rgba(122,154,110,.15);color:var(--success);border:1px solid rgba(122,154,110,.3)}
-.wish-item-badge.wait{background:rgba(184,151,96,.1);color:var(--warning);border:1px solid rgba(184,151,96,.25)}
-.wish-item-badge.np{background:rgba(125,133,144,.1);color:var(--text-muted);border:1px solid var(--border)}
-.wish-item-actions{display:flex;gap:6px;margin-top:2px}
-.wish-del-btn{background:none;border:none;cursor:pointer;color:var(--text-subtle);font-size:12px;padding:2px 6px;border-radius:3px;transition:color .12s;margin-left:auto}
-.wish-del-btn:hover{color:var(--danger)}
-.wish-empty{text-align:center;padding:40px 16px;color:var(--text-muted);font-size:13px}
+
+/* Stats banner */
+.wl-stats{display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)}
+.wl-stat{flex:1;padding:10px 12px;text-align:center;border-right:1px solid var(--border)}
+.wl-stat:last-child{border-right:none}
+.wl-stat-val{font-size:16px;font-weight:600;font-family:var(--mono);letter-spacing:-.01em}
+.wl-stat-lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+
+/* Layout split */
+.wl-layout{display:flex;flex:1;overflow:hidden;min-height:0}
+
+/* Sidebar (add form) */
+.wl-sidebar{width:320px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);overflow-y:auto;display:flex;flex-direction:column}
+.wl-sidebar-block{padding:14px;border-bottom:1px solid var(--border)}
+.wl-sidebar-block:last-child{border-bottom:none}
+.wl-sidebar-block h3{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.14em;margin:0 0 12px 0;font-family:var(--mono);display:flex;align-items:center;gap:8px}
+.wl-sidebar-block h3::before{content:"";display:inline-block;width:12px;height:1px;background:var(--accent);opacity:.7}
+
+.wl-field{margin-bottom:8px}
+.wl-field-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.wl-field label,.wl-pseudo-label{display:block;font-size:9.5px;color:var(--text-muted);margin-bottom:4px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em}
+.wl-field input,.wl-field select{width:100%;font-size:12.5px;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);outline:none;height:30px;box-sizing:border-box;font-family:var(--font)}
+.wl-field input:focus,.wl-field select:focus{border-color:var(--accent)}
+.wl-field-set{position:relative}
+.wl-field-set #wlSetPicker input{height:30px;font-size:12.5px;padding:6px 8px}
+
+/* Segmented Raw/Graded toggle (cloned from analizza) */
+.wl-seg{display:inline-flex;gap:0;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;background:var(--surface2);width:100%}
+.wl-seg-btn{flex:1;background:transparent;border:none;color:var(--text-muted);padding:6px 10px;font-size:11.5px;cursor:pointer;font-family:var(--font);letter-spacing:.02em;transition:.12s}
+.wl-seg-btn:hover{color:var(--text)}
+.wl-seg-btn.active{background:var(--accent);color:var(--bg);font-weight:600}
+
+.wl-checkbox-row{display:flex;gap:14px;font-size:11.5px;color:var(--text);align-items:center;padding:4px 0;flex-wrap:wrap}
+.wl-checkbox-row label{display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-family:var(--font);text-transform:none;letter-spacing:0;font-size:11.5px;color:var(--text);margin:0}
+.wl-checkbox-row input{width:auto;height:auto}
+
+.wl-cm-lookup{display:flex;gap:6px;align-items:flex-end}
+.wl-cm-lookup .wl-field{flex:1;margin-bottom:0}
+.wl-cm-lookup .btn{height:30px;padding:0 10px;font-size:11px;white-space:nowrap}
+
+.wl-status{font-size:11.5px;font-family:var(--mono);padding:6px 0;min-height:20px;letter-spacing:.02em}
+.wl-status.ok{color:var(--success)}
+.wl-status.err{color:var(--danger)}
+.wl-status.info{color:var(--text-muted)}
+
+.wl-add-btn{width:100%;margin-top:6px}
+
+/* Main panel */
+.wl-main{flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.wl-toolbar{padding:10px 14px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.wl-toolbar input[type=text]{flex:1;min-width:140px;max-width:260px;height:30px;font-size:12.5px;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);outline:none}
+.wl-toolbar select{height:30px;font-size:12px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);outline:none;font-family:var(--font)}
+.wl-toolbar-sep{flex:1}
+
+.wl-list{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.wl-empty{text-align:center;padding:60px 24px;color:var(--text-muted)}
+.wl-empty-icon{font-size:36px;margin-bottom:10px;opacity:.55}
+.wl-empty-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
+.wl-empty-sub{font-size:12px;line-height:1.5}
+
+/* Wishlist row card */
+.wl-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;display:flex;gap:14px;align-items:flex-start;transition:border-color .12s,background .12s;position:relative}
+.wl-row:hover{border-color:var(--text-subtle)}
+.wl-row.paused{opacity:.6}
+.wl-row.has-hot-deal{border-left:3px solid var(--danger);background:rgba(213,86,86,.025)}
+.wl-row.has-good-deal{border-left:3px solid var(--warning)}
+
+.wl-row-prio{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px;padding-top:2px;min-width:24px}
+.wl-row-prio-dot{width:10px;height:10px;border-radius:50%;background:var(--text-subtle);transition:.12s}
+.wl-row-prio-dot.p5{background:var(--accent);box-shadow:0 0 6px rgba(201,169,110,.45)}
+.wl-row-prio-dot.p4{background:var(--accent);opacity:.85}
+.wl-row-prio-dot.p3{background:var(--text-muted)}
+.wl-row-prio-dot.p2{background:var(--text-subtle)}
+.wl-row-prio-dot.p1{background:var(--border);border:1px solid var(--text-subtle)}
+.wl-row-prio-num{font-size:9px;font-family:var(--mono);color:var(--text-muted);letter-spacing:.05em}
+
+.wl-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+.wl-row-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.wl-row-name{font-size:14px;font-weight:600;letter-spacing:-.005em;color:var(--text)}
+.wl-row-num{font-size:11px;font-family:var(--mono);color:var(--text-muted)}
+.wl-row-set{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
+
+.wl-row-attrs{display:flex;gap:6px;flex-wrap:wrap;font-size:10.5px;font-family:var(--mono);color:var(--text-muted)}
+.wl-row-tag{padding:1px 7px;border:1px solid var(--border);border-radius:3px;background:var(--surface2);letter-spacing:.04em}
+.wl-row-tag.mode-graded{color:var(--accent);border-color:rgba(201,169,110,.4);background:rgba(201,169,110,.05)}
+.wl-row-tag.mode-raw{color:var(--text);border-color:var(--text-subtle)}
+.wl-row-tag.lang{color:var(--text-muted)}
+
+.wl-row-prices{display:flex;gap:14px;font-size:11.5px;color:var(--text-muted);align-items:center;flex-wrap:wrap;margin-top:2px}
+.wl-row-prices span.val{font-family:var(--mono);font-weight:600;color:var(--text)}
+.wl-row-prices .good{color:var(--success)}
+.wl-row-prices .bad{color:var(--danger)}
+
+.wl-row-deals{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-family:var(--mono);color:var(--text-muted)}
+.wl-row-deals.has{color:var(--text)}
+.wl-row-deals .deal-score{padding:1px 6px;border-radius:3px;font-weight:600}
+.wl-row-deals .deal-score.hot{background:rgba(213,86,86,.18);color:var(--danger)}
+.wl-row-deals .deal-score.good{background:rgba(184,151,96,.18);color:var(--warning)}
+.wl-row-deals .deal-score.mid{background:rgba(125,133,144,.14);color:var(--text)}
+
+.wl-row-notes{font-size:11.5px;color:var(--text-muted);font-style:italic;line-height:1.4;margin-top:2px;white-space:pre-wrap;word-break:break-word}
+
+.wl-row-actions{display:flex;gap:5px;flex-shrink:0;align-items:flex-start;flex-wrap:wrap;justify-content:flex-end;max-width:220px}
+.wl-row-actions .btn{font-size:11px;padding:5px 9px;height:auto}
+.wl-row-actions .icon-btn{background:transparent;border:1px solid var(--border);color:var(--text-muted);width:28px;height:28px;border-radius:var(--r);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:.12s}
+.wl-row-actions .icon-btn:hover{border-color:var(--accent);color:var(--text)}
+.wl-row-actions .icon-btn.danger:hover{border-color:var(--danger);color:var(--danger)}
+
+.wl-status-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-family:var(--mono);padding:2px 8px;border-radius:10px;letter-spacing:.04em;text-transform:uppercase}
+.wl-status-badge.active{background:rgba(122,154,110,.14);color:var(--success);border:1px solid rgba(122,154,110,.3)}
+.wl-status-badge.paused{background:rgba(125,133,144,.1);color:var(--text-muted);border:1px solid var(--border)}
+.wl-status-badge.legacy{background:rgba(184,151,96,.1);color:var(--warning);border:1px solid rgba(184,151,96,.25)}
+
+/* Responsive */
+@media (max-width: 880px){
+  .wl-layout{flex-direction:column}
+  .wl-sidebar{width:auto;max-height:48vh;border-right:none;border-bottom:1px solid var(--border)}
+  .wl-row{flex-wrap:wrap}
+  .wl-row-actions{margin-left:0;max-width:none;width:100%;justify-content:flex-start;padding-top:6px;border-top:1px solid var(--border);margin-top:4px}
+}
 </style>
 </head>
 <body>
 
-<div class="wish-stats" id="wishStats">
-  <div class="wish-stat"><div class="wish-stat-val" id="wsTotal">—</div><div class="wish-stat-lbl">Carte cercate</div></div>
-  <div class="wish-stat"><div class="wish-stat-val" id="wsBuyable" style="color:var(--success)">—</div><div class="wish-stat-lbl"><span class="rb-dot rb-dot-on"></span> Comprabili ora</div></div>
-  <div class="wish-stat"><div class="wish-stat-val" id="wsBudget">—</div><div class="wish-stat-lbl">Budget max totale</div></div>
-  <div class="wish-stat"><div class="wish-stat-val" id="wsMarketTotal">—</div><div class="wish-stat-lbl">Valore di mercato</div></div>
+<!-- Stats banner -->
+<div class="wl-stats" id="wlStats">
+  <div class="wl-stat"><div class="wl-stat-val" id="wlStTotal">—</div><div class="wl-stat-lbl">Carte in lista</div></div>
+  <div class="wl-stat"><div class="wl-stat-val" id="wlStActive" style="color:var(--success)">—</div><div class="wl-stat-lbl"><span class="rb-dot rb-dot-on"></span> Attive ora</div></div>
+  <div class="wl-stat"><div class="wl-stat-val" id="wlStOpps">—</div><div class="wl-stat-lbl">Opportunità totali</div></div>
+  <div class="wl-stat"><div class="wl-stat-val" id="wlStTopScore" style="color:var(--accent)">—</div><div class="wl-stat-lbl">Top deal score</div></div>
 </div>
 
-<div class="wish-layout">
-  <div class="wish-sidebar">
-    <div class="wish-sidebar-top">
-      <h3>Aggiungi alla wishlist</h3>
-      <div class="wish-form-field"><label for="wishName">Nome carta *</label><input type="text" id="wishName" placeholder="es. Charizard"/></div>
-      <div class="wish-form-field"><label for="wishSet">Set</label><input type="text" id="wishSet" placeholder="es. Base Set"/></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-        <div class="wish-form-field"><label for="wishCond">Condizione</label><select id="wishCond" style="width:100%"><option>NM</option><option>EX</option><option>GD</option><option>MINT</option><option>LP</option></select></div>
-        <div class="wish-form-field"><label for="wishLang">Lingua</label><select id="wishLang" style="width:100%"><option>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option></select></div>
-      </div>
-      <div class="wish-form-field"><label for="wishMaxPrice">Prezzo max (€)</label><input type="number" id="wishMaxPrice" placeholder="0.00" step="0.01"/></div>
-      <div class="wish-form-field"><label for="wishNotes">Note</label><input type="text" id="wishNotes" placeholder="Motivo, priorità…"/></div>
-      <button class="btn btn-primary" onclick="wishAdd()" style="width:100%;margin-top:6px"><span class="rb-i rb-i-star"></span> Aggiungi</button>
-      <div id="wishStatus" class="status" style="margin-top:8px;padding:4px 0;font-size:12px"></div>
-    </div>
-    <div class="wish-sidebar-bottom">
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;font-family:var(--mono)">Import da testo (una riga = una carta)</div>
-      <textarea id="wishBulkText" placeholder="Charizard Base Set NM&#10;Blastoise Base Set EX&#10;Pikachu Promo NM" style="width:100%;height:72px;font-size:11px;resize:none"></textarea>
-      <button class="btn" onclick="wishBulkImport()" style="width:100%;margin-top:6px;font-size:12px">Import bulk</button>
-    </div>
-  </div>
+<div class="wl-layout">
 
-  <div class="wish-main">
-    <div class="wish-toolbar">
-      <input type="text" placeholder="Cerca nella wishlist..." id="wishFilter" oninput="wishRender()" style="max-width:200px"/>
-      <select id="wishFilterStatus" onchange="wishRender()" style="max-width:130px">
-        <option value="">Tutti</option>
-        <option value="buyable">Comprabili</option>
-        <option value="wait">In attesa</option>
-        <option value="np">Senza prezzo</option>
+  <!-- ═══ Sidebar: form aggiungi ═══ -->
+  <aside class="wl-sidebar">
+
+    <!-- Block 1: identità carta -->
+    <div class="wl-sidebar-block">
+      <h3>Aggiungi alla wishlist</h3>
+
+      <div class="wl-field">
+        <label for="wlName">Carta *</label>
+        <input type="text" id="wlName" placeholder="es. Charizard" autocomplete="off"
+               onkeydown="if(event.key==='Enter')document.getElementById('wlNumber').focus()"/>
+      </div>
+
+      <div class="wl-field wl-field-set">
+        <div class="wl-pseudo-label">Set</div>
+        <div id="wlSetPicker" style="position:relative"></div>
+      </div>
+
+      <div class="wl-field">
+        <label for="wlNumber">Numero (opz.)</label>
+        <input type="text" id="wlNumber" placeholder="es. 4/102" autocomplete="off"/>
+      </div>
+    </div>
+
+    <!-- Block 2: modalità (Raw/Gradata) + attributi -->
+    <div class="wl-sidebar-block">
+      <h3>Modalità ricerca</h3>
+
+      <div class="wl-field">
+        <div class="wl-seg" role="tablist">
+          <button type="button" class="wl-seg-btn active" id="wlSegRaw"    onclick="wlSetMode('raw')">Raw</button>
+          <button type="button" class="wl-seg-btn"        id="wlSegGraded" onclick="wlSetMode('graded')">Gradata</button>
+        </div>
+      </div>
+
+      <div class="wl-field-row">
+        <div class="wl-field">
+          <label for="wlLang">Lingua</label>
+          <select id="wlLang">
+            <option value="ANY" selected>Qualsiasi</option>
+            <option value="ITA">ITA</option>
+            <option value="ENG">ENG</option>
+            <option value="JPN">JPN</option>
+            <option value="DEU">DEU</option>
+            <option value="FRA">FRA</option>
+            <option value="ESP">ESP</option>
+          </select>
+        </div>
+        <div class="wl-field" id="wlFVariant">
+          <label for="wlVariant">Variante</label>
+          <select id="wlVariant">
+            <option value="Normal" selected>Normal</option>
+            <option value="Holo">Holo</option>
+            <option value="Reverse Holo">Reverse Holo</option>
+            <option value="Full Art">Full Art</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- RAW-only fields -->
+      <div id="wlRawFields">
+        <div class="wl-checkbox-row">
+          <label><input type="checkbox" id="wlFirstEd"/> 1ª edizione</label>
+          <label><input type="checkbox" id="wlShadowless"/> Shadowless</label>
+        </div>
+      </div>
+
+      <!-- GRADED-only fields -->
+      <div id="wlGradedFields" style="display:none">
+        <div class="wl-field-row">
+          <div class="wl-field">
+            <label for="wlHouse">Casa</label>
+            <select id="wlHouse">
+              <option value="">— qualsiasi —</option>
+              <option value="PSA" selected>PSA</option>
+              <option value="BGS">BGS</option>
+              <option value="CGC">CGC</option>
+              <option value="ACE">ACE</option>
+              <option value="SGC">SGC</option>
+            </select>
+          </div>
+          <div class="wl-field">
+            <label for="wlMinGrade">Grado min.</label>
+            <select id="wlMinGrade">
+              <option value="">— qualsiasi —</option>
+              <option value="10">10</option>
+              <option value="9.5">9.5</option>
+              <option value="9" selected>9</option>
+              <option value="8.5">8.5</option>
+              <option value="8">8</option>
+              <option value="7">7</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Block 3: prezzi + soglie -->
+    <div class="wl-sidebar-block">
+      <h3>Budget &amp; soglie</h3>
+
+      <div class="wl-cm-lookup">
+        <div class="wl-field">
+          <label for="wlRefCm">Ref CM €</label>
+          <input type="number" id="wlRefCm" step="0.01" placeholder="0.00"/>
+        </div>
+        <button type="button" class="btn" onclick="wlAutoLookup()" title="Cerca prezzo CM da TCG API">
+          <span class="rb-i rb-i-refresh"></span>
+        </button>
+      </div>
+
+      <div class="wl-field">
+        <label for="wlMaxPrice">Prezzo max €</label>
+        <input type="number" id="wlMaxPrice" step="0.01" placeholder="0.00"/>
+      </div>
+
+      <div class="wl-field-row">
+        <div class="wl-field">
+          <label for="wlPriority">Priorità</label>
+          <select id="wlPriority">
+            <option value="5">★★★★★ Top</option>
+            <option value="4">★★★★ Alta</option>
+            <option value="3" selected>★★★ Media</option>
+            <option value="2">★★ Bassa</option>
+            <option value="1">★ Quando capita</option>
+          </select>
+        </div>
+        <div class="wl-field">
+          <label for="wlThreshold">Alert ≥</label>
+          <input type="number" id="wlThreshold" min="0" max="100" step="5" value="70" title="Soglia deal_score per alert"/>
+        </div>
+      </div>
+
+      <div class="wl-field">
+        <label for="wlNotes">Note</label>
+        <input type="text" id="wlNotes" placeholder="es. Per la collezione, urgente…"/>
+      </div>
+
+      <div class="wl-checkbox-row">
+        <label><input type="checkbox" id="wlActive" checked/> Attiva subito (avvia scan)</label>
+      </div>
+    </div>
+
+    <!-- Block 4: action -->
+    <div class="wl-sidebar-block">
+      <button class="btn btn-primary wl-add-btn" onclick="wlAdd()">
+        <span class="rb-i rb-i-star"></span> Aggiungi alla wishlist
+      </button>
+      <div id="wlStatus" class="wl-status"></div>
+    </div>
+
+  </aside>
+
+  <!-- ═══ Main: lista wishlist ═══ -->
+  <main class="wl-main">
+
+    <div class="wl-toolbar">
+      <input type="text" id="wlFilter" placeholder="Cerca per nome, set…" oninput="wlRender()"/>
+      <select id="wlFilterStatus" onchange="wlRender()">
+        <option value="">Tutti gli stati</option>
+        <option value="active">Solo attivi</option>
+        <option value="paused">In pausa</option>
+        <option value="has_deals">Con opportunità</option>
+        <option value="legacy">Da migrare (legacy)</option>
       </select>
-      <button class="btn" onclick="wishRefreshPrices()" style="margin-left:auto;font-size:12px"><span class="rb-i rb-i-refresh"></span> Aggiorna prezzi</button>
-      <button class="btn" onclick="wishExport()" style="font-size:12px">Esporta</button>
+      <select id="wlSort" onchange="wlRender()">
+        <option value="priority">Priorità ↓</option>
+        <option value="recent">Più recenti</option>
+        <option value="deal">Miglior deal score</option>
+        <option value="opps">Più opportunità</option>
+        <option value="name">Nome A→Z</option>
+        <option value="price_low">Ref CM ↑</option>
+        <option value="price_high">Ref CM ↓</option>
+      </select>
+      <div class="wl-toolbar-sep"></div>
+      <button class="btn" onclick="wlRefreshAllPrices()" title="Aggiorna ref_price_cm via TCG API per tutte le carte">
+        <span class="rb-i rb-i-refresh"></span> Aggiorna prezzi
+      </button>
+      <button class="btn" onclick="wlGoRadar()" title="Apri il Radar per vedere il feed live">
+        <span class="rb-i rb-i-radar"></span> Vai al Radar
+      </button>
     </div>
-    <div class="wish-grid" id="wishGrid"></div>
-    <div class="wish-empty" id="wishEmpty" style="display:none;padding:60px 24px">
-      <div style="font-size:32px;margin-bottom:12px"><span class="rb-i rb-i-star"></span></div>
-      <div style="font-size:14px;font-weight:500;margin-bottom:6px">La tua wishlist è vuota</div>
-      <div style="font-size:12px">Aggiungi carte che vuoi acquisire per monitorare i prezzi</div>
+
+    <div class="wl-list" id="wlList">
+      <div class="wl-empty" id="wlEmpty">
+        <div class="wl-empty-icon"><span class="rb-i rb-i-star"></span></div>
+        <div class="wl-empty-title">La tua wishlist è vuota</div>
+        <div class="wl-empty-sub">
+          Aggiungi le carte che vuoi monitorare nel tempo.<br/>
+          Una volta attivate, il Radar le cerca su eBay, Vinted, Subito e Catawiki<br/>
+          e ti avvisa quando arrivano offerte sotto soglia o aste in scadenza.
+        </div>
+      </div>
     </div>
-  </div>
+
+  </main>
+
 </div>
 
 <script src="../shared/rareblock-shared.js" defer></script>
 <script defer>
-/* Wishlist · logica applicativa (estratto 1:1 da pokemon-db.html, namespace wish*).
-   Niente header, niente nav: il frame riceve tutto il contesto auth dal parent
-   pokemon-db.html via localStorage condiviso (rb_auth_session). */
+/* ═══════════════════════════════════════════════════════════════════════════
+   WISHLIST · refactor 2026-05
+   ─────────────────────────────────────────────────────────────────────────
+   Backing storage: hunt_targets (con colonne nuove notes/wishlist_priority/source
+   aggiunte dal migration 069). La vecchia tabella `wishlist` resta in DB ma
+   non è più letta da questo frame — le righe legacy sono migrate a hunt_targets
+   con source='wishlist_legacy' e is_active=false (vedi 069 SQL).
 
-var _wishItems = [];
+   Funzionalità:
+   - Selettore set via rbMountSetPicker (parent → cross-frame come Analizza)
+   - Toggle Raw/Gradata con campi condizionali
+   - Lista carte con stato, priorità, ref_price_cm, conteggio opportunità live
+   - Sort multi-criterio (priorità/recenti/deal/opps/nome/prezzo)
+   - Bottone "Apri portali" che apre 4 tab (eBay/Vinted/Subito/Catawiki)
+   - Bottone "→ Radar" che porta al feed live filtrato sul target
+   - Auto-lookup ref_price_cm via TCG API
+   - Soft polling 60s dei listings per aggiornare deal counts senza F5
 
-async function wishLoad(){
-  try{
-    var uid = getCurrentUserId();
-    var qs = uid ? '?user_id=eq.' + uid + '&order=created_at.desc&limit=10000'
-                 : '?order=created_at.desc&limit=10000';
-    _wishItems = (await supa('GET', 'wishlist' + qs)) || [];
-    _wishItems.forEach(function(w){ if(w.cm_avg30 != null && w.cm_price == null) w.cm_price = w.cm_avg30; });
-  }catch(e){
-    console.warn('[wishLoad]', e.message);
-    _wishItems = [];
+   I cronjob (hunt-monitor, 5min) e gli alert (push/email/telegram via
+   hunt-monitor edge function) sono già configurati a livello di hunt_targets:
+   non c'è bisogno di logica aggiuntiva, ogni target attivo viene scansionato
+   dal radar e gli alert scattano automaticamente.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+var _wlTargets  = [];   // array hunt_targets dell'utente
+var _wlListings = [];   // array hunt_listings (per conteggio opportunità)
+var _wlMode     = 'raw';
+var _wlPollId   = null;
+
+// ── Helper: status messaggio in sidebar ─────────────────────────────────
+function wlSt(msg, kind){
+  var el = document.getElementById('wlStatus');
+  if(!el) return;
+  el.textContent = msg || '';
+  el.className = 'wl-status ' + (kind || 'info');
+  if(kind === 'ok' || kind === 'err'){
+    setTimeout(function(){
+      if(el.textContent === msg) el.textContent = '';
+    }, 4500);
   }
-  wishRender();
 }
 
-async function wishAdd(){
-  var name = document.getElementById('wishName').value.trim();
-  if(!name){ wishSt('Inserisci il nome carta', 'err'); return; }
-  var uid = getCurrentUserId();
-  var body = {
-    name: name,
-    set_name:  document.getElementById('wishSet').value.trim() || null,
-    condition: document.getElementById('wishCond').value,
-    language:  document.getElementById('wishLang').value,
-    max_price: parseFloat(document.getElementById('wishMaxPrice').value) || null,
-    notes:     document.getElementById('wishNotes').value.trim() || null
-  };
-  if(uid) body.user_id = uid;
+// ── Mode toggle Raw/Gradata ─────────────────────────────────────────────
+function wlSetMode(mode){
+  _wlMode = mode;
+  document.getElementById('wlSegRaw').classList.toggle('active', mode === 'raw');
+  document.getElementById('wlSegGraded').classList.toggle('active', mode === 'graded');
+  document.getElementById('wlRawFields').style.display    = (mode === 'raw')    ? '' : 'none';
+  document.getElementById('wlGradedFields').style.display = (mode === 'graded') ? '' : 'none';
+}
+window.wlSetMode = wlSetMode;
+
+// ── Lookup prezzo CM via TCG API ────────────────────────────────────────
+async function wlAutoLookup(){
+  var name = (document.getElementById('wlName').value || '').trim();
+  var num  = (document.getElementById('wlNumber').value || '').trim();
+  if(!name){ wlSt('Inserisci il nome carta prima del lookup', 'err'); return; }
+  wlSt('Cerco su TCG API…', 'info');
   try{
-    var inserted = await supa('POST', 'wishlist', body);
-    wishSt('Aggiunta!', 'ok');
-    document.getElementById('wishName').value     = '';
-    document.getElementById('wishSet').value      = '';
-    document.getElementById('wishMaxPrice').value = '';
-    document.getElementById('wishNotes').value    = '';
-    if(inserted && inserted[0]) _wishItems.unshift(inserted[0]);
-    else await wishLoad();
-    wishRender();
+    var q = 'name:"' + name + '"' + (num ? ' number:' + num.split('/')[0] : '');
+    var r = await fetch(window.TCG_URL + '?q=' + encodeURIComponent(q) + '&pageSize=1', {
+      headers: { 'X-Api-Key': window.TCG_KEY }
+    });
+    var j = await r.json();
+    var c = (j.data || [])[0];
+    if(!c){ wlSt('Carta non trovata su TCG API', 'err'); return; }
+    var p = c.cardmarket && c.cardmarket.prices;
+    var ref = p ? (p.trendPrice || p.avg30 || p.averageSellPrice || 0) : 0;
+    if(ref) document.getElementById('wlRefCm').value = ref.toFixed(2);
+    // Auto-fill set se vuoto (set picker non popolato)
+    if(c.set && c.set.name){
+      var picker = document.getElementById('wlSetPicker-input');
+      if(picker && !picker.value){
+        try {
+          var p2 = (window.parent && window.parent !== window) ? window.parent : window;
+          if(Array.isArray(p2.msSetsAll)){
+            var hit = p2.msSetsAll.find(function(s){ return s.id === c.set.id; });
+            if(hit){
+              picker._rbSelectedSet = hit;
+              picker.value = p2.auSetLabel ? p2.auSetLabel(hit) : hit.name;
+              var clr = document.getElementById('wlSetPicker-input-clear');
+              if(clr) clr.style.display = 'block';
+            }
+          }
+        } catch(_){}
+      }
+    }
+    // Auto-fill number se vuoto
+    if(c.number && !document.getElementById('wlNumber').value){
+      var total = c.set && c.set.printedTotal ? '/' + c.set.printedTotal : '';
+      document.getElementById('wlNumber').value = c.number + total;
+    }
+    wlSt(ref ? ('Ref CM €' + ref.toFixed(2) + ' · set: ' + (c.set && c.set.name || '?')) : 'Carta trovata · prezzo CM non disponibile', 'ok');
   }catch(e){
-    if(e.message && e.message.indexOf('does not exist') > -1){
-      wishSt('Tabella "wishlist" non trovata — esegui la migrazione SQL', 'err');
-    }else{
-      wishSt('Errore: ' + e.message, 'err');
+    wlSt('Errore lookup: ' + (e.message || e), 'err');
+  }
+}
+window.wlAutoLookup = wlAutoLookup;
+
+// ── Risolvi set picker (cross-frame helper dal parent) ──────────────────
+function wlResolveSet(){
+  var inp = document.getElementById('wlSetPicker-input');
+  if(!inp) return null;
+  var p = (window.parent && window.parent !== window) ? window.parent : window;
+  if(typeof p.rbResolveSetFromInput === 'function'){
+    return p.rbResolveSetFromInput(inp);
+  }
+  if(inp._rbSelectedSet) return { id: inp._rbSelectedSet.id, name: inp._rbSelectedSet.name };
+  var raw = (inp.value || '').trim();
+  return raw ? { id: null, name: raw, unresolved: true } : null;
+}
+
+// ── Aggiungi carta alla wishlist (insert in hunt_targets) ───────────────
+async function wlAdd(){
+  var name = (document.getElementById('wlName').value || '').trim();
+  if(!name){ wlSt('Nome carta obbligatorio', 'err'); return; }
+
+  var uid = getCurrentUserId();
+  if(!uid){ wlSt('Devi essere autenticato', 'err'); return; }
+
+  var setSel = wlResolveSet();
+  var num = (document.getElementById('wlNumber').value || '').trim();
+
+  var data = {
+    user_id:           uid,
+    card_name:         name,
+    card_number:       num || null,
+    set_id:            (setSel && setSel.id) || null,
+    set_name:          (setSel && setSel.name) || null,
+    language:          document.getElementById('wlLang').value || 'ANY',
+    variant:           document.getElementById('wlVariant').value || 'Normal',
+    max_price:         parseFloat(document.getElementById('wlMaxPrice').value) || null,
+    ref_price_cm:      parseFloat(document.getElementById('wlRefCm').value) || null,
+    deal_threshold:    parseInt(document.getElementById('wlThreshold').value, 10) || 70,
+    wishlist_priority: parseInt(document.getElementById('wlPriority').value, 10) || 3,
+    notes:             (document.getElementById('wlNotes').value || '').trim() || null,
+    is_active:         document.getElementById('wlActive').checked,
+    source:            'wishlist',
+    updated_at:        new Date().toISOString(),
+    created_at:        new Date().toISOString()
+  };
+
+  if(_wlMode === 'graded'){
+    data.grading_house  = document.getElementById('wlHouse').value || null;
+    data.min_grade      = parseFloat(document.getElementById('wlMinGrade').value) || null;
+    data.first_edition  = false;
+    data.shadowless     = false;
+  } else {
+    data.grading_house  = null;
+    data.min_grade      = null;
+    data.first_edition  = document.getElementById('wlFirstEd').checked;
+    data.shadowless     = document.getElementById('wlShadowless').checked;
+  }
+
+  try{
+    wlSt('Aggiungo…', 'info');
+    var rows = await supa('POST', 'hunt_targets', data);
+    var inserted = Array.isArray(rows) ? rows[0] : rows;
+    if(inserted) _wlTargets.unshift(inserted);
+    wlSt('Aggiunta! ' + (data.is_active ? '· scan attivo' : '· in pausa'), 'ok');
+
+    // Reset form (lascio modalità e lingua intatte per inserimenti seriali)
+    document.getElementById('wlName').value     = '';
+    document.getElementById('wlNumber').value   = '';
+    document.getElementById('wlMaxPrice').value = '';
+    document.getElementById('wlRefCm').value    = '';
+    document.getElementById('wlNotes').value    = '';
+    document.getElementById('wlFirstEd').checked   = false;
+    document.getElementById('wlShadowless').checked = false;
+    // Reset set picker
+    var setInp = document.getElementById('wlSetPicker-input');
+    if(setInp){
+      setInp._rbSelectedSet = null;
+      setInp.value = '';
+      var clr = document.getElementById('wlSetPicker-input-clear');
+      if(clr) clr.style.display = 'none';
+    }
+    document.getElementById('wlName').focus();
+
+    wlRender();
+  }catch(e){
+    var msg = e && e.message || String(e);
+    // Schema resilience: se hunt_targets non ha ancora le nuove colonne,
+    // segnalo chiaramente. (Il migration 069 va eseguito in produzione.)
+    if(msg.indexOf('notes') > -1 || msg.indexOf('wishlist_priority') > -1 || msg.indexOf('source') > -1){
+      wlSt('Schema obsoleto: esegui migration 069 prima di usare la nuova wishlist', 'err');
+    } else {
+      wlSt('Errore: ' + msg, 'err');
     }
   }
 }
+window.wlAdd = wlAdd;
 
-function wishSt(msg, type){
-  var el = document.getElementById('wishStatus');
-  if(!el) return;
-  el.textContent = msg;
-  el.className = 'status ' + (type || 'info');
-}
-
-async function wishDel(id){
-  if(!confirm('Rimuovere questa carta dalla wishlist?')) return;
+// ── Toggle attivo/pausa ─────────────────────────────────────────────────
+async function wlToggleActive(id){
+  var t = _wlTargets.find(function(x){ return x.id === id; });
+  if(!t) return;
   try{
-    await supa('DELETE', 'wishlist?id=eq.' + id);
-    _wishItems = _wishItems.filter(function(w){ return w.id !== id; });
-    wishRender();
+    var newVal = !t.is_active;
+    await supa('PATCH', 'hunt_targets?id=eq.' + id, { is_active: newVal, updated_at: new Date().toISOString() });
+    t.is_active = newVal;
+    wlRender();
   }catch(e){ alert('Errore: ' + e.message); }
 }
+window.wlToggleActive = wlToggleActive;
 
-async function wishBulkImport(){
-  var text = document.getElementById('wishBulkText').value.trim();
-  if(!text) return;
-  var lines = text.split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
-  if(!lines.length) return;
-  var uid = getCurrentUserId();
-  var success = 0, fail = 0;
-  for(var i = 0; i < lines.length; i++){
-    var parts = lines[i].split(/\s+/);
-    var conds = ['MINT','NM','EX','GD','LP','PL','PO'];
-    var cond = 'NM';
-    if(conds.indexOf(parts[parts.length - 1].toUpperCase()) > -1){
-      cond = parts.pop().toUpperCase();
-    }
-    var name = parts.join(' ');
-    if(!name) continue;
-    var body = { name: name, condition: cond, language: 'ITA' };
-    if(uid) body.user_id = uid;
-    try{ await supa('POST', 'wishlist', body); success++; }
-    catch(e){ fail++; }
-  }
-  document.getElementById('wishBulkText').value = '';
-  wishSt('Importate ' + success + ' carte' + (fail ? ' (' + fail + ' errori)' : ''), 'ok');
-  await wishLoad();
+// ── Elimina carta dalla wishlist ────────────────────────────────────────
+async function wlDelete(id){
+  var t = _wlTargets.find(function(x){ return x.id === id; });
+  if(!t) return;
+  if(!confirm('Eliminare "' + t.card_name + '" dalla wishlist?\nGli alert e le opportunità collegate verranno rimossi.')) return;
+  try{
+    await supa('DELETE', 'hunt_targets?id=eq.' + id);
+    _wlTargets = _wlTargets.filter(function(x){ return x.id !== id; });
+    _wlListings = _wlListings.filter(function(x){ return x.target_id !== id; });
+    wlRender();
+  }catch(e){ alert('Errore: ' + e.message); }
 }
+window.wlDelete = wlDelete;
 
-async function wishRefreshPrices(){
-  wishSt('Aggiornamento prezzi…', 'info');
-  var updated = 0;
-  for(var i = 0; i < _wishItems.length; i++){
-    var w = _wishItems[i];
+// ── Apri portali (4 tab) ────────────────────────────────────────────────
+function wlOpenPortals(id){
+  var t = _wlTargets.find(function(x){ return x.id === id; });
+  if(!t) return;
+  if(!window.HUNT_URL_BUILDERS){ alert('URL builders non caricati'); return; }
+  var urls = window.HUNT_URL_BUILDERS.wishlist_4(t);
+  // Attiva il target se è in pausa (utente sta scansionando = vuole vedere risultati)
+  if(!t.is_active){
+    supa('PATCH', 'hunt_targets?id=eq.' + id, { is_active: true, updated_at: new Date().toISOString() })
+      .then(function(){ t.is_active = true; wlRender(); })
+      .catch(function(){});
+  }
+  Object.keys(urls).forEach(function(k){ window.open(urls[k], '_blank'); });
+}
+window.wlOpenPortals = wlOpenPortals;
+
+// ── → Radar (cross-frame nav) ───────────────────────────────────────────
+function wlGoToRadar(id){
+  // Naviga al tab hunter — il radar legge gli stessi hunt_targets e li mostra
+  // tutti. Non serve passare target_id: l'utente vede subito il feed live.
+  if(typeof rbNav === 'function') rbNav('hunt');
+  else if(window.parent && window.parent.showTab) window.parent.showTab('hunt');
+}
+window.wlGoToRadar = wlGoToRadar;
+window.wlGoRadar = function(){ wlGoToRadar(null); };
+
+// ── Aggiorna ref_price_cm di tutta la wishlist via TCG API ──────────────
+async function wlRefreshAllPrices(){
+  if(!_wlTargets.length){ wlSt('Wishlist vuota', 'err'); return; }
+  wlSt('Aggiornamento prezzi in corso…', 'info');
+  var updated = 0, failed = 0;
+  for(var i = 0; i < _wlTargets.length; i++){
+    var t = _wlTargets[i];
     try{
-      var res = await fetch(TCG_URL + '?q=name:"' + encodeURIComponent(w.name) + '"&pageSize=1', {
-        headers: { 'X-Api-Key': TCG_KEY }
-      });
-      var data = await res.json();
-      if(data.data && data.data[0]){
-        var card = data.data[0];
-        var prices = card.cardmarket && card.cardmarket.prices;
-        if(prices){
-          var mktPrice = prices.trendPrice || prices.avg30 || prices.averageSellPrice || null;
-          if(mktPrice && mktPrice > 0){
-            await supa('PATCH', 'wishlist?id=eq.' + w.id, { cm_avg30: mktPrice });
-            w.cm_price = mktPrice;
-            updated++;
-          }
-        }
+      var q = 'name:"' + t.card_name + '"';
+      if(t.card_number){
+        q += ' number:' + String(t.card_number).split('/')[0];
       }
-    }catch(e){}
+      if(t.set_id){
+        q += ' set.id:' + t.set_id;
+      }
+      var r = await fetch(window.TCG_URL + '?q=' + encodeURIComponent(q) + '&pageSize=1', {
+        headers: { 'X-Api-Key': window.TCG_KEY }
+      });
+      var j = await r.json();
+      var c = (j.data || [])[0];
+      if(c){
+        var p = c.cardmarket && c.cardmarket.prices;
+        var price = p ? (p.trendPrice || p.avg30 || p.averageSellPrice || 0) : 0;
+        if(price > 0){
+          await supa('PATCH', 'hunt_targets?id=eq.' + t.id, { ref_price_cm: price, updated_at: new Date().toISOString() });
+          t.ref_price_cm = price;
+          updated++;
+        }
+      } else {
+        failed++;
+      }
+    }catch(e){ failed++; }
   }
-  wishSt('Aggiornati ' + updated + ' prezzi', 'ok');
-  wishRender();
+  wlSt('Aggiornati ' + updated + ' prezzi' + (failed ? ' (' + failed + ' non trovati)' : ''), updated ? 'ok' : 'err');
+  wlRender();
 }
+window.wlRefreshAllPrices = wlRefreshAllPrices;
 
-function wishRender(){
-  var q       = (document.getElementById('wishFilter').value || '').toLowerCase();
-  var statusF = document.getElementById('wishFilterStatus').value || '';
-  var rows = _wishItems.filter(function(w){
-    if(q && w.name.toLowerCase().indexOf(q) === -1) return false;
-    if(statusF === 'buyable' && !(w.cm_price > 0 && w.max_price > 0 && w.cm_price <= w.max_price)) return false;
-    if(statusF === 'wait'    && !(w.cm_price > 0 && (!w.max_price || w.cm_price > w.max_price))) return false;
-    if(statusF === 'np'      && w.cm_price > 0) return false;
+// ── Carica targets + listings ───────────────────────────────────────────
+async function wlLoad(){
+  var uid = getCurrentUserId();
+  if(!uid){
+    wlSt('Non autenticato', 'err');
+    return;
+  }
+  try{
+    // 1. Tutti i target dell'utente
+    _wlTargets = (await supa('GET', 'hunt_targets?user_id=eq.' + uid + '&order=wishlist_priority.desc.nullslast,created_at.desc&limit=500')) || [];
+  }catch(e){
+    // Schema resilience: fallback senza order su wishlist_priority se manca
+    var msg = e && e.message || '';
+    if(msg.indexOf('wishlist_priority') > -1 || msg.indexOf('column') > -1){
+      console.warn('[wishlist] migration 069 non eseguita, fallback sort');
+      try{
+        _wlTargets = (await supa('GET', 'hunt_targets?user_id=eq.' + uid + '&order=created_at.desc&limit=500')) || [];
+        wlSt('Schema non aggiornato: alcune funzionalità limitate (priorità, note)', 'err');
+      }catch(e2){
+        console.error('[wishlist] load failed:', e2);
+        _wlTargets = [];
+      }
+    } else {
+      console.warn('[wishlist] load targets failed:', msg);
+      _wlTargets = [];
+    }
+  }
+
+  try{
+    // 2. Listings live (per contare opportunità per target)
+    //    Filtro: solo new/seen/watched, ultimi 30 giorni
+    var since = new Date(Date.now() - 30 * 86400000).toISOString();
+    _wlListings = (await supa('GET',
+      'hunt_listings?user_id=eq.' + uid +
+      '&status=in.(new,seen,watched)' +
+      '&first_seen_at=gte.' + since +
+      '&select=id,target_id,deal_score,price,auction_ends_at,listing_type' +
+      '&order=deal_score.desc.nullslast&limit=2000'
+    )) || [];
+  }catch(e){
+    console.warn('[wishlist] load listings failed:', e.message);
+    _wlListings = [];
+  }
+
+  wlRender();
+}
+window.wlLoad = wlLoad;
+
+// ── Render lista ────────────────────────────────────────────────────────
+function wlRender(){
+  // Aggrego listings per target_id
+  var byTarget = {};
+  _wlListings.forEach(function(l){
+    if(!l.target_id) return;
+    var b = byTarget[l.target_id] = byTarget[l.target_id] || { count:0, best:null, hot24h:0 };
+    b.count++;
+    if(b.best == null || (l.deal_score != null && l.deal_score > b.best)) b.best = l.deal_score;
+    if(l.auction_ends_at){
+      var h = (new Date(l.auction_ends_at) - new Date()) / 3600000;
+      if(h > 0 && h < 24) b.hot24h++;
+    }
+  });
+
+  // Stats banner
+  var total   = _wlTargets.length;
+  var active  = _wlTargets.filter(function(t){ return t.is_active; }).length;
+  var opps    = _wlListings.length;
+  var topScore = _wlListings.reduce(function(m, l){ return (l.deal_score != null && l.deal_score > m) ? l.deal_score : m; }, 0);
+  document.getElementById('wlStTotal').textContent    = total;
+  document.getElementById('wlStActive').textContent   = active;
+  document.getElementById('wlStOpps').textContent     = opps;
+  document.getElementById('wlStTopScore').textContent = topScore || '—';
+
+  // Filtri
+  var q       = (document.getElementById('wlFilter').value || '').toLowerCase();
+  var statusF = document.getElementById('wlFilterStatus').value || '';
+  var sortF   = document.getElementById('wlSort').value || 'priority';
+
+  var rows = _wlTargets.filter(function(t){
+    if(q){
+      var hay = (t.card_name + ' ' + (t.set_name || '') + ' ' + (t.card_number || '') + ' ' + (t.notes || '')).toLowerCase();
+      if(hay.indexOf(q) === -1) return false;
+    }
+    if(statusF === 'active' && !t.is_active) return false;
+    if(statusF === 'paused' && t.is_active) return false;
+    if(statusF === 'has_deals' && !(byTarget[t.id] && byTarget[t.id].count > 0)) return false;
+    if(statusF === 'legacy' && t.source !== 'wishlist_legacy') return false;
     return true;
   });
 
-  var buyable  = _wishItems.filter(function(w){ return w.cm_price > 0 && w.max_price > 0 && w.cm_price <= w.max_price; }).length;
-  var budget   = _wishItems.reduce(function(a, w){ return a + (w.max_price || 0); }, 0);
-  var mktTotal = _wishItems.reduce(function(a, w){ return a + (w.cm_price || 0); }, 0);
-  document.getElementById('wsTotal').textContent       = _wishItems.length;
-  document.getElementById('wsBuyable').textContent     = buyable;
-  document.getElementById('wsBudget').textContent      = '€' + budget.toFixed(0);
-  document.getElementById('wsMarketTotal').textContent = '€' + mktTotal.toFixed(0);
+  // Sort
+  rows.sort(function(a, b){
+    switch(sortF){
+      case 'recent':
+        return (new Date(b.created_at) - new Date(a.created_at));
+      case 'deal':
+        var bd = (byTarget[b.id] && byTarget[b.id].best) || -1;
+        var ad = (byTarget[a.id] && byTarget[a.id].best) || -1;
+        return bd - ad;
+      case 'opps':
+        var bo = (byTarget[b.id] && byTarget[b.id].count) || 0;
+        var ao = (byTarget[a.id] && byTarget[a.id].count) || 0;
+        return bo - ao;
+      case 'name':
+        return (a.card_name || '').localeCompare(b.card_name || '');
+      case 'price_low':
+        return (a.ref_price_cm || Infinity) - (b.ref_price_cm || Infinity);
+      case 'price_high':
+        return (b.ref_price_cm || -1) - (a.ref_price_cm || -1);
+      case 'priority':
+      default:
+        var dp = (b.wishlist_priority || 0) - (a.wishlist_priority || 0);
+        if(dp !== 0) return dp;
+        return (new Date(b.created_at) - new Date(a.created_at));
+    }
+  });
 
-  var empty = document.getElementById('wishEmpty');
-  var grid  = document.getElementById('wishGrid');
+  var list  = document.getElementById('wlList');
+  var empty = document.getElementById('wlEmpty');
   if(!rows.length){
     empty.style.display = '';
-    grid.innerHTML = '';
+    Array.prototype.slice.call(list.querySelectorAll('.wl-row')).forEach(function(n){ n.remove(); });
     return;
   }
   empty.style.display = 'none';
 
-  grid.innerHTML = rows.map(function(w){
-    var buyable2 = w.cm_price > 0 && w.max_price > 0 && w.cm_price <= w.max_price;
-    var hasMkt   = w.cm_price > 0;
-    var badge = buyable2
-      ? '<span class="wish-item-badge ok"><span class="rb-dot rb-dot-on"></span> Comprabile</span>'
-      : hasMkt
-        ? '<span class="wish-item-badge wait"><span class="rb-dot rb-dot-warn"></span> In attesa</span>'
-        : '<span class="wish-item-badge np"><span class="rb-dot rb-dot-off"></span> No prezzo</span>';
-    var diff = hasMkt && w.max_price ? w.cm_price - w.max_price : null;
-    var diffStr = diff !== null
-      ? '<span style="color:' + (diff <= 0 ? 'var(--success)' : 'var(--danger)') + '">(' + (diff >= 0 ? '+' : '') + diff.toFixed(2) + '€)</span>'
-      : '';
-    return '<div class="wish-item' + (buyable2 ? ' buyable' : '') + '">'
-      + '<div style="display:flex;align-items:flex-start;justify-content:space-between">'
-        + '<div class="wish-item-name">' + esc(w.name) + '</div>'
-        + badge
+  // Rimuovi righe vecchie
+  Array.prototype.slice.call(list.querySelectorAll('.wl-row')).forEach(function(n){ n.remove(); });
+
+  rows.forEach(function(t){
+    var info = byTarget[t.id] || { count:0, best:null, hot24h:0 };
+    var isPaused = !t.is_active;
+    var isLegacy = t.source === 'wishlist_legacy';
+    var dealClass = '';
+    if(info.best != null){
+      if(info.best >= 85) dealClass = 'has-hot-deal';
+      else if(info.best >= 70) dealClass = 'has-good-deal';
+    }
+
+    var attrs = [];
+    if(t.card_number) attrs.push('<span class="wl-row-tag">#' + esc(t.card_number) + '</span>');
+    if(t.grading_house){
+      attrs.push('<span class="wl-row-tag mode-graded">' + esc(t.grading_house) + (t.min_grade ? ' ≥' + esc(t.min_grade) : '') + '</span>');
+    } else {
+      attrs.push('<span class="wl-row-tag mode-raw">Raw</span>');
+    }
+    if(t.language && t.language !== 'ANY') attrs.push('<span class="wl-row-tag lang">' + esc(t.language) + '</span>');
+    if(t.variant && t.variant !== 'Normal') attrs.push('<span class="wl-row-tag">' + esc(t.variant) + '</span>');
+    if(t.first_edition) attrs.push('<span class="wl-row-tag">1ª ed</span>');
+    if(t.shadowless)    attrs.push('<span class="wl-row-tag">Shadowless</span>');
+
+    var prices = [];
+    if(t.max_price > 0){
+      prices.push('Max <span class="val">€' + Number(t.max_price).toFixed(2) + '</span>');
+    }
+    if(t.ref_price_cm > 0){
+      var deltaStr = '';
+      if(t.max_price > 0){
+        var delta = t.ref_price_cm - t.max_price;
+        var deltaCls = delta <= 0 ? 'good' : 'bad';
+        deltaStr = ' <span class="' + deltaCls + '">(' + (delta >= 0 ? '+' : '') + delta.toFixed(2) + '€)</span>';
+      }
+      prices.push('Mkt <span class="val">€' + Number(t.ref_price_cm).toFixed(2) + '</span>' + deltaStr);
+    }
+
+    var dealHtml = '';
+    if(info.count > 0){
+      var scoreCls = info.best >= 85 ? 'hot' : (info.best >= 70 ? 'good' : 'mid');
+      dealHtml = '<div class="wl-row-deals has">'
+        + '<span class="rb-i rb-i-radar"></span>'
+        + info.count + ' opp.'
+        + (info.best != null ? ' · top <span class="deal-score ' + scoreCls + '">' + info.best + '</span>' : '')
+        + (info.hot24h ? ' · <span style="color:var(--warning)">' + info.hot24h + ' aste &lt;24h</span>' : '')
+        + '</div>';
+    } else if(t.is_active){
+      dealHtml = '<div class="wl-row-deals"><span class="rb-dot rb-dot-on"></span> in scan · 0 inserzioni</div>';
+    } else {
+      dealHtml = '<div class="wl-row-deals"><span class="rb-dot rb-dot-off"></span> in pausa</div>';
+    }
+
+    var statusBadge = isLegacy
+      ? '<span class="wl-status-badge legacy" title="Migrata da wishlist legacy"><span class="rb-dot rb-dot-warn"></span> Legacy</span>'
+      : (t.is_active
+          ? '<span class="wl-status-badge active"><span class="rb-dot rb-dot-on"></span> Attivo</span>'
+          : '<span class="wl-status-badge paused"><span class="rb-dot rb-dot-off"></span> Pausa</span>');
+
+    var prio = parseInt(t.wishlist_priority, 10) || 3;
+    var prioCls = 'p' + Math.max(1, Math.min(5, prio));
+
+    var row = document.createElement('div');
+    row.className = 'wl-row' + (isPaused ? ' paused' : '') + ' ' + dealClass;
+    row.setAttribute('data-target-id', t.id);
+    row.innerHTML =
+      '<div class="wl-row-prio" title="Priorità ' + prio + '/5">'
+        + '<div class="wl-row-prio-dot ' + prioCls + '"></div>'
+        + '<div class="wl-row-prio-num">P' + prio + '</div>'
       + '</div>'
-      + '<div class="wish-item-meta">' + (w.set_name ? esc(w.set_name) + ' · ' : '') + esc(w.condition || '') + ' · ' + esc(w.language || 'ITA') + '</div>'
-      + '<div class="wish-item-prices">'
-        + (w.max_price ? '<div class="wish-item-max">Max: <span>€' + w.max_price.toFixed(2) + '</span></div>'
-                       : '<div class="wish-item-max" style="color:var(--text-subtle)">Nessun limite</div>')
-        + '<div class="wish-item-mkt">Mkt: <span style="color:' + (hasMkt ? 'var(--warning)' : 'var(--text-subtle)') + '">' + (hasMkt ? '€' + w.cm_price.toFixed(2) : '—') + '</span></div>'
-        + diffStr
+      + '<div class="wl-row-main">'
+        + '<div class="wl-row-head">'
+          + '<span class="wl-row-name">' + esc(t.card_name) + '</span>'
+          + (t.set_name ? '<span class="wl-row-set">' + esc(t.set_name) + '</span>' : '')
+          + statusBadge
+        + '</div>'
+        + (attrs.length ? '<div class="wl-row-attrs">' + attrs.join('') + '</div>' : '')
+        + (prices.length ? '<div class="wl-row-prices">' + prices.join(' · ') + '</div>' : '')
+        + dealHtml
+        + (t.notes ? '<div class="wl-row-notes">' + esc(t.notes) + '</div>' : '')
       + '</div>'
-      + (w.notes ? '<div style="font-size:11px;color:var(--text-muted)">' + esc(w.notes) + '</div>' : '')
-      + '<div class="wish-item-actions">'
-        + '<button class="btn" onclick="wishToPrev(' + w.id + ')" style="font-size:11px;padding:3px 9px">→ Preventivo</button>'
-        + '<button class="wish-del-btn" onclick="wishDel(' + w.id + ')" title="Rimuovi"><span class="rb-i rb-i-x"></span></button>'
-      + '</div>'
-    + '</div>';
-  }).join('');
+      + '<div class="wl-row-actions">'
+        + '<button class="btn btn-primary" onclick="wlOpenPortals(\'' + t.id + '\')" title="Apri eBay, Vinted, Subito, Catawiki in 4 tab">'
+          + '<span class="rb-i rb-i-search"></span> Cerca'
+        + '</button>'
+        + '<button class="icon-btn" onclick="wlToggleActive(\'' + t.id + '\')" title="' + (t.is_active ? 'Metti in pausa' : 'Attiva scan') + '">'
+          + (t.is_active ? '<span class="rb-i rb-i-pause"></span>' : '<span class="rb-i rb-i-play"></span>')
+        + '</button>'
+        + '<button class="icon-btn" onclick="wlGoToRadar(\'' + t.id + '\')" title="Apri nel Radar">'
+          + '<span class="rb-i rb-i-radar"></span>'
+        + '</button>'
+        + '<button class="icon-btn danger" onclick="wlDelete(\'' + t.id + '\')" title="Elimina">'
+          + '<span class="rb-i rb-i-trash"></span>'
+        + '</button>'
+      + '</div>';
+
+    list.appendChild(row);
+  });
+}
+window.wlRender = wlRender;
+
+// ── Soft polling listings (refresh deal counts senza F5) ────────────────
+function wlStartPolling(){
+  if(_wlPollId) return;
+  _wlPollId = setInterval(function(){
+    // Solo se il tab è visibile (parent visibility) — risparmio
+    if(document.hidden) return;
+    wlRefreshListingsOnly();
+  }, 60000);
 }
 
-function wishToPrev(id){
-  var w = _wishItems.find(function(x){ return x.id === id; });
-  if(!w) return;
-  // Cross-frame nav: chiede al parent (pokemon-db.html) di aprire il tab Preventivi
-  // e pre-fillare la ricerca col nome carta. Se siamo in standalone, fallback URL.
-  rbNav('prev', { q: w.name });
+async function wlRefreshListingsOnly(){
+  var uid = getCurrentUserId();
+  if(!uid) return;
+  try{
+    var since = new Date(Date.now() - 30 * 86400000).toISOString();
+    _wlListings = (await supa('GET',
+      'hunt_listings?user_id=eq.' + uid +
+      '&status=in.(new,seen,watched)' +
+      '&first_seen_at=gte.' + since +
+      '&select=id,target_id,deal_score,price,auction_ends_at,listing_type' +
+      '&order=deal_score.desc.nullslast&limit=2000'
+    )) || [];
+    wlRender();
+  }catch(e){}
 }
 
-function wishExport(){
-  if(!_wishItems.length){ alert('Wishlist vuota'); return; }
-  var cols = ['id','name','set_name','condition','language','max_price','cm_price','notes'];
-  var csv = [cols.join(',')].concat(_wishItems.map(function(r){
-    return cols.map(function(k){ return '"' + String(r[k] == null ? '' : r[k]).replace(/"/g, '""') + '"'; }).join(',');
-  })).join('\n');
-  var a = document.createElement('a');
-  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-  a.download = 'wishlist_' + new Date().toISOString().slice(0,10) + '.csv';
-  a.click();
+// ── Cross-frame setpicker bootstrap (come Analizza) ─────────────────────
+function wlSeedSetsFromParent(){
+  try {
+    var p = (window.parent && window.parent !== window) ? window.parent : window;
+    if(Array.isArray(p.msSetsAll) && p.msSetsAll.length) return true;
+    if(Array.isArray(p.SC_SETS_STATIC) && p.SC_SETS_STATIC.length){
+      p.msSetsAll = p.SC_SETS_STATIC.slice().sort(function(a, b){
+        return (b.releaseDate || '').localeCompare(a.releaseDate || '');
+      });
+      try {
+        if(typeof p.msFetchSets === 'function' && !p._auSetsLoading){
+          p._auSetsLoading = true;
+          p.msFetchSets();
+        }
+      } catch(_){}
+      return true;
+    }
+  } catch(_){}
+  return false;
 }
 
+// ── Bootstrap ───────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function(){
-  wishLoad().catch(function(e){
-    console.error('[wishlist frame] init error:', e);
-    wishSt('Errore di caricamento: ' + e.message, 'err');
+  // Mount set picker via parent (cross-frame, pattern Analizza)
+  try {
+    wlSeedSetsFromParent();
+    var p = (window.parent && window.parent !== window) ? window.parent : window;
+    var mountFn = (p && typeof p.rbMountSetPicker === 'function') ? p.rbMountSetPicker : null;
+    if(mountFn){
+      mountFn({
+        containerId: 'wlSetPicker',
+        inputId:     'wlSetPicker-input',
+        placeholder: 'Scegli set (opz.)'
+      });
+    } else {
+      console.warn('[wishlist] rbMountSetPicker non disponibile, fallback input testuale');
+      var c = document.getElementById('wlSetPicker');
+      if(c) c.innerHTML = '<input type="text" id="wlSetPicker-input" placeholder="Set (testuale)" style="width:100%;height:30px;font-size:12.5px;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);outline:none;box-sizing:border-box"/>';
+    }
+  } catch(e){ console.error('[wishlist] mount setpicker:', e); }
+
+  // Bootstrap dati
+  wlLoad().then(function(){
+    wlStartPolling();
+  }).catch(function(e){
+    console.error('[wishlist] init:', e);
+    wlSt('Errore caricamento: ' + (e.message || e), 'err');
   });
 });
 </script>
