@@ -1,10 +1,10 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 -- LISTINGS — tabella per gestire inserzioni eBay/Vinted/altre piattaforme
 -- ═══════════════════════════════════════════════════════════════════════════
--- Lifecycle: draft → ready → published → sold | unsold | cancelled
+-- Lifecycle: draft -> ready -> published -> sold | unsold | cancelled
 --
 -- Flow tipico:
---  1. User crea draft da una carta in collezione (collection_id FK)
+--  1. User crea draft da una carta in collezione (collection_id ref a cards.id)
 --  2. Compila titolo, descrizione, prezzo, scegli piattaforma
 --  3. Quando pronto, status='ready'
 --  4. Pubblica (manuale via copia, o automatico via API se eBay con token):
@@ -12,27 +12,32 @@
 --  5. Vendita o ritiro: status='sold' + sold_at + sold_price oppure 'unsold'
 -- ═══════════════════════════════════════════════════════════════════════════
 
-CREATE TABLE IF NOT EXISTS rb_listings (
+-- Idempotente: drop pulito se una run parziale precedente ha lasciato spazzatura.
+-- CASCADE rimuove anche eventuali index/trigger/policy collegati.
+DROP TABLE IF EXISTS rb_listings CASCADE;
+DROP TABLE IF EXISTS rb_ebay_auth CASCADE;
+
+CREATE TABLE rb_listings (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id         UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   -- Origine (opzionale): id della carta nella tabella 'cards' del Collector.
-  -- TEXT invece di BIGINT/UUID: la tabella cards \u00e8 dell'app originale Collector,
-  -- non sappiamo a priori se id \u00e8 INT o UUID. Usiamo TEXT senza FK rigida cos\u00ec
-  -- evitiamo errori e l'app si occupa di gestire i join lato client.
+  -- TEXT senza FK rigida perche non sappiamo se cards.id e INT o UUID
+  -- nel DB esistente. L'app gestisce i join lato client.
   collection_id   TEXT,
-  -- Snapshot della carta (denormalizzato: l'inserzione sopravvive a delete della riga collezione)
+  -- Snapshot della carta (denormalizzato per sopravvivere a delete della
+  -- riga in 'cards').
   card_name       TEXT NOT NULL,
   card_set        TEXT,
   card_set_id     TEXT,
   card_number     TEXT,
   card_rarity     TEXT,
-  card_condition  TEXT,            -- NM/EX/GD/LP/PL/PO o PSA10/BGS9.5 ecc
+  card_condition  TEXT,
   card_language   TEXT,
-  card_variant    TEXT,            -- Normal/Holo/Reverse/Shadowless
+  card_variant    TEXT,
   card_first_ed   BOOLEAN DEFAULT FALSE,
   card_graded     BOOLEAN DEFAULT FALSE,
-  card_grade_house TEXT,           -- PSA/BGS/CGC ecc, solo se card_graded=true
-  card_grade_score TEXT,           -- "10", "9.5", "8" ecc
+  card_grade_house TEXT,
+  card_grade_score TEXT,
   -- Inserzione
   platform        TEXT NOT NULL CHECK (platform IN ('ebay', 'vinted', 'other')),
   title           TEXT NOT NULL,
@@ -40,33 +45,31 @@ CREATE TABLE IF NOT EXISTS rb_listings (
   price           NUMERIC(10,2) NOT NULL,
   currency        TEXT DEFAULT 'EUR',
   shipping_cost   NUMERIC(10,2) DEFAULT 0,
-  category_id     TEXT,            -- categoria piattaforma (es. eBay 183454 = Pokemon TCG)
-  condition_id    TEXT,            -- condition enum della piattaforma
-  -- Foto (lista URL pubblici)
+  category_id     TEXT,
+  condition_id    TEXT,
   photos          JSONB DEFAULT '[]'::jsonb,
   -- Lifecycle
-  status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'ready', 'published', 'sold', 'unsold', 'cancelled')),
+  status          TEXT NOT NULL DEFAULT 'draft'
+                  CHECK (status IN ('draft', 'ready', 'published', 'sold', 'unsold', 'cancelled')),
   published_at    TIMESTAMPTZ,
-  ext_id          TEXT,            -- ID inserzione sulla piattaforma esterna
-  ext_url         TEXT,            -- URL pubblico dell'inserzione
+  ext_id          TEXT,
+  ext_url         TEXT,
   -- Vendita
   sold_at         TIMESTAMPTZ,
   sold_price      NUMERIC(10,2),
-  buyer_handle    TEXT,            -- username buyer (per supporto/feedback)
+  buyer_handle    TEXT,
   -- Audit
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  -- Meta (raw response API, errori publish, ecc)
   meta            JSONB DEFAULT '{}'::jsonb
 );
 
-CREATE INDEX IF NOT EXISTS rb_listings_user_idx        ON rb_listings(user_id);
-CREATE INDEX IF NOT EXISTS rb_listings_status_idx      ON rb_listings(user_id, status);
-CREATE INDEX IF NOT EXISTS rb_listings_platform_idx    ON rb_listings(user_id, platform);
-CREATE INDEX IF NOT EXISTS rb_listings_collection_idx  ON rb_listings(collection_id);
-CREATE INDEX IF NOT EXISTS rb_listings_created_idx     ON rb_listings(user_id, created_at DESC);
+CREATE INDEX rb_listings_user_idx        ON rb_listings(user_id);
+CREATE INDEX rb_listings_status_idx      ON rb_listings(user_id, status);
+CREATE INDEX rb_listings_platform_idx    ON rb_listings(user_id, platform);
+CREATE INDEX rb_listings_collection_idx  ON rb_listings(collection_id);
+CREATE INDEX rb_listings_created_idx     ON rb_listings(user_id, created_at DESC);
 
--- RLS: ogni utente vede solo le proprie inserzioni
 ALTER TABLE rb_listings ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY rb_listings_select_own ON rb_listings
@@ -78,7 +81,6 @@ CREATE POLICY rb_listings_update_own ON rb_listings
 CREATE POLICY rb_listings_delete_own ON rb_listings
   FOR DELETE USING (auth.uid() = user_id);
 
--- Trigger updated_at automatico
 CREATE OR REPLACE FUNCTION rb_listings_set_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -87,34 +89,37 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS rb_listings_updated_at_trg ON rb_listings;
 CREATE TRIGGER rb_listings_updated_at_trg
   BEFORE UPDATE ON rb_listings
   FOR EACH ROW
   EXECUTE FUNCTION rb_listings_set_updated_at();
 
--- ─── eBay OAuth tokens (per Step 3) ────────────────────────────────────────
--- Tabella separata per gestire i token utente eBay (access_token expires 2h,
--- refresh_token expires 18 mesi). Una riga per utente RareBlock connesso.
-CREATE TABLE IF NOT EXISTS rb_ebay_auth (
+-- eBay OAuth tokens (preparatorio per Step 3 integration)
+CREATE TABLE rb_ebay_auth (
   user_id           UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  ebay_user_id      TEXT,             -- ID seller eBay (per debug)
-  access_token      TEXT NOT NULL,    -- OAuth user access token
+  ebay_user_id      TEXT,
+  access_token      TEXT NOT NULL,
   refresh_token     TEXT NOT NULL,
   access_expires_at TIMESTAMPTZ NOT NULL,
   refresh_expires_at TIMESTAMPTZ NOT NULL,
-  scopes            TEXT[],           -- lista scope autorizzati
-  environment       TEXT DEFAULT 'sandbox' CHECK (environment IN ('sandbox','production')),
+  scopes            TEXT[],
+  environment       TEXT DEFAULT 'sandbox'
+                    CHECK (environment IN ('sandbox','production')),
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 ALTER TABLE rb_ebay_auth ENABLE ROW LEVEL SECURITY;
 CREATE POLICY rb_ebay_auth_own ON rb_ebay_auth
-  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
-DROP TRIGGER IF EXISTS rb_ebay_auth_updated_at_trg ON rb_ebay_auth;
 CREATE TRIGGER rb_ebay_auth_updated_at_trg
   BEFORE UPDATE ON rb_ebay_auth
   FOR EACH ROW
   EXECUTE FUNCTION rb_listings_set_updated_at();
+
+-- Verifica finale: ti aspetti due righe entrambe con row_count = 0.
+SELECT 'rb_listings'  AS tablename, COUNT(*) AS row_count FROM rb_listings
+UNION ALL
+SELECT 'rb_ebay_auth' AS tablename, COUNT(*) AS row_count FROM rb_ebay_auth;
