@@ -1619,10 +1619,25 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 }
 .slab-modal-close:hover{background:var(--surface2);color:var(--text)}
 
+/* MODAL BODY: due aree — sticky-top (foto+actions) + scroll-area (risultati)
+   La foto resta SEMPRE visibile come thumbnail durante lo scroll dei dati. */
 .slab-modal-body{
-  padding:18px 20px;display:flex;flex-direction:column;gap:14px;
-  overflow-y:auto;
+  padding:0;display:flex;flex-direction:column;gap:0;
+  overflow:hidden;flex:1;min-height:0;
 }
+.slab-sticky-top{
+  padding:18px 20px 14px;display:flex;flex-direction:column;gap:12px;
+  flex-shrink:0;border-bottom:1px solid var(--border);
+  background:var(--surface);  /* opaco per coprire eventuale scroll dietro */
+  position:relative;z-index:2;
+}
+.slab-scroll-area{
+  padding:14px 20px 20px;
+  display:flex;flex-direction:column;gap:0;
+  overflow-y:auto;flex:1;min-height:0;
+}
+/* Se non c'è risultato visibile, padding-top zero per non lasciare buco vuoto */
+.slab-scroll-area:has(> .slab-result:not(.show)){padding-top:0}
 
 .slab-dz{
   border:1.5px dashed var(--border);border-radius:10px;
@@ -1630,7 +1645,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:8px;text-align:center;padding:28px 18px;min-height:160px;
   cursor:pointer;position:relative;overflow:hidden;
-  transition:border-color .15s,background .15s;
+  transition:border-color .15s,background .15s,padding .2s,min-height .2s;
 }
 .slab-dz:hover,.slab-dz.over{border-color:var(--gold,#c9a84c);background:rgba(201,168,76,.04)}
 .slab-dz.loaded{padding:0;min-height:0;border-style:solid;cursor:default;background:var(--bg)}
@@ -1650,44 +1665,58 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
   border:1px solid var(--border);font-family:var(--mono);font-size:10px;
   margin:0 2px;
 }
-.slab-dz-preview{position:relative;width:100%}
+.slab-dz-preview{position:relative;width:100%;transition:max-height .25s ease}
 .slab-dz-preview img{
   width:100%;display:block;max-height:280px;object-fit:contain;
   border-radius:9px;background:var(--bg);
+  transition:max-height .25s ease;
+}
+/* COMPACT MODE: quando ci sono risultati visibili, la foto si rimpicciolisce
+   automaticamente mantenendo proporzioni — l'etichetta resta perfettamente
+   leggibile per consentire all'utente di verificare a vista il numero cert. */
+.slab-modal-body.has-result .slab-dz-preview img{
+  max-height:110px;
 }
 .slab-dz-preview .slab-dz-reset{
-  position:absolute;top:8px;right:8px;
+  position:absolute;top:6px;right:6px;
   background:rgba(0,0,0,.7);color:#fff;
   border:1px solid rgba(255,255,255,.15);border-radius:50%;
-  width:28px;height:28px;cursor:pointer;
+  width:24px;height:24px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
-  font-size:14px;line-height:1;font-family:var(--mono);
+  font-size:13px;line-height:1;font-family:var(--mono);
   transition:background .15s;
 }
 .slab-dz-preview .slab-dz-reset:hover{background:rgba(0,0,0,.9);border-color:rgba(255,255,255,.35)}
 
-/* ── Action bar: bottone analyze + dropdown grader inline ───────── */
+/* ── Action bar: dropdown grader (compatto) + bottone analyze (espanso) ─ */
 .slab-action-bar{display:flex;gap:8px;align-items:stretch}
 .slab-grader-select{
-  font-size:13px;padding:0 10px;
+  flex:0 0 110px;  /* fissa larghezza esatta — non cresce, non si stringe */
+  width:110px;max-width:110px;
+  font-size:12px;padding:0 8px;
   background:var(--surface2);border:1px solid var(--border);
   border-radius:var(--r,6px);color:var(--text);
-  font-family:var(--font);cursor:pointer;
+  font-family:var(--mono);cursor:pointer;letter-spacing:.04em;
   transition:border-color .12s;
-  min-width:100px;min-height:42px;
-  flex-shrink:0;
+  min-height:42px;
+  -webkit-appearance:none;-moz-appearance:none;appearance:none;
+  /* freccia custom in oro, posizionata a destra */
+  background-image:url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="%23c9a84c" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+  background-repeat:no-repeat;background-position:right 10px center;
+  padding-right:24px;
 }
 .slab-grader-select:focus{outline:none;border-color:var(--gold,#c9a84c)}
 .slab-grader-select:hover{border-color:rgba(201,168,76,.4)}
 
 .slab-analyze-btn{
-  flex:1;background:var(--gold,#c9a84c);color:var(--bg,#0c0c0b);
+  flex:1 1 0;min-width:0;  /* riempie tutto lo spazio rimanente, non importa la lunghezza del testo */
+  background:var(--gold,#c9a84c);color:var(--bg,#0c0c0b);
   border:none;border-radius:var(--r,6px);
-  padding:11px 18px;font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  padding:11px 14px;font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
   font-family:var(--mono);cursor:pointer;
   display:inline-flex;align-items:center;justify-content:center;gap:8px;
   transition:filter .15s,transform .15s;
-  min-height:42px;  /* altezza stabile uguale al select */
+  min-height:42px;
 }
 .slab-analyze-btn:hover:not(:disabled){filter:brightness(1.08);transform:translateY(-1px)}
 .slab-analyze-btn:disabled{opacity:.55;cursor:not-allowed}
@@ -12821,50 +12850,54 @@ document.addEventListener('keydown', function(e){
     </div>
 
     <div class="slab-modal-body">
-      <!-- DROPZONE -->
-      <div class="slab-dz" id="slabDz"
-           onclick="if(!slabState.imageBase64) document.getElementById('slabFile').click()"
-           ondragover="event.preventDefault();this.classList.add('over')"
-           ondragleave="this.classList.remove('over')"
-           ondrop="event.preventDefault();this.classList.remove('over');slabHandleFile(event.dataTransfer.files&&event.dataTransfer.files[0])">
-        <input type="file" id="slabFile" accept="image/*" onchange="slabHandleFile(this.files&&this.files[0])"/>
-        <div class="slab-dz-icon" id="slabDzIcon">
-          <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      <!-- STICKY TOP: foto + action bar restano visibili durante lo scroll dei risultati -->
+      <div class="slab-sticky-top">
+        <!-- DROPZONE — in stato "loaded" diventa thumbnail compatto -->
+        <div class="slab-dz" id="slabDz"
+             onclick="if(!slabState.imageBase64) document.getElementById('slabFile').click()"
+             ondragover="event.preventDefault();this.classList.add('over')"
+             ondragleave="this.classList.remove('over')"
+             ondrop="event.preventDefault();this.classList.remove('over');slabHandleFile(event.dataTransfer.files&&event.dataTransfer.files[0])">
+          <input type="file" id="slabFile" accept="image/*" onchange="slabHandleFile(this.files&&this.files[0])"/>
+          <div class="slab-dz-icon" id="slabDzIcon">
+            <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </div>
+          <div class="slab-dz-title" id="slabDzTitle">Carica foto della slab</div>
+          <div class="slab-dz-hint" id="slabDzHint">
+            Trascina, clicca o incolla con <kbd>Ctrl</kbd>+<kbd>V</kbd><br>
+            <span style="opacity:.7">PSA · BGS · CGC · SGC · TAG · ARS · HGA · GMA</span>
+          </div>
+          <div class="slab-dz-preview" id="slabDzPreview" style="display:none">
+            <img id="slabPreviewImg" alt="Anteprima slab"/>
+            <button class="slab-dz-reset" type="button" onclick="event.stopPropagation();slabReset()" title="Rimuovi immagine">×</button>
+          </div>
         </div>
-        <div class="slab-dz-title" id="slabDzTitle">Carica foto della slab</div>
-        <div class="slab-dz-hint" id="slabDzHint">
-          Trascina, clicca o incolla con <kbd>Ctrl</kbd>+<kbd>V</kbd><br>
-          <span style="opacity:.7">PSA · BGS · CGC · SGC · TAG · ARS · HGA · GMA</span>
+
+        <!-- ACTION BAR: dropdown grader (compatto) + bottone analyze (espanso) -->
+        <div class="slab-action-bar">
+          <select id="slabGraderHint" class="slab-grader-select" onchange="slabOnGraderChange()" title="Forza il tipo di slab — usalo se l'AI sbaglia a riconoscerla">
+            <option value="">Auto</option>
+            <option value="PSA">PSA</option>
+            <option value="BGS">BGS</option>
+            <option value="CGC">CGC</option>
+            <option value="SGC">SGC</option>
+            <option value="TAG">TAG</option>
+            <option value="ARS">ARS</option>
+            <option value="HGA">HGA</option>
+            <option value="GMA">GMA</option>
+          </select>
+          <button id="slabAnalyzeBtn" class="slab-analyze-btn" onclick="slabAnalyze()" disabled type="button">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <span class="slab-analyze-btn-txt">Estrai numero / Slab type</span>
+          </button>
         </div>
-        <div class="slab-dz-preview" id="slabDzPreview" style="display:none">
-          <img id="slabPreviewImg" alt="Anteprima slab"/>
-          <button class="slab-dz-reset" type="button" onclick="event.stopPropagation();slabReset()" title="Rimuovi immagine">×</button>
-        </div>
+        <div id="slabStatus" class="slab-status"></div>
       </div>
 
-      <!-- GRADER HINT (opzionale, modificabile anche dopo l'estrazione) -->
-      <!-- ACTION BAR: dropdown grader + bottone analyze sulla stessa riga -->
-      <div class="slab-action-bar">
-        <select id="slabGraderHint" class="slab-grader-select" onchange="slabOnGraderChange()" title="Forza il tipo di slab — usalo se l'AI sbaglia a riconoscerla">
-          <option value="">Auto</option>
-          <option value="PSA">PSA</option>
-          <option value="BGS">BGS</option>
-          <option value="CGC">CGC</option>
-          <option value="SGC">SGC</option>
-          <option value="TAG">TAG</option>
-          <option value="ARS">ARS</option>
-          <option value="HGA">HGA</option>
-          <option value="GMA">GMA</option>
-        </select>
-        <button id="slabAnalyzeBtn" class="slab-analyze-btn" onclick="slabAnalyze()" disabled type="button">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-          <span class="slab-analyze-btn-txt">Estrai numero / Slab type</span>
-        </button>
-      </div>
-      <div id="slabStatus" class="slab-status"></div>
-
-      <!-- RESULT — block strutturato con verdetto verifica server-side -->
-      <div id="slabResult" class="slab-result">
+      <!-- SCROLL AREA: tutti i dati post-OCR scrollano qui mentre la foto+action bar restano sopra -->
+      <div class="slab-scroll-area">
+        <!-- RESULT — block strutturato con verdetto verifica server-side -->
+        <div id="slabResult" class="slab-result">
 
         <!-- Verdetto (verde/giallo/rosso/nero) — visibile solo dopo la verifica -->
         <div id="slabVerdict" class="slab-verdict" style="display:none">
@@ -12948,6 +12981,7 @@ document.addEventListener('keydown', function(e){
           <button class="slab-verify-secondary" type="button" onclick="slabReset()">Nuova verifica</button>
         </div>
       </div>
+      </div><!-- /slab-scroll-area -->
     </div>
 
     <div class="slab-modal-foot">
@@ -13124,6 +13158,11 @@ function slabReset(){
   if(btn) btn.disabled = true;
   var res = document.getElementById('slabResult');
   if(res) res.classList.remove('show');
+  // Rimuovi compact mode foto + reset grader dropdown
+  var body = document.querySelector('.slab-modal-body');
+  if(body) body.classList.remove('has-result');
+  var hintSel = document.getElementById('slabGraderHint');
+  if(hintSel) hintSel.value = '';
   slabSetStatus('');
 }
 
@@ -13662,6 +13701,10 @@ function slabRenderResult(){
   slabRenderVerdict();
 
   res.classList.add('show');
+  // Compact mode foto: si rimpicciolisce per fare spazio ai dati,
+  // mantenendo l'etichetta leggibile per verifica visiva del cert
+  var body = document.querySelector('.slab-modal-body');
+  if(body) body.classList.add('has-result');
 }
 
 // ── RENDER VERDICT (esito verifica server-side) ──────────────────────
