@@ -131,15 +131,18 @@ function extractFieldByLabel(html: string, labels: string[]): string | null {
 }
 
 // ── PSA SCRAPER ─────────────────────────────────────────────────────────
-// URL: https://www.psacard.com/cert/<cert>/psa
-// La pagina è server-side renderizzata. Se la cert non esiste, l'HTML
-// contiene "could not be found" o simili. Se è una cert revocata, contiene
-// "Sample/Counterfeit" o "Special Label" warnings.
+// Strategia a due livelli:
 //
-// PSA usa Cloudflare. Per minimizzare i 403:
-// - Headers browser-like completi (Sec-Fetch-*, Sec-Ch-Ua, ecc.)
-// - Referer da www.psacard.com (simula click interno)
-// - Retry con 2 UA diversi
+// 1. PRIMARIO — PSA Public API ufficiale (api.psacard.com/publicapi)
+//    Richiede PSA_API_TOKEN come Deno.env / Supabase Secret. Bearer auth.
+//    Risposta JSON pulita, no anti-bot, no Cloudflare.
+//    Setup: Project Settings → Edge Functions → Secrets → PSA_API_TOKEN
+//
+// 2. FALLBACK — scraping HTML server-side della pagina pubblica
+//    Solo se il token non è configurato o l'API ufficiale fallisce.
+//    Spesso bloccato da Cloudflare quando le richieste arrivano da IP
+//    cloud. Mantieni come fallback ma aspettati 403 frequenti.
+//
 async function verifyPSA(cert: string): Promise<SlabVerifyResult> {
   const out: SlabVerifyResult = {
     found: false, supported: true, grader: 'PSA', cert,
@@ -153,6 +156,139 @@ async function verifyPSA(cert: string): Promise<SlabVerifyResult> {
     return out;
   }
 
+  // ── Strategia 1: API ufficiale (se token configurato) ─────────────
+  const psaToken = Deno.env.get('PSA_API_TOKEN');
+  if (psaToken && psaToken.length > 10) {
+    const apiOut = await verifyPSAViaAPI(cert, psaToken);
+    // Se l'API ha risposto in modo utile (found o not-found definitivo),
+    // ritorniamo direttamente. Solo su errore di rete fallback a scraping.
+    if (apiOut.found || apiOut.fraud || apiOut.error === null) {
+      return apiOut;
+    }
+    // Se errore HTTP (es. token scaduto) logghiamo e proviamo fallback
+    console.warn('[slab-verify] PSA API fallita, provo scraping:', apiOut.error);
+    out.error = apiOut.error;
+  }
+
+  // ── Strategia 2: scraping HTML (fallback) ─────────────────────────
+  return await verifyPSAViaScraping(cert, out);
+}
+
+// ── PSA via API ufficiale ───────────────────────────────────────────────
+// Endpoint: GET https://api.psacard.com/publicapi/cert/GetByCertNumber/<cert>
+// Auth: Authorization: bearer <token>
+// Risposta: JSON con campo PSACert (struttura PSA standard).
+async function verifyPSAViaAPI(cert: string, token: string): Promise<SlabVerifyResult> {
+  const out: SlabVerifyResult = {
+    found: false, supported: true, grader: 'PSA', cert,
+    fraud: false, details: emptyDetails(),
+    raw_excerpt: null, error: null,
+  };
+
+  const url = `https://api.psacard.com/publicapi/cert/GetByCertNumber/${encodeURIComponent(cert)}`;
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 15000);
+
+  try {
+    const r = await fetch(url, {
+      method: 'GET',
+      signal: ctrl.signal,
+      headers: {
+        'Authorization': 'bearer ' + token,
+        'Accept': 'application/json',
+        'User-Agent': 'RareBlock-SlabVerify/1.0',
+      },
+    });
+    clearTimeout(to);
+
+    // 204 = empty response (no cert number)
+    if (r.status === 204) {
+      out.error = 'PSA API: richiesta vuota (cert mancante)';
+      return out;
+    }
+
+    // 401/403 = token invalido/scaduto
+    if (r.status === 401 || r.status === 403) {
+      out.error = `PSA API: token invalido o scaduto (HTTP ${r.status}). Rigenera PSA_API_TOKEN.`;
+      return out;
+    }
+
+    if (r.status === 404) {
+      // 404 può significare cert inesistente (200 con body vuoto è più comune)
+      out.raw_excerpt = 'PSA API 404';
+      out.error = null;
+      return out;
+    }
+
+    if (!r.ok) {
+      out.error = `PSA API HTTP ${r.status}`;
+      return out;
+    }
+
+    const text = await r.text();
+    out.raw_excerpt = text.substring(0, 400);
+
+    let data: any;
+    try { data = JSON.parse(text); }
+    catch (_) {
+      out.error = 'PSA API: risposta non JSON';
+      return out;
+    }
+
+    // PSA API restituisce { PSACert: { ... } } oppure null/empty se cert non esiste
+    const cert_data = data?.PSACert || data?.psaCert || data?.cert || data?.certificate || data;
+    if (!cert_data || typeof cert_data !== 'object' || Object.keys(cert_data).length === 0) {
+      // Nessun dato → cert non esiste
+      out.found = false;
+      out.error = null;
+      return out;
+    }
+
+    // Mapping campi (PSA usa PascalCase, ma supportiamo varianti)
+    function pick(obj: any, keys: string[]): string | null {
+      for (const k of keys) {
+        const v = obj[k];
+        if (v !== null && v !== undefined && v !== '') return String(v);
+      }
+      return null;
+    }
+
+    const d = out.details;
+    d.year        = pick(cert_data, ['Year', 'year', 'CardYear']);
+    d.brand       = pick(cert_data, ['Brand', 'brand', 'BrandTitle']);
+    d.subject     = pick(cert_data, ['Subject', 'subject', 'Player']);
+    d.card_number = pick(cert_data, ['CardNumber', 'cardNumber', 'card_number', 'SpecNumber']);
+    d.variety     = pick(cert_data, ['Variety', 'variety', 'VarietyPedigree', 'Pedigree']);
+    d.grade       = pick(cert_data, ['CardGrade', 'cardGrade', 'Grade', 'grade', 'ItemGrade', 'GradeDescription']);
+    d.category    = pick(cert_data, ['Category', 'category', 'Sport']);
+
+    const pop = pick(cert_data, ['TotalPopulation', 'totalPopulation', 'Population', 'population']);
+    const popH = pick(cert_data, ['PopulationHigher', 'populationHigher']);
+    if (pop) {
+      d.population = pop + (popH ? ` (pop higher: ${popH})` : '');
+    }
+
+    // Fraud detection: PSA segnala con campi specifici
+    const labelType = pick(cert_data, ['LabelType', 'labelType']) || '';
+    const isFake = /counterfeit|fake|fraud|stolen|revoked/i.test(labelType) ||
+                   pick(cert_data, ['IsFake', 'isFake', 'IsCounterfeit', 'isCounterfeit']) === 'true';
+    out.fraud = isFake;
+
+    // Considera found se abbiamo almeno uno dei campi principali
+    out.found = !!(d.grade || d.subject || d.brand || d.year);
+
+    return out;
+  } catch (e) {
+    clearTimeout(to);
+    out.error = `PSA API fetch error: ${e instanceof Error ? e.message : String(e)}`;
+    return out;
+  }
+}
+
+// ── PSA via scraping HTML (fallback) ───────────────────────────────────
+// Spesso bloccato da Cloudflare quando il request viene da IP cloud.
+// Mantenuto solo come tentativo ultimo prima di dichiarare "non raggiungibile".
+async function verifyPSAViaScraping(cert: string, out: SlabVerifyResult): Promise<SlabVerifyResult> {
   const url = `https://www.psacard.com/cert/${encodeURIComponent(cert)}/psa`;
 
   // Retry loop: prova fino a 2 volte con UA diversi e leggero delay
@@ -191,24 +327,28 @@ async function verifyPSA(cert: string): Promise<SlabVerifyResult> {
         html = await r.text();
         break;
       }
-      // 404 reale = cert non esiste → ritorna found:false senza error
       if (r.status === 404) {
-        out.raw_excerpt = 'HTTP 404 from PSA';
+        out.raw_excerpt = 'HTTP 404 from PSA scraping';
         return out;
       }
-      lastError = `PSA HTTP ${r.status} (tentativo ${attempt + 1})`;
+      lastError = `PSA scraping HTTP ${r.status} (tentativo ${attempt + 1})`;
     } catch (e) {
       clearTimeout(to);
-      lastError = `PSA fetch error (tentativo ${attempt + 1}): ${e instanceof Error ? e.message : String(e)}`;
+      lastError = `PSA scraping fetch error (tentativo ${attempt + 1}): ${e instanceof Error ? e.message : String(e)}`;
     }
   }
 
   if (!html) {
-    out.error = lastError || 'PSA non raggiungibile dopo 2 tentativi';
+    // Se PSA_API_TOKEN non era configurato e scraping fallisce, dai hint chiaro
+    const noToken = !Deno.env.get('PSA_API_TOKEN');
+    const baseErr = lastError || 'PSA non raggiungibile dopo 2 tentativi';
+    out.error = noToken
+      ? baseErr + ' — configura PSA_API_TOKEN come Secret Supabase per usare l\'API ufficiale'
+      : baseErr;
     return out;
   }
 
-  out.raw_excerpt = html.substring(0, 400); // primo bit per debug
+  out.raw_excerpt = html.substring(0, 400);
 
   // ── Fraud/revoke check ──────────────────────────────────────────────
   // PSA segnala cert problematiche con flag specifici nella pagina
