@@ -1804,6 +1804,16 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
   display:flex;border-bottom:1px solid var(--border);
   background:var(--surface);
 }
+/* Quando una sola tab è visibile (grader unsupported), gli stili attivi
+   diventano permanenti per non avere un componente "tab" inutile.
+   Il bordo dorato sotto resta come ancora visiva, ma non c'è scelta. */
+.slab-tabs-bar.single-tab .slab-tab{
+  cursor:default;
+  background:linear-gradient(180deg,rgba(201,168,76,.05),transparent);
+  color:var(--gold,#c9a84c);
+  border-bottom-color:var(--gold,#c9a84c);
+}
+.slab-tabs-bar.single-tab .slab-tab:hover{background:linear-gradient(180deg,rgba(201,168,76,.05),transparent)}
 .slab-tab{
   flex:1;background:transparent;border:none;
   padding:11px 12px;cursor:pointer;
@@ -1851,12 +1861,21 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .slab-tab-confidence.low{background:rgba(245,166,35,.15);color:#f5a623}
 .slab-tab-confidence.bad{background:rgba(248,81,73,.15);color:#f85149}
 
-.slab-tab-panel{padding:12px 14px;animation:slabFadeIn .18s ease}
-@keyframes slabFadeIn{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:translateY(0)}}
+/* Panel: altezza fissa (min-height) per evitare salti di layout quando
+   si switcha fra OCR (5 campi) e DB (4 campi). Il valore garantisce
+   spazio anche per popolazione + descrizione lunga.
+   Animation rimossa per evitare flicker visivo. */
+.slab-tab-panel{
+  padding:12px 14px;
+  min-height:230px;
+  display:flex;flex-direction:column;
+}
+.slab-tab-panel .slab-info-grid{flex:1;align-content:start}
 
 .slab-db-placeholder{
-  padding:28px 18px;display:flex;flex-direction:column;align-items:center;gap:10px;
-  text-align:center;
+  padding:28px 18px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:10px;text-align:center;
+  min-height:230px;
 }
 .slab-db-placeholder-icon{
   color:var(--text-subtle,#666);
@@ -1948,7 +1967,35 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .slab-result-copy:hover{color:var(--text);border-color:var(--gold,#c9a84c)}
 .slab-result-copy.copied{color:var(--success,#3fb950);border-color:rgba(63,185,80,.4)}
 
-.slab-result-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+.slab-result-actions{
+  display:flex;gap:10px;align-items:center;justify-content:space-between;
+  margin-top:4px;flex-wrap:wrap;
+}
+/* Primary: Nuova verifica (azione principale post-result) */
+.slab-verify-primary{
+  background:var(--gold,#c9a84c);color:var(--bg,#0c0c0b);
+  border:none;border-radius:var(--r,6px);
+  padding:10px 18px;font-size:11.5px;font-weight:600;
+  letter-spacing:.1em;text-transform:uppercase;
+  font-family:var(--mono);cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  transition:filter .15s,transform .15s;
+}
+.slab-verify-primary:hover{filter:brightness(1.08);transform:translateY(-1px)}
+
+/* Link discreto: Apri pagina ufficiale (azione secondaria contestuale) */
+.slab-verify-link{
+  display:inline-flex;align-items:center;gap:6px;
+  color:var(--text-muted);text-decoration:none;
+  font-size:11px;font-family:var(--mono);
+  letter-spacing:.04em;
+  padding:6px 8px;border-radius:4px;
+  transition:color .12s,background .12s;
+}
+.slab-verify-link:hover{color:var(--gold,#c9a84c);background:rgba(201,168,76,.06)}
+.slab-verify-link svg{stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* Legacy CSS — mantenuti per backward-compat se altrove */
 .slab-verify-btn{
   flex:1;min-width:160px;
   background:var(--gold,#c9a84c);color:var(--bg,#0c0c0b);
@@ -1981,22 +2028,24 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .slab-confidence.low .slab-conf-dot{background:#f5a623;box-shadow:0 0 5px #f5a623}
 .slab-confidence.bad .slab-conf-dot{background:var(--danger,#f85149);box-shadow:0 0 5px var(--danger,#f85149)}
 
+/* Footer modal: hint ridotto a microfooter discreto */
 .slab-modal-foot{
-  padding:12px 20px;border-top:1px solid var(--border);
-  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:8px 20px;border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;gap:10px;
   flex-shrink:0;background:var(--surface);
 }
 .slab-foot-hint{
-  font-size:10.5px;color:var(--text-subtle,#666);font-family:var(--mono);
-  letter-spacing:.04em;
+  font-size:9.5px;color:var(--text-subtle,#666);font-family:var(--mono);
+  letter-spacing:.04em;opacity:.6;text-align:center;line-height:1.4;
 }
 
 /* Mobile */
 @media (max-width:560px){
   .slab-modal-bg{padding:10px}
   .slab-modal-body{padding:14px}
-  .slab-result-actions .slab-verify-btn{min-width:100%}
-  .slab-result-actions .slab-verify-secondary{flex:1}
+  .slab-result-actions{justify-content:center}
+  .slab-result-actions .slab-verify-primary{flex:1;min-width:100%}
+  .slab-result-actions .slab-verify-link{justify-content:center}
 }
 </style>
 
@@ -13072,20 +13121,20 @@ document.addEventListener('keydown', function(e){
           </div>
         </div>
 
-        <!-- Azioni -->
+        <!-- Azioni: nuova verifica prominente, apri pagina come link discreto -->
         <div class="slab-result-actions">
-          <a id="slabVerifyBtn" class="slab-verify-btn" href="#" target="_blank" rel="noopener noreferrer">
-            <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-            Apri pagina ufficiale
+          <button class="slab-verify-primary" type="button" onclick="slabReset()">Nuova verifica</button>
+          <a id="slabVerifyBtn" class="slab-verify-link" href="#" target="_blank" rel="noopener noreferrer">
+            <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            <span>Apri pagina ufficiale</span>
           </a>
-          <button class="slab-verify-secondary" type="button" onclick="slabReset()">Nuova verifica</button>
         </div>
       </div>
       </div><!-- /slab-scroll-area -->
     </div>
 
     <div class="slab-modal-foot">
-      <span class="slab-foot-hint">Verifica automatica contro il database ufficiale del grader (PSA supportato; BGS/CGC/SGC in arrivo).</span>
+      <span class="slab-foot-hint">PSA · BGS/CGC/SGC in arrivo</span>
     </div>
   </div>
 </div>
@@ -13345,6 +13394,14 @@ function slabReset(){
   if(hintSel) hintSel.value = '';
   slabState.userPickedTab = false;
   slabState.activeTab = null;
+  // Ripristina visibilità tab DB (potrebbe essere stata nascosta da unsupported)
+  var dbTabReset = document.getElementById('slabTabDb');
+  if(dbTabReset) dbTabReset.style.display = '';
+  var tabsBarReset = document.getElementById('slabTabsBar');
+  if(tabsBarReset) tabsBarReset.classList.remove('single-tab');
+  // Reset label tab DB al generico
+  var dbLabelReset = document.getElementById('slabTabDbLabel');
+  if(dbLabelReset) dbLabelReset.textContent = 'Ufficiale';
   slabSetStatus('');
 }
 
@@ -14039,11 +14096,7 @@ function slabRenderVerifiedBlock(){
   var r = slabState.lastResult;
   if(!r || !r.verified || !r.verified.details) return;
   var d = r.verified.details;
-
-  // Aggiorna label tab DB con il nome del grader
-  var graderLabel = (SLAB_GRADERS[r.grader] || {}).label || r.grader;
-  var dbLabelEl = document.getElementById('slabTabDbLabel');
-  if(dbLabelEl) dbLabelEl.textContent = graderLabel;
+  // Label tab DB già aggiornato da slabUpdateTabsState — qui solo i campi dati.
 
   var yEl = document.getElementById('slabVerifiedYear');
   if(yEl) yEl.textContent = d.year || '—';
@@ -14125,7 +14178,34 @@ function slabUpdateTabsState(){
   if(!r) return;
   var dbTab = document.getElementById('slabTabDb');
   var dbBadge = document.getElementById('slabTabDbBadge');
+  var dbLabelEl = document.getElementById('slabTabDbLabel');
   var ocrConf = document.getElementById('slabTabOcrConfidence');
+  var tabsBar = document.getElementById('slabTabsBar');
+
+  // Aggiorna SEMPRE label tab DB col nome del grader corrente (anche pre-verifica
+  // o se la verifica è fallita) — così l'utente vede "PSA" / "BGS" / "CGC"
+  // invece del generico "Ufficiale", evitando ambiguità.
+  if(dbLabelEl){
+    var graderLabel = (SLAB_GRADERS[r.grader] || {}).label || r.grader || 'Ufficiale';
+    dbLabelEl.textContent = graderLabel;
+  }
+
+  // Determina se nascondere completamente la tab DB.
+  // unsupported = grader non implementato server-side → nascondi (no rumore visivo).
+  // tutti gli altri stati (ok/warn/bad/pending/error/critical) → tab visibile.
+  var hideDbTab = (r.verdict === 'unsupported');
+  if(dbTab){
+    dbTab.style.display = hideDbTab ? 'none' : '';
+  }
+  if(tabsBar){
+    // Quando una sola tab è visibile, la barra ha senso solo come header
+    // del panel OCR. Aggiungiamo classe per styling (border-bottom rimane).
+    tabsBar.classList.toggle('single-tab', hideDbTab);
+  }
+  // Se DB nascosta e tab attivo è 'db', forza switch a OCR
+  if(hideDbTab && slabState.activeTab === 'db'){
+    slabApplyTab('ocr');
+  }
 
   // Confidence OCR sul tab
   if(ocrConf){
@@ -14141,8 +14221,8 @@ function slabUpdateTabsState(){
     }
   }
 
-  // Stato tab DB
-  if(dbTab && dbBadge){
+  // Stato tab DB (badge) — solo se la tab è visibile
+  if(dbTab && dbBadge && !hideDbTab){
     dbTab.classList.remove('disabled','has-warn','has-ok','has-bad','has-critical','is-loading');
     dbBadge.style.display = 'none';
     dbBadge.className = 'slab-tab-badge';
@@ -14173,25 +14253,23 @@ function slabUpdateTabsState(){
       dbBadge.classList.add('bad');
       dbBadge.textContent = '✗';
       dbBadge.style.display = '';
-    } else if(v === 'unsupported' || v === 'error'){
-      // Tab DB resta visibile ma mostra il placeholder al click
+    } else if(v === 'error'){
+      // Errore di rete: tab visibile ma badge muto (mostra placeholder al click)
       dbBadge.classList.add('na');
-      dbBadge.textContent = 'N/D';
+      dbBadge.textContent = '?';
       dbBadge.style.display = '';
     }
   }
 
-  // Aggiorna testo placeholder DB
+  // Aggiorna testo placeholder DB (visibile quando si clicca la tab DB in stato error)
   var phTxt = document.getElementById('slabDbPlaceholderTxt');
   if(phTxt){
-    var v = r.verdict;
-    if(v === 'unsupported'){
-      phTxt.textContent = 'Verifica ufficiale non ancora implementata per ' + ((SLAB_GRADERS[r.grader]||{}).label || r.grader) + '. In arrivo.';
-    } else if(v === 'error'){
+    var vv = r.verdict;
+    if(vv === 'error'){
       phTxt.textContent = 'Database non raggiungibile in questo momento. Apri la pagina ufficiale qui sotto per verifica manuale.';
-    } else if(v === 'bad_not_found'){
+    } else if(vv === 'bad_not_found'){
       phTxt.textContent = 'Cert # non trovato nel database ufficiale. Correggi il numero nel tab OCR e ri-verifica.';
-    } else if(v === 'pending'){
+    } else if(vv === 'pending'){
       phTxt.textContent = 'Verifica in corso…';
     } else {
       phTxt.textContent = 'Verifica ufficiale non disponibile.';
