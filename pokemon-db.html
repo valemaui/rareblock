@@ -12763,10 +12763,10 @@ document.addEventListener('keydown', function(e){
         </div>
       </div>
 
-      <!-- GRADER HINT (opzionale) -->
+      <!-- GRADER HINT (opzionale, modificabile anche dopo l'estrazione) -->
       <div class="slab-grader-row">
-        <label for="slabGraderHint">Grader (opzionale — l'AI lo rileva automaticamente)</label>
-        <select id="slabGraderHint" class="slab-grader-select">
+        <label for="slabGraderHint">Grader — seleziona se l'AI lo identifica male</label>
+        <select id="slabGraderHint" class="slab-grader-select" onchange="slabOnGraderChange()">
           <option value="">Auto-rileva dall'immagine</option>
           <option value="PSA">PSA</option>
           <option value="BGS">BGS / Beckett</option>
@@ -12847,7 +12847,7 @@ var SLAB_GRADERS = {
   BGS: {
     label: 'BGS',
     pattern: /^\d{7,12}$/,
-    verifyUrl: function(c){ return 'https://www.beckett.com/grading/card/' + encodeURIComponent(c); }
+    verifyUrl: function(c){ return 'https://www.beckett.com/grading/card-lookup?item_id=' + encodeURIComponent(c); }
   },
   CGC: {
     label: 'CGC',
@@ -12857,7 +12857,7 @@ var SLAB_GRADERS = {
   SGC: {
     label: 'SGC',
     pattern: /^\d{6,12}$/,
-    verifyUrl: function(c){ return 'https://gosgc.com/Verify/SerialNumber/' + encodeURIComponent(c); }
+    verifyUrl: function(c){ return 'https://www.gosgc.com/cert-code-lookup?certCode=' + encodeURIComponent(c); }
   },
   TAG: {
     label: 'TAG',
@@ -13037,8 +13037,8 @@ async function slabAnalyze(){
 
   var hint = (document.getElementById('slabGraderHint')||{}).value || '';
   var hintLine = hint
-    ? 'L\'utente suggerisce che il grader sia: ' + hint + '. Conferma o correggi.'
-    : 'Identifica autonomamente il grader.';
+    ? 'IMPORTANTE: l\'utente ha indicato che il grader è ' + hint + '. Usa ESATTAMENTE questo valore nel campo "grader", non metterlo in dubbio.'
+    : 'Identifica autonomamente il grader dal logo e dal marchio sull\'etichetta.';
 
   var prompt =
     'Analizza questa foto di una slab (custodia rigida) di una carta da collezione gradata.\n' +
@@ -13180,9 +13180,30 @@ async function slabAnalyze(){
   }
 
   // Normalizza & valida
-  var graderCode = slabNormalizeGraderCode(parsed.grader);
-  var cert = parsed.cert ? String(parsed.cert).trim().replace(/\s+/g,'') : null;
+  // Normalizza grader dall'AI
+  var aiGraderRaw = parsed.grader;
+  var graderCode = slabNormalizeGraderCode(aiGraderRaw);
+
+  // OVERRIDE: se l'utente ha selezionato un grader esplicito nel dropdown,
+  // vince sempre lui. L'AI può sbagliare (etichetta sbiadita, angolo strano,
+  // logo coperto), ma se l'utente ha indicato il grader è la fonte autoritativa.
+  if(hint && SLAB_GRADERS[hint]){
+    if(graderCode && graderCode !== hint){
+      console.info('[slab-verify] grader AI:', aiGraderRaw, '(normalizzato:', graderCode + ') → override utente:', hint);
+    }
+    graderCode = hint;
+  }
   if(!graderCode) graderCode = 'OTHER';
+
+  var cert = parsed.cert ? String(parsed.cert).trim().replace(/\s+/g,'') : null;
+
+  // Log diagnostico: visibile in console per debug rapido
+  console.info('[slab-verify] estrazione:', {
+    ai_raw: parsed,
+    user_hint: hint || '(nessuno)',
+    grader_finale: graderCode,
+    cert: cert
+  });
 
   if(!cert){
     slabSetStatus('Cert # non leggibile. Prova con una foto più nitida e in primo piano sull\'etichetta.', 'err');
@@ -13201,6 +13222,23 @@ async function slabAnalyze(){
 
   slabRenderResult();
   slabSetStatus('Estrazione completata.', 'ok');
+}
+
+// ── CAMBIO GRADER POST-ESTRAZIONE ─────────────────────────────────────
+// Permette all'utente di correggere il grader dopo l'estrazione se l'AI
+// ha sbagliato o se vuole cambiare scelta. Ricalcola l'URL di verifica.
+function slabOnGraderChange(){
+  if(!slabState.lastResult || !slabState.lastResult.cert) return;
+  var sel = document.getElementById('slabGraderHint');
+  var newGrader = sel ? sel.value : '';
+  if(newGrader && SLAB_GRADERS[newGrader]){
+    if(slabState.lastResult.grader !== newGrader){
+      console.info('[slab-verify] grader cambiato:', slabState.lastResult.grader, '→', newGrader);
+      slabState.lastResult.grader = newGrader;
+      slabRenderResult();
+      slabSetStatus('Grader aggiornato a ' + SLAB_GRADERS[newGrader].label + '. URL di verifica ricalcolato.', 'ok');
+    }
+  }
 }
 
 // ── RENDER RESULT ────────────────────────────────────────────────────
