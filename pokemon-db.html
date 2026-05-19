@@ -1794,6 +1794,83 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 }
 
 /* ── INFO BLOCK: dati OCR + dati ufficiali, identici come layout ─── */
+/* ── TABS SWITCHER (OCR ↔ Database) ─────────────────────────────────── */
+.slab-tabs-wrap{
+  border:1px solid var(--border);border-radius:8px;
+  background:var(--surface2);
+  overflow:hidden;display:flex;flex-direction:column;
+}
+.slab-tabs-bar{
+  display:flex;border-bottom:1px solid var(--border);
+  background:var(--surface);
+}
+.slab-tab{
+  flex:1;background:transparent;border:none;
+  padding:11px 12px;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  font-family:var(--mono);font-size:11px;font-weight:500;
+  letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text-muted);
+  transition:color .15s,background .15s,box-shadow .15s;
+  position:relative;
+  border-bottom:2px solid transparent;
+}
+.slab-tab:hover:not(.active):not(.disabled){
+  color:var(--text);background:rgba(255,255,255,.02);
+}
+.slab-tab.active{
+  color:var(--gold,#c9a84c);
+  background:linear-gradient(180deg,rgba(201,168,76,.05),transparent);
+  border-bottom-color:var(--gold,#c9a84c);
+}
+.slab-tab.disabled{opacity:.4;cursor:not-allowed}
+.slab-tab svg{flex-shrink:0;opacity:.8}
+.slab-tab.active svg{opacity:1}
+/* Badge stato sul tab DB (✓ verde / ! giallo / ✗ rosso / pending spinner / N/D) */
+.slab-tab-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:18px;height:18px;padding:0 5px;
+  border-radius:9px;font-size:10px;font-weight:700;font-family:var(--mono);
+  margin-left:2px;
+}
+.slab-tab-badge.ok{background:rgba(63,185,80,.18);color:#3fb950;border:1px solid rgba(63,185,80,.4)}
+.slab-tab-badge.warn{background:rgba(245,166,35,.18);color:#f5a623;border:1px solid rgba(245,166,35,.4)}
+.slab-tab-badge.bad{background:rgba(248,81,73,.18);color:#f85149;border:1px solid rgba(248,81,73,.4)}
+.slab-tab-badge.critical{background:rgba(255,30,30,.25);color:#ff4747;border:1px solid rgba(255,30,30,.6);animation:slabPulse 1.5s ease-in-out infinite}
+.slab-tab-badge.pending{background:rgba(245,166,35,.12);color:#f5a623;border:1px solid rgba(245,166,35,.3)}
+.slab-tab-badge.na{background:transparent;color:var(--text-subtle,#666);border:1px solid var(--border);font-size:8.5px;font-weight:600;letter-spacing:.05em}
+/* Confidence OCR sul tab — solo se presente */
+.slab-tab-confidence{
+  font-size:9.5px;font-weight:600;letter-spacing:.04em;
+  padding:2px 5px;border-radius:8px;
+  margin-left:2px;
+  font-family:var(--mono);
+}
+.slab-tab-confidence:empty{display:none}
+.slab-tab-confidence.ok{background:rgba(63,185,80,.15);color:#3fb950}
+.slab-tab-confidence.low{background:rgba(245,166,35,.15);color:#f5a623}
+.slab-tab-confidence.bad{background:rgba(248,81,73,.15);color:#f85149}
+
+.slab-tab-panel{padding:12px 14px;animation:slabFadeIn .18s ease}
+@keyframes slabFadeIn{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:translateY(0)}}
+
+.slab-db-placeholder{
+  padding:28px 18px;display:flex;flex-direction:column;align-items:center;gap:10px;
+  text-align:center;
+}
+.slab-db-placeholder-icon{
+  color:var(--text-subtle,#666);
+  width:48px;height:48px;border-radius:50%;
+  background:var(--surface);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+}
+.slab-db-placeholder-icon svg{stroke:currentColor;fill:none}
+.slab-db-placeholder-txt{
+  font-size:12px;color:var(--text-muted);line-height:1.5;
+  max-width:380px;font-family:var(--font);
+}
+
+/* LEGACY: vecchio .slab-info-block (mantengo per backward-compat se altrove) */
 .slab-info-block{
   border:1px solid var(--border);border-radius:8px;
   background:var(--surface2);
@@ -12908,66 +12985,89 @@ document.addEventListener('keydown', function(e){
           </div>
         </div>
 
-        <!-- Dati estratti dall'OCR — sempre visibili -->
-        <div class="slab-info-block">
-          <div class="slab-info-block-head">
-            <span class="slab-info-block-label">Letti dalla slab (OCR)</span>
-            <span class="slab-confidence" id="slabConfidence" style="display:none">
-              <span class="slab-conf-dot"></span>
-              <span id="slabConfidenceTxt">—</span>
-            </span>
+        <!-- DETTAGLI TABS — OCR + Ufficiale affiancati in un toggle.
+             Lo switcher è nascosto se solo una delle due viste è disponibile. -->
+        <div class="slab-tabs-wrap" id="slabTabsWrap">
+          <div class="slab-tabs-bar" id="slabTabsBar">
+            <button type="button" class="slab-tab" data-tab="ocr" id="slabTabOcr" onclick="slabSwitchTab('ocr')">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span>OCR</span>
+              <span class="slab-tab-confidence" id="slabTabOcrConfidence"></span>
+            </button>
+            <button type="button" class="slab-tab" data-tab="db" id="slabTabDb" onclick="slabSwitchTab('db')">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <span id="slabTabDbLabel">Ufficiale</span>
+              <span class="slab-tab-badge" id="slabTabDbBadge" style="display:none"></span>
+            </button>
           </div>
 
-          <div class="slab-info-grid">
-            <div class="slab-info-field">
-              <label>Grader</label>
-              <span class="slab-info-pill" id="slabResGrader">—</span>
-            </div>
-            <div class="slab-info-field">
-              <label>Voto</label>
-              <span class="slab-info-val slab-info-grade" id="slabResGrade">—</span>
-            </div>
-            <div class="slab-info-field slab-info-field-cert">
-              <label>Cert # <span class="slab-info-edit-hint">(modificabile se l'OCR ha sbagliato)</span></label>
-              <div class="slab-info-cert-row">
-                <input type="text" class="slab-info-cert-input" id="slabResCert" oninput="slabOnCertEdit()" autocomplete="off" spellcheck="false"/>
-                <button class="slab-info-reverify" type="button" id="slabReverifyBtn" onclick="slabRunVerification(true)" title="Ri-verifica con il numero corretto" style="display:none">
-                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                  Ri-verifica
-                </button>
-                <button class="slab-result-copy" id="slabResCopy" onclick="slabCopyCert()" type="button" title="Copia il numero (utile per inserirlo nei preventivi)">
-                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                </button>
+          <!-- Panel OCR -->
+          <div class="slab-tab-panel" id="slabPanelOcr" data-panel="ocr">
+            <div class="slab-info-grid">
+              <div class="slab-info-field">
+                <label>Grader</label>
+                <span class="slab-info-pill" id="slabResGrader">—</span>
+              </div>
+              <div class="slab-info-field">
+                <label>Voto</label>
+                <span class="slab-info-val slab-info-grade" id="slabResGrade">—</span>
+              </div>
+              <div class="slab-info-field slab-info-field-cert">
+                <label>Cert # <span class="slab-info-edit-hint">(modificabile se l'OCR ha sbagliato)</span></label>
+                <div class="slab-info-cert-row">
+                  <input type="text" class="slab-info-cert-input" id="slabResCert" oninput="slabOnCertEdit()" autocomplete="off" spellcheck="false"/>
+                  <button class="slab-info-reverify" type="button" id="slabReverifyBtn" onclick="slabRunVerification(true)" title="Ri-verifica con il numero corretto" style="display:none">
+                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                    Ri-verifica
+                  </button>
+                  <button class="slab-result-copy" id="slabResCopy" onclick="slabCopyCert()" type="button" title="Copia il numero (utile per inserirlo nei preventivi)">
+                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  </button>
+                </div>
+              </div>
+              <div class="slab-info-field slab-info-field-card" id="slabResCardWrap" style="display:none">
+                <label>Carta letta dall'etichetta</label>
+                <span class="slab-info-val" id="slabResCard">—</span>
+              </div>
+              <!-- Confidence OCR — riposizionato in fondo al panel -->
+              <div class="slab-info-field slab-info-field-full" id="slabConfidenceWrap" style="display:none">
+                <span class="slab-confidence" id="slabConfidence">
+                  <span class="slab-conf-dot"></span>
+                  <span id="slabConfidenceTxt">—</span>
+                </span>
               </div>
             </div>
-            <div class="slab-info-field slab-info-field-card" id="slabResCardWrap" style="display:none">
-              <label>Carta letta dall'etichetta</label>
-              <span class="slab-info-val" id="slabResCard">—</span>
-            </div>
           </div>
-        </div>
 
-        <!-- Dati dal database del grader (post-scraping) — visibile solo se verifica eseguita -->
-        <div class="slab-info-block slab-info-block-verified" id="slabVerifiedBlock" style="display:none">
-          <div class="slab-info-block-head">
-            <span class="slab-info-block-label">Dal database <span id="slabVerifiedGrader">—</span> (ufficiale)</span>
+          <!-- Panel Database ufficiale -->
+          <div class="slab-tab-panel" id="slabPanelDb" data-panel="db" style="display:none">
+            <div class="slab-info-grid">
+              <div class="slab-info-field">
+                <label>Anno</label>
+                <span class="slab-info-val" id="slabVerifiedYear">—</span>
+              </div>
+              <div class="slab-info-field">
+                <label>Voto</label>
+                <span class="slab-info-val slab-info-grade" id="slabVerifiedGrade">—</span>
+              </div>
+              <div class="slab-info-field slab-info-field-full">
+                <label>Descrizione</label>
+                <span class="slab-info-val" id="slabVerifiedDesc">—</span>
+              </div>
+              <div class="slab-info-field slab-info-field-full" id="slabVerifiedPopWrap" style="display:none">
+                <label>Popolazione</label>
+                <span class="slab-info-val" id="slabVerifiedPop">—</span>
+              </div>
+            </div>
           </div>
-          <div class="slab-info-grid">
-            <div class="slab-info-field">
-              <label>Anno</label>
-              <span class="slab-info-val" id="slabVerifiedYear">—</span>
+
+          <!-- Placeholder DB non disponibile -->
+          <div class="slab-tab-panel slab-db-placeholder" id="slabPanelDbPlaceholder" data-panel="db-placeholder" style="display:none">
+            <div class="slab-db-placeholder-icon">
+              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             </div>
-            <div class="slab-info-field">
-              <label>Voto</label>
-              <span class="slab-info-val" id="slabVerifiedGrade">—</span>
-            </div>
-            <div class="slab-info-field slab-info-field-full">
-              <label>Descrizione</label>
-              <span class="slab-info-val" id="slabVerifiedDesc">—</span>
-            </div>
-            <div class="slab-info-field slab-info-field-full" id="slabVerifiedPopWrap" style="display:none">
-              <label>Popolazione</label>
-              <span class="slab-info-val" id="slabVerifiedPop">—</span>
+            <div class="slab-db-placeholder-txt" id="slabDbPlaceholderTxt">
+              Verifica ufficiale non disponibile per questo grader.
             </div>
           </div>
         </div>
@@ -13158,11 +13258,13 @@ function slabReset(){
   if(btn) btn.disabled = true;
   var res = document.getElementById('slabResult');
   if(res) res.classList.remove('show');
-  // Rimuovi compact mode foto + reset grader dropdown
+  // Rimuovi compact mode foto + reset grader dropdown + reset tab state
   var body = document.querySelector('.slab-modal-body');
   if(body) body.classList.remove('has-result');
   var hintSel = document.getElementById('slabGraderHint');
   if(hintSel) hintSel.value = '';
+  slabState.userPickedTab = false;
+  slabState.activeTab = null;
   slabSetStatus('');
 }
 
@@ -13681,19 +13783,20 @@ function slabRenderResult(){
     }
   }
 
-  // Confidence dot
+  // Confidence dot (riposizionato dentro il panel OCR, in fondo)
   var confWrap = document.getElementById('slabConfidence');
   var confTxt = document.getElementById('slabConfidenceTxt');
+  var confFieldWrap = document.getElementById('slabConfidenceWrap');
   if(confWrap && confTxt){
     if(r.confidence != null){
       var pct = Math.round(r.confidence * 100);
-      confTxt.textContent = 'OCR ' + pct + '%';
+      confTxt.textContent = 'Affidabilità OCR: ' + pct + '%';
       confWrap.classList.remove('low','bad');
       if(r.confidence < 0.5) confWrap.classList.add('bad');
       else if(r.confidence < 0.85) confWrap.classList.add('low');
-      confWrap.style.display = '';
+      if(confFieldWrap) confFieldWrap.style.display = '';
     } else {
-      confWrap.style.display = 'none';
+      if(confFieldWrap) confFieldWrap.style.display = 'none';
     }
   }
 
@@ -13715,7 +13818,6 @@ function slabRenderVerdict(){
   var iconEl = document.getElementById('slabVerdictIcon');
   var titleEl = document.getElementById('slabVerdictTitle');
   var subEl = document.getElementById('slabVerdictSub');
-  var verifiedBlock = document.getElementById('slabVerifiedBlock');
   if(!box || !iconEl || !titleEl || !subEl) return;
 
   box.classList.remove('ok','warn','bad','critical');
@@ -13723,7 +13825,6 @@ function slabRenderVerdict(){
   var v = r.verdict;
   if(!v){
     box.style.display = 'none';
-    if(verifiedBlock) verifiedBlock.style.display = 'none';
     return;
   }
 
@@ -13735,7 +13836,6 @@ function slabRenderVerdict(){
       iconEl.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:slabSpin 1.2s linear infinite"><circle cx="12" cy="12" r="9" opacity=".25"/><path d="M21 12a9 9 0 0 0-9-9"/></svg>';
       titleEl.textContent = 'Verifica in corso…';
       subEl.textContent = 'Sto interrogando il database ufficiale ' + (SLAB_GRADERS[r.grader] || {}).label + '.';
-      if(verifiedBlock) verifiedBlock.style.display = 'none';
       break;
 
     case 'ok':
@@ -13759,8 +13859,7 @@ function slabRenderVerdict(){
       box.classList.add('bad');
       iconEl.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>';
       titleEl.textContent = 'Cert # non trovato';
-      subEl.innerHTML = 'Il database ufficiale <b>' + (SLAB_GRADERS[r.grader] || {}).label + '</b> non contiene questo numero. <b>Verifica manualmente il cert # sull\'etichetta</b> — molto probabilmente l\'OCR ha letto male una o più cifre. Correggi nell\'input qui sotto e premi <b>Ri-verifica</b>. In alternativa, apri la pagina ufficiale per controllare manualmente.';
-      if(verifiedBlock) verifiedBlock.style.display = 'none';
+      subEl.innerHTML = 'Il database ufficiale <b>' + (SLAB_GRADERS[r.grader] || {}).label + '</b> non contiene questo numero. <b>Verifica manualmente il cert # sull\'etichetta</b> — molto probabilmente l\'OCR ha letto male una o più cifre. Correggi nell\'input nel tab OCR e premi <b>Ri-verifica</b>. In alternativa, apri la pagina ufficiale per controllare manualmente.';
       break;
 
     case 'critical_fraud':
@@ -13776,7 +13875,6 @@ function slabRenderVerdict(){
       iconEl.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
       titleEl.textContent = 'Verifica automatica non disponibile';
       subEl.innerHTML = 'Lo scraping per <b>' + (SLAB_GRADERS[r.grader] || {}).label + '</b> non è ancora implementato. Apri la pagina ufficiale e controlla manualmente.';
-      if(verifiedBlock) verifiedBlock.style.display = 'none';
       break;
 
     case 'error':
@@ -13785,13 +13883,14 @@ function slabRenderVerdict(){
       titleEl.textContent = 'Verifica automatica non riuscita';
       var errDetail = r.error_msg || (r.verified && r.verified.error) || 'sconosciuto';
       subEl.innerHTML = 'Il database <b>' + (SLAB_GRADERS[r.grader] || {}).label + '</b> non è raggiungibile in questo momento (server-side bloccato o offline). <br><span style="opacity:.7;font-size:11px">Dettaglio: ' + slabEscHtml(errDetail) + '</span><br><b>Puoi aprire la pagina ufficiale qui sotto per verificare manualmente.</b>';
-      if(verifiedBlock) verifiedBlock.style.display = 'none';
       break;
 
     default:
       box.style.display = 'none';
-      if(verifiedBlock) verifiedBlock.style.display = 'none';
   }
+
+  // Aggiorna stato tab (badge, default switch, placeholder DB)
+  slabUpdateTabsState();
 }
 
 // ── RENDER VERIFIED BLOCK (dati dal database ufficiale) ──────────────
@@ -13799,12 +13898,11 @@ function slabRenderVerifiedBlock(){
   var r = slabState.lastResult;
   if(!r || !r.verified || !r.verified.details) return;
   var d = r.verified.details;
-  var block = document.getElementById('slabVerifiedBlock');
-  if(!block) return;
 
+  // Aggiorna label tab DB con il nome del grader
   var graderLabel = (SLAB_GRADERS[r.grader] || {}).label || r.grader;
-  var gnameEl = document.getElementById('slabVerifiedGrader');
-  if(gnameEl) gnameEl.textContent = graderLabel;
+  var dbLabelEl = document.getElementById('slabTabDbLabel');
+  if(dbLabelEl) dbLabelEl.textContent = graderLabel;
 
   var yEl = document.getElementById('slabVerifiedYear');
   if(yEl) yEl.textContent = d.year || '—';
@@ -13827,8 +13925,159 @@ function slabRenderVerifiedBlock(){
     if(d.population){ popEl.textContent = d.population; popWrap.style.display = ''; }
     else { popWrap.style.display = 'none'; }
   }
+}
 
-  block.style.display = '';
+// ── TAB SWITCHER (OCR ↔ Database ufficiale) ─────────────────────────
+// Permette di alternare la vista dei dati OCR e quelli del database
+// ufficiale del grader, risparmiando spazio verticale.
+function slabSwitchTab(tab){
+  slabState.userPickedTab = true;  // l'utente ha scelto attivamente
+  slabApplyTab(tab);
+}
+
+// Applica un tab senza marcare come scelta utente (usato per default automatico)
+function slabApplyTab(tab){
+  if(tab !== 'ocr' && tab !== 'db') return;
+  // Se DB tab è disabilitato, forzia OCR
+  var dbTab = document.getElementById('slabTabDb');
+  if(tab === 'db' && dbTab && dbTab.classList.contains('disabled')) return;
+
+  slabState.activeTab = tab;
+
+  // Toggle classi active sui pulsanti
+  ['slabTabOcr','slabTabDb'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(!el) return;
+    if(el.dataset.tab === tab) el.classList.add('active');
+    else el.classList.remove('active');
+  });
+
+  // Mostra il panel corretto. Se DB è "placeholder" (non disponibile),
+  // mostra il placeholder invece dei dati DB veri.
+  var r = slabState.lastResult;
+  var dbAvailable = r && r.verified && r.verified.found && r.verified.supported && !r.verified.error;
+
+  var pOcr = document.getElementById('slabPanelOcr');
+  var pDb = document.getElementById('slabPanelDb');
+  var pPlc = document.getElementById('slabPanelDbPlaceholder');
+
+  if(tab === 'ocr'){
+    if(pOcr) pOcr.style.display = '';
+    if(pDb) pDb.style.display = 'none';
+    if(pPlc) pPlc.style.display = 'none';
+  } else { // db
+    if(pOcr) pOcr.style.display = 'none';
+    if(dbAvailable){
+      if(pDb) pDb.style.display = '';
+      if(pPlc) pPlc.style.display = 'none';
+    } else {
+      if(pDb) pDb.style.display = 'none';
+      if(pPlc) pPlc.style.display = '';
+    }
+  }
+}
+
+// Aggiorna stato dei tab in base al verdetto: enable/disable, badge,
+// scelta del tab di default. Chiamata da slabRenderVerdict.
+function slabUpdateTabsState(){
+  var r = slabState.lastResult;
+  if(!r) return;
+  var dbTab = document.getElementById('slabTabDb');
+  var dbBadge = document.getElementById('slabTabDbBadge');
+  var ocrConf = document.getElementById('slabTabOcrConfidence');
+
+  // Confidence OCR sul tab
+  if(ocrConf){
+    if(r.confidence != null){
+      var pct = Math.round(r.confidence * 100);
+      ocrConf.textContent = pct + '%';
+      ocrConf.classList.remove('low','bad','ok');
+      if(r.confidence >= 0.85) ocrConf.classList.add('ok');
+      else if(r.confidence >= 0.5) ocrConf.classList.add('low');
+      else ocrConf.classList.add('bad');
+    } else {
+      ocrConf.textContent = '';
+    }
+  }
+
+  // Stato tab DB
+  if(dbTab && dbBadge){
+    dbTab.classList.remove('disabled','has-warn','has-ok','has-bad','has-critical','is-loading');
+    dbBadge.style.display = 'none';
+    dbBadge.className = 'slab-tab-badge';
+
+    var v = r.verdict;
+    if(v === 'pending'){
+      dbTab.classList.add('is-loading');
+      dbBadge.classList.add('pending');
+      dbBadge.innerHTML = '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="animation:slabSpin 1s linear infinite"><circle cx="12" cy="12" r="9" opacity=".3"/><path d="M21 12a9 9 0 0 0-9-9"/></svg>';
+      dbBadge.style.display = '';
+    } else if(v === 'ok'){
+      dbTab.classList.add('has-ok');
+      dbBadge.classList.add('ok');
+      dbBadge.textContent = '✓';
+      dbBadge.style.display = '';
+    } else if(v === 'warn_mismatch'){
+      dbTab.classList.add('has-warn');
+      dbBadge.classList.add('warn');
+      dbBadge.textContent = '!';
+      dbBadge.style.display = '';
+    } else if(v === 'critical_fraud'){
+      dbTab.classList.add('has-critical');
+      dbBadge.classList.add('critical');
+      dbBadge.textContent = '!';
+      dbBadge.style.display = '';
+    } else if(v === 'bad_not_found'){
+      dbTab.classList.add('has-bad');
+      dbBadge.classList.add('bad');
+      dbBadge.textContent = '✗';
+      dbBadge.style.display = '';
+    } else if(v === 'unsupported' || v === 'error'){
+      // Tab DB resta visibile ma mostra il placeholder al click
+      dbBadge.classList.add('na');
+      dbBadge.textContent = 'N/D';
+      dbBadge.style.display = '';
+    }
+  }
+
+  // Aggiorna testo placeholder DB
+  var phTxt = document.getElementById('slabDbPlaceholderTxt');
+  if(phTxt){
+    var v = r.verdict;
+    if(v === 'unsupported'){
+      phTxt.textContent = 'Verifica ufficiale non ancora implementata per ' + ((SLAB_GRADERS[r.grader]||{}).label || r.grader) + '. In arrivo.';
+    } else if(v === 'error'){
+      phTxt.textContent = 'Database non raggiungibile in questo momento. Apri la pagina ufficiale qui sotto per verifica manuale.';
+    } else if(v === 'bad_not_found'){
+      phTxt.textContent = 'Cert # non trovato nel database ufficiale. Correggi il numero nel tab OCR e ri-verifica.';
+    } else if(v === 'pending'){
+      phTxt.textContent = 'Verifica in corso…';
+    } else {
+      phTxt.textContent = 'Verifica ufficiale non disponibile.';
+    }
+  }
+
+  // Scelta tab di default in base al verdetto, SOLO se l'utente non
+  // ha mai cliccato attivamente sui tab (slabApplyTab non setta userPickedTab).
+  if(!slabState.userPickedTab){
+    var defaultTab;
+    switch(r.verdict){
+      case 'ok': defaultTab = 'db'; break;
+      case 'warn_mismatch':
+      case 'bad_not_found':
+      case 'pending':
+      case 'critical_fraud':
+      case 'error':
+      case 'unsupported':
+      default:
+        defaultTab = 'ocr'; break;
+    }
+    slabApplyTab(defaultTab);
+  } else {
+    // L'utente ha già scelto un tab: ri-applica il tab corrente per refresh
+    // (in caso di transizione da DB-disponibile a DB-error e viceversa)
+    slabApplyTab(slabState.activeTab || 'ocr');
+  }
 }
 
 // ── COPY CERT ────────────────────────────────────────────────────────
