@@ -1,11 +1,22 @@
-name: Deploy smooth-endpoint to Supabase
+name: Deploy Supabase Edge Functions
 
 on:
   push:
     branches: [ main ]
     paths:
       - 'supabase/functions/smooth-endpoint/**'
-  workflow_dispatch: {}  # consente trigger manuale dall'UI di GitHub
+      - 'supabase/functions/slab-verify/**'
+  workflow_dispatch:
+    inputs:
+      function:
+        description: 'Quale function deployare (default: tutte modificate)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - smooth-endpoint
+          - slab-verify
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -15,16 +26,40 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # serve per rilevare quali function sono cambiate
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
           version: latest
 
-      - name: Deploy smooth-endpoint
+      - name: Determina funzioni da deployare
+        id: which
+        run: |
+          FN_INPUT="${{ github.event.inputs.function }}"
+          if [ "$FN_INPUT" = "smooth-endpoint" ] || [ "$FN_INPUT" = "slab-verify" ]; then
+            echo "fns=$FN_INPUT" >> $GITHUB_OUTPUT
+            echo "Deploy esplicito: $FN_INPUT"
+            exit 0
+          fi
+          # auto-detect dal diff
+          CHANGED=$(git diff --name-only HEAD^ HEAD -- 'supabase/functions/' || true)
+          FNS=""
+          if echo "$CHANGED" | grep -q "supabase/functions/smooth-endpoint/"; then FNS="$FNS smooth-endpoint"; fi
+          if echo "$CHANGED" | grep -q "supabase/functions/slab-verify/";    then FNS="$FNS slab-verify"; fi
+          # se nessuna detectata (es. workflow_dispatch all), deploya tutte
+          if [ -z "$FNS" ]; then FNS="smooth-endpoint slab-verify"; fi
+          echo "fns=$FNS" >> $GITHUB_OUTPUT
+          echo "Functions da deployare:$FNS"
+
+      - name: Deploy edge functions
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: rbjaaeyjeeqfpbzyavag
         run: |
-          supabase functions deploy smooth-endpoint \
-            --project-ref "$SUPABASE_PROJECT_REF"
+          for FN in ${{ steps.which.outputs.fns }}; do
+            echo "::group::Deploy $FN"
+            supabase functions deploy "$FN" --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+            echo "::endgroup::"
+          done
