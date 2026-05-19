@@ -13372,24 +13372,43 @@ async function slabAnalyze(){
 // rimane invariato per il confronto.
 async function slabRunVerification(fromUserEdit){
   var r = slabState.lastResult;
-  if(!r || !r.cert || !r.grader) return;
+  if(!r || !r.grader){
+    console.warn('[slab-verify] runVerification abort: lastResult o grader mancanti', r);
+    return;
+  }
 
   // Se l'utente ha editato il cert, sincronizza
   if(fromUserEdit){
     var input = document.getElementById('slabResCert');
     var newCert = input ? String(input.value || '').trim().replace(/\s+/g,'') : '';
     if(!newCert){
-      slabSetStatus('Inserisci un cert # valido.', 'err');
+      slabSetStatus('Inserisci un cert # valido prima di ri-verificare.', 'err');
       return;
     }
+    if(newCert === r.cert_original_ocr){
+      // L'utente ha resettato il cert al valore OCR originale → nasconde bottone
+      var reBtn0 = document.getElementById('slabReverifyBtn');
+      if(reBtn0) reBtn0.style.display = 'none';
+    }
+    console.info('[slab-verify] cert sincronizzato da input:', r.cert, '→', newCert);
     r.cert = newCert;
+  }
+
+  if(!r.cert){
+    console.warn('[slab-verify] runVerification abort: cert mancante');
+    slabSetStatus('Cert # mancante.', 'err');
+    return;
   }
 
   r.verdict = 'pending';
   r.verified = null;
+  r.error_msg = null;
+  r.mismatch_reasons = null;
   slabRenderVerdict();
 
-  console.info('[slab-verify] verifica server-side:', { grader: r.grader, cert: r.cert });
+  var tStart = Date.now();
+  slabSetStatus('Verifico cert ' + r.cert + ' su database ' + r.grader + '…', 'info');
+  console.info('[slab-verify] verifica server-side START:', { grader: r.grader, cert: r.cert });
 
   var url = SUPA_URL + '/functions/v1/slab-verify';
   var ctrl = new AbortController();
@@ -13409,24 +13428,33 @@ async function slabRunVerification(fromUserEdit){
 
     if(!resp.ok){
       var errTxt = await resp.text().catch(function(){ return ''; });
-      console.warn('[slab-verify] edge function error:', resp.status, errTxt);
-      r.verified = { error: 'HTTP ' + resp.status, supported: true, found: false };
+      console.warn('[slab-verify] edge function HTTP error:', resp.status, errTxt.substring(0,200));
+      r.verified = { error: 'Edge function HTTP ' + resp.status + (errTxt ? ' — ' + errTxt.substring(0,80) : ''), supported: true, found: false };
+      r.error_msg = r.verified.error;
       r.verdict = 'error';
       slabRenderVerdict();
+      slabSetStatus('Edge function non raggiungibile (HTTP ' + resp.status + ').', 'err');
       return;
     }
 
     var data = await resp.json();
-    console.info('[slab-verify] verifica risultato:', data);
+    console.info('[slab-verify] verifica RESPONSE:', data);
     r.verified = data;
 
     // Determina verdetto
     if(!data.supported){
       r.verdict = 'unsupported';
+    } else if(data.error){
+      // Edge function ha ricevuto errore HTTP dal grader (es. Cloudflare 403).
+      // NON significa che il cert sia sbagliato, solo che lo scraping non è
+      // riuscito. L'utente può comunque aprire la pagina ufficiale.
+      r.verdict = 'error';
+      r.error_msg = data.error;
     } else if(data.fraud){
       r.verdict = 'critical_fraud';
     } else if(!data.found){
-      // Cert non trovato nel database ufficiale → quasi certo OCR sbagliato
+      // Cert non trovato nel database ufficiale (HTTP 200 + pagina "not found").
+      // Probabilmente OCR ha letto male una o più cifre.
       r.verdict = 'bad_not_found';
     } else {
       // Trovato. Confronta i campi chiave OCR vs ufficiale per detect mismatch.
@@ -13440,12 +13468,24 @@ async function slabRunVerification(fromUserEdit){
     }
 
     slabRenderVerdict();
+    // Status text di chiusura
+    var labels = {
+      ok:'Verifica OK', warn_mismatch:'Discrepanza rilevata',
+      bad_not_found:'Cert non trovato nel DB',
+      critical_fraud:'⚠️ Slab segnalata', unsupported:'Grader non supportato',
+      error:'Errore di rete'
+    };
+    var dur = Date.now() - tStart;
+    slabSetStatus((labels[r.verdict]||r.verdict) + ' (in ' + dur + 'ms)', r.verdict==='ok'?'ok':(r.verdict==='critical_fraud'||r.verdict==='warn_mismatch'?'err':'info'));
   } catch(e){
     clearTimeout(to);
-    console.warn('[slab-verify] verifica fallita:', e);
-    r.verified = { error: e && e.message ? e.message : String(e), supported: true, found: false };
+    var msg = e && e.message ? e.message : String(e);
+    console.warn('[slab-verify] verifica EXCEPTION:', e);
+    r.verified = { error: msg, supported: true, found: false };
+    r.error_msg = msg;
     r.verdict = 'error';
     slabRenderVerdict();
+    slabSetStatus('Verifica fallita: ' + msg.substring(0,80), 'err');
   }
 }
 
@@ -13665,7 +13705,7 @@ function slabRenderVerdict(){
       box.classList.add('bad');
       iconEl.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>';
       titleEl.textContent = 'Cert # non trovato';
-      subEl.innerHTML = 'Il database ufficiale <b>' + (SLAB_GRADERS[r.grader] || {}).label + '</b> non contiene questo numero. <b>Verifica manualmente il cert # sull\'etichetta</b> — molto probabilmente l\'OCR ha letto male una o più cifre. Correggi sotto e ri-verifica.';
+      subEl.innerHTML = 'Il database ufficiale <b>' + (SLAB_GRADERS[r.grader] || {}).label + '</b> non contiene questo numero. <b>Verifica manualmente il cert # sull\'etichetta</b> — molto probabilmente l\'OCR ha letto male una o più cifre. Correggi nell\'input qui sotto e premi <b>Ri-verifica</b>. In alternativa, apri la pagina ufficiale per controllare manualmente.';
       if(verifiedBlock) verifiedBlock.style.display = 'none';
       break;
 
@@ -13688,8 +13728,9 @@ function slabRenderVerdict(){
     case 'error':
       box.classList.add('warn');
       iconEl.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
-      titleEl.textContent = 'Verifica non riuscita';
-      subEl.innerHTML = 'Errore di rete nel contattare il database ufficiale (' + slabEscHtml((r.verified && r.verified.error) || 'sconosciuto') + '). Riprova o apri la pagina ufficiale.';
+      titleEl.textContent = 'Verifica automatica non riuscita';
+      var errDetail = r.error_msg || (r.verified && r.verified.error) || 'sconosciuto';
+      subEl.innerHTML = 'Il database <b>' + (SLAB_GRADERS[r.grader] || {}).label + '</b> non è raggiungibile in questo momento (server-side bloccato o offline). <br><span style="opacity:.7;font-size:11px">Dettaglio: ' + slabEscHtml(errDetail) + '</span><br><b>Puoi aprire la pagina ufficiale qui sotto per verificare manualmente.</b>';
       if(verifiedBlock) verifiedBlock.style.display = 'none';
       break;
 

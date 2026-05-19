@@ -135,6 +135,11 @@ function extractFieldByLabel(html: string, labels: string[]): string | null {
 // La pagina è server-side renderizzata. Se la cert non esiste, l'HTML
 // contiene "could not be found" o simili. Se è una cert revocata, contiene
 // "Sample/Counterfeit" o "Special Label" warnings.
+//
+// PSA usa Cloudflare. Per minimizzare i 403:
+// - Headers browser-like completi (Sec-Fetch-*, Sec-Ch-Ua, ecc.)
+// - Referer da www.psacard.com (simula click interno)
+// - Retry con 2 UA diversi
 async function verifyPSA(cert: string): Promise<SlabVerifyResult> {
   const out: SlabVerifyResult = {
     found: false, supported: true, grader: 'PSA', cert,
@@ -149,94 +154,114 @@ async function verifyPSA(cert: string): Promise<SlabVerifyResult> {
   }
 
   const url = `https://www.psacard.com/cert/${encodeURIComponent(cert)}/psa`;
-  const ctrl = new AbortController();
-  const to = setTimeout(() => ctrl.abort(), 18000);
 
-  try {
-    const r = await fetch(url, {
-      method: 'GET',
-      signal: ctrl.signal,
-      redirect: 'follow',
-      headers: {
-        'User-Agent': pickUA(),
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9,it;q=0.8',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Dest': 'document',
-        'Upgrade-Insecure-Requests': '1',
-      },
-    });
-    clearTimeout(to);
+  // Retry loop: prova fino a 2 volte con UA diversi e leggero delay
+  let lastError = '';
+  let html = '';
+  for (let attempt = 0; attempt < 2 && !html; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, 600 + Math.random() * 400));
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 18000);
+    try {
+      const r = await fetch(url, {
+        method: 'GET',
+        signal: ctrl.signal,
+        redirect: 'follow',
+        headers: {
+          'User-Agent': pickUA(),
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9,it;q=0.8',
+          'Accept-Encoding': 'gzip, deflate, br, zstd',
+          'Sec-Ch-Ua': '"Chromium";v="132", "Not?A_Brand";v="24"',
+          'Sec-Ch-Ua-Mobile': '?0',
+          'Sec-Ch-Ua-Platform': '"macOS"',
+          'Sec-Fetch-Site': 'same-origin',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Fetch-User': '?1',
+          'Upgrade-Insecure-Requests': '1',
+          'Referer': 'https://www.psacard.com/cert',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+        },
+      });
+      clearTimeout(to);
 
-    if (!r.ok) {
-      out.error = `PSA HTTP ${r.status}`;
-      // 404 può significare cert non esistente → restituisci found=false senza error
-      if (r.status === 404) { out.error = null; }
-      return out;
+      if (r.ok) {
+        html = await r.text();
+        break;
+      }
+      // 404 reale = cert non esiste → ritorna found:false senza error
+      if (r.status === 404) {
+        out.raw_excerpt = 'HTTP 404 from PSA';
+        return out;
+      }
+      lastError = `PSA HTTP ${r.status} (tentativo ${attempt + 1})`;
+    } catch (e) {
+      clearTimeout(to);
+      lastError = `PSA fetch error (tentativo ${attempt + 1}): ${e instanceof Error ? e.message : String(e)}`;
     }
+  }
 
-    const html = await r.text();
-    out.raw_excerpt = html.substring(0, 400); // primo bit per debug
+  if (!html) {
+    out.error = lastError || 'PSA non raggiungibile dopo 2 tentativi';
+    return out;
+  }
 
-    // ── Fraud/revoke check ──────────────────────────────────────────────
-    // PSA segnala cert problematiche con flag specifici nella pagina
-    const fraudKeywords = ['counterfeit', 'fraudulent', 'revoked', 'stolen', 'fake label'];
-    const htmlLower = html.toLowerCase();
-    out.fraud = fraudKeywords.some(k => htmlLower.includes(k));
+  out.raw_excerpt = html.substring(0, 400); // primo bit per debug
 
-    // ── Not-found check ─────────────────────────────────────────────────
-    const notFoundMarkers = [
-      'could not be found',
-      'not found in our database',
-      'no results',
-      'invalid cert number',
-      'cert not found',
-    ];
-    const isNotFound = notFoundMarkers.some(m => htmlLower.includes(m));
-    if (isNotFound) {
-      out.found = false;
-      return out;
-    }
+  // ── Fraud/revoke check ──────────────────────────────────────────────
+  // PSA segnala cert problematiche con flag specifici nella pagina
+  const fraudKeywords = ['counterfeit', 'fraudulent', 'revoked', 'stolen', 'fake label'];
+  const htmlLower = html.toLowerCase();
+  out.fraud = fraudKeywords.some(k => htmlLower.includes(k));
 
-    // ── Estrai i campi ──────────────────────────────────────────────────
-    const d = out.details;
-    d.year        = extractFieldByLabel(html, ['Year']);
-    d.brand       = extractFieldByLabel(html, ['Brand', 'Brand/Title', 'Brand / Title']);
-    d.subject     = extractFieldByLabel(html, ['Subject', 'Player', 'Player/Subject']);
-    d.card_number = extractFieldByLabel(html, ['Card Number', 'Card #', 'Card#']);
-    d.variety     = extractFieldByLabel(html, ['Variety', 'Variety/Pedigree', 'Pedigree']);
-    d.grade       = extractFieldByLabel(html, ['Item Grade', 'Grade', 'Card Grade']);
-    d.category    = extractFieldByLabel(html, ['Category', 'Sport']);
-    d.population  = extractFieldByLabel(html, ['PSA Population', 'Population']);
+  // ── Not-found check ─────────────────────────────────────────────────
+  const notFoundMarkers = [
+    'could not be found',
+    'not found in our database',
+    'no results',
+    'invalid cert number',
+    'cert not found',
+  ];
+  const isNotFound = notFoundMarkers.some(m => htmlLower.includes(m));
+  if (isNotFound) {
+    out.found = false;
+    return out;
+  }
 
-    // Se abbiamo almeno il grade o il subject, consideriamo "found"
-    out.found = !!(d.grade || d.subject || d.brand || d.year);
+  // ── Estrai i campi ──────────────────────────────────────────────────
+  const d = out.details;
+  d.year        = extractFieldByLabel(html, ['Year']);
+  d.brand       = extractFieldByLabel(html, ['Brand', 'Brand/Title', 'Brand / Title']);
+  d.subject     = extractFieldByLabel(html, ['Subject', 'Player', 'Player/Subject']);
+  d.card_number = extractFieldByLabel(html, ['Card Number', 'Card #', 'Card#']);
+  d.variety     = extractFieldByLabel(html, ['Variety', 'Variety/Pedigree', 'Pedigree']);
+  d.grade       = extractFieldByLabel(html, ['Item Grade', 'Grade', 'Card Grade']);
+  d.category    = extractFieldByLabel(html, ['Category', 'Sport']);
+  d.population  = extractFieldByLabel(html, ['PSA Population', 'Population']);
 
-    // Fallback: cerca il pattern title-based di PSA
-    // <title>Cert Verification 58205969</title> seguito da "1998 POKEMON ..."
-    if (!out.found) {
-      const titleMatch = html.match(/<title[^>]*>\s*Cert Verification\s+(\d+)\s*<\/title>/i);
-      if (titleMatch && titleMatch[1] === cert) {
-        // Cerca H1 o blocco principale con descrizione
-        const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-        if (h1Match) {
-          const cleaned = cleanText(h1Match[1]);
-          if (cleaned && cleaned.length > 5 && !/cert verification/i.test(cleaned)) {
-            d.brand = d.brand || cleaned;
-            out.found = true;
-          }
+  // Se abbiamo almeno il grade o il subject, consideriamo "found"
+  out.found = !!(d.grade || d.subject || d.brand || d.year);
+
+  // Fallback: cerca il pattern title-based di PSA
+  // <title>Cert Verification 58205969</title> seguito da "1998 POKEMON ..."
+  if (!out.found) {
+    const titleMatch = html.match(/<title[^>]*>\s*Cert Verification\s+(\d+)\s*<\/title>/i);
+    if (titleMatch && titleMatch[1] === cert) {
+      // Cerca H1 o blocco principale con descrizione
+      const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+      if (h1Match) {
+        const cleaned = cleanText(h1Match[1]);
+        if (cleaned && cleaned.length > 5 && !/cert verification/i.test(cleaned)) {
+          d.brand = d.brand || cleaned;
+          out.found = true;
         }
       }
     }
-
-    return out;
-  } catch (e) {
-    clearTimeout(to);
-    out.error = 'PSA fetch error: ' + (e instanceof Error ? e.message : String(e));
-    return out;
   }
+
+  return out;
 }
 
 // ── BGS / CGC / SGC: TODO ───────────────────────────────────────────────
