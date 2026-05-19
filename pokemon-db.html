@@ -1674,7 +1674,8 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
   border-radius:var(--r,6px);color:var(--text);
   font-family:var(--font);cursor:pointer;
   transition:border-color .12s;
-  min-width:90px;
+  min-width:100px;min-height:42px;
+  flex-shrink:0;
 }
 .slab-grader-select:focus{outline:none;border-color:var(--gold,#c9a84c)}
 .slab-grader-select:hover{border-color:rgba(201,168,76,.4)}
@@ -1685,11 +1686,19 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
   padding:11px 18px;font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
   font-family:var(--mono);cursor:pointer;
   display:inline-flex;align-items:center;justify-content:center;gap:8px;
-  transition:all .15s;
+  transition:filter .15s,transform .15s;
+  min-height:42px;  /* altezza stabile uguale al select */
 }
 .slab-analyze-btn:hover:not(:disabled){filter:brightness(1.08);transform:translateY(-1px)}
-.slab-analyze-btn:disabled{opacity:.45;cursor:not-allowed}
-.slab-analyze-btn-txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.slab-analyze-btn:disabled{opacity:.55;cursor:not-allowed}
+.slab-analyze-btn-txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:1;min-width:0}
+.slab-analyze-btn svg{flex-shrink:0;transition:opacity .15s}
+.slab-analyze-btn.is-loading{cursor:wait}
+.slab-analyze-btn.is-loading svg{
+  /* trasforma l'icona search in spinner usando CSS, senza toccare DOM */
+  animation:slabSpin .7s linear infinite;
+  opacity:.75;
+}
 .slab-analyze-btn .slab-spinner{
   width:13px;height:13px;border:2px solid rgba(0,0,0,.18);
   border-top-color:rgba(0,0,0,.7);border-radius:50%;
@@ -12834,12 +12843,8 @@ document.addEventListener('keydown', function(e){
       </div>
 
       <!-- GRADER HINT (opzionale, modificabile anche dopo l'estrazione) -->
-      <!-- ACTION BAR: bottone analyze + dropdown grader sulla stessa riga -->
+      <!-- ACTION BAR: dropdown grader + bottone analyze sulla stessa riga -->
       <div class="slab-action-bar">
-        <button id="slabAnalyzeBtn" class="slab-analyze-btn" onclick="slabAnalyze()" disabled type="button">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-          <span class="slab-analyze-btn-txt">Estrai numero / Slab type</span>
-        </button>
         <select id="slabGraderHint" class="slab-grader-select" onchange="slabOnGraderChange()" title="Forza il tipo di slab — usalo se l'AI sbaglia a riconoscerla">
           <option value="">Auto</option>
           <option value="PSA">PSA</option>
@@ -12851,6 +12856,10 @@ document.addEventListener('keydown', function(e){
           <option value="HGA">HGA</option>
           <option value="GMA">GMA</option>
         </select>
+        <button id="slabAnalyzeBtn" class="slab-analyze-btn" onclick="slabAnalyze()" disabled type="button">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <span class="slab-analyze-btn-txt">Estrai numero / Slab type</span>
+        </button>
       </div>
       <div id="slabStatus" class="slab-status"></div>
 
@@ -13148,10 +13157,11 @@ async function slabAnalyze(){
   slabState.busy = true;
 
   var btn = document.getElementById('slabAnalyzeBtn');
-  var originalBtnHtml = btn ? btn.innerHTML : '';
+  var btnTxt = document.getElementById('slabAnalyzeBtn') ? document.querySelector('#slabAnalyzeBtn .slab-analyze-btn-txt') : null;
   if(btn){
     btn.disabled = true;
-    btn.innerHTML = '<span class="slab-spinner"></span> Analisi in corso...';
+    btn.classList.add('is-loading');
+    if(btnTxt) btnTxt.textContent = 'Analisi in corso…';
   }
 
   var hint = (document.getElementById('slabGraderHint')||{}).value || '';
@@ -13287,7 +13297,8 @@ async function slabAnalyze(){
   slabState.busy = false;
   if(btn){
     btn.disabled = !slabState.imageBase64;
-    btn.innerHTML = originalBtnHtml;
+    btn.classList.remove('is-loading');
+    if(btnTxt) btnTxt.textContent = 'Estrai numero / Slab type';
   }
 
   if(!parsed){
