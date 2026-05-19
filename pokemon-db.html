@@ -4724,6 +4724,150 @@ window.rbMountSetPicker = function(opts){
   return { input: inp, resolve: function(){ return rbResolveSetFromInput(inp); }, clear: clear };
 };
 
+// ══════════════════════════════════════════════════════════════
+// RB-CARD-SEARCH-UI · controller unificato ricerca carta
+//
+// Centralizza l'orchestrazione di ricerca condivisa tra:
+//   - Collezione (#q + #q-setpicker → showQuickMatch / showMulti)
+//   - Preventivi (#pq + #pq-setpicker → showPrevQuickAdd / showPrevResults)
+//
+// Prima della rifattorizzazione, doSearch() e prevSearch() duplicavano:
+//   read input → parse → resolve set → fetch → filter by number → dispatch.
+// Ora tutto vive qui; le due funzioni sono wrapper sottili.
+// Aggiornare il flusso significa modificare un solo punto.
+//
+// API:
+//   rbCardSearch.run(opts) → Promise<{cards,name,number,setSel} | undefined>
+//     opts.queryInputId       id input testo (es. 'q','pq')
+//     opts.setPickerInputId   id input setpicker (es. 'q-setpicker-input')
+//     opts.statusEl           HTMLElement | id (es. 'st','pst')
+//     opts.statusBaseClass    base class CSS (default 'status')
+//     opts.beforeSearch       fn?  reset UI prima della fetch
+//     opts.onSingleResult     fn(card)   1 carta trovata
+//     opts.onMultipleResults  fn(cards)  N>1 carte trovate
+//     opts.onNoResults        fn(name,number)?  0 carte
+//     opts.noResultsClass     classe status per 0 carte (default 'warn')
+//     opts.noResultsSuffix    suffisso testo per 0 carte (default '')
+//     opts.singleResultLabel  prefisso messaggio singolo (default 'Carta trovata')
+//     opts.multiResultLabel   sostantivo per N>1 (default 'carte trovate')
+//
+//   rbCardSearch.renderResultsGrid(opts)
+//     opts.containerEl  HTMLElement da popolare
+//     opts.cards        Array carte
+//     opts.thumbClass   classe CSS (es. 'thumb','prev-thumb')
+//                       derivate auto: <class>-name, <class>-set, <class>-num, <class>-ph
+//     opts.onPick       fn(card,el)  click su thumb (gestisce già .sel)
+// ══════════════════════════════════════════════════════════════
+window.rbCardSearch = {
+  run: async function(opts){
+    var qEl = document.getElementById(opts.queryInputId);
+    if(!qEl){ console.warn('[rbCardSearch] input non trovato:', opts.queryInputId); return; }
+    var raw = (qEl.value||'').trim();
+    var setInp = opts.setPickerInputId ? document.getElementById(opts.setPickerInputId) : null;
+    var setSel = setInp ? rbResolveSetFromInput(setInp) : null;
+    if(!raw && !setSel) return;
+
+    var st = (typeof opts.statusEl === 'string')
+             ? document.getElementById(opts.statusEl)
+             : opts.statusEl;
+    var baseCls = opts.statusBaseClass || 'status';
+
+    if(setSel && setSel.unresolved){
+      if(st){ st.className = baseCls+' err'; st.textContent = 'Set "'+setSel.name+'" non riconosciuto. Seleziona dalla lista.'; }
+      return;
+    }
+
+    var parsed = raw ? parseQuery(raw) : {name:'', number:null};
+    var name = parsed.name;
+    var number = parsed.number;
+    var isCached = !setSel && Array.isArray(cache[(name||'').toLowerCase().trim()]);
+    if(st){
+      st.className = baseCls+' info';
+      st.textContent = 'Ricerca "'+(name||'(set)')+'"'+(number?' #'+number:'')+(setSel?' · '+setSel.name:'')+(isCached?' (cache)':'...');
+    }
+
+    if(typeof opts.beforeSearch === 'function'){
+      try{ opts.beforeSearch(); }catch(e){ console.warn('[rbCardSearch] beforeSearch error:', e); }
+    }
+
+    try{
+      var cards = await rbSearchCards(name, number||null, setSel?setSel.id:null);
+      if(!cards.length){
+        if(st){
+          st.className = baseCls+' '+(opts.noResultsClass||'warn');
+          st.textContent = 'Nessuna carta trovata'+(setSel?' in "'+setSel.name+'"':'')+'.'+(opts.noResultsSuffix||'');
+        }
+        if(typeof opts.onNoResults === 'function'){
+          try{ opts.onNoResults(name, number); }catch(e){ console.warn('[rbCardSearch] onNoResults error:', e); }
+        }
+        return { cards: [], name: name, number: number, setSel: setSel };
+      }
+      // Filtro per numero (solo senza setId — con setId è già esatto dall'engine)
+      var filtered = cards;
+      if(number && !setSel){
+        var exact = cards.filter(function(c){ return c.number === number; });
+        var partial = cards.filter(function(c){ return c.number && c.number.indexOf(number+'/') === 0; });
+        filtered = exact.length ? exact : (partial.length ? partial : cards);
+      }
+      var singleLbl = opts.singleResultLabel || 'Carta trovata';
+      var multiLbl  = opts.multiResultLabel  || 'carte trovate';
+      if(filtered.length === 1){
+        var card = filtered[0];
+        if(st){
+          st.className = baseCls+' ok';
+          var setName = (card.set && card.set.name) ? card.set.name : '';
+          st.textContent = singleLbl+': '+card.name+(setName?' — '+setName:'')+(card.number?' #'+card.number:'');
+        }
+        if(typeof opts.onSingleResult === 'function'){
+          opts.onSingleResult(card);
+        }
+      } else {
+        if(st){
+          st.className = baseCls+' ok';
+          st.textContent = filtered.length+' '+multiLbl+(setSel?' · '+setSel.name:'')+' — seleziona la carta giusta.';
+        }
+        if(typeof opts.onMultipleResults === 'function'){
+          opts.onMultipleResults(filtered);
+        }
+      }
+      return { cards: filtered, name: name, number: number, setSel: setSel };
+    }catch(e){
+      if(st){ st.className = baseCls+' err'; st.textContent = 'Errore: '+e.message; }
+      console.warn('[rbCardSearch] search error:', e);
+    }
+  },
+
+  renderResultsGrid: function(opts){
+    var container = opts.containerEl;
+    if(!container){ console.warn('[rbCardSearch] container non fornito'); return; }
+    container.innerHTML = '';
+    var thumbClass = opts.thumbClass || 'thumb';
+    (opts.cards||[]).forEach(function(c){
+      var div = document.createElement('div');
+      div.className = thumbClass;
+      var smImg = (c.images && c.images.small) || '';
+      var lgImg = (c.images && c.images.large) || smImg;
+      var setName = (c.set && c.set.name) || '';
+      div.innerHTML =
+        (smImg ? '<img src="'+smImg+'" loading="lazy"/>' : '<div class="'+thumbClass+'-ph">No img</div>')+
+        '<div class="'+thumbClass+'-name">'+(c.name||'')+'</div>'+
+        '<div class="'+thumbClass+'-set">'+setName+'</div>'+
+        '<div class="'+thumbClass+'-num">#'+(c.number||'?')+'</div>';
+      div.onclick = function(){
+        var siblings = container.querySelectorAll('.'+thumbClass);
+        for(var i=0;i<siblings.length;i++){ siblings[i].classList.remove('sel'); }
+        div.classList.add('sel');
+        if(typeof opts.onPick === 'function') opts.onPick(c, div);
+      };
+      if(lgImg && lgImg.indexOf('http') === 0){
+        var imgEl = div.querySelector('img');
+        if(imgEl && typeof addZoom === 'function') addZoom(imgEl, lgImg);
+      }
+      container.appendChild(div);
+    });
+  }
+};
+
 // ────────────────────────────────────────────────────────────────────────
 // Auto-mount dei setpicker del Collector (q-setpicker, pq-setpicker,
 // emReplaceQ-setpicker). Era nell'IIFE di Autentica fino a F5; ora che
@@ -4804,46 +4948,39 @@ function cancelSel(){
   selCard=null;
 }
 async function doSearch(){
-  const raw=document.getElementById('q').value.trim();
-  const setInp=document.getElementById('q-setpicker-input');
-  const setSel=setInp?rbResolveSetFromInput(setInp):null;
-  if(!raw && !setSel){ return; }
-  if(setSel&&setSel.unresolved){
-    const st=document.getElementById('st');
-    st.className='status warn';st.textContent='Set "'+setSel.name+'" non riconosciuto. Seleziona dalla lista.';
-    return;
-  }
-  const{name,number}=raw?parseQuery(raw):{name:'',number:null};
-  const st=document.getElementById('st');
-  const _cached=Array.isArray(cache[(name||'').toLowerCase().trim()]);
-  st.className='status info';st.textContent='Ricerca "'+(name||'(set)')+'"'+(number?' #'+number:'')+(setSel?' · '+setSel.name:'')+(_cached&&!setSel?' (cache)':'...');
-  document.getElementById('quickMatch').style.display='none';document.getElementById('quickAddForm').style.display='none';
-  document.getElementById('multiWrap').style.display='none';
-  document.getElementById('selForm').style.display='none';document.getElementById('selAddForm').style.display='none';
-  document.getElementById('mform').style.display='none';
-  quickCard=null;selCard=null;
-  try{
-    const cards=await rbSearchCards(name, number||null, setSel?setSel.id:null);
-    if(!cards.length){st.className='status warn';st.textContent='Nessuna carta trovata'+(setSel?' in "'+setSel.name+'"':'')+' — aggiungila manualmente.';showManualForm(name,number);return}
-    const isFuzzy=!setSel && foundName.toLowerCase()!==(name||'').toLowerCase()&&foundName.length>0;
-    let filtered=cards;
-    if(number && !setSel){
-      const exact=cards.filter(c=>c.number===number);
-      const partial=cards.filter(c=>c.number&&c.number.startsWith(number+'/'));
-      filtered=exact.length?exact:(partial.length?partial:cards);
+  // Wrapper sottile su rbCardSearch.run — l'orchestrazione vive nel modulo
+  // condiviso (vedi rbCardSearch sopra). Qui solo i pezzi specifici della
+  // sezione Collezione: reset UI (quickMatch/multiWrap/forms), dispatch a
+  // showQuickMatch/showMulti, fallback a showManualForm su zero risultati.
+  await rbCardSearch.run({
+    queryInputId: 'q',
+    setPickerInputId: 'q-setpicker-input',
+    statusEl: 'st',
+    statusBaseClass: 'status',
+    noResultsClass: 'warn',
+    noResultsSuffix: ' — aggiungila manualmente.',
+    singleResultLabel: 'Carta trovata',
+    multiResultLabel: 'carte trovate',
+    beforeSearch: function(){
+      document.getElementById('quickMatch').style.display='none';
+      document.getElementById('quickAddForm').style.display='none';
+      document.getElementById('multiWrap').style.display='none';
+      document.getElementById('selForm').style.display='none';
+      document.getElementById('selAddForm').style.display='none';
+      document.getElementById('mform').style.display='none';
+      quickCard=null; selCard=null;
+    },
+    onSingleResult: function(card){
+      quickCard = card;
+      showQuickMatch(card);
+    },
+    onMultipleResults: function(cards){
+      showMulti(cards);
+    },
+    onNoResults: function(name, number){
+      showManualForm(name, number);
     }
-    const fuzzyNote=isFuzzy?' (trovato come "'+foundName+'")':'';
-    if(filtered.length===1){
-      quickCard=filtered[0];showQuickMatch(quickCard);
-      st.className='status ok';st.textContent='Carta trovata: '+quickCard.name+' — '+quickCard.set?.name+' #'+quickCard.number+fuzzyNote;
-    } else {
-      st.className='status ok';st.textContent=filtered.length+' carte trovate'+fuzzyNote+(setSel?' · '+setSel.name:'')+' — seleziona quella giusta.';
-      showMulti(filtered);
-    }
-  }catch(e){
-    st.className='status err';
-    st.textContent='Errore: '+e.message+' — riprova';
-  }
+  });
 }
 
 function showQuickMatch(c){
@@ -4909,23 +5046,18 @@ async function addQuickCard(){
 }
 
 function showMulti(cards){
+  // Wrapper sottile su rbCardSearch.renderResultsGrid. Gestisce solo gli
+  // elementi specifici della Collezione (multiWrap, multiHeader, addEmpty)
+  // e delega il rendering thumb + handler click al modulo condiviso.
   const mw=document.getElementById('multiWrap'),rg=document.getElementById('rg');
   document.getElementById('multiHeader').textContent='Seleziona la carta corretta:';
-  mw.style.display='block';document.getElementById('addEmpty').style.display='none';rg.innerHTML='';
-  cards.forEach(c=>{
-    const div=document.createElement('div');div.className='thumb';
-    const lgImg=c.images?.large||c.images?.small||'';
-    const smImg=c.images?.small||'';
-    div.innerHTML=(smImg?`<img src="${smImg}" loading="lazy"/>`:'<div class="thumb-ph">No img</div>')+
-      `<div class="thumb-name">${c.name}</div>`+
-      `<div class="thumb-set">${c.set?.name||''}</div>`+
-      `<div class="thumb-num">#${c.number||'?'}</div>`;
-    div.onclick=()=>pickCard(c,div);
-    if(lgImg&&lgImg.startsWith('http')){
-      const imgEl=div.querySelector('img');
-      if(imgEl) addZoom(imgEl,lgImg);
-    }
-    rg.appendChild(div);
+  mw.style.display='block';
+  document.getElementById('addEmpty').style.display='none';
+  rbCardSearch.renderResultsGrid({
+    containerEl: rg,
+    cards: cards,
+    thumbClass: 'thumb',
+    onPick: function(c, el){ pickCard(c, el); }
   });
 }
 
@@ -7609,56 +7741,47 @@ async function saveEditModal(){
 
 // Ricerca carte nel preventivo
 async function prevSearch(){
-  const raw=document.getElementById('pq').value.trim();
-  const setInp=document.getElementById('pq-setpicker-input');
-  const setSel=setInp?rbResolveSetFromInput(setInp):null;
-  if(!raw && !setSel) return;
-  const pst=document.getElementById('pst');
-  if(setSel&&setSel.unresolved){
-    pst.className='prev-status err';pst.textContent='Set "'+setSel.name+'" non riconosciuto.';return;
-  }
-  const{name,number}=raw?parseQuery(raw):{name:'',number:null};
-  const isPCached=!setSel && Array.isArray(cache[(name||'').toLowerCase().trim()]);
-  pst.className='prev-status';
-  pst.textContent='Ricerca "'+(name||'(set)')+'"'+(setSel?' · '+setSel.name:'')+(isPCached?' (dalla cache)':'...');
-  document.getElementById('prevResults').style.display='none';
-  document.getElementById('prevQuickAdd').style.display='none';prevCard=null;
-  try{
-    const cards=await rbSearchCards(name, number||null, setSel?setSel.id:null);
-    if(!cards.length){pst.className='prev-status err';pst.textContent='Nessuna carta trovata'+(setSel?' in "'+setSel.name+'"':'')+'.';return}
-    let filtered=cards;
-    if(number && !setSel){
-      const exact=cards.filter(c=>c.number===number);
-      const partial=cards.filter(c=>c.number&&c.number.startsWith(number+'/'));
-      filtered=exact.length?exact:(partial.length?partial:cards);
+  // Wrapper sottile su rbCardSearch.run — stesso engine di doSearch ma
+  // dispatcha a showPrevQuickAdd / showPrevResults. Senza fallback manuale
+  // (nei preventivi non c'è form manuale: 0 risultati è un errore).
+  await rbCardSearch.run({
+    queryInputId: 'pq',
+    setPickerInputId: 'pq-setpicker-input',
+    statusEl: 'pst',
+    statusBaseClass: 'prev-status',
+    noResultsClass: 'err',
+    singleResultLabel: 'Trovata',
+    multiResultLabel: 'risultati',
+    beforeSearch: function(){
+      document.getElementById('prevResults').style.display='none';
+      document.getElementById('prevQuickAdd').style.display='none';
+      prevCard = null;
+    },
+    onSingleResult: function(card){
+      prevCard = card;
+      showPrevQuickAdd(card);
+    },
+    onMultipleResults: function(cards){
+      showPrevResults(cards);
     }
-    if(filtered.length===1){
-      prevCard=filtered[0];showPrevQuickAdd(prevCard);
-      pst.className='prev-status ok';pst.textContent='Trovata: '+prevCard.name+' — '+prevCard.set?.name;
-    } else {
-      pst.className='prev-status ok';pst.textContent=filtered.length+' risultati'+(setSel?' · '+setSel.name:'')+' — seleziona:';
-      showPrevResults(filtered);
-    }
-  }catch(e){pst.className='prev-status err';pst.textContent='Errore: '+e.message}
+  });
 }
 
 function showPrevResults(cards){
-  const rg=document.getElementById('prevResults');rg.style.display='grid';rg.innerHTML='';
-  cards.forEach(c=>{
-    const div=document.createElement('div');div.className='prev-thumb';
-    const sm=c.images?.small||'';
-    div.innerHTML=(sm?`<img src="${sm}"/>`:'<div class="prev-thumb-ph">No img</div>')+
-      `<div class="prev-thumb-name">${c.name}</div>`+
-      `<div class="prev-thumb-set">${c.set?.name||''}</div>`+
-      `<div class="prev-thumb-num">#${c.number||'?'}</div>`;
-    div.onclick=()=>{
-      document.querySelectorAll('.prev-thumb').forEach(t=>t.classList.remove('sel'));
-      div.classList.add('sel');prevCard=c;showPrevQuickAdd(c);
-      document.getElementById('pst').textContent='Selezionato: '+c.name+' — '+c.set?.name;
-    };
-    const prevLg=c.images?.large||c.images?.small||'';
-    if(prevLg&&prevLg.startsWith('http')){const pi=div.querySelector('img');if(pi)addZoom(pi,prevLg);}
-    rg.appendChild(div);
+  // Wrapper sottile su rbCardSearch.renderResultsGrid.
+  // prevResults usa display:grid (non block) e classe thumb 'prev-thumb'.
+  const rg=document.getElementById('prevResults');
+  rg.style.display='grid';
+  rbCardSearch.renderResultsGrid({
+    containerEl: rg,
+    cards: cards,
+    thumbClass: 'prev-thumb',
+    onPick: function(c, el){
+      prevCard = c;
+      showPrevQuickAdd(c);
+      const pst=document.getElementById('pst');
+      if(pst) pst.textContent='Selezionato: '+c.name+(c.set&&c.set.name?' — '+c.set.name:'');
+    }
   });
 }
 
