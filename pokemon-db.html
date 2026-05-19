@@ -3134,13 +3134,21 @@ const TCG_KEY='ca385a14-d149-4a9f-a275-3bda5b7b1555';
 
 // ── API keys placeholders (sostituiti da GitHub Actions in deploy) ───────
 // In repo restano come placeholder; il workflow deploy-ftp.yml fa sed-i
-// substituting ANTHROPIC_API_KEY_PLACEHOLDER e OPENROUTER_API_KEY_PLACEHOLDER
-// con i Secrets ANTHROPIC_KEY e OPENROUTER_KEY al deploy.
+// sostituendoli con i Secrets al deploy. ATTENZIONE: il sed usa flag /g,
+// quindi non confrontare mai una chiave con la stringa placeholder letterale
+// nel codice (verrebbe sostituita anch'essa, rendendo il check sempre falso).
+// Usa invece window._hasRealAIKey() che valuta la FORMA della chiave.
 // Esposti su window per uso cross-modulo (Scan, Slab Verify, future feature AI).
 var _K_  = 'ANTHROPIC_API_KEY_PLACEHOLDER';
 var _OR_ = 'OPENROUTER_API_KEY_PLACEHOLDER';
 window._K_  = _K_;   window._SC_AK = _K_;
 window._OR_ = _OR_;  window._SC_OR = _OR_;
+// Helper: chiave AI effettivamente iniettata? (vs placeholder o vuoto)
+// Check sulla forma per evitare il problema del sed-global. Le chiavi
+// Anthropic iniziano con 'sk-ant-', OpenRouter con 'sk-or-'.
+window._hasRealAIKey = function(k){
+  return !!(k && typeof k === 'string' && k.indexOf('sk-') === 0 && k.length > 30);
+};
 
 // HDR dinamico: usa JWT utente autenticato quando disponibile (RLS enforcement)
 // Fallback all'anon key per retrocompatibilità durante sviluppo
@@ -9814,7 +9822,7 @@ async function scCallAI(prompt){
 
   // ── 2. Anthropic diretto — fallback garantito ─────────────────────────
   var ak = window._SC_AK || window._K_ || null;
-  if(ak && ak !== 'ANTHROPIC_API_KEY_PLACEHOLDER'){
+  if(ak && window._hasRealAIKey(ak)){
     try {
       scSetStatus('Analisi con Claude AI (diretto)...', 'info');
       var ctrl = new AbortController();
@@ -13055,7 +13063,7 @@ async function slabAnalyze(){
 
   // ── 1. OpenRouter — primario, multi-model ──────────────────────────
   var orKey = window._OR_ || window._SC_OR || null;
-  if(orKey && orKey !== 'OPENROUTER_API_KEY_PLACEHOLDER'){
+  if(orKey && window._hasRealAIKey(orKey)){
     var OR_MODELS = [
       'anthropic/claude-haiku-4-5',
       'google/gemini-flash-1.5',
@@ -13107,7 +13115,7 @@ async function slabAnalyze(){
   // ── 2. Anthropic diretto — fallback ────────────────────────────────
   if(!parsed){
     var ak = window._K_ || window._SC_AK || null;
-    if(ak && ak !== 'ANTHROPIC_API_KEY_PLACEHOLDER'){
+    if(ak && window._hasRealAIKey(ak)){
       try {
         slabSetStatus('Lettura con Claude (diretto)…', 'info');
         var ctrl2 = new AbortController();
@@ -13153,7 +13161,21 @@ async function slabAnalyze(){
   }
 
   if(!parsed){
-    slabSetStatus('Analisi fallita. ' + (lastErr || 'Nessuna chiave AI configurata.'), 'err');
+    var diag;
+    if(lastErr){
+      diag = 'Analisi fallita: ' + lastErr;
+    } else {
+      // Nessuna chiamata AI è stata fatta → chiavi non iniettate
+      var orK = window._OR_ || window._SC_OR;
+      var anK = window._K_ || window._SC_AK;
+      if(!window._hasRealAIKey(orK) && !window._hasRealAIKey(anK)){
+        diag = 'Chiavi AI non iniettate. Se sei in produzione, attendi il completamento del workflow GitHub Actions e fai hard reload (Ctrl+F5 / Cmd+Shift+R). Se sei in locale, sostituisci i placeholder _K_ e _OR_ a inizio script.';
+      } else {
+        diag = 'Analisi fallita per causa sconosciuta. Controlla la console per dettagli.';
+      }
+    }
+    slabSetStatus(diag, 'err');
+    console.warn('[slab-verify] analisi fallita:', { lastErr: lastErr, hasOR: window._hasRealAIKey(window._OR_), hasAnth: window._hasRealAIKey(window._K_) });
     return;
   }
 
