@@ -13193,6 +13193,86 @@ function slabBuildVerifyUrl(graderCode, cert){
   try { return g.verifyUrl(cert); } catch(_){ return null; }
 }
 
+// ── PREPROCESSING IMMAGINE (lato client) ─────────────────────────────
+// Migliora la leggibilità dell'OCR per slab con etichetta piccola/sottile:
+// 1. Se l'immagine è < 1400px sul lato lungo → upscale 2x (bicubic via canvas)
+//    perché i modelli vision performano meglio su detail nitidi
+// 2. Contrast boost lieve (+15%) per accentuare le cifre stampate
+// 3. Sharpening simulato via overlay (skippato — i modelli moderni lo
+//    fanno meglio internamente)
+// 4. Se l'immagine è > 2400px sul lato lungo, NON upscale (già abbastanza)
+// 5. Output JPEG quality 0.92 per bilanciare dimensione vs qualità
+//
+// Risultato: base64 ottimizzato per OCR. Fallback graceful: se qualcosa
+// va storto, ritorna il base64 originale senza modifiche.
+async function slabPreprocessImage(originalBase64, mediaType){
+  return new Promise(function(resolve){
+    try {
+      var img = new Image();
+      img.onload = function(){
+        try {
+          var w = img.naturalWidth, h = img.naturalHeight;
+          var longSide = Math.max(w, h);
+          var scale = 1;
+          // Upscale se troppo piccola
+          if(longSide < 1400) scale = Math.min(2, 1400 / longSide);
+          // Downscale se enorme (oltre 3000px è inutile per OCR e costa molto)
+          if(longSide > 3000) scale = 3000 / longSide;
+          var nw = Math.round(w * scale);
+          var nh = Math.round(h * scale);
+
+          var canvas = document.createElement('canvas');
+          canvas.width = nw;
+          canvas.height = nh;
+          var ctx = canvas.getContext('2d');
+          if(!ctx){ resolve(originalBase64); return; }
+
+          // High-quality smoothing per upscale
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, nw, nh);
+
+          // Contrast boost lieve (+12%) per cifre più nitide
+          try {
+            var imageData = ctx.getImageData(0, 0, nw, nh);
+            var data = imageData.data;
+            var factor = 1.12;
+            var intercept = 128 * (1 - factor);
+            for(var i = 0; i < data.length; i += 4){
+              data[i]   = Math.min(255, Math.max(0, data[i]   * factor + intercept));
+              data[i+1] = Math.min(255, Math.max(0, data[i+1] * factor + intercept));
+              data[i+2] = Math.min(255, Math.max(0, data[i+2] * factor + intercept));
+            }
+            ctx.putImageData(imageData, 0, 0);
+          } catch(_e){
+            // Cross-origin canvas errors rare; non blockante
+            console.warn('[slab-verify] contrast boost skipped:', _e && _e.message);
+          }
+
+          // Output JPEG ad alta qualità (più efficiente per fotografie)
+          var dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+          var parts = String(dataUrl).split(',');
+          var b64 = parts[1];
+          if(b64){
+            console.info('[slab-verify] preprocessing: ' + w + 'x' + h + ' → ' + nw + 'x' + nh + ' (' + Math.round(b64.length/1024) + 'kb)');
+            resolve(b64);
+          } else {
+            resolve(originalBase64);
+          }
+        } catch(e){
+          console.warn('[slab-verify] preprocess error:', e);
+          resolve(originalBase64);
+        }
+      };
+      img.onerror = function(){ resolve(originalBase64); };
+      img.src = 'data:' + (mediaType || 'image/jpeg') + ';base64,' + originalBase64;
+    } catch(e){
+      console.warn('[slab-verify] preprocess fatal:', e);
+      resolve(originalBase64);
+    }
+  });
+}
+
 // ── DROPZONE ─────────────────────────────────────────────────────────
 function slabHandleFile(file){
   if(!file) return;
@@ -13305,39 +13385,65 @@ async function slabAnalyze(){
     if(btnTxt) btnTxt.textContent = 'Analisi in corso…';
   }
 
+  // Preprocessing immagine (upscale se piccola + contrast boost) per OCR migliore
+  slabSetStatus('Ottimizzazione immagine…', 'info');
+  var ocrBase64 = await slabPreprocessImage(slabState.imageBase64, slabState.imageMediaType);
+  var ocrMediaType = 'image/jpeg';  // sempre JPEG dopo preprocessing
+
   var hint = (document.getElementById('slabGraderHint')||{}).value || '';
   var hintLine = hint
     ? 'IMPORTANTE: l\'utente ha indicato che il grader è ' + hint + '. Usa ESATTAMENTE questo valore nel campo "grader", non metterlo in dubbio.'
     : 'Identifica autonomamente il grader dal logo e dal marchio sull\'etichetta.';
 
   var prompt =
-    'Analizza questa foto di una slab (custodia rigida) di una carta da collezione gradata.\n' +
+    'Sei un OCR di precisione per slab gradate di carte collezionabili (PSA, BGS, CGC, SGC, TAG, ARS, HGA, GMA). ' +
+    'La tua priorità assoluta è la CORRETTEZZA del numero di certificazione (cert #). ' +
+    'Un errore di una sola cifra rende inutile l\'intera verifica.\n\n' +
     hintLine + '\n\n' +
-    'Estrai con precisione i seguenti dati dalla slab:\n' +
-    '1. grader: codice del grader fra ["PSA","BGS","CGC","SGC","TAG","ARS","HGA","GMA","OTHER"]. ' +
-    'Riconosci il logo e/o il marchio sull\'etichetta. Se non identificabile, usa "OTHER".\n' +
-    '2. cert: il numero di certificazione/serial number stampato sull\'etichetta. ' +
-    'Di solito 6-12 cifre per PSA/BGS/CGC/SGC/GMA, oppure alfanumerico per TAG/ARS/HGA. ' +
-    'PROCEDURA OBBLIGATORIA per il cert: ' +
-    '(a) leggi il numero cifra-per-cifra, da sinistra a destra; ' +
-    '(b) rileggilo una seconda volta in modo indipendente; ' +
-    '(c) se le due letture non sono identiche al 100%, restituisci null e segnala confidence ≤0.5; ' +
-    '(d) presta attenzione speciale alle cifre facilmente confondibili: 0/8/6, 3/8, 5/6, 1/7, 9/4. ' +
-    'NON inventare. Se anche una sola cifra è ambigua o sfocata, restituisci null.\n' +
-    '3. grade: il voto numerico (es. "10", "9.5", "9") o testuale (es. "Gem Mint 10", "Pristine 10", "Black Label 10"). null se non visibile.\n' +
-    '4. card_name: nome della carta visibile sull\'etichetta (es. "Charizard Holo"). null se non leggibile.\n' +
-    '5. set: nome del set/edizione visibile sull\'etichetta. null se non visibile.\n' +
-    '6. language: lingua della carta se desumibile ("EN","JP","IT","DE","FR","ES","KR","CH"). null altrimenti.\n' +
-    '7. confidence: affidabilità sulla LETTURA DEL CERT, valore 0.0-1.0. ' +
-    'CALIBRAZIONE OBBLIGATORIA: ' +
-    '0.95+ solo se il cert è perfettamente nitido, ben illuminato, in primo piano, e ogni cifra è inequivocabile; ' +
-    '0.80-0.94 se almeno una cifra ha qualche ambiguità (luce, sfocatura lieve, riflesso); ' +
-    '0.50-0.79 se più cifre sono interpretabili in più modi; ' +
-    '<0.50 se il numero è parzialmente illeggibile (in tal caso restituisci cert=null). ' +
-    'Sii ONESTO: un OCR errato causa una verifica fallita più avanti nella pipeline.\n\n' +
-    'Rispondi SOLO con un oggetto JSON valido, senza testo prima o dopo, senza backtick, senza markdown. ' +
-    'Esempio di output:\n' +
-    '{"grader":"PSA","cert":"12345678","grade":"10","card_name":"Charizard","set":"Base Set Unlimited","language":"EN","confidence":0.93}';
+    'Estrai dalla slab i seguenti campi:\n\n' +
+    '═══ CAMPO CRITICO: cert ═══\n' +
+    'Il numero di certificazione è stampato sull\'etichetta, di solito sotto/accanto al voto. ' +
+    'Lunghezze tipiche:\n' +
+    '  - PSA: 7-9 cifre (oggi prevalentemente 8-9), es. "58205969", "142807423"\n' +
+    '  - BGS/Beckett: 8-10 cifre, es. "0015512247"\n' +
+    '  - CGC: 9-10 cifre\n' +
+    '  - SGC: 7-9 cifre\n' +
+    '  - GMA: 7-9 cifre\n' +
+    '  - TAG/ARS/HGA: alfanumerico\n\n' +
+    'PROCEDURA OBBLIGATORIA per leggere il cert (segui tutti gli step):\n' +
+    '  1. INGRANDISCI mentalmente la zona del numero. Identifica esattamente quante cifre ci sono.\n' +
+    '  2. Leggi cifra-per-cifra da sinistra a destra. Per OGNI cifra, considera tutte le possibili interpretazioni e scegli la più plausibile.\n' +
+    '  3. RILEGGI il numero in modo INDIPENDENTE da destra a sinistra come secondo passaggio.\n' +
+    '  4. CONFRONTA le due letture cifra per cifra. Se differiscono in qualche posizione, ridurre la confidence sotto 0.7.\n' +
+    '  5. VERIFICA che la lunghezza corrisponda al pattern del grader (vedi sopra). Se il grader è PSA e hai contato 6 cifre, è quasi certo che ne hai persa una.\n\n' +
+    'CIFRE CONFONDIBILI (sorgenti tipiche di errore OCR):\n' +
+    '  - 0 vs 8 (entrambe chiuse): conta i loop interni\n' +
+    '  - 6 vs 8 vs 0: il 6 ha un solo loop in basso, il 9 in alto\n' +
+    '  - 3 vs 8: il 3 ha angoli, l\'8 è curvo\n' +
+    '  - 5 vs 6: il 5 ha angoli retti in alto\n' +
+    '  - 1 vs 7: il 7 ha la traversa orizzontale\n' +
+    '  - 9 vs 4 vs 0: il 4 ha angoli\n' +
+    '  - 2 vs Z\n' +
+    'Se hai dubbio fra due cifre, NON inventare: restituisci cert=null e confidence<0.5.\n\n' +
+    'NON aggiungere cifre extra. NON omettere cifre. Se l\'etichetta è tagliata o sfocata in punti, ' +
+    'è preferibile restituire cert=null piuttosto che un numero approssimato.\n\n' +
+    '═══ ALTRI CAMPI ═══\n' +
+    '1. grader: codice fra ["PSA","BGS","CGC","SGC","TAG","ARS","HGA","GMA","OTHER"]. ' +
+    'Riconosci il logo. Se non identificabile, "OTHER".\n' +
+    '2. grade: il voto numerico/testuale visibile (es. "10", "9.5", "GEM MT 10", "Pristine 10"). null se non visibile. ' +
+    'Attenzione: anche qui può capitare confusione tra "10" e "1.0" oppure tra "9.5" e "9". Leggi attentamente.\n' +
+    '3. card_name: nome carta visibile sull\'etichetta (es. "Charizard Holo", "Pikachu VMAX"). null se non leggibile.\n' +
+    '4. set: nome del set/edizione (es. "Base Set", "SWSH Pre-Order"). null se non visibile.\n' +
+    '5. language: ("EN","JP","IT","DE","FR","ES","KR","CH"). null se non desumibile.\n' +
+    '6. confidence: affidabilità sulla LETTURA DEL CERT (non del grader), 0.0-1.0:\n' +
+    '   - 0.95+ : cert nitido, ben illuminato, ogni cifra inequivocabile, lunghezza coerente col grader\n' +
+    '   - 0.80-0.94 : almeno una cifra leggermente ambigua (luce, sfocatura lieve)\n' +
+    '   - 0.50-0.79 : multiple cifre interpretabili in più modi\n' +
+    '   - <0.50 : numero parzialmente illeggibile → restituire cert=null\n\n' +
+    '═══ OUTPUT ═══\n' +
+    'Rispondi SOLO con un oggetto JSON valido. NIENTE testo prima/dopo, NIENTE backtick, NIENTE markdown.\n' +
+    'Schema esatto:\n' +
+    '{"grader":"PSA","cert":"58205969","grade":"GEM MT 10","card_name":"Pikachu","set":"SWSH Pre-Order","language":"JP","confidence":0.92}';
 
   var parsed = null;
   var lastErr = null;
@@ -13345,11 +13451,16 @@ async function slabAnalyze(){
   // ── 1. OpenRouter — primario, multi-model ──────────────────────────
   var orKey = window._OR_ || window._SC_OR || null;
   if(orKey && window._hasRealAIKey(orKey)){
+    // Modelli vision in ordine di accuratezza (best first). Sonnet 4.6 è il
+    // più accurato per OCR di numeri stampati su etichette piccole/sottili
+    // (slab gradate), seguito da Gemini 2.5 Pro che gestisce bene il detail.
+    // Haiku resta come fallback economico. Tutti chiamati con temperature:0
+    // per massima riproducibilità (no allucinazioni numeriche).
     var OR_MODELS = [
+      'anthropic/claude-sonnet-4.6',
+      'google/gemini-2.5-pro',
       'anthropic/claude-haiku-4-5',
-      'google/gemini-flash-1.5',
-      'google/gemini-2.0-flash-001',
-      'openai/gpt-4o-mini'
+      'google/gemini-2.0-flash-001'
     ];
     for(var mi = 0; mi < OR_MODELS.length && !parsed; mi++){
       var model = OR_MODELS[mi];
@@ -13367,9 +13478,10 @@ async function slabAnalyze(){
           },
           body: JSON.stringify({
             model: model,
-            max_tokens: 600,
+            max_tokens: 800,
+            temperature: 0,  // determinismo: zero allucinazioni su cifre
             messages: [{ role: 'user', content: [
-              { type: 'image_url', image_url: { url: 'data:' + slabState.imageMediaType + ';base64,' + slabState.imageBase64 }},
+              { type: 'image_url', image_url: { url: 'data:' + ocrMediaType + ';base64,' + ocrBase64 }},
               { type: 'text', text: prompt }
             ]}]
           })
@@ -13410,10 +13522,11 @@ async function slabAnalyze(){
             'anthropic-dangerous-direct-browser-access': 'true'
           },
           body: JSON.stringify({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: 600,
+            model: 'claude-sonnet-4-6-20260217',
+            max_tokens: 800,
+            temperature: 0,
             messages: [{ role: 'user', content: [
-              { type: 'image', source: { type: 'base64', media_type: slabState.imageMediaType, data: slabState.imageBase64 }},
+              { type: 'image', source: { type: 'base64', media_type: ocrMediaType, data: ocrBase64 }},
               { type: 'text', text: prompt }
             ]}]
           })
@@ -13609,20 +13722,48 @@ async function slabRunVerification(fromUserEdit){
       // Probabilmente OCR ha letto male una o più cifre.
       r.verdict = 'bad_not_found';
     } else {
-      // Trovato. Confronta i campi chiave OCR vs ufficiale per detect mismatch.
-      var mismatch = slabDetectMismatch(r, data.details || {});
-      if(mismatch.has_critical_mismatch){
-        r.verdict = 'warn_mismatch';
-        r.mismatch_reasons = mismatch.reasons;
-      } else {
+      // Trovato nel DB ufficiale.
+      // Se l'utente ha appena corretto manualmente il cert (fromUserEdit=true),
+      // sta implicitamente accettando che l'OCR aveva errori. Saltiamo il
+      // mismatch check sui campi OCR: se il cert è valido nel DB, ci fidiamo
+      // del DB come fonte autoritativa e marciamo come OK.
+      // In aggiunta, sincronizziamo i campi OCR con quelli del DB così che
+      // la vista OCR mostri valori corretti (utile per copy/incolla futuro).
+      if(fromUserEdit){
+        // Sync intelligente: aggiorna grade e card_name OCR coi valori DB
+        // se il DB li fornisce e differiscono. Mantiene confidence così
+        // l'utente sa che è stato un edit manuale a confermare i dati.
+        var d2 = data.details || {};
+        if(d2.grade && r.grade !== d2.grade){
+          console.info('[slab-verify] sync OCR grade dopo edit:', r.grade, '→', d2.grade);
+          r.grade = d2.grade;
+        }
+        if(d2.subject && r.card_name !== d2.subject){
+          console.info('[slab-verify] sync OCR card_name dopo edit:', r.card_name, '→', d2.subject);
+          r.card_name = d2.subject;
+        }
+        // Pulisce eventuali mismatch_reasons residue dalla verifica precedente
+        r.mismatch_reasons = null;
         r.verdict = 'ok';
+        // Re-render dati OCR aggiornati (grade + card name sync)
+        slabRenderResult();
+      } else {
+        // Verifica automatica iniziale: confronta i campi OCR vs DB
+        var mismatch = slabDetectMismatch(r, data.details || {});
+        if(mismatch.has_critical_mismatch){
+          r.verdict = 'warn_mismatch';
+          r.mismatch_reasons = mismatch.reasons;
+        } else {
+          r.verdict = 'ok';
+        }
       }
     }
 
     slabRenderVerdict();
     // Status text di chiusura
     var labels = {
-      ok:'Verifica OK', warn_mismatch:'Discrepanza rilevata',
+      ok: fromUserEdit ? 'Verifica OK dopo correzione' : 'Verifica OK',
+      warn_mismatch:'Discrepanza rilevata',
       bad_not_found:'Cert non trovato nel DB',
       critical_fraud:'⚠️ Slab segnalata', unsupported:'Grader non supportato',
       error:'Errore di rete'
