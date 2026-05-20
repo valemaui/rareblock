@@ -52,15 +52,18 @@
   // ── API helpers ───────────────────────────────────────────────────────
   // getHDR rilegge la sessione SEMPRE da localStorage per non usare
   // un JWT stale dopo refresh token avvenuto nel parent.
-  window.getHDR = function(){
+  window.getHDR = function(prefer){
     window._rbSession = rbLoadSession();
     var token = (window._rbSession && window._rbSession.access_token) || window.SUPA_KEY;
-    return {
+    var h = {
       'Content-Type':  'application/json',
       'apikey':        window.SUPA_KEY,
-      'Authorization': 'Bearer ' + token,
-      'Prefer':        'return=representation'
+      'Authorization': 'Bearer ' + token
     };
+    // Prefer ha senso solo su scritture; sulle GET PostgREST può interpretarlo
+    // come precondizione (412) o rifiutarlo (400). prefer===null → ometti.
+    if(prefer !== null) h['Prefer'] = prefer || 'return=representation';
+    return h;
   };
 
   window.getCurrentUserId = function(){
@@ -69,9 +72,13 @@
   };
 
   window.supa = async function(method, path, body){
+    // Prefer solo su scritture; su GET lo omettiamo (evita 412/400 PostgREST).
+    var prefer = (method==='PATCH'||method==='DELETE') ? 'return=minimal'
+               : (method==='GET') ? null
+               : 'return=representation';
     var r = await fetch(window.SUPA_URL + '/rest/v1/' + path, {
       method:  method,
-      headers: window.getHDR(),
+      headers: window.getHDR(prefer),
       body:    body ? JSON.stringify(body) : undefined
     });
     if(!r.ok){ var e = await r.text(); throw new Error(e); }
