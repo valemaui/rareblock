@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Caveau &amp; Garanzie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../shared/rareblock-shared.css"/>
+<style>
+html,body{height:100%;overflow:hidden}
+body{display:flex;flex-direction:column}
+
+.cav-wrap{flex:1;overflow-y:auto;padding:20px 24px}
+
+/* Header */
+.cav-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;padding:0 4px;gap:16px;flex-wrap:wrap}
+.cav-head-title{font-size:15px;font-weight:600;letter-spacing:.005em;display:inline-flex;align-items:center;gap:8px}
+.cav-head-sub{font-size:12px;color:var(--text-muted);margin-top:4px;max-width:640px;line-height:1.5}
+
+/* Pilastri fiducia — tre garanzie */
+.cav-pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:22px}
+.cav-pillar{padding:18px 18px 16px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);position:relative;overflow:hidden}
+.cav-pillar::before{content:"";position:absolute;top:0;left:0;width:100%;height:2px;background:rgba(201,168,76,.5)}
+.cav-pillar-ico{width:34px;height:34px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;background:rgba(201,168,76,.1);color:var(--gold,#c9a84c);font-size:17px;margin-bottom:11px}
+.cav-pillar-title{font-size:13.5px;font-weight:600;color:var(--text);margin-bottom:5px}
+.cav-pillar-text{font-size:12px;color:var(--text-muted);line-height:1.55}
+
+/* KPI strip */
+.cav-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:22px}
+.cav-kpi{padding:14px 16px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface)}
+.cav-kpi-label{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;font-family:var(--mono);margin-bottom:6px}
+.cav-kpi-value{font-size:20px;font-weight:600;font-family:var(--mono);color:var(--text);line-height:1.1}
+.cav-kpi-value.gold{color:var(--gold,#c9a84c)}
+.cav-kpi-sub{font-size:11px;color:var(--text-muted);margin-top:4px}
+
+/* Sezione */
+.cav-section-title{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.1em;font-family:var(--mono);margin:0 4px 12px;display:flex;align-items:center;gap:8px}
+.cav-section-title::after{content:"";flex:1;height:1px;background:var(--border)}
+
+/* Tabella beni in custodia */
+.cav-vault-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-bottom:24px}
+.cav-item{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);overflow:hidden;display:flex;flex-direction:column;transition:border-color var(--t-fast)}
+.cav-item:hover{border-color:var(--border-strong)}
+.cav-item-top{display:flex;gap:12px;padding:14px}
+.cav-item-img{width:64px;height:64px;border-radius:8px;object-fit:cover;background:var(--surface2);flex-shrink:0;border:1px solid var(--border)}
+.cav-item-img-ph{width:64px;height:64px;border-radius:8px;background:var(--surface2);flex-shrink:0;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:20px}
+.cav-item-meta{flex:1;min-width:0}
+.cav-item-name{font-size:13px;font-weight:600;color:var(--text);line-height:1.3;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.cav-item-sub{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
+.cav-badges{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.cav-badge{font-size:10px;font-weight:500;padding:2px 8px;border-radius:20px;background:var(--surface2);color:var(--text-muted);border:1px solid var(--border);display:inline-flex;align-items:center;gap:4px}
+.cav-badge.grade{background:rgba(201,168,76,.08);color:var(--gold,#c9a84c);border-color:rgba(201,168,76,.28)}
+.cav-badge.insured{background:rgba(63,185,80,.08);color:var(--success,#3fb950);border-color:rgba(63,185,80,.28)}
+.cav-item-foot{margin-top:auto;border-top:1px solid var(--border);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.cav-item-value{font-size:13px;font-weight:600;font-family:var(--mono);color:var(--text)}
+.cav-item-value-lbl{font-size:9.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-family:var(--mono)}
+.cav-verify-link{font-size:11px;color:var(--accent);text-decoration:none;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.cav-verify-link:hover{text-decoration:underline}
+
+/* Provenance / verifica on-chain */
+.cav-prov{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);padding:20px;margin-bottom:24px}
+.cav-prov-row{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.cav-prov-ico{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;background:rgba(88,166,255,.1);color:var(--accent);font-size:20px;flex-shrink:0}
+.cav-prov-body{flex:1;min-width:240px}
+.cav-prov-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
+.cav-prov-text{font-size:12px;color:var(--text-muted);line-height:1.55}
+.cav-prov-actions{display:flex;gap:10px;flex-wrap:wrap}
+
+.empty-state{text-align:center;padding:48px 24px;color:var(--text-muted)}
+.empty-state .icon{font-size:32px;margin-bottom:10px;opacity:.6}
+.empty-state h3{font-size:14px;font-weight:600;margin-bottom:4px;color:var(--text)}
+.empty-state p{font-size:12px;max-width:340px;margin:0 auto;line-height:1.55}
+
+.cav-skel{height:90px;border-radius:var(--r);background:linear-gradient(90deg,var(--surface) 25%,var(--surface2) 50%,var(--surface) 75%);background-size:200% 100%;animation:cavShimmer 1.3s linear infinite;border:1px solid var(--border)}
+@keyframes cavShimmer{to{background-position:-200% 0}}
+
+.cav-note{font-size:11px;color:var(--text-muted);line-height:1.5;padding:0 4px;font-style:italic}
+</style>
+</head>
+<body>
+
+<div class="tab" id="tab-caveau" style="display:flex;flex-direction:column;flex:1">
+  <div class="cav-wrap">
+
+    <div class="cav-head">
+      <div>
+        <div class="cav-head-title"><span class="rb-i rb-i-diamond" style="color:var(--gold,#c9a84c)"></span> Caveau &amp; Garanzie</div>
+        <div class="cav-head-sub">Ogni bene acquistato tramite RareBlock è custodito in caveau certificato, assicurato per il valore di mercato e tracciato con prova di provenienza notarizzata su blockchain. Qui trovi i tuoi beni in custodia e gli strumenti di verifica.</div>
+      </div>
+      <button class="btn sm" onclick="caveauLoad()" title="Aggiorna"><span class="rb-i rb-i-refresh"></span> Aggiorna</button>
+    </div>
+
+    <!-- TRE PILASTRI DI FIDUCIA -->
+    <div class="cav-pillars">
+      <div class="cav-pillar">
+        <div class="cav-pillar-ico"><span class="rb-i rb-i-arch"></span></div>
+        <div class="cav-pillar-title">Custodia certificata</div>
+        <div class="cav-pillar-text">I beni sono conservati in caveau a clima controllato, con accesso ristretto e sorveglianza continua. Non passano mai per la tua abitazione: niente rischio di smarrimento, danni o spedizioni.</div>
+      </div>
+      <div class="cav-pillar">
+        <div class="cav-pillar-ico"><span class="rb-i rb-i-diamond"></span></div>
+        <div class="cav-pillar-title">Assicurazione full-value</div>
+        <div class="cav-pillar-text">Copertura assicurativa per il valore di mercato corrente, rivalutata periodicamente. La polizza protegge contro furto, incendio e danni accidentali per tutta la durata della custodia.</div>
+      </div>
+      <div class="cav-pillar">
+        <div class="cav-pillar-ico"><span class="rb-i rb-i-check"></span></div>
+        <div class="cav-pillar-title">Autenticità verificata</div>
+        <div class="cav-pillar-text">Ogni lotto è controllato dai nostri esperti prima di entrare in catalogo. I prodotti gradati conservano il numero di certificazione PSA/CGC/BGS verificabile presso l'ente emittente.</div>
+      </div>
+    </div>
+
+    <!-- KPI -->
+    <div class="cav-kpis" id="cavKpis">
+      <div class="cav-kpi"><div class="cav-kpi-label">Beni in custodia</div><div class="cav-kpi-value" id="cavKpiItems">—</div><div class="cav-kpi-sub">lotti / posizioni</div></div>
+      <div class="cav-kpi"><div class="cav-kpi-label">Valore assicurato</div><div class="cav-kpi-value gold" id="cavKpiValue">—</div><div class="cav-kpi-sub">stima di mercato</div></div>
+      <div class="cav-kpi"><div class="cav-kpi-label">Lotti gradati</div><div class="cav-kpi-value" id="cavKpiGraded">—</div><div class="cav-kpi-sub">con certificazione</div></div>
+      <div class="cav-kpi"><div class="cav-kpi-label">Provenienza on-chain</div><div class="cav-kpi-value" id="cavKpiChain">Base</div><div class="cav-kpi-sub">notarizzata su mainnet</div></div>
+    </div>
+
+    <!-- PROVENIENZA / VERIFICA -->
+    <div class="cav-section-title"><span class="rb-i rb-i-clipboard"></span> Provenienza &amp; verifica</div>
+    <div class="cav-prov">
+      <div class="cav-prov-row">
+        <div class="cav-prov-ico"><span class="rb-i rb-i-diamond"></span></div>
+        <div class="cav-prov-body">
+          <div class="cav-prov-title">Prova di provenienza notarizzata su Base mainnet</div>
+          <div class="cav-prov-text">Il certificato di ogni bene custodito viene reso immutabile registrando il suo hash SHA-256 su blockchain pubblica (Base). Chiunque può verificare in modo indipendente che un certificato non sia stato alterato — senza che il documento venga mai caricato sui nostri server.</div>
+        </div>
+        <div class="cav-prov-actions">
+          <a class="btn sm" href="../rareblock-verify.html" target="_blank" rel="noopener"><span class="rb-i rb-i-search"></span> Verifica un certificato</a>
+          <a class="btn sm" href="https://basescan.org" target="_blank" rel="noopener"><span class="rb-i rb-i-link"></span> basescan.org</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- BENI IN CUSTODIA -->
+    <div class="cav-section-title"><span class="rb-i rb-i-arch"></span> I tuoi beni in custodia</div>
+    <div class="cav-vault-grid" id="cavVaultGrid"></div>
+
+    <div class="empty-state" id="cavEmpty" style="display:none">
+      <div class="icon"><span class="rb-i rb-i-arch"></span></div>
+      <h3>Nessun bene in custodia</h3>
+      <p>Quando acquisterai un lotto sealed o una quota di comproprietà, comparirà qui con la sua copertura assicurativa e la prova di provenienza.</p>
+    </div>
+
+    <p class="cav-note">I valori assicurati sono stime di mercato indicative e non costituiscono garanzia di realizzo. La copertura assicurativa e le condizioni di custodia sono regolate dal contratto di custodia sottoscritto al momento dell'acquisto.</p>
+
+  </div>
+</div>
+
+<script src="../shared/rareblock-shared.js" defer></script>
+<script defer>
+// ── Bridge verso utility/stato del parent (rareblock-dashboard.html) ──────
+// NB: supa/esc/fmtEur/getCurrentUserId arrivano da shared/rareblock-shared.js
+// che gira nel frame stesso. Qui bridiamo SOLO ciò che vive nel parent:
+//  - utility di formattazione (fmtMoney, fmtDate) se presenti
+//  - stato condiviso _session / _mktProducts (read-only via getter)
+(function(){
+  function p(name){
+    try { return (window.parent && window.parent !== window) ? window.parent[name] : undefined; }
+    catch(_){ return undefined; }
+  }
+  ['fmtMoney','fmtDate'].forEach(function(name){
+    if(typeof window[name] === 'undefined'){
+      Object.defineProperty(window, name, { configurable:true, get:function(){ return p(name); } });
+    }
+  });
+  Object.defineProperty(window, '_session', { configurable:true, get:function(){ return p('_session') || (window._rbSession||null); } });
+  Object.defineProperty(window, '_mktProducts', { configurable:true, get:function(){ return p('_mktProducts') || []; } });
+})();
+
+// Formattatore valuta robusto: usa fmtEur (shared.js) o fmtMoney (parent), con fallback locale.
+function cavMoney(n){
+  if(typeof fmtEur === 'function') return fmtEur(n);
+  try{ if(typeof fmtMoney === 'function'){ var v = fmtMoney(n); if(v) return v; } }catch(_){}
+  if(n == null || isNaN(n)) return '—';
+  return '€' + Number(n).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+var _cavGraderUrls = {
+  PSA: 'https://www.psacard.com/cert/',
+  CGC: 'https://www.cgccards.com/certlookup/',
+  BGS: 'https://www.beckett.com/grading/card-lookup'
+};
+function cavGraderVerifyUrl(house, cert){
+  if(!house) return null;
+  var h = String(house).toUpperCase();
+  if(h.indexOf('PSA')>-1 && cert) return _cavGraderUrls.PSA + encodeURIComponent(cert);
+  if(h.indexOf('CGC')>-1 && cert) return _cavGraderUrls.CGC + encodeURIComponent(cert);
+  if(h.indexOf('BGS')>-1 || h.indexOf('BECKETT')>-1) return _cavGraderUrls.BGS;
+  return null;
+}
+
+async function caveauLoad(){
+  var grid  = document.getElementById('cavVaultGrid');
+  var empty = document.getElementById('cavEmpty');
+  if(empty) empty.style.display = 'none';
+  if(grid) grid.innerHTML = '<div class="cav-skel"></div><div class="cav-skel"></div><div class="cav-skel"></div>';
+
+  var uid = (typeof getCurrentUserId === 'function' && getCurrentUserId())
+            || (_session && _session.user && _session.user.id);
+  if(!uid){
+    if(grid) grid.innerHTML = '';
+    if(empty){ empty.style.display=''; }
+    return;
+  }
+
+  try{
+    // Holdings dell'utente con quantità > 0
+    var holds = (await supa('GET',
+      'inv_holdings?user_id=eq.'+uid+'&qty=gt.0&order=acquired_at.desc')) || [];
+
+    // Mappa prodotti: prima dal cache parent (_mktProducts), poi fetch mirato dei mancanti.
+    var prodCache = {};
+    (_mktProducts||[]).forEach(function(pp){ if(pp && pp.id) prodCache[pp.id] = pp; });
+
+    var missing = [];
+    holds.forEach(function(h){ if(h.product_id && !prodCache[h.product_id]) missing.push(h.product_id); });
+    if(missing.length){
+      var inList = 'in.(' + missing.map(function(x){ return '"'+x+'"'; }).join(',') + ')';
+      var fetched = (await supa('GET',
+        'inv_products?id='+encodeURIComponent(inList)
+        +'&select=id,name,type,image_url,estimated_value,grading_house,grading_cert_number')) || [];
+      fetched.forEach(function(pp){ if(pp && pp.id) prodCache[pp.id] = pp; });
+    }
+
+    cavRender(holds, prodCache);
+  }catch(e){
+    console.error('[caveau] load failed', e);
+    if(grid) grid.innerHTML = '';
+    if(empty){
+      empty.style.display='';
+      empty.querySelector('h3').textContent = 'Caricamento non riuscito';
+      empty.querySelector('p').textContent = 'Non è stato possibile recuperare i beni in custodia. Riprova con il pulsante Aggiorna.';
+    }
+  }
+}
+
+function cavRender(holds, prodCache){
+  var grid  = document.getElementById('cavVaultGrid');
+  var empty = document.getElementById('cavEmpty');
+
+  // KPI
+  var items = holds.length;
+  var totalValue = 0, graded = 0;
+  holds.forEach(function(h){
+    var pp = prodCache[h.product_id] || {};
+    var qty = Number(h.qty)||0;
+    var unit = (pp.estimated_value!=null) ? Number(pp.estimated_value)
+             : (h.price_per_quote!=null ? Number(h.price_per_quote) : 0);
+    if(!isNaN(unit)) totalValue += unit * (pp.type==='fractional' ? qty : Math.max(qty,1));
+    if(pp.grading_house) graded++;
+  });
+  setText('cavKpiItems',  items ? String(items) : '0');
+  setText('cavKpiValue',  items ? cavMoney(totalValue) : '€0,00');
+  setText('cavKpiGraded', String(graded));
+
+  if(!holds.length){
+    if(grid) grid.innerHTML = '';
+    if(empty) empty.style.display = '';
+    return;
+  }
+  if(empty) empty.style.display = 'none';
+
+  grid.innerHTML = holds.map(function(h){
+    var pp = prodCache[h.product_id] || {};
+    var name = pp.name || h.product_name || 'Bene in custodia';
+    var qty  = Number(h.qty)||0;
+    var isFractional = pp.type === 'fractional';
+    var unit = (pp.estimated_value!=null) ? Number(pp.estimated_value)
+             : (h.price_per_quote!=null ? Number(h.price_per_quote) : null);
+    var lineValue = (unit!=null && !isNaN(unit)) ? unit * (isFractional ? qty : Math.max(qty,1)) : null;
+
+    var img = pp.image_url
+      ? '<img class="cav-item-img" src="'+esc(pp.image_url)+'" alt="" loading="lazy"/>'
+      : '<div class="cav-item-img-ph"><span class="rb-i rb-i-card"></span></div>';
+
+    var sub = isFractional
+      ? (qty + (qty===1?' quota':' quote'))
+      : (qty>1 ? (qty+' unità') : 'lotto intero');
+
+    var badges = '<span class="cav-badge insured"><span class="rb-i rb-i-diamond"></span> Assicurato</span>';
+    if(isFractional) badges += '<span class="cav-badge">Comproprietà</span>';
+    if(pp.grading_house){
+      var g = esc(pp.grading_house) + (pp.grading_cert_number ? ' · #'+esc(pp.grading_cert_number) : '');
+      badges += '<span class="cav-badge grade"><span class="rb-i rb-i-check"></span> '+g+'</span>';
+    }
+
+    var verifyUrl = cavGraderVerifyUrl(pp.grading_house, pp.grading_cert_number);
+    var verifyLink = verifyUrl
+      ? '<a class="cav-verify-link" href="'+esc(verifyUrl)+'" target="_blank" rel="noopener">Verifica cert <span class="rb-i rb-i-link"></span></a>'
+      : '<a class="cav-verify-link" href="../rareblock-verify.html" target="_blank" rel="noopener">Verifica provenienza <span class="rb-i rb-i-link"></span></a>';
+
+    return '<div class="cav-item">'
+      + '<div class="cav-item-top">'
+      +   img
+      +   '<div class="cav-item-meta">'
+      +     '<div class="cav-item-name">'+esc(name)+'</div>'
+      +     '<div class="cav-item-sub">'+sub+'</div>'
+      +     '<div class="cav-badges">'+badges+'</div>'
+      +   '</div>'
+      + '</div>'
+      + '<div class="cav-item-foot">'
+      +   '<div><div class="cav-item-value-lbl">Valore assicurato</div><div class="cav-item-value">'+(lineValue!=null?cavMoney(lineValue):'—')+'</div></div>'
+      +   verifyLink
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+// Helper locale (il parent ha un setText, ma non vogliamo dipenderci)
+function setText(id,v){ var el=document.getElementById(id); if(el) el.textContent = (v==null?'—':v); }
+
+// Bootstrap robusto: attende che il parent abbia definito supa (race condition
+// con DOMContentLoaded del frame). Stesso pattern degli altri frame.
+function _cavWaitReady(cb){
+  var tries = 0;
+  function check(){
+    var ready = (typeof supa === 'function')
+      || (window.parent && window.parent !== window && typeof window.parent.supa === 'function');
+    if(ready){ cb(); return; }
+    if(++tries > 50){ console.warn('[caveau] parent never ready, giving up'); cb(); return; }
+    setTimeout(check, 100);
+  }
+  check();
+}
+document.addEventListener('DOMContentLoaded', function(){
+  _cavWaitReady(function(){
+    try{ caveauLoad(); }catch(e){ console.error('[caveau frame]', e); }
+  });
+});
+</script>
+</body>
+</html>
