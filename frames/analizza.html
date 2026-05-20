@@ -254,6 +254,14 @@ body{display:flex;flex-direction:column}
 
 /* Spinner */
 .anl-spin{display:inline-block;width:10px;height:10px;border:1.5px solid var(--surface3);border-top-color:var(--accent);border-radius:50%;animation:anlSpin 0.6s linear infinite;vertical-align:middle;margin-right:5px}
+@keyframes anlSpin{to{transform:rotate(360deg)}}
+/* Varianti spinner per le diverse zone in caricamento */
+.anl-spin-dot{width:9px;height:9px;margin-right:0;border-width:1.5px}
+.anl-spin-hero{width:20px;height:20px;margin-right:0;border-width:2px;border-color:var(--surface3);border-top-color:var(--accent)}
+.anl-spin-inline{width:8px;height:8px;margin-right:7px;border-width:1.5px}
+/* Pulse leggero sui placeholder testuali in attesa */
+@keyframes anlPulse{0%,100%{opacity:0.42}50%{opacity:0.85}}
+.anl-loading-pulse{animation:anlPulse 1.4s ease-in-out infinite}
 
 /* Override frame: il tab-anl qui e\' la view diretta. */
 #tab-anl{display:flex !important;flex-direction:column;flex:1;overflow:hidden}
@@ -446,6 +454,27 @@ var anlSearching = false;
 var anlLiveData = {};             // { ebay (sold), ebayActive (asks live), pc, cm, usdEur }
 var anlSourceEnabled = {eb:true, pc:true, cm:true};  // toggle per inclusione media in BOX 2
 var anlPcShowDetail = false;                          // toggle vista PC: aggregata vs dettaglio sold target grade
+
+// ─── STATO LOADING (animazioni di attesa scraping) ───────────────────────────
+// Le 4 fetch (eBay sold, eBay active, PriceCharting, Cardmarket) girano in
+// parallelo. Contiamo quante sono in volo: finché >0, le zone non ancora
+// popolate mostrano una rotellina. I pallini delle singole sorgenti si
+// fermano da soli (anlSetDot sovrascrive lo spinner col pallino colorato);
+// hero "Valore mercato" e "Interesse di mercato" si fermano quando tutte
+// le fetch sono concluse.
+var anlPendingFetches = 0;
+function anlIsLoading(){ return anlPendingFetches > 0; }
+function anlEndFetch(sig){
+  anlPendingFetches = Math.max(0, anlPendingFetches - 1);
+  // Stale guard: se nel frattempo l'utente ha lanciato un'altra carta,
+  // anlLiveData._sig è cambiato → ignora il callback di quella precedente.
+  if(anlLiveData._sig !== sig) return;
+  if(anlPendingFetches === 0){
+    anlLiveData._loading = false;
+    try{ anlRenderToday(); }catch(e){}
+    try{ anlRenderProjection(); }catch(e){}
+  }
+}
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
 function anlInitTab(){
@@ -821,21 +850,21 @@ function anlSourcesScaffold(card){
 
   return ''
   +'<div class="anl-src'+(anlSourceEnabled.eb?'':' disabled')+'" id="anlSrcEbBox">'
-  +  '<div class="anl-src-head"><span class="anl-src-toggle'+(anlSourceEnabled.eb?' active':'')+'" onclick="anlToggleSource(\'eb\')" title="Includi/escludi nella media"></span><span class="anl-src-tag">EB</span><span>eBay Sold'+(graded?' '+ANL_HOUSES[house].label+' '+score:'')+'</span><span class="anl-src-dot" id="anlSrcEbDot"></span></div>'
+  +  '<div class="anl-src-head"><span class="anl-src-toggle'+(anlSourceEnabled.eb?' active':'')+'" onclick="anlToggleSource(\'eb\')" title="Includi/escludi nella media"></span><span class="anl-src-tag">EB</span><span>eBay Sold'+(graded?' '+ANL_HOUSES[house].label+' '+score:'')+'</span><span class="anl-src-dot" id="anlSrcEbDot"><span class="anl-spin anl-spin-dot"></span></span></div>'
   +  '<div class="anl-src-price loading" id="anlSrcEb">—</div>'
   +  '<div class="anl-src-note" id="anlSrcEbNote">caricamento venduti…</div>'
   +  '<div id="anlSrcEbTable" class="anl-cm-grade-table" style="display:none"></div>'
   +  '<a class="anl-src-link" id="anlSrcEbLink" href="'+ebUrl+'" target="_blank" rel="noopener">apri →</a>'
   +'</div>'
   +'<div class="anl-src'+(anlSourceEnabled.pc?'':' disabled')+'" id="anlSrcPcBox">'
-  +  '<div class="anl-src-head"><span class="anl-src-toggle'+(anlSourceEnabled.pc?' active':'')+'" onclick="anlToggleSource(\'pc\')" title="Includi/escludi nella media"></span><span class="anl-src-tag">PC</span><span>PriceCharting'+(graded?' '+ANL_HOUSES[house].label+' '+score:''  )+'</span><span class="anl-src-dot" id="anlSrcPcDot"></span></div>'
+  +  '<div class="anl-src-head"><span class="anl-src-toggle'+(anlSourceEnabled.pc?' active':'')+'" onclick="anlToggleSource(\'pc\')" title="Includi/escludi nella media"></span><span class="anl-src-tag">PC</span><span>PriceCharting'+(graded?' '+ANL_HOUSES[house].label+' '+score:''  )+'</span><span class="anl-src-dot" id="anlSrcPcDot"><span class="anl-spin anl-spin-dot"></span></span></div>'
   +  '<div class="anl-src-price loading" id="anlSrcPc">—</div>'
   +  '<div class="anl-src-note" id="anlSrcPcNote">caricamento…</div>'
   +  '<div id="anlSrcPcTable" class="anl-cm-grade-table" style="display:none"></div>'
   +  '<a class="anl-src-link" id="anlSrcPcLink" href="'+pcUrl+'" target="_blank" rel="noopener">apri →</a>'
   +'</div>'
   +'<div class="'+cmClass+(anlSourceEnabled.cm?'':' disabled')+'" id="anlSrcCmBox">'
-  +  '<div class="anl-src-head"><span class="anl-src-toggle'+(anlSourceEnabled.cm?' active':'')+'" onclick="anlToggleSource(\'cm\')" title="Includi/escludi nella media"></span><span class="anl-src-tag">'+cmTag+'</span><span>'+cmTitle+'</span><span class="anl-src-dot" id="anlSrcCmDot"></span></div>'
+  +  '<div class="anl-src-head"><span class="anl-src-toggle'+(anlSourceEnabled.cm?' active':'')+'" onclick="anlToggleSource(\'cm\')" title="Includi/escludi nella media"></span><span class="anl-src-tag">'+cmTag+'</span><span>'+cmTitle+'</span><span class="anl-src-dot" id="anlSrcCmDot"><span class="anl-spin anl-spin-dot"></span></span></div>'
   +  '<div class="anl-src-price loading" id="anlSrcCm">'+(function(){
         var p=card.cardmarket&&card.cardmarket.prices;
         var nm=p?(p.trendPrice||p.avg30||null):null;
@@ -988,10 +1017,20 @@ function anlRenderToday(){
     priceEl.textContent = '€'+res.price.toFixed(2);
     priceEl.classList.remove('mute');
     methEl.textContent = res.method;
+    methEl.classList.remove('anl-loading-pulse');
   } else {
-    priceEl.textContent = '—';
-    priceEl.classList.add('mute');
-    methEl.textContent = res.method;
+    if(anlIsLoading() && anlLiveData._loading !== false){
+      // Scraping ancora in corso e nessun valore consolidato → rotellina di attesa
+      priceEl.innerHTML = '<span class="anl-spin anl-spin-hero"></span>';
+      priceEl.classList.add('mute');
+      methEl.textContent = 'caricamento sorgenti…';
+      methEl.classList.add('anl-loading-pulse');
+    } else {
+      priceEl.textContent = '—';
+      priceEl.classList.add('mute');
+      methEl.textContent = res.method;
+      methEl.classList.remove('anl-loading-pulse');
+    }
   }
 }
 
@@ -1014,9 +1053,13 @@ function anlRenderProjection(){
   var ebayActive = anlLiveData.ebayActive;
   var graded = anlMode==='graded';
 
-  // Caso: nessun dato → placeholder
+  // Caso: nessun dato → placeholder (rotellina se ancora in caricamento)
   if(!today.price && !ebay && !ebayActive){
-    rowEl.innerHTML = '<div class="anl-interest-cell"><span class="anl-interest-cell-k">In attesa</span><span class="anl-interest-cell-v mute">—</span><span class="anl-interest-cell-note">caricamento sorgenti…</span></div>';
+    if(anlIsLoading() && anlLiveData._loading !== false){
+      rowEl.innerHTML = '<div class="anl-interest-cell"><span class="anl-interest-cell-k"><span class="anl-spin anl-spin-inline"></span>In attesa</span><span class="anl-interest-cell-v mute">—</span><span class="anl-interest-cell-note anl-loading-pulse">caricamento sorgenti…</span></div>';
+    } else {
+      rowEl.innerHTML = '<div class="anl-interest-cell"><span class="anl-interest-cell-k">Nessun dato</span><span class="anl-interest-cell-v mute">—</span><span class="anl-interest-cell-note">dati insufficienti</span></div>';
+    }
     spreadEl.style.display='none';
     return;
   }
@@ -1560,12 +1603,19 @@ async function anlStartLiveFetches(card){
   // Cache per card.id + mode + condizione/house+grado (per evitare refetch inutili)
   var sig = anlSigFor(card);
   if(anlLiveData._sig === sig){
-    // già caricato: ridisegna solo
+    // già caricato: nessuna fetch rigira → ripristina i pallini dallo stato
+    // cached e ridisegna (altrimenti gli spinner dello scaffold girano a vuoto)
+    anlLiveData._loading = false;
+    anlPendingFetches = 0;
+    anlRestoreDotsFromCache();
     anlRenderToday();
     anlRenderProjection();
     return;
   }
   anlLiveData = { _sig: sig };
+  anlLiveData._loading = true;
+  // 4 fetch parallele in volo (eBay sold, eBay active, PriceCharting, Cardmarket)
+  anlPendingFetches = 4;
 
   // Imposta CM subito (già nella card object)
   var p = card.cardmarket && card.cardmarket.prices;
@@ -1683,7 +1733,7 @@ async function anlStartLiveFetches(card){
       if(data.error && (!data.items || !data.items.length)){ anlPopEbay(data,data.error,card); return; }
       anlPopEbay(data, null, card);
     }catch(e){ anlPopEbay(null,e.message||'errore rete', card); }
-  })();
+  })().finally(function(){ anlEndFetch(sig); });
 
   // eBay LIVE ASKS — inserzioni attive (non venduti) per stesso target
   // Indicatore "interesse di mercato": prezzo richiesto vs prezzo realmente
@@ -1727,7 +1777,7 @@ async function anlStartLiveFetches(card){
       var data = await anlFetchSmooth({source:'ebay_active', urls:urls, url:urls[0], min_hits:3, merge:true});
       anlPopEbayActive(data);
     }catch(e){ anlPopEbayActive(null, e.message||'errore rete'); }
-  })();
+  })().finally(function(){ anlEndFetch(sig); });
 
   // PriceCharting — cascata multi-query
   (async function(){
@@ -1787,7 +1837,7 @@ async function anlStartLiveFetches(card){
 
       anlPopPc(data.prices);
     }catch(e){ anlPopPc(null,e.message||'errore rete'); }
-  })();
+  })().finally(function(){ anlEndFetch(sig); });
 
   // Cardmarket — fetch listings reali, parse commenti per grading
   // (sostituisce/integra il dato trend dalla TCG API)
@@ -1805,9 +1855,9 @@ async function anlStartLiveFetches(card){
       var data = await anlFetchSmooth({source:'cardmarket', url:fetchUrl, urls:[fetchUrl], debug:true});
       anlPopCm(data, card);
     }catch(e){ anlPopCm({error:e.message||'errore rete'}, card); }
-  })();
+  })().finally(function(){ anlEndFetch(sig); });
 
-  // Render CM già disponibile e sezioni
+  // Render CM già disponibile e sezioni (mostra subito le rotelline di attesa)
   anlRenderToday();
   anlRenderProjection();
 }
@@ -2078,6 +2128,27 @@ function anlSetDot(id, conf){
     'very-low': 'campione insufficiente (<3)',
     'none':   'nessun dato',
   }[conf] || '';
+}
+
+// Ripristina i pallini di confidenza dei tre box dallo stato già in cache.
+// Usato quando si riapre una carta con sig identica: le fetch non rigirano,
+// quindi gli spinner messi dallo scaffold vanno sostituiti col pallino corretto.
+function anlConfFromCount(n){
+  if(!n) return 'none';
+  if(n>=10) return 'high';
+  if(n>=5)  return 'medium';
+  if(n>=3)  return 'low';
+  return 'very-low';
+}
+function anlRestoreDotsFromCache(){
+  // eBay sold
+  var eb = anlLiveData.ebay;
+  anlSetDot('anlSrcEbDot', (eb && eb.count) ? anlConfFromCount(eb.count) : 'none');
+  // PriceCharting
+  anlSetDot('anlSrcPcDot', anlLiveData.pc ? 'medium' : 'none');
+  // CardMarket (trend o listings raw/graded presenti)
+  var cmHas = anlLiveData.cm || anlLiveData.cmRawNm || anlLiveData.cmRawAll;
+  anlSetDot('anlSrcCmDot', cmHas ? 'low' : 'none');
 }
 
 // ─── CARDMARKET — listings reali con split raw/graded da commenti ────────────
