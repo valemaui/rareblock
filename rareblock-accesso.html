@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+  <title>RareBlock — Ammissione</title>
+  <meta name="description" content="Accesso riservato. Club privato di investimento su prodotti sealed Pokémon." />
+  <meta name="robots" content="noindex,nofollow" />
+
+  <!-- NO-CACHE (root document, vedi index.html) -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300;1,9..144,400&family=Figtree:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+
+    :root{
+      --bg:#0c0c0b; --bg-2:#131310; --bg-3:#1a1a16;
+      --gold:#c9a84c; --gold-light:#e8c96a; --gold-dim:rgba(201,168,76,0.12);
+      --cream:#f0ead8; --cream-dim:rgba(240,234,216,0.55); --cream-faint:rgba(240,234,216,0.30);
+      --border:rgba(201,168,76,0.18); --border-faint:rgba(240,234,216,0.07);
+      --serif:'Fraunces',Georgia,serif; --sans:'Figtree',system-ui,sans-serif; --mono:'IBM Plex Mono',monospace;
+    }
+
+    body{
+      background:var(--bg); color:var(--cream); font-family:var(--sans); font-weight:300;
+      line-height:1.7; display:flex; flex-direction:column; align-items:center; justify-content:center;
+      min-height:100%; padding:48px 0; overflow-x:hidden; position:relative;
+    }
+    body::before{
+      content:''; position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.4;
+      background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    }
+    .glow{position:fixed;top:24%;left:50%;transform:translateX(-50%);width:560px;height:420px;
+      background:radial-gradient(ellipse,rgba(201,168,76,.06) 0%,transparent 70%);pointer-events:none;z-index:0}
+
+    .back{position:fixed;top:24px;left:32px;z-index:10;font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+      color:var(--cream-faint);text-decoration:none;display:flex;align-items:center;gap:8px;transition:color .2s}
+    .back:hover{color:var(--cream-dim)}
+    .back-line{width:24px;height:.5px;background:currentColor}
+
+    .wrap{position:relative;z-index:1;width:100%;max-width:560px;padding:24px 20px;
+      display:flex;flex-direction:column;align-items:center;gap:40px;animation:fadeUp .7s ease forwards}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+
+    /* ── Logo / intestazione ── */
+    .logo{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
+    .logo-name{font-family:'Montserrat',system-ui,sans-serif;font-size:19px;font-weight:300;letter-spacing:.18em;text-transform:uppercase}
+    .logo-name span{color:var(--gold)}
+    .logo-sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--cream-faint)}
+
+    .intro{text-align:center;max-width:480px}
+    .intro h1{font-family:var(--serif);font-weight:300;font-size:30px;line-height:1.25;margin-bottom:14px;letter-spacing:-.01em}
+    .intro h1 em{font-style:italic;color:var(--gold)}
+    .intro p{font-size:15px;color:var(--cream-dim);font-weight:300}
+
+    /* ── Card opzioni ── */
+    .options{width:100%;display:flex;flex-direction:column;gap:18px}
+    .card{
+      background:var(--bg-2);border:.5px solid var(--border);border-radius:5px;padding:28px;
+      display:flex;flex-direction:column;gap:16px;transition:border-color .25s,transform .15s}
+    .card.focus{border-color:rgba(201,168,76,.4)}
+    .card-head{display:flex;align-items:baseline;gap:12px}
+    .card-num{font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:.1em}
+    .card-title{font-family:var(--serif);font-size:19px;font-weight:300;color:var(--cream)}
+    .card-title em{font-style:italic;color:var(--gold)}
+    .card-desc{font-size:13.5px;color:var(--cream-dim);font-weight:300;line-height:1.65}
+
+    /* ── Form codice ── */
+    .code-row{display:flex;gap:10px;margin-top:2px}
+    .code-input{
+      flex:1;background:var(--bg);border:.5px solid var(--border);border-radius:3px;
+      color:var(--cream);font-family:var(--mono);font-size:15px;letter-spacing:.12em;
+      padding:13px 15px;text-transform:uppercase;transition:border-color .2s}
+    .code-input::placeholder{color:var(--cream-faint);letter-spacing:.08em;text-transform:none;font-family:var(--sans)}
+    .code-input:focus{outline:none;border-color:var(--gold)}
+    .btn{
+      font-family:var(--sans);font-size:13px;font-weight:400;letter-spacing:.06em;text-transform:uppercase;
+      border:none;border-radius:3px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;
+      justify-content:center;gap:8px;transition:background .2s,color .2s,transform .15s,opacity .2s;white-space:nowrap}
+    .btn:active{transform:translateY(1px)}
+    .btn-gold{background:var(--gold);color:var(--bg);padding:13px 26px}
+    .btn-gold:hover{background:var(--gold-light)}
+    .btn-gold:disabled{opacity:.5;cursor:default}
+    .btn-gold.loading{color:transparent;position:relative}
+    .btn-gold.loading::after{content:'';position:absolute;width:15px;height:15px;border:1.5px solid var(--bg);
+      border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .btn-ghost{background:transparent;color:var(--cream-dim);border:.5px solid var(--border);padding:13px 26px}
+    .btn-ghost:hover{color:var(--cream);border-color:rgba(201,168,76,.4)}
+
+    .alert{font-size:13px;border-radius:3px;padding:0;max-height:0;overflow:hidden;opacity:0;
+      transition:max-height .3s,opacity .3s,padding .3s;display:flex;align-items:center;gap:8px}
+    .alert.show{max-height:80px;opacity:1;padding:11px 14px}
+    .alert.err{background:rgba(193,72,72,.1);border:.5px solid rgba(193,72,72,.35);color:#e7a3a3}
+    .alert.ok{background:rgba(201,168,76,.08);border:.5px solid var(--border);color:var(--gold-light)}
+
+    /* ── Call CTA ── */
+    .call-list{list-style:none;display:flex;flex-direction:column;gap:8px;margin:2px 0 4px}
+    .call-list li{font-size:13px;color:var(--cream-dim);display:flex;gap:10px;align-items:flex-start}
+    .call-list li::before{content:'—';color:var(--gold);flex-shrink:0}
+    .card-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:4px}
+
+    .divider{display:flex;align-items:center;gap:14px;width:100%;color:var(--cream-faint);
+      font-size:11px;letter-spacing:.2em;text-transform:uppercase}
+    .divider::before,.divider::after{content:'';flex:1;height:.5px;background:var(--border-faint)}
+
+    .member{text-align:center;font-size:13.5px;color:var(--cream-dim)}
+    .member a{color:var(--gold);text-decoration:none;border-bottom:.5px solid var(--gold-dim);
+      padding-bottom:1px;transition:border-color .2s}
+    .member a:hover{border-color:var(--gold)}
+
+    .foot{margin-top:8px;font-size:11px;letter-spacing:.06em;color:var(--cream-faint);text-align:center;line-height:1.8}
+
+    @media (max-width:600px){
+      .back{top:16px;left:16px}
+      .intro h1{font-size:25px}
+      .card{padding:22px}
+      .code-row{flex-direction:column}
+      .btn-gold{width:100%}
+    }
+  </style>
+</head>
+<body>
+  <div class="glow"></div>
+  <a href="index.html" class="back"><span class="back-line"></span>Torna al sito</a>
+
+  <main class="wrap">
+    <div class="logo">
+      <div class="logo-name">Rare<span>Block</span></div>
+      <div class="logo-sub">Private Investment Club</div>
+    </div>
+
+    <div class="intro">
+      <h1>L'accesso è <em>su ammissione.</em></h1>
+      <p>RareBlock è un club privato. La registrazione al portale è riservata a collezionisti referenziati da un membro o ammessi previa breve call conoscitiva con il founder.</p>
+    </div>
+
+    <div class="options">
+
+      <!-- ROUTE 1 — Codice invito -->
+      <section class="card" id="cardCode">
+        <div class="card-head">
+          <span class="card-num">01</span>
+          <h2 class="card-title">Ho un <em>codice invito</em></h2>
+        </div>
+        <p class="card-desc">Inserisci il codice che ti è stato fornito da un membro del club o dal founder. Verrà verificato e ti darà accesso alla registrazione.</p>
+        <div class="alert" id="codeAlert"><span id="codeAlertMsg"></span></div>
+        <div class="code-row">
+          <input type="text" class="code-input" id="codeInput" placeholder="es. RB-VINTAGE-2026" autocomplete="off" spellcheck="false" maxlength="48" />
+          <button class="btn btn-gold" id="codeBtn">Verifica</button>
+        </div>
+      </section>
+
+      <!-- ROUTE 2 — Richiesta accesso / call -->
+      <section class="card" id="cardCall">
+        <div class="card-head">
+          <span class="card-num">02</span>
+          <h2 class="card-title">Richiedi <em>ammissione</em></h2>
+        </div>
+        <p class="card-desc">Non hai un codice? Puoi candidarti. L'ammissione avviene dopo una breve call conoscitiva — valutiamo insieme obiettivi e profilo da collezionista/investitore.</p>
+        <ul class="call-list">
+          <li>Colloquio di ~30 minuti, senza impegno</li>
+          <li>Ricevi un codice personale in caso di esito positivo</li>
+          <li>Network privato, su invito o referral</li>
+        </ul>
+        <div class="card-actions">
+          <a class="btn btn-gold" href="https://cal.com/rareblock/30-minuti-rareblock" target="_blank" rel="noopener">Prenota la call</a>
+          <a class="btn btn-ghost" href="mailto:v.castiglia@rareblock.eu?subject=Richiesta%20ammissione%20RareBlock">Scrivi al founder</a>
+        </div>
+      </section>
+    </div>
+
+    <div class="divider">Sei già socio?</div>
+    <p class="member">Hai già un account? <a href="#" id="memberLink">Accedi all'area riservata →</a></p>
+
+    <div class="foot">
+      RareBlock · Accesso riservato — Collezionisti &amp; Investitori<br>
+      <span id="diag">verifica sessione…</span>
+    </div>
+  </main>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+//  rareblock-accesso.html — gate di ammissione
+//
+//  Tre rotte:
+//   01 codice invito  → validate_referral_code (RPC) → ok ⇒ login?ref=CODE&mode=register
+//   02 richiesta call  → Cal.com / email
+//   "già socio"        → bypass: rb_member_intent ⇒ login (consente l'accesso ai soci)
+//
+//  La pre-page parla con Supabase via la sola anon key (stesso pattern di
+//  memorandum.html). La validazione autorevole è server-side (RPC); il gate
+//  è FAIL-CLOSED: se la RPC non risponde o dice invalid, l'utente resta qui.
+// ═══════════════════════════════════════════════════════════════════════
+
+var RB = {
+  SUPA_URL: 'https://rbjaaeyjeeqfpbzyavag.supabase.co',
+  ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E',
+  LOGIN: 'rareblock-login.html',
+  // sessionStorage keys condivise col login (vedi rbAdmissionGate lì)
+  ADMISSION_KEY: 'rb_admission',   // { code, source_type, validated_at }
+  MEMBER_KEY: 'rb_member_intent',  // '1' → socio che vuole solo loggarsi
+  AUTH_SESSION_KEY: 'rb_auth_session', // sessione attiva (membro già loggato)
+  ADMISSION_TTL_MS: 30 * 60 * 1000 // l'ammissione vale 30 min
+};
+
+// ── Normalizza il codice: lowercase, trim, spazi→trattini, solo [a-z0-9-] ──
+function rbNormCode(raw){
+  return (raw||'').toLowerCase().trim()
+    .replace(/\s+/g,'-')
+    .replace(/[^a-z0-9-]/g,'')
+    .replace(/-{2,}/g,'-')
+    .replace(/^-|-$/g,'');
+}
+
+// ── Helper RPC (anon) ──────────────────────────────────────────────────
+async function rbRpc(fn, body){
+  var r = await fetch(RB.SUPA_URL + '/rest/v1/rpc/' + fn, {
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'apikey':RB.ANON_KEY,
+      'Authorization':'Bearer ' + RB.ANON_KEY
+    },
+    body: JSON.stringify(body||{})
+  });
+  if(!r.ok){
+    var t = await r.text().catch(function(){return '';});
+    var err = new Error('HTTP ' + r.status); err.status = r.status; err.bodyText = t;
+    throw err;
+  }
+  var txt = await r.text();
+  return txt ? JSON.parse(txt) : null;
+}
+
+// ── Geo best-effort (per audit lato RPC, non blocca) ───────────────────
+var RB_GEO = null;
+(function(){
+  try{
+    fetch('https://ipapi.co/json/', {cache:'no-store'})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(j){ if(j) RB_GEO = {ip:j.ip||null, country:j.country_name||null, city:j.city||null}; })
+      .catch(function(){});
+  }catch(e){}
+})();
+
+// ── UI alert ───────────────────────────────────────────────────────────
+function codeAlert(msg, type){
+  var box = document.getElementById('codeAlert');
+  var txt = document.getElementById('codeAlertMsg');
+  if(txt) txt.textContent = msg;
+  box.className = 'alert show ' + (type==='ok' ? 'ok' : 'err');
+}
+function codeAlertClear(){ document.getElementById('codeAlert').className = 'alert'; }
+function diag(msg){ var d=document.getElementById('diag'); if(d) d.textContent = msg; }
+
+// ── Salva ammissione + vai al login in modalità registrazione ──────────
+function grantAdmission(code, sourceType){
+  try{
+    sessionStorage.setItem(RB.ADMISSION_KEY, JSON.stringify({
+      code: code, source_type: sourceType||null, validated_at: Date.now()
+    }));
+    sessionStorage.removeItem(RB.MEMBER_KEY); // intent registrazione, non login soci
+  }catch(e){}
+  var ret = new URLSearchParams(location.search).get('return');
+  var url = RB.LOGIN + '?ref=' + encodeURIComponent(code) + '&mode=register'
+          + (ret ? '&return=' + encodeURIComponent(ret) : '');
+  location.href = url;
+}
+
+// ── Validazione codice (RPC, fail-closed) ──────────────────────────────
+async function rbVerifyCode(rawCode, opts){
+  opts = opts || {};
+  var code = rbNormCode(rawCode);
+  if(!code){ if(!opts.silent) codeAlert('Inserisci un codice valido.'); return; }
+
+  var btn = document.getElementById('codeBtn');
+  btn.classList.add('loading'); btn.disabled = true;
+  codeAlertClear();
+
+  try{
+    var res = await rbRpc('validate_referral_code', {
+      p_code: code,
+      p_user_agent: navigator.userAgent,
+      p_referrer: document.referrer || null,
+      p_ip_hint: RB_GEO ? RB_GEO.ip : null,
+      p_country_hint: RB_GEO ? RB_GEO.country : null,
+      p_city_hint: RB_GEO ? RB_GEO.city : null,
+      p_language: navigator.language || null
+    });
+
+    if(res && res.valid){
+      codeAlert('Codice verificato. Reindirizzamento alla registrazione…','ok');
+      setTimeout(function(){ grantAdmission(code, res.source_type); }, 700);
+      return;
+    }
+
+    // Reason mapping → messaggi human-friendly
+    var reason = res ? res.reason : 'unknown';
+    var map = {
+      expired:   'Questo codice è scaduto. Richiedine uno nuovo o prenota una call.',
+      exhausted: 'Questo codice ha esaurito gli inviti disponibili.',
+      inactive:  'Questo codice non è più attivo.',
+      not_found: 'Codice non riconosciuto. Controlla di averlo digitato correttamente.',
+      empty:     'Inserisci un codice valido.'
+    };
+    codeAlert(map[reason] || 'Codice non valido.');
+  }catch(e){
+    // FAIL-CLOSED: la RPC non risponde (non ancora deployata, rete, ecc.)
+    if(e.status === 404){
+      console.warn('[accesso] RPC validate_referral_code assente — applicare migration 070.');
+      codeAlert('Verifica non disponibile al momento. Riprova più tardi o prenota una call.');
+    } else {
+      console.warn('[accesso] errore verifica codice:', e);
+      codeAlert('Connessione non disponibile. Verifica la rete e riprova.');
+    }
+  }finally{
+    var b = document.getElementById('codeBtn');
+    b.classList.remove('loading'); b.disabled = false;
+  }
+}
+
+// ── Boot ────────────────────────────────────────────────────────────────
+(function(){
+  // Se l'utente è già loggato (sessione valida) → mandalo dritto all'area riservata.
+  try{
+    var raw = localStorage.getItem(RB.AUTH_SESSION_KEY) || sessionStorage.getItem(RB.AUTH_SESSION_KEY);
+    if(raw){
+      var s = JSON.parse(raw);
+      var now = Math.floor(Date.now()/1000);
+      if(s && s.access_token && (!s.expires_at || now < s.expires_at - 60)){
+        diag('sessione attiva — reindirizzamento…');
+        try{ sessionStorage.setItem(RB.MEMBER_KEY,'1'); }catch(e){}
+        location.replace(RB.LOGIN);
+        return;
+      }
+    }
+  }catch(e){}
+  diag('nessuna sessione — ammissione richiesta');
+
+  // Codice via URL (?ref=…): pre-compila e verifica in automatico.
+  var urlRef = new URLSearchParams(location.search).get('ref');
+  if(urlRef){
+    var inp = document.getElementById('codeInput');
+    inp.value = urlRef.toUpperCase();
+    document.getElementById('cardCode').classList.add('focus');
+    // pulisci l'URL per non lasciare il codice in cronologia
+    try{ history.replaceState(null,'', location.pathname); }catch(e){}
+    setTimeout(function(){ rbVerifyCode(urlRef, {silent:true}); }, 500);
+  }
+
+  // Listeners
+  document.getElementById('codeBtn').addEventListener('click', function(){
+    rbVerifyCode(document.getElementById('codeInput').value);
+  });
+  document.getElementById('codeInput').addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ e.preventDefault(); rbVerifyCode(this.value); }
+  });
+  document.getElementById('codeInput').addEventListener('input', codeAlertClear);
+
+  // "Già socio" → bypass del gate: il login lo lascerà passare al form di accesso.
+  document.getElementById('memberLink').addEventListener('click', function(e){
+    e.preventDefault();
+    try{ sessionStorage.setItem(RB.MEMBER_KEY,'1'); }catch(e){}
+    var ret = new URLSearchParams(location.search).get('return');
+    location.href = RB.LOGIN + (ret ? '?return=' + encodeURIComponent(ret) : '');
+  });
+})();
+</script>
+</body>
+</html>

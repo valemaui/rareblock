@@ -58,6 +58,9 @@
 #authOverlay .ao-card-title{font-family:var(--ao-serif);font-size:20px;font-weight:300;margin-bottom:2px;color:var(--ao-cream)}
 #authOverlay .ao-card-title em{font-style:italic;color:var(--ao-gold)}
 #authOverlay .ao-card-sub{font-size:13px;color:var(--ao-cream-dim);font-weight:300}
+#authOverlay .ao-ref-badge{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--ao-gold-dim);border:.5px solid var(--ao-border);border-radius:3px}
+#authOverlay .ao-ref-badge-label{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ao-gold);font-weight:500}
+#authOverlay .ao-ref-badge-code{font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.08em;color:var(--ao-cream);text-transform:uppercase}
 #authOverlay .ao-alert{padding:10px 14px;border-radius:2px;font-size:12px;display:none;align-items:flex-start;gap:8px;line-height:1.5;letter-spacing:.01em}
 #authOverlay .ao-alert.err{display:flex;background:rgba(192,57,43,.08);border:.5px solid rgba(192,57,43,.25);color:#e07070}
 #authOverlay .ao-alert.ok{display:flex;background:rgba(201,168,76,.08);border:.5px solid rgba(201,168,76,.2);color:var(--ao-gold-light)}
@@ -203,6 +206,10 @@
       <div>
         <div class="ao-card-title">Crea il tuo <em>account.</em></div>
         <div class="ao-card-sub">Accesso alla collezione e al portale investitori</div>
+      </div>
+      <div class="ao-ref-badge" id="ao-ref-badge" style="display:none">
+        <span class="ao-ref-badge-label">Invito</span>
+        <span class="ao-ref-badge-code" id="ao-ref-badge-code"></span>
       </div>
       <div class="ao-alert" id="ao-alert-reg"><span class="ao-alert-icon">—</span><span id="ao-alert-reg-msg"></span></div>
       <div class="ao-fields">
@@ -388,6 +395,75 @@ var RB_AUTH_URL = 'https://rbjaaeyjeeqfpbzyavag.supabase.co/auth/v1';
 var RB_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
 var RB_SESSION_KEY = 'rb_auth_session';
 
+// ═══════════════════════════════════════════════════════════
+//  ADMISSION GATE — registrazione su invito/referral
+//  Il portale NON è aperto: per registrarsi serve un codice referral
+//  validato (vedi rareblock-accesso.html). I soci già registrati possono
+//  sempre loggarsi. Questa logica decide se mostrare il login qui o
+//  rimbalzare l'utente alla pre-page di ammissione.
+//
+//  Lasciapassare per restare sul login (NON rimbalzare):
+//   • sessione attiva (membro)                → branch session in rbAuthInit
+//   • callback auth (recovery/oauth/magiclink) → hash #access_token=…
+//   • ammissione valida   (sessionStorage rb_admission, TTL 30')
+//   • ?ref=CODE in URL    (arrivo da link referral)
+//   • intent socio        (sessionStorage rb_member_intent='1', da "Già socio")
+// ═══════════════════════════════════════════════════════════
+var RB_GATE = {
+  ACCESSO_PAGE: 'rareblock-accesso.html',
+  ADMISSION_KEY: 'rb_admission',
+  MEMBER_KEY: 'rb_member_intent',
+  ADMISSION_TTL_MS: 30 * 60 * 1000,
+  // Se la migration 070 non è ancora deployata si può mettere true per
+  // bypassare il gate in fase di rollout. In produzione: false (fail-closed).
+  DISABLED: false
+};
+
+// Legge l'ammissione valida (non scaduta) dallo storage. → {code,source_type} | null
+function rbReadAdmission(){
+  try{
+    var raw = sessionStorage.getItem(RB_GATE.ADMISSION_KEY);
+    if(!raw) return null;
+    var a = JSON.parse(raw);
+    if(!a || !a.code) return null;
+    if(a.validated_at && (Date.now() - a.validated_at) > RB_GATE.ADMISSION_TTL_MS){
+      sessionStorage.removeItem(RB_GATE.ADMISSION_KEY);
+      return null;
+    }
+    return a;
+  }catch(e){ return null; }
+}
+
+// Decide se la pagina di login può essere mostrata senza ammissione.
+// Ritorna true se OK (mostra login), false se ha già fatto redirect alla pre-page.
+function rbAdmissionGate(){
+  if(RB_GATE.DISABLED) return true;
+  try{
+    var qs = new URLSearchParams(location.search);
+
+    // 1) Arrivo da link referral → memorizza intent e lascia passare (il
+    //    form register lo validerà di nuovo server-side prima del signup).
+    if(qs.get('ref')) return true;
+
+    // 2) Ammissione già concessa dalla pre-page (TTL attivo).
+    if(rbReadAdmission()) return true;
+
+    // 3) Socio che vuole solo loggarsi (bottone "Già socio" nella pre-page).
+    if(sessionStorage.getItem(RB_GATE.MEMBER_KEY) === '1') return true;
+
+    // Nessun lasciapassare → rimbalza alla pre-page di ammissione,
+    // preservando l'eventuale ?return=.
+    var ret = qs.get('return');
+    var url = RB_GATE.ACCESSO_PAGE + (ret ? '?return=' + encodeURIComponent(ret) : '');
+    location.replace(url);
+    return false;
+  }catch(e){
+    // In caso di errore imprevisto, fail-open verso il login (mai bloccare
+    // un socio legittimo per un bug del gate); il signup resta gated lato form.
+    return true;
+  }
+}
+
 // ── Helpers UI ──────────────────────────────────────────────
 function authShow(){ var o=document.getElementById('authOverlay'); if(o) o.classList.remove('hidden'); }
 function authHide(){ var o=document.getElementById('authOverlay'); if(o) o.classList.add('hidden'); }
@@ -444,6 +520,50 @@ function aoShowRegister(){
   var f = document.getElementById('ao-form-register'); if(f) f.style.display = 'flex';
   var emLogin = (document.getElementById('authLoginEmail').value||'').trim();
   if(emLogin) document.getElementById('authRegEmail').value = emLogin;
+}
+
+// Risolve il codice referral attivo: priorità a ?ref= in URL, poi ammissione
+// salvata dalla pre-page (sessionStorage rb_admission). → codice normalizzato | ''
+function rbActiveReferral(){
+  try{
+    var ref = new URLSearchParams(location.search).get('ref');
+    if(ref) return ref.toLowerCase().trim();
+    var a = (typeof rbReadAdmission === 'function') ? rbReadAdmission() : null;
+    if(a && a.code) return String(a.code).toLowerCase().trim();
+  }catch(e){}
+  return '';
+}
+
+// Applica la "modalità di ingresso" dopo che l'overlay è visibile:
+//  • ?mode=register  → apre direttamente il form di registrazione
+//  • referral attivo → mostra il badge invito nel form register
+function rbApplyEntryMode(){
+  try{
+    var qs   = new URLSearchParams(location.search);
+    var ref  = rbActiveReferral();
+    var mode = qs.get('mode');
+
+    // Se arrivo con un referral via URL ma senza ammissione salvata, salvala
+    // ora (così sopravvive a un eventuale refresh entro il TTL).
+    if(qs.get('ref') && typeof rbReadAdmission === 'function' && !rbReadAdmission()){
+      try{
+        sessionStorage.setItem(RB_GATE.ADMISSION_KEY, JSON.stringify({
+          code: ref, source_type: null, validated_at: Date.now()
+        }));
+      }catch(e){}
+    }
+
+    if(ref){
+      var badge = document.getElementById('ao-ref-badge');
+      var bcode = document.getElementById('ao-ref-badge-code');
+      if(bcode) bcode.textContent = ref.toUpperCase();
+      if(badge) badge.style.display = 'flex';
+    }
+
+    if(mode === 'register' || (ref && mode !== 'login')){
+      aoShowRegister();
+    }
+  }catch(e){ /* non bloccante */ }
 }
 function aoShowReset(){
   aoHideAllForms();
@@ -638,6 +758,14 @@ window.authDoRegister = async function(){
   if(!privacyOk){   authMsg('authRegMsg','Devi accettare l\'Informativa Privacy per procedere'); return; }
   if(!tosOk){       authMsg('authRegMsg','Devi accettare i Termini di Servizio per procedere'); return; }
 
+  // ── Admission gate: la registrazione richiede un codice referral valido ──
+  var refCode = (typeof rbActiveReferral === 'function') ? rbActiveReferral() : '';
+  if(!refCode){
+    authMsg('authRegMsg','La registrazione è su invito. Inserisci un codice di ammissione.');
+    setTimeout(function(){ location.href = RB_GATE.ACCESSO_PAGE; }, 1600);
+    return;
+  }
+
   authBtn('authRegBtn',true,'Registrati');
   try{
     var hdrs={'Content-Type':'application/json','apikey':RB_ANON_KEY};
@@ -661,7 +789,8 @@ window.authDoRegister = async function(){
           gdpr_privacy_accepted_at: nowIso,
           gdpr_privacy_version: '1.0',
           gdpr_tos_accepted_at: nowIso,
-          gdpr_tos_version: '1.0'
+          gdpr_tos_version: '1.0',
+          referral_code: refCode
         }
       },
       // Compatibilità con vecchio formato (alcuni endpoint GoTrue leggono il
@@ -679,6 +808,17 @@ window.authDoRegister = async function(){
     var r=await fetch(signupUrl,{method:'POST',headers:hdrs,body:JSON.stringify(signupBody)});
     var data=await r.json().catch(function(){return{};});
     if(!r.ok) throw new Error(data.error_description||data.msg||data.error||('HTTP '+r.status));
+
+    // Consuma il codice referral (best-effort: non blocca la UX se fallisce).
+    try{
+      await fetch('https://rbjaaeyjeeqfpbzyavag.supabase.co/rest/v1/rpc/consume_referral_code',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','apikey':RB_ANON_KEY,'Authorization':'Bearer '+RB_ANON_KEY},
+        body:JSON.stringify({p_code:refCode, p_email:email})
+      });
+    }catch(e){ console.warn('[register] consume_referral_code:', e); }
+    // Ammissione esaurita: rimuovi il token così non viene riusato.
+    try{ sessionStorage.removeItem(RB_GATE.ADMISSION_KEY); }catch(e){}
 
     authMsg('authRegMsg','Account creato. Controlla la tua email per confermare.','ok');
   }catch(e){
@@ -1860,6 +2000,7 @@ window.rbAuthInit = function(){
         })
         .catch(function(){
           rbClearSession();
+          if(!rbAdmissionGate()) return; // redirect alla pre-page
           authDiag('sessione scaduta — effettua il login',false);
           authShow();
         });
@@ -1867,10 +2008,12 @@ window.rbAuthInit = function(){
     }
   }
 
-  // Nessuna sessione → mostra login
+  // Nessuna sessione → admission gate, poi mostra login
   rbClearSession();
+  if(!rbAdmissionGate()) return; // ha già fatto redirect alla pre-page
   authDiag('nessuna sessione — effettua il login',false);
   authShow();
+  rbApplyEntryMode();
 };
 
 // NOTA: rbAuthInit viene chiamato UNA SOLA VOLTA da DOMContentLoaded
