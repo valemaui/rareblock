@@ -167,7 +167,7 @@
     </div>
 
     <div class="divider">Sei già socio?</div>
-    <p class="member">Hai già un account? <a href="#" id="memberLink">Accedi all'area riservata →</a></p>
+    <p class="member">Hai già un account? <a href="rareblock-login.html?member=1" id="memberLink">Accedi all'area riservata →</a></p>
 
     <div class="foot">
       <div class="logo">
@@ -370,12 +370,16 @@ async function rbVerifyCode(rawCode, opts){
   document.getElementById('requestLink').addEventListener('click', function(){ showStep('call'); });
   document.getElementById('callBack').addEventListener('click', function(){ showStep('code'); });
 
-  // "Già socio" → bypass del gate: il login lo lascerà passare al form di accesso.
+  // "Già socio" → il link naviga a rareblock-login.html?member=1 (funziona
+  // anche senza JS). Qui settiamo anche l'intent in storage come ridondanza.
   document.getElementById('memberLink').addEventListener('click', function(e){
-    e.preventDefault();
     try{ sessionStorage.setItem(RB.MEMBER_KEY,'1'); }catch(e){}
     var ret = new URLSearchParams(location.search).get('return');
-    location.href = RB.LOGIN + (ret ? '?return=' + encodeURIComponent(ret) : '');
+    if(ret){
+      e.preventDefault();
+      location.href = RB.LOGIN + '?member=1&return=' + encodeURIComponent(ret);
+    }
+    // senza return: lascia che l'href dell'anchor faccia la navigazione
   });
 })();
 </script>

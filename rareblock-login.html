@@ -445,6 +445,12 @@ function rbAdmissionGate(){
     //    form register lo validerà di nuovo server-side prima del signup).
     if(qs.get('ref')) return true;
 
+    // 1b) Arrivo da "Accedi all'area riservata" (?member=1) → intent socio.
+    if(qs.get('member') === '1'){
+      try{ sessionStorage.setItem(RB_GATE.MEMBER_KEY,'1'); }catch(e){}
+      return true;
+    }
+
     // 2) Ammissione già concessa dalla pre-page (TTL attivo).
     if(rbReadAdmission()) return true;
 
@@ -522,6 +528,10 @@ function aoShowLogin(){
 function rbLoginOnly(){
   try{
     if(rbActiveReferral()) return false; // ha un codice → registrazione consentita
+    // ?member=1 (arrivo da "Accedi all'area riservata") imposta l'intent socio
+    if(new URLSearchParams(location.search).get('member') === '1'){
+      try{ sessionStorage.setItem(RB_GATE.MEMBER_KEY,'1'); }catch(e){}
+    }
     return sessionStorage.getItem(RB_GATE.MEMBER_KEY) === '1';
   }catch(e){ return false; }
 }
