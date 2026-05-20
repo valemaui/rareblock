@@ -2862,9 +2862,9 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
             <!-- Quick add -->
             <div id="quickAddForm" style="display:none" class="form-card">
               <div class="form-grid" style="margin-bottom:10px">
-                <div class="field"><label for="qCond">Condizione</label><select id="qCond" onchange="updateQuickPrice()"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select></div>
-                <div class="field"><label for="qLang">Lingua</label><select id="qLang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select></div>
-                <div class="field"><label for="qVar">Variante</label><select id="qVar" onchange="updateQuickPrice()"><option>Normal</option><option>Holo</option><option>Reverse Holo</option><option>Full Art</option><option>Secret Rare</option><option>Rainbow Rare</option><option>Gold</option><option>Promo</option><option>Shadowless</option></select></div>
+                <div class="field"><label for="qCond">Condizione</label><select id="qCond" onchange="updateQuickPrice();_scheduleAutoVerify('q')"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select></div>
+                <div class="field"><label for="qLang">Lingua</label><select id="qLang" onchange="_scheduleAutoVerify('q')"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select></div>
+                <div class="field"><label for="qVar">Variante</label><select id="qVar" onchange="updateQuickPrice();_scheduleAutoVerify('q')"><option>Normal</option><option>Holo</option><option>Reverse Holo</option><option>Full Art</option><option>Secret Rare</option><option>Rainbow Rare</option><option>Gold</option><option>Promo</option><option>Shadowless</option></select></div>
                 <div class="field"><label for="qQty">Quantità</label><input id="qQty" type="number" value="1" min="1"/></div>
                 <div class="field"><label for="qBuy">Acquisto (€)</label><input id="qBuy" type="number" placeholder="0.00" step="0.01"/></div>
                 <div class="field">
@@ -2872,7 +2872,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                   <div style="display:flex;gap:6px;align-items:center">
                     <input id="qSell" type="number" placeholder="0.00" step="0.01" style="flex:1"/>
                     <label style="display:flex;align-items:center;gap:4px;white-space:nowrap;text-transform:none;letter-spacing:0;font-size:12px;font-weight:400;color:var(--text-muted)">
-                      <input type="checkbox" id="q1st" onchange="updateQuickPrice()" style="width:13px;height:13px"/> 1ª ed.
+                      <input type="checkbox" id="q1st" onchange="updateQuickPrice();_scheduleAutoVerify('q')" style="width:13px;height:13px"/> 1ª ed.
                     </label>
                   </div>
                 </div>
@@ -5027,7 +5027,19 @@ function showQuickMatch(c){
   document.getElementById('qmName').textContent=c.name;
   document.getElementById('qmSet').textContent=(c.set?.name||'')+(c.number?' · #'+c.number:'')+(c.rarity?' · '+c.rarity:'');
   document.getElementById('qmRarity').textContent='';
+  // Pulisci eventuale banner CM live di una carta precedente
+  const oldQFb=document.getElementById('qVerifyFeedback');
+  if(oldQFb) oldQFb.remove();
+  // Reset stash CM precedente: la verifica fatta su un'altra carta non è più
+  // rilevante. Il bottone ↻ torna grigio (disabled) finché non c'è un nuovo log.
+  _cmStash['q'] = null;
+  const qRep=document.getElementById('qReplayBtn');
+  if(qRep) qRep.classList.add('replay-disabled');
   updateQuickPrice();
+  // Auto-verify CM al cambio carta (come nel preventivo): parte una verify
+  // silent dopo 600ms così il prezzo CM live popola da solo qSell + banner
+  // senza che l'utente debba cliccare €. Stesso meccanismo di showPrevQuickAdd.
+  _scheduleAutoVerify('q', 600);
 }
 
 function updateQuickPrice(){
