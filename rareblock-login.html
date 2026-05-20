@@ -143,7 +143,7 @@
   <div class="ao-wrap">
     <div class="ao-logo">
       <div class="ao-logo-name">Rare<span>Block</span></div>
-      <div class="ao-logo-sub">Collector &amp; Investor Portal</div>
+      <div class="ao-logo-sub">Collector &amp; Investor Club</div>
     </div>
 
     <!-- LOGIN -->
@@ -215,7 +215,7 @@
             <input type="text" id="authRegReferral" placeholder="codice referral (facoltativo)" autocomplete="off" spellcheck="false" oninput="rbRefHint()"/>
             <span class="ao-input-icon" id="authRegReferralIcon">◇</span>
           </div>
-          <div class="ao-field-hint" id="authRegReferralHint">Con un codice valido l'accesso è immediato. Senza codice, la tua richiesta sarà valutata dal team.</div>
+          <div class="ao-field-hint" id="authRegReferralHint">Con un codice valido l'accesso è immediato. Senza codice potrai richiederne uno prenotando una call.</div>
         </div>
         <div class="ao-field">
           <label for="authRegEmail">Email</label>
@@ -604,8 +604,8 @@ function rbRefHint(){
     if(icon) icon.textContent = has ? '◆' : '◇';
     if(hint) hint.textContent = has
       ? 'Il codice sarà verificato: se valido, accesso immediato.'
-      : 'Con un codice valido l\'accesso è immediato. Senza codice, la tua richiesta sarà valutata dal team.';
-    if(btn)  btn.textContent  = has ? 'Crea account' : 'Invia richiesta';
+      : 'Con un codice valido l\'accesso è immediato. Senza codice potrai richiederne uno prenotando una call.';
+    if(btn)  btn.textContent  = has ? 'Crea account' : 'Richiedi un codice';
   }catch(e){}
 }
 function aoShowReset(){
@@ -805,32 +805,10 @@ window.authDoRegister = async function(){
   var refField = (document.getElementById('authRegReferral').value||'').trim().toLowerCase();
   var refCode  = refField || ((typeof rbActiveReferral === 'function') ? rbActiveReferral() : '');
 
-  // ─── SENZA codice → richiesta di ammissione in WAITING (niente account) ───
+  // ─── SENZA codice → invio alla pagina di richiesta accesso (call) ───
   if(!refCode){
-    authBtn('authRegBtn',true,'Invio…');
-    try{
-      var rq = await fetch('https://rbjaaeyjeeqfpbzyavag.supabase.co/rest/v1/rpc/request_admission',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','apikey':RB_ANON_KEY,'Authorization':'Bearer '+RB_ANON_KEY},
-        body:JSON.stringify({
-          p_email: email.toLowerCase(),
-          p_user_agent: navigator.userAgent,
-          p_referrer: document.referrer || null,
-          p_language: navigator.language || null
-        })
-      });
-      var rqData = await rq.json().catch(function(){return null;});
-      if(!rq.ok) throw new Error((rqData && (rqData.message||rqData.error)) || ('HTTP '+rq.status));
-      authMsg('authRegMsg','Richiesta inviata. Il team valuterà la tua candidatura e ti contatterà via email.','ok');
-    }catch(e){
-      var em = e.message||'';
-      if(/already|duplicate/i.test(em)) authMsg('authRegMsg','Hai già una richiesta in valutazione per questa email.','ok');
-      else if(/Failed to fetch|NetworkError/i.test(em)) authMsg('authRegMsg','Connessione non disponibile. Verifica la rete.');
-      else if(/404/.test(em)) authMsg('authRegMsg','Servizio richieste non ancora attivo. Riprova più tardi.');
-      else authMsg('authRegMsg','Impossibile inviare la richiesta. Riprova.');
-    }finally{
-      authBtn('authRegBtn',false,'Invia richiesta');
-    }
+    authMsg('authRegMsg','La registrazione richiede un codice invito. Ti reindirizziamo per richiederne uno.','ok');
+    setTimeout(function(){ location.href = 'https://www.rareblock.eu/rareblock-accesso.html'; }, 1400);
     return;
   }
 
