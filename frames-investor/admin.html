@@ -784,6 +784,7 @@ body{display:flex;flex-direction:column}
       <button class="admin-side-btn" onclick="adminSection('liquidations')"><span class="rb-i rb-i-coin"></span> Liquidazioni</button>
       <button class="admin-side-btn" onclick="adminSection('transfers')"><span class="rb-i rb-i-swap"></span> Trasferimenti</button>
       <button class="admin-side-btn" onclick="adminSection('memorandum')"><span class="rb-i rb-i-list"></span> Memorandum</button>
+      <button class="admin-side-btn" onclick="adminSection('referral')"><span class="rb-i rb-i-user" style="color:var(--gold)"></span> Inviti / Referral</button>
       <button class="admin-side-btn" onclick="adminSection('drop')"><span class="rb-i rb-i-clock"></span> Drop Countdown</button>
       <button class="admin-side-btn" onclick="adminSection('submissions')"><span class="rb-i rb-i-package"></span> Richieste</button>
       <button class="admin-side-btn" onclick="adminSection('users')"><span class="rb-i rb-i-user"></span> Utenti</button>
@@ -1370,6 +1371,94 @@ body{display:flex;flex-direction:column}
       </div>
 
       <!-- RICHIESTE VALUTAZIONE — submission_requests -->
+      <!-- INVITI / REFERRAL — codici ammissione portale -->
+      <div class="admin-section" id="admin-referral">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div>
+            <div style="font-size:15px;font-weight:600">Inviti / Referral</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Codici di ammissione al portale (<a href="rareblock-accesso.html" target="_blank" rel="noopener" style="color:var(--accent)">pagina ammissione</a>). Registrazione su invito.</div>
+          </div>
+          <button class="btn primary" onclick="refOpenCode(null)"><span class="rb-i rb-i-plus"></span> Nuovo codice</button>
+        </div>
+
+        <!-- mini-stats -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:12px 0 16px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-family:var(--mono)">Codici attivi</div>
+            <div style="font-size:1.4rem;font-weight:300;color:var(--gold,#c9a84c);margin-top:2px" id="refStatActive">&mdash;</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-family:var(--mono)">Iscrizioni (consumi)</div>
+            <div style="font-size:1.4rem;font-weight:300;color:var(--accent);margin-top:2px" id="refStatConsumed">&mdash;</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-family:var(--mono)">Inviti residui</div>
+            <div style="font-size:1.4rem;font-weight:300;margin-top:2px" id="refStatRemaining">&mdash;</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-family:var(--mono)">Falliti 7gg</div>
+            <div style="font-size:1.4rem;font-weight:300;margin-top:2px" id="refStatFails">&mdash;</div>
+          </div>
+        </div>
+
+        <!-- Sub-tabs Codici / Attivita -->
+        <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px">
+          <button class="ref-tab active" data-ref-tab="codes" onclick="refSubTab('codes')" style="background:none;border:none;padding:8px 16px;color:var(--text);cursor:pointer;font-size:13px;border-bottom:2px solid var(--accent);position:relative;top:1px">Codici <span id="refCntCodes" style="background:var(--surface2);padding:1px 7px;border-radius:10px;font-size:11px;color:var(--text-muted);font-family:var(--mono);margin-left:4px">0</span></button>
+          <button class="ref-tab" data-ref-tab="log" onclick="refSubTab('log')" style="background:none;border:none;padding:8px 16px;color:var(--text-muted);cursor:pointer;font-size:13px;border-bottom:2px solid transparent;position:relative;top:1px">Attivita <span id="refCntLogs" style="background:var(--surface2);padding:1px 7px;border-radius:10px;font-size:11px;color:var(--text-muted);font-family:var(--mono);margin-left:4px">0</span></button>
+        </div>
+
+        <!-- Toolbar Codici -->
+        <div id="refToolbarCodes" style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <input type="text" id="refSearchCodes" oninput="refRenderCodes()" placeholder="Cerca codice, etichetta..." style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);min-width:200px;font-size:13px;outline:none">
+          <select id="refFilterType" onchange="refRenderCodes()" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);font-size:13px;outline:none">
+            <option value="">Tutte le origini</option>
+            <option value="member">Referral socio</option>
+            <option value="founder">Invito founder</option>
+            <option value="campaign">Campagna</option>
+            <option value="partner">Partner</option>
+          </select>
+          <select id="refFilterStatus" onchange="refRenderCodes()" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);font-size:13px;outline:none">
+            <option value="">Tutti gli stati</option>
+            <option value="active">Attivi</option>
+            <option value="exhausted">Esauriti</option>
+            <option value="expired">Scaduti</option>
+            <option value="inactive">Disattivati</option>
+          </select>
+          <button class="btn" onclick="refLoadAll()" style="font-size:12px">Aggiorna</button>
+        </div>
+
+        <!-- Toolbar Attivita -->
+        <div id="refToolbarLog" style="display:none;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <input type="text" id="refSearchLog" oninput="refRenderLogs()" placeholder="Cerca codice, email, paese..." style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);min-width:200px;font-size:13px;outline:none">
+          <select id="refFilterLogOutcome" onchange="refRenderLogs()" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);font-size:13px;outline:none">
+            <option value="">Tutti gli esiti</option>
+            <option value="consumed">Iscrizioni</option>
+            <option value="valid">Verifiche ok</option>
+            <option value="invalid">Falliti</option>
+          </select>
+          <button class="btn" onclick="refLoadAll()" style="font-size:12px">Aggiorna</button>
+        </div>
+
+        <!-- Tabella Codici -->
+        <div id="refPaneCodes">
+          <table class="admin-table" id="refCodesTable">
+            <thead><tr><th>Codice</th><th>Etichetta</th><th>Origine</th><th>Usi</th><th>Scadenza</th><th>Ultima attivita</th><th>Stato</th><th></th></tr></thead>
+            <tbody id="refCodesTbody"></tbody>
+          </table>
+          <div class="empty-state" id="refCodesEmpty" style="display:none;padding:32px"><div class="icon"><span class="rb-i rb-i-user"></span></div><h3>Nessun codice</h3><div style="color:var(--text-muted);font-size:13px;margin-top:6px">Crea il primo codice invito col bottone "Nuovo codice".</div></div>
+        </div>
+
+        <!-- Tabella Attivita -->
+        <div id="refPaneLog" style="display:none">
+          <table class="admin-table" id="refLogTable">
+            <thead><tr><th>Quando</th><th>Codice</th><th>Esito</th><th>Email</th><th>Origine richiesta</th><th>Paese</th><th>Device</th></tr></thead>
+            <tbody id="refLogTbody"></tbody>
+          </table>
+          <div class="empty-state" id="refLogEmpty" style="display:none;padding:32px"><div class="icon"><span class="rb-i rb-i-list"></span></div><h3>Nessuna attivita registrata</h3></div>
+        </div>
+      </div>
+
+      <!-- RICHIESTE VALUTAZIONE submission_requests -->
       <div class="admin-section" id="admin-submissions">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <div>
@@ -2161,6 +2250,84 @@ body{display:flex;flex-direction:column}
 </div>
 
 <!-- ═══ tierModalBg ═══ -->
+<!-- refCodeModalBg -->
+<div class="modal-bg" id="refCodeModalBg" onclick="if(event.target===this)refCloseCodeModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="refCodeModalTitle">Nuovo codice invito</h3>
+      <button class="modal-close" onclick="refCloseCodeModal()" aria-label="Chiudi"><span class="rb-i rb-i-x"></span></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="refCodeId">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label for="refCodeLabel" style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:5px">Etichetta interna *</label>
+          <input type="text" id="refCodeLabel" placeholder="Es. Referral Mario Rossi" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;color:var(--text);outline:none;font-size:13px">
+        </div>
+        <div>
+          <label for="refCodeType" style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:5px">Origine *</label>
+          <select id="refCodeType" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;color:var(--text);outline:none;font-size:13px">
+            <option value="member">Referral socio</option>
+            <option value="founder">Invito founder</option>
+            <option value="campaign">Campagna</option>
+            <option value="partner">Partner</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label for="refCodeValue" style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:5px">Codice *</label>
+        <input type="text" id="refCodeValue" placeholder="es. rossi-26-a4f" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;color:var(--text);outline:none;font-size:13px;font-family:var(--mono)">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Solo minuscole, numeri, trattini. <a href="javascript:void(0)" onclick="refSuggestCode()" style="color:var(--accent)">Suggerisci &rarr;</a></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label for="refCodeMaxUses" style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:5px">Inviti disponibili</label>
+          <input type="number" id="refCodeMaxUses" min="1" placeholder="vuoto = illimitato" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;color:var(--text);outline:none;font-size:13px">
+        </div>
+        <div>
+          <label for="refCodeExpiry" style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:5px">Scadenza (opzionale)</label>
+          <input type="date" id="refCodeExpiry" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;color:var(--text);outline:none;font-size:13px">
+        </div>
+      </div>
+      <div>
+        <label for="refCodeNotes" style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:5px">Note interne</label>
+        <textarea id="refCodeNotes" placeholder="Contesto del referral, accordi, dettagli utili..." style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;color:var(--text);outline:none;font-size:13px;min-height:60px;resize:vertical;font-family:inherit"></textarea>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted)">Codici scaduti, esauriti o disattivati smettono di funzionare immediatamente.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="refCloseCodeModal()">Annulla</button>
+      <button class="btn primary" onclick="refSaveCode()">Salva codice</button>
+    </div>
+  </div>
+</div>
+
+<!-- refLinkModalBg -->
+<div class="modal-bg" id="refLinkModalBg" onclick="if(event.target===this)refCloseLinkModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Link invito</h3>
+      <button class="modal-close" onclick="refCloseLinkModal()" aria-label="Chiudi"><span class="rb-i rb-i-x"></span></button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text-muted)" id="refLinkLabel">&mdash;</div>
+      <div>
+        <label for="refLinkUrl" style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:5px">Link di ammissione</label>
+        <input type="text" id="refLinkUrl" readonly style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;color:var(--text);outline:none;font-size:12px;font-family:var(--mono)">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Apre la pagina di ammissione con il codice precompilato; verifica e porta alla registrazione.</div>
+      </div>
+      <div>
+        <label for="refLinkCode" style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:5px">Solo codice (inserimento manuale)</label>
+        <input type="text" id="refLinkCode" readonly style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;color:var(--gold,#c9a84c);outline:none;font-size:12px;font-family:var(--mono)">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="refCloseLinkModal()">Chiudi</button>
+      <button class="btn primary" onclick="refCopyLink()">Copia link</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="tierModalBg" onclick="if(event.target===this)closeTierModal()">
   <div class="modal">
     <div class="modal-head">
@@ -2801,6 +2968,7 @@ function adminSection(s){
   if(s==='liquidations')adminLoadLiquidations();
   if(s==='transfers')   adminLoadTransfers();
   if(s==='memorandum')  memoLoadAll();
+  if(s==='referral')    refLoadAll();
   if(s==='drop')        dropAdminLoad();
   if(s==='submissions') submLoadAll();
   if(s==='users')       adminLoadUsers();
@@ -3979,6 +4147,291 @@ function memoCopyLink(){
     });
   } else {
     try { document.execCommand('copy'); memoCloseLinkModal(); } catch(e){}
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  INVITI / REFERRAL — codici ammissione portale
+//  Legge da v_referral_codes_admin (GET) e inv_referral_redemptions;
+//  scrive su inv_referral_codes (POST/PATCH). RLS gated da is_admin().
+//  Specchio del pannello Memorandum.
+// ═══════════════════════════════════════════════════════════
+var _refCodes = [];
+var _refLogs  = [];
+var _refSubTab = 'codes';
+
+function refSubTab(t){
+  _refSubTab = t;
+  document.querySelectorAll('.ref-tab').forEach(function(b){
+    var on = b.getAttribute('data-ref-tab')===t;
+    b.style.color = on ? 'var(--text)' : 'var(--text-muted)';
+    b.style.borderBottomColor = on ? 'var(--accent)' : 'transparent';
+    b.classList.toggle('active', on);
+  });
+  document.getElementById('refToolbarCodes').style.display = t==='codes' ? 'flex' : 'none';
+  document.getElementById('refToolbarLog').style.display   = t==='log'   ? 'flex' : 'none';
+  document.getElementById('refPaneCodes').style.display = t==='codes' ? 'block' : 'none';
+  document.getElementById('refPaneLog').style.display   = t==='log'   ? 'block' : 'none';
+}
+
+async function refLoadAll(){
+  if(!_isAdmin) return;
+  await Promise.all([refLoadCodes(), refLoadLogs()]);
+  refRefreshStats();
+  refRenderCodes();
+  refRenderLogs();
+}
+
+async function refLoadCodes(){
+  try{
+    _refCodes = (await supa('GET','v_referral_codes_admin?order=created_at.desc')) || [];
+    var c = document.getElementById('refCntCodes'); if(c) c.textContent = _refCodes.length;
+  }catch(e){
+    console.error('referral codes load:', e);
+    _refCodes = [];
+  }
+}
+
+async function refLoadLogs(){
+  try{
+    _refLogs = (await supa('GET','inv_referral_redemptions?order=created_at.desc&limit=500')) || [];
+    var c = document.getElementById('refCntLogs'); if(c) c.textContent = _refLogs.length;
+  }catch(e){
+    console.error('referral logs load:', e);
+    _refLogs = [];
+  }
+}
+
+function refRefreshStats(){
+  var active = _refCodes.filter(function(k){ return k.status==='active'; }).length;
+  var consumed = _refLogs.filter(function(l){ return l.outcome==='consumed'; }).length;
+  // residuo totale: somma dei remaining noti (i codici illimitati non contano)
+  var remaining = _refCodes.reduce(function(s,k){ return s + (k.remaining==null ? 0 : k.remaining); }, 0);
+  var hasUnlimited = _refCodes.some(function(k){ return k.status==='active' && k.remaining==null; });
+  var sevenAgo = Date.now() - 7*86400000;
+  var fails = _refLogs.filter(function(l){ return l.outcome==='invalid' && new Date(l.created_at).getTime() > sevenAgo; }).length;
+  var setT = function(id,v){ var el=document.getElementById(id); if(el) el.textContent = v; };
+  setT('refStatActive', active);
+  setT('refStatConsumed', consumed);
+  setT('refStatRemaining', remaining + (hasUnlimited ? '+' : ''));
+  setT('refStatFails', fails);
+}
+
+function refFmtRel(d){
+  if(!d) return '—';
+  var diff = Date.now() - new Date(d).getTime();
+  var m = Math.floor(diff/60000), h = Math.floor(diff/3600000), days = Math.floor(diff/86400000);
+  if(diff < 60000) return 'ora';
+  if(m < 60) return m+' min fa';
+  if(h < 24) return h+'h fa';
+  if(days < 7) return days+'g fa';
+  return new Date(d).toLocaleDateString('it-IT',{day:'2-digit',month:'short'});
+}
+function refSimplifyUA(ua){
+  if(!ua) return '—';
+  if(/iPhone/.test(ua)) return 'iPhone';
+  if(/iPad/.test(ua)) return 'iPad';
+  if(/Android/.test(ua)) return 'Android';
+  if(/Macintosh/.test(ua)) return 'Mac';
+  if(/Windows/.test(ua)) return 'Windows';
+  return ua.slice(0,18);
+}
+
+var REF_STATUS_META = {
+  active:    {label:'Attivo',      color:'var(--gold,#c9a84c)'},
+  exhausted: {label:'Esaurito',    color:'var(--text-muted)'},
+  expired:   {label:'Scaduto',     color:'#c97a4c'},
+  inactive:  {label:'Disattivato', color:'var(--text-muted)'}
+};
+var REF_TYPE_LABEL = {member:'Referral socio', founder:'Founder', campaign:'Campagna', partner:'Partner'};
+
+function refRenderCodes(){
+  var tbody = document.getElementById('refCodesTbody');
+  if(!tbody) return;
+  var q  = (document.getElementById('refSearchCodes').value||'').toLowerCase().trim();
+  var ft = document.getElementById('refFilterType').value;
+  var fs = document.getElementById('refFilterStatus').value;
+
+  var rows = _refCodes.filter(function(k){
+    if(ft && k.source_type !== ft) return false;
+    if(fs && k.status !== fs) return false;
+    if(q){
+      var hay = (k.code+' '+(k.label||'')+' '+(k.notes||'')).toLowerCase();
+      if(hay.indexOf(q) === -1) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('refCodesEmpty').style.display = rows.length ? 'none' : 'block';
+  document.getElementById('refCodesTable').style.display = rows.length ? '' : 'none';
+
+  tbody.innerHTML = rows.map(function(k){
+    var sm = REF_STATUS_META[k.status] || REF_STATUS_META.inactive;
+    var uses = k.uses + (k.max_uses==null ? ' / ∞' : ' / ' + k.max_uses);
+    var exp  = k.expires_at ? new Date(k.expires_at).toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '—';
+    var toggleLbl = k.is_active ? 'Disattiva' : 'Riattiva';
+    return '<tr>'
+      + '<td><span style="font-family:var(--mono);color:var(--gold,#c9a84c)">'+escHtml(k.code)+'</span></td>'
+      + '<td>'+escHtml(k.label||'—')+'</td>'
+      + '<td><span style="font-size:11px;color:var(--text-muted)">'+(REF_TYPE_LABEL[k.source_type]||k.source_type)+'</span></td>'
+      + '<td><span style="font-family:var(--mono);font-size:12px">'+uses+'</span></td>'
+      + '<td><span style="font-size:12px;color:var(--text-muted)">'+exp+'</span></td>'
+      + '<td><span style="font-size:12px;color:var(--text-muted)">'+refFmtRel(k.last_seen_at)+'</span></td>'
+      + '<td><span style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;color:'+sm.color+'">'+sm.label+'</span></td>'
+      + '<td style="white-space:nowrap;text-align:right">'
+        + '<button class="btn" style="font-size:11px;padding:4px 8px" onclick="refOpenLink(\''+k.id+'\')">Link</button> '
+        + '<button class="btn" style="font-size:11px;padding:4px 8px" onclick="refOpenCode(\''+k.id+'\')">Modifica</button> '
+        + '<button class="btn" style="font-size:11px;padding:4px 8px" onclick="refToggleCode(\''+k.id+'\')">'+toggleLbl+'</button>'
+      + '</td>'
+      + '</tr>';
+  }).join('');
+}
+
+var REF_OUTCOME_META = {
+  consumed: {label:'Iscrizione', color:'var(--gold,#c9a84c)'},
+  valid:    {label:'Verifica ok', color:'var(--accent)'},
+  invalid:  {label:'Fallito',    color:'#c97a4c'},
+  expired:  {label:'Scaduto',    color:'#c97a4c'},
+  exhausted:{label:'Esaurito',   color:'var(--text-muted)'},
+  inactive: {label:'Disattivato',color:'var(--text-muted)'}
+};
+
+function refRenderLogs(){
+  var tbody = document.getElementById('refLogTbody');
+  if(!tbody) return;
+  var q  = (document.getElementById('refSearchLog').value||'').toLowerCase().trim();
+  var fo = document.getElementById('refFilterLogOutcome').value;
+
+  var rows = _refLogs.filter(function(l){
+    if(fo && l.outcome !== fo) return false;
+    if(q){
+      var hay = ((l.code||'')+' '+(l.redeemed_email||'')+' '+(l.country_hint||'')).toLowerCase();
+      if(hay.indexOf(q) === -1) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('refLogEmpty').style.display = rows.length ? 'none' : 'block';
+  document.getElementById('refLogTable').style.display = rows.length ? '' : 'none';
+
+  tbody.innerHTML = rows.map(function(l){
+    var om = REF_OUTCOME_META[l.outcome] || {label:l.outcome, color:'var(--text-muted)'};
+    return '<tr>'
+      + '<td><span style="font-size:12px;color:var(--text-muted)">'+refFmtRel(l.created_at)+'</span></td>'
+      + '<td><span style="font-family:var(--mono);font-size:12px">'+escHtml(l.code||'—')+'</span></td>'
+      + '<td><span style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;color:'+om.color+'">'+om.label+'</span></td>'
+      + '<td>'+escHtml(l.redeemed_email||'—')+'</td>'
+      + '<td><span style="font-size:11px;color:var(--text-muted)">'+escHtml(l.referrer||'—')+'</span></td>'
+      + '<td><span style="font-size:12px;color:var(--text-muted)">'+escHtml(l.country_hint||'—')+'</span></td>'
+      + '<td><span style="font-size:12px;color:var(--text-muted)">'+escHtml(refSimplifyUA(l.user_agent))+'</span></td>'
+      + '</tr>';
+  }).join('');
+}
+
+// ── Suggerimento codice ──────────────────────────────────────
+function refSlug(s){
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+}
+function refRndSuffix(n){
+  var a='abcdefghjkmnpqrstuvwxyz23456789', r='';
+  for(var i=0;i<(n||3);i++) r += a[Math.floor(Math.random()*a.length)];
+  return r;
+}
+function refSuggestCode(){
+  var base = refSlug(document.getElementById('refCodeLabel').value).split('-').slice(0,2).join('-') || 'rb';
+  document.getElementById('refCodeValue').value = base + '-' + refRndSuffix(3);
+}
+
+// ── Modal create/edit ────────────────────────────────────────
+function refOpenCode(id){
+  if(id){
+    var k = _refCodes.find(function(x){ return x.id === id; });
+    if(!k) return;
+    document.getElementById('refCodeModalTitle').textContent = 'Modifica codice';
+    document.getElementById('refCodeId').value = k.id;
+    document.getElementById('refCodeLabel').value = k.label || '';
+    document.getElementById('refCodeType').value = k.source_type || 'member';
+    document.getElementById('refCodeValue').value = k.code;
+    document.getElementById('refCodeMaxUses').value = (k.max_uses==null ? '' : k.max_uses);
+    document.getElementById('refCodeNotes').value = k.notes || '';
+    document.getElementById('refCodeExpiry').value = k.expires_at ? String(k.expires_at).slice(0,10) : '';
+  } else {
+    document.getElementById('refCodeModalTitle').textContent = 'Nuovo codice invito';
+    ['refCodeId','refCodeLabel','refCodeValue','refCodeMaxUses','refCodeNotes','refCodeExpiry'].forEach(function(id){
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('refCodeType').value = 'member';
+  }
+  document.getElementById('refCodeModalBg').classList.add('show');
+}
+function refCloseCodeModal(){ document.getElementById('refCodeModalBg').classList.remove('show'); }
+
+async function refSaveCode(){
+  var id    = document.getElementById('refCodeId').value;
+  var label = document.getElementById('refCodeLabel').value.trim();
+  var code  = document.getElementById('refCodeValue').value.trim().toLowerCase();
+  var maxRaw= document.getElementById('refCodeMaxUses').value.trim();
+  if(!label){ alert('Etichetta obbligatoria'); return; }
+  if(!code || !/^[a-z0-9-]+$/.test(code)){ alert('Codice non valido (solo minuscole, numeri, trattini)'); return; }
+  var maxUses = maxRaw === '' ? null : parseInt(maxRaw,10);
+  if(maxUses!=null && (!Number.isFinite(maxUses) || maxUses < 1)){ alert('Inviti disponibili: numero >= 1 o vuoto'); return; }
+
+  var payload = {
+    code: code,
+    label: label,
+    source_type: document.getElementById('refCodeType').value,
+    max_uses: maxUses,
+    notes: document.getElementById('refCodeNotes').value.trim() || null,
+    expires_at: document.getElementById('refCodeExpiry').value || null
+  };
+  try{
+    if(id) await supa('PATCH','inv_referral_codes?id=eq.'+id, payload);
+    else   await supa('POST','inv_referral_codes', payload);
+    refCloseCodeModal();
+    await refLoadCodes();
+    refRefreshStats();
+    refRenderCodes();
+    if(typeof showToast === 'function') showToast(id ? 'Codice aggiornato' : 'Codice creato', 'ok');
+  }catch(e){
+    if(String(e.message).indexOf('duplicate') > -1) alert('Codice già esistente, scegline un altro.');
+    else alert('Errore: '+e.message);
+  }
+}
+
+async function refToggleCode(id){
+  var k = _refCodes.find(function(x){ return x.id === id; });
+  if(!k) return;
+  try{
+    await supa('PATCH','inv_referral_codes?id=eq.'+id, { is_active: !k.is_active });
+    await refLoadCodes();
+    refRefreshStats();
+    refRenderCodes();
+  }catch(e){ alert('Errore: '+e.message); }
+}
+
+// ── Modal link ───────────────────────────────────────────────
+function refOpenLink(id){
+  var k = _refCodes.find(function(x){ return x.id === id; });
+  if(!k) return;
+  var baseUrl = location.href.replace(/[^/]*$/, '');
+  // la pagina di ammissione vive nella root, non nella cartella frames-investor/
+  baseUrl = baseUrl.replace(/frames-investor\/$/, '');
+  var url = baseUrl + 'rareblock-accesso.html?ref=' + encodeURIComponent(k.code);
+  document.getElementById('refLinkLabel').textContent = (k.label||k.code) + ' · ' + (REF_TYPE_LABEL[k.source_type]||k.source_type);
+  document.getElementById('refLinkUrl').value = url;
+  document.getElementById('refLinkCode').value = k.code;
+  document.getElementById('refLinkModalBg').classList.add('show');
+}
+function refCloseLinkModal(){ document.getElementById('refLinkModalBg').classList.remove('show'); }
+function refCopyLink(){
+  var input = document.getElementById('refLinkUrl');
+  input.select();
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(input.value).then(function(){ refCloseLinkModal(); })
+      .catch(function(){ try{ document.execCommand('copy'); refCloseLinkModal(); }catch(e){} });
+  } else {
+    try{ document.execCommand('copy'); refCloseLinkModal(); }catch(e){}
   }
 }
 
