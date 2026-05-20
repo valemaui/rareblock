@@ -2213,7 +2213,10 @@ var _mktStats = {};
 
 function getHDR(prefer){
   var token = (_session && _session.access_token) || SUPA_KEY;
-  return { 'Content-Type':'application/json', 'apikey':SUPA_KEY, 'Authorization':'Bearer '+token, 'Prefer': prefer||'return=representation' };
+  var h = { 'Content-Type':'application/json', 'apikey':SUPA_KEY, 'Authorization':'Bearer '+token };
+  // prefer===null → ometti l'header (GET); undefined → default representation
+  if(prefer !== null) h['Prefer'] = prefer || 'return=representation';
+  return h;
 }
 
 function saveSessionToStorage(s){
@@ -2238,7 +2241,11 @@ function clearSessionFromStorage(){
 }
 
 async function supa(method, path, body){
-  var prefer = (method==='PATCH'||method==='DELETE') ? 'return=minimal' : 'return=representation';
+  // Prefer ha senso solo su scritture; su GET può innescare 412/400 (PostgREST
+  // interpreta certi token come precondizioni). Per le GET non lo inviamo.
+  var prefer = (method==='PATCH'||method==='DELETE') ? 'return=minimal'
+             : (method==='GET') ? null
+             : 'return=representation';
   // Refresh proattivo se token vicino a scadenza (< 60s)
   await ensureFreshSession();
   var r = await fetch(SUPA_URL+'/rest/v1/'+path, { method, headers:getHDR(prefer), body:body?JSON.stringify(body):undefined });
