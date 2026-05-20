@@ -198,7 +198,7 @@
         Accedi senza password
       </button>
 
-      <button class="ao-btn-ghost" onclick="aoShowRegister()">Non hai un account? Registrati</button>
+      <button class="ao-btn-ghost" id="authToRegisterBtn" onclick="aoShowRegister()">Non hai un account? Registrati</button>
     </form>
 
     <!-- REGISTER -->
@@ -515,7 +515,20 @@ function aoShowLogin(){
   aoHideAllForms();
   var f = document.getElementById('ao-form-login'); if(f) f.style.display = 'flex';
 }
+// Modalità "solo accesso": l'utente arriva da "Accedi all'area riservata"
+// (intent socio) SENZA un referral attivo. In questa modalità login, recupero
+// password e magic-link restano disponibili, ma l'ISCRIZIONE no: per registrarsi
+// deve passare dal flusso col codice referral (pagina di ammissione).
+function rbLoginOnly(){
+  try{
+    if(rbActiveReferral()) return false; // ha un codice → registrazione consentita
+    return sessionStorage.getItem(RB_GATE.MEMBER_KEY) === '1';
+  }catch(e){ return false; }
+}
+
 function aoShowRegister(){
+  // Guard: in modalità solo-accesso l'iscrizione richiede il codice referral.
+  if(rbLoginOnly()){ location.href = RB_GATE.ACCESSO_PAGE; return; }
   aoHideAllForms();
   var f = document.getElementById('ao-form-register'); if(f) f.style.display = 'flex';
   var emLogin = (document.getElementById('authLoginEmail').value||'').trim();
@@ -537,6 +550,15 @@ function rbActiveReferral(){
 // Applica la "modalità di ingresso" dopo che l'overlay è visibile:
 //  • ?mode=register  → apre direttamente il form di registrazione
 //  • referral attivo → mostra il badge invito nel form register
+// In modalità solo-accesso nasconde la via di iscrizione dal form login
+// (toggle "Registrati" + Google-register). Recovery e magic-link restano.
+function rbApplyLoginOnly(){
+  if(!rbLoginOnly()) return;
+  try{
+    var t = document.getElementById('authToRegisterBtn'); if(t) t.style.display = 'none';
+  }catch(e){}
+}
+
 function rbApplyEntryMode(){
   try{
     var qs   = new URLSearchParams(location.search);
@@ -2014,6 +2036,7 @@ window.rbAuthInit = function(){
   authDiag('nessuna sessione — effettua il login',false);
   authShow();
   rbApplyEntryMode();
+  rbApplyLoginOnly();
 };
 
 // NOTA: rbAuthInit viene chiamato UNA SOLA VOLTA da DOMContentLoaded
