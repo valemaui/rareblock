@@ -61,40 +61,43 @@
     .intro h1 em{font-style:italic;color:var(--gold)}
     .intro p{font-size:15px;color:var(--cream-dim);font-weight:300}
 
-    /* ── Card opzioni ── */
-    .options{width:100%;display:flex;flex-direction:column;gap:18px}
-    .card{
-      background:var(--bg-2);border:.5px solid var(--border);border-radius:5px;padding:28px;
-      display:flex;flex-direction:column;gap:16px;transition:border-color .25s,transform .15s}
-    .card.focus{border-color:rgba(201,168,76,.4)}
-    .card-head{display:flex;align-items:baseline;gap:12px}
-    .card-num{font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:.1em}
-    .card-title{font-family:var(--serif);font-size:19px;font-weight:300;color:var(--cream)}
-    .card-title em{font-style:italic;color:var(--gold)}
-    .card-desc{font-size:13.5px;color:var(--cream-dim);font-weight:300;line-height:1.65}
+    /* ── Step (single-focus flow) ── */
+    .step{width:100%;display:flex;flex-direction:column;align-items:center;gap:32px;animation:stepIn .45s ease forwards}
+    @keyframes stepIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+    .step-back{position:absolute;top:-4px;left:0;background:none;border:none;cursor:pointer;
+      font-family:var(--sans);font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+      color:var(--cream-faint);display:flex;align-items:center;gap:8px;transition:color .2s}
+    .step-back:hover{color:var(--cream-dim)}
+
+    .panel{width:100%;display:flex;flex-direction:column;gap:14px}
+
+    .link-cta{background:none;border:none;cursor:pointer;font-family:var(--sans);font-weight:300;
+      font-size:14px;color:var(--cream-dim);transition:color .2s}
+    .link-cta span{color:var(--gold);border-bottom:.5px solid var(--gold-dim);padding-bottom:1px;transition:border-color .2s}
+    .link-cta:hover span{border-color:var(--gold)}
 
     /* ── Form codice ── */
-    .code-row{display:flex;gap:10px;margin-top:2px}
+    .code-row{display:flex;gap:10px}
     .code-input{
-      flex:1;background:var(--bg);border:.5px solid var(--border);border-radius:3px;
+      flex:1;background:var(--bg-2);border:.5px solid var(--border);border-radius:3px;
       color:var(--cream);font-family:var(--mono);font-size:15px;letter-spacing:.12em;
-      padding:13px 15px;text-transform:uppercase;transition:border-color .2s}
-    .code-input::placeholder{color:var(--cream-faint);letter-spacing:.08em;text-transform:none;font-family:var(--sans)}
+      padding:15px 16px;text-align:center;text-transform:uppercase;transition:border-color .2s}
+    .code-input::placeholder{color:var(--cream-faint);letter-spacing:.06em;text-transform:none;font-family:var(--sans);font-style:italic}
     .code-input:focus{outline:none;border-color:var(--gold)}
     .btn{
       font-family:var(--sans);font-size:13px;font-weight:400;letter-spacing:.06em;text-transform:uppercase;
       border:none;border-radius:3px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;
       justify-content:center;gap:8px;transition:background .2s,color .2s,transform .15s,opacity .2s;white-space:nowrap}
     .btn:active{transform:translateY(1px)}
-    .btn-gold{background:var(--gold);color:var(--bg);padding:13px 26px}
+    .btn-gold{background:var(--gold);color:var(--bg);padding:15px 28px}
     .btn-gold:hover{background:var(--gold-light)}
     .btn-gold:disabled{opacity:.5;cursor:default}
+    .btn-block{width:100%;padding:16px}
     .btn-gold.loading{color:transparent;position:relative}
     .btn-gold.loading::after{content:'';position:absolute;width:15px;height:15px;border:1.5px solid var(--bg);
       border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
-    .btn-ghost{background:transparent;color:var(--cream-dim);border:.5px solid var(--border);padding:13px 26px}
-    .btn-ghost:hover{color:var(--cream);border-color:rgba(201,168,76,.4)}
 
     .alert{font-size:13px;border-radius:3px;padding:0;max-height:0;overflow:hidden;opacity:0;
       transition:max-height .3s,opacity .3s,padding .3s;display:flex;align-items:center;gap:8px}
@@ -102,11 +105,10 @@
     .alert.err{background:rgba(193,72,72,.1);border:.5px solid rgba(193,72,72,.35);color:#e7a3a3}
     .alert.ok{background:rgba(201,168,76,.08);border:.5px solid var(--border);color:var(--gold-light)}
 
-    /* ── Call CTA ── */
-    .call-list{list-style:none;display:flex;flex-direction:column;gap:8px;margin:2px 0 4px}
-    .call-list li{font-size:13px;color:var(--cream-dim);display:flex;gap:10px;align-items:flex-start}
+    /* ── Call step ── */
+    .call-list{list-style:none;display:flex;flex-direction:column;gap:10px;width:100%;max-width:380px}
+    .call-list li{font-size:14px;color:var(--cream-dim);display:flex;gap:12px;align-items:flex-start}
     .call-list li::before{content:'—';color:var(--gold);flex-shrink:0}
-    .card-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:4px}
 
     .divider{display:flex;align-items:center;gap:14px;width:100%;color:var(--cream-faint);
       font-size:11px;letter-spacing:.2em;text-transform:uppercase}
@@ -122,7 +124,6 @@
     @media (max-width:600px){
       .back{top:16px;left:16px}
       .intro h1{font-size:25px}
-      .card{padding:22px}
       .code-row{flex-direction:column}
       .btn-gold{width:100%}
     }
@@ -138,44 +139,40 @@
       <div class="logo-sub">Private Investment Club</div>
     </div>
 
-    <div class="intro">
-      <h1>L'accesso è <em>su ammissione.</em></h1>
-      <p>RareBlock è un club privato. La registrazione al portale è riservata a collezionisti referenziati da un membro o ammessi previa breve call conoscitiva con il founder.</p>
-    </div>
+    <!-- ── STEP 1 — Codice invito ── -->
+    <div class="step" id="stepCode">
+      <div class="intro">
+        <h1>L'accesso è <em>su ammissione.</em></h1>
+        <p>RareBlock è un club privato. Per accedere al portale inserisci il codice che ti è stato fornito.</p>
+      </div>
 
-    <div class="options">
-
-      <!-- ROUTE 1 — Codice invito -->
-      <section class="card" id="cardCode">
-        <div class="card-head">
-          <span class="card-num">01</span>
-          <h2 class="card-title">Ho un <em>codice invito</em></h2>
-        </div>
-        <p class="card-desc">Inserisci il codice che ti è stato fornito da un membro del club o dal founder. Verrà verificato e ti darà accesso alla registrazione.</p>
+      <div class="panel">
         <div class="alert" id="codeAlert"><span id="codeAlertMsg"></span></div>
         <div class="code-row">
-          <input type="text" class="code-input" id="codeInput" placeholder="es. RB-VINTAGE-2026" autocomplete="off" spellcheck="false" maxlength="48" />
+          <input type="text" class="code-input" id="codeInput" placeholder="codice invito" autocomplete="off" spellcheck="false" maxlength="48" />
           <button class="btn btn-gold" id="codeBtn">Verifica</button>
         </div>
-      </section>
+      </div>
 
-      <!-- ROUTE 2 — Richiesta accesso / call -->
-      <section class="card" id="cardCall">
-        <div class="card-head">
-          <span class="card-num">02</span>
-          <h2 class="card-title">Richiedi <em>ammissione</em></h2>
-        </div>
-        <p class="card-desc">Non hai un codice? Puoi candidarti. L'ammissione avviene dopo una breve call conoscitiva — valutiamo insieme obiettivi e profilo da collezionista/investitore.</p>
-        <ul class="call-list">
-          <li>Colloquio di ~30 minuti, senza impegno</li>
-          <li>Ricevi un codice personale in caso di esito positivo</li>
-          <li>Network privato, su invito o referral</li>
-        </ul>
-        <div class="card-actions">
-          <a class="btn btn-gold" href="https://cal.com/rareblock/30-minuti-rareblock" target="_blank" rel="noopener">Prenota la call</a>
-          <a class="btn btn-ghost" href="mailto:v.castiglia@rareblock.eu?subject=Richiesta%20ammissione%20RareBlock">Scrivi al founder</a>
-        </div>
-      </section>
+      <button class="link-cta" id="requestLink">Non hai un codice? <span>Richiedi l'accesso →</span></button>
+    </div>
+
+    <!-- ── STEP 2 — Richiesta / call (nascosto di default) ── -->
+    <div class="step" id="stepCall" style="display:none">
+      <button class="step-back" id="callBack"><span class="back-line"></span>Indietro</button>
+
+      <div class="intro">
+        <h1>Richiedi <em>ammissione.</em></h1>
+        <p>L'ammissione avviene dopo una breve call conoscitiva. Valutiamo insieme il tuo profilo da collezionista e investitore; in caso di esito positivo ricevi un codice personale.</p>
+      </div>
+
+      <ul class="call-list">
+        <li>Colloquio di ~30 minuti, senza impegno</li>
+        <li>Codice personale in caso di esito positivo</li>
+        <li>Network privato, esclusivamente su invito</li>
+      </ul>
+
+      <a class="btn btn-gold btn-block" href="https://cal.com/rareblock/30-minuti-rareblock" target="_blank" rel="noopener">Prenota la call</a>
     </div>
 
     <div class="divider">Sei già socio?</div>
@@ -349,12 +346,19 @@ async function rbVerifyCode(rawCode, opts){
   // Codice via URL (?ref=…): pre-compila e verifica in automatico.
   var urlRef = new URLSearchParams(location.search).get('ref');
   if(urlRef){
-    var inp = document.getElementById('codeInput');
-    inp.value = urlRef.toUpperCase();
-    document.getElementById('cardCode').classList.add('focus');
+    document.getElementById('codeInput').value = urlRef.toUpperCase();
     // pulisci l'URL per non lasciare il codice in cronologia
     try{ history.replaceState(null,'', location.pathname); }catch(e){}
     setTimeout(function(){ rbVerifyCode(urlRef, {silent:true}); }, 500);
+  }
+
+  // ── Transizione tra step (single-focus, l'altro viene nascosto) ──
+  function showStep(which){
+    var code = document.getElementById('stepCode');
+    var call = document.getElementById('stepCall');
+    code.style.display = which==='code' ? 'flex' : 'none';
+    call.style.display = which==='call' ? 'flex' : 'none';
+    if(which==='code') document.getElementById('codeInput').focus();
   }
 
   // Listeners
@@ -365,6 +369,9 @@ async function rbVerifyCode(rawCode, opts){
     if(e.key === 'Enter'){ e.preventDefault(); rbVerifyCode(this.value); }
   });
   document.getElementById('codeInput').addEventListener('input', codeAlertClear);
+
+  document.getElementById('requestLink').addEventListener('click', function(){ showStep('call'); });
+  document.getElementById('callBack').addEventListener('click', function(){ showStep('code'); });
 
   // "Già socio" → bypass del gate: il login lo lascerà passare al form di accesso.
   document.getElementById('memberLink').addEventListener('click', function(e){
