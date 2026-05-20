@@ -2531,6 +2531,7 @@ async function admKycLoad(){
     admKycRender();
     admKycUpdateSidebarBadge();
   }catch(e){
+    console.error('[KYC] profiles query error:', e && e.message);
     list.innerHTML = '<div class="ctr-empty"><div class="ctr-empty-title">Errore</div><div class="ctr-empty-sub">'+escHtml(e.message||String(e))+'</div></div>';
   }
 }
@@ -6200,6 +6201,7 @@ function dropAdminWireListeners(){
   });
 }
 
+var _dropLastError = null;
 async function dropAdminLoad(){
   if(!_isAdmin) return;
   var statusEl = document.getElementById('dropAdminStatus');
