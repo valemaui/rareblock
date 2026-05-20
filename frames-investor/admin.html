@@ -2524,7 +2524,7 @@ async function admKycLoad(){
   list.innerHTML = '<div class="ctr-empty"><div class="ctr-empty-title">Caricamento...</div></div>';
   try{
     _admKycFilter = (document.getElementById('admkycFilterStatus')||{}).value || 'review';
-    var query = 'profiles?select=id,email,full_name,first_name,last_name,kyc_status,kyc_level,kyc_completed_at,id_doc_type,id_doc_number,id_doc_front_path,id_doc_back_path,phone,tax_code,birth_date,birth_place,city,province,zip,street,civic,country&order=kyc_completed_at.desc.nullslast&limit=200';
+    var query = 'profiles?select=id,email,full_name,first_name,last_name,kyc_status,kyc_level,kyc_completed_at,id_doc_type,id_doc_number,id_doc_front_path,id_doc_back_path,phone,tax_code,birth_date,birth_place,res_city,res_province,res_zip,res_address,res_civic,res_country&order=kyc_completed_at.desc.nullslast&limit=200';
     if(_admKycFilter) query += '&kyc_status=eq.'+_admKycFilter;
     var rows = await supa('GET', query);
     _admKycList = Array.isArray(rows) ? rows : [];
@@ -2619,10 +2619,10 @@ async function admKycOpenDrill(userId){
     html += '</div>';
 
     var addr = [
-      [p.street, p.civic].filter(Boolean).join(' '),
-      [p.zip, p.city].filter(Boolean).join(' '),
-      p.province ? '('+p.province+')' : '',
-      p.country && p.country !== 'IT' ? p.country : ''
+      [p.res_address, p.res_civic].filter(Boolean).join(' '),
+      [p.res_zip, p.res_city].filter(Boolean).join(' '),
+      p.res_province ? '('+p.res_province+')' : '',
+      p.res_country && p.res_country !== 'IT' ? p.res_country : ''
     ].filter(Boolean).join(', ');
     html += '<div class="admctr-drill-h">Indirizzo</div>';
     html += '<div class="admctr-kv-grid">' + kv('Residenza', addr) + '</div>';
