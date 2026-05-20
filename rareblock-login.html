@@ -49,10 +49,36 @@
 #authOverlay .ao-back:hover{color:var(--ao-cream-dim)}
 #authOverlay .ao-back-line{width:24px;height:.5px;background:currentColor}
 #authOverlay .ao-wrap{position:relative;z-index:1;width:100%;max-width:880px;padding:24px 20px;display:flex;flex-direction:column;align-items:center;gap:36px;animation:aoFadeUp .7s ease forwards}
-#authOverlay .ao-cols{display:flex;gap:24px;width:100%;align-items:stretch}
-#authOverlay .ao-cols .ao-card{flex:1;margin:0}
-#authOverlay .ao-cols .ao-card.ao-card--request{justify-content:flex-start}
-@media (max-width:760px){#authOverlay .ao-cols{flex-direction:column}}
+/* ── Doppio slider: accesso ⇄ richiesta, overlay oro scorrevole ── */
+#authOverlay .ao-slide{position:relative;width:100%;min-height:560px;border-radius:6px;overflow:hidden;border:.5px solid var(--ao-border);box-shadow:0 30px 80px -20px rgba(0,0,0,.6)}
+#authOverlay .ao-slide-pane{position:absolute;top:0;height:100%;width:50%;display:flex;align-items:center;justify-content:center;padding:8px;overflow-y:auto}
+#authOverlay .ao-slide-pane .ao-card{border:none;box-shadow:none;background:transparent;padding:34px 40px;gap:18px}
+#authOverlay .ao-slide-pane--login{left:0}
+#authOverlay .ao-slide-pane--request{left:50%}
+/* overlay oro: copre la metà DESTRA (richiesta) di default, scorre a sinistra */
+#authOverlay .ao-slide-overlay{position:absolute;top:0;left:50%;width:50%;height:100%;z-index:5;overflow:hidden;transition:transform .8s cubic-bezier(.7,0,.2,1)}
+#authOverlay .ao-slide-overlay-bg{position:absolute;inset:0;background:linear-gradient(135deg,#1a160d 0%,#2a2212 45%,#3a2e15 100%)}
+#authOverlay .ao-slide-overlay-bg::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 70% 30%,rgba(201,168,76,.22) 0%,transparent 60%);pointer-events:none}
+#authOverlay .ao-slide-prompt{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 38px;gap:16px;transition:opacity .5s ease}
+#authOverlay .ao-slide-prompt-title{font-family:var(--ao-serif);font-size:23px;font-weight:300;color:var(--ao-cream);line-height:1.25}
+#authOverlay .ao-slide-prompt-title em{font-style:italic;color:var(--ao-gold-light)}
+#authOverlay .ao-slide-prompt-text{font-size:13px;color:rgba(240,234,216,.7);font-weight:300;line-height:1.65;max-width:300px}
+#authOverlay .ao-slide-btn{margin-top:6px;padding:12px 28px;border-radius:2px;background:transparent;border:.5px solid rgba(240,234,216,.45);color:var(--ao-cream);font-family:var(--ao-sans);font-size:12px;font-weight:400;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .25s}
+#authOverlay .ao-slide-btn:hover{background:var(--ao-cream);color:#1a160d;border-color:var(--ao-cream)}
+/* default (login attivo): overlay copre la richiesta → mostra prompt "vai a richiesta" */
+#authOverlay .ao-slide-prompt--toLogin{opacity:0}
+#authOverlay .ao-slide-prompt--toRequest{opacity:1}
+/* ── STATO: richiesta attiva → overlay scorre a sinistra e copre il login ── */
+#authOverlay .ao-slide.is-request .ao-slide-overlay{transform:translateX(-100%)}
+#authOverlay .ao-slide.is-request .ao-slide-prompt--toRequest{opacity:0}
+#authOverlay .ao-slide.is-request .ao-slide-prompt--toLogin{opacity:1}
+/* mobile: niente slide, impila i due pannelli, overlay nascosto */
+@media (max-width:760px){
+  #authOverlay .ao-slide{min-height:0;overflow:visible;border:none;box-shadow:none;display:flex;flex-direction:column;gap:20px}
+  #authOverlay .ao-slide-pane{position:relative;width:100%;left:auto !important;transform:none !important;opacity:1 !important;padding:0}
+  #authOverlay .ao-slide-pane .ao-card{border:.5px solid var(--ao-border);background:var(--ao-bg-2);padding:28px}
+  #authOverlay .ao-slide-overlay{display:none}
+}
 @keyframes aoFadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 #authOverlay .ao-logo{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
 #authOverlay .ao-logo-name{font-family:'Montserrat',system-ui,sans-serif;font-size:18px;font-weight:300;letter-spacing:.18em;text-transform:uppercase}
@@ -151,8 +177,10 @@
       <div class="ao-logo-sub">Collector &amp; Investor Club</div>
     </div>
 
-    <!-- ══ Due colonne: accesso (sx) + richiesta accesso (dx) ══ -->
-    <div class="ao-cols" id="ao-cols">
+    <!-- ══ Slider: accesso ⇄ richiesta accesso (overlay oro scorrevole) ══ -->
+    <div class="ao-slide" id="ao-cols">
+      <!-- pannello ACCESSO -->
+      <div class="ao-slide-pane ao-slide-pane--login">
     <!-- LOGIN -->
     <form class="ao-card" id="ao-form-login" onsubmit="event.preventDefault();return false">
       <div>
@@ -205,8 +233,11 @@
         Accedi senza password
       </button>
     </form>
+      </div><!-- /pane login -->
 
-    <!-- RICHIESTA ACCESSO (colonna destra) — flusso da rareblock-accesso.html -->
+      <!-- pannello RICHIESTA ACCESSO -->
+      <div class="ao-slide-pane ao-slide-pane--request">
+    <!-- RICHIESTA ACCESSO — flusso da rareblock-accesso.html -->
     <div class="ao-card ao-card--request" id="ao-col-request">
       <div>
         <div class="ao-card-title">Richiedi <em>l'accesso.</em></div>
@@ -237,7 +268,25 @@
         Prenota una call
       </button>
     </div>
-    </div><!-- /ao-cols -->
+      </div><!-- /pane request -->
+
+      <!-- OVERLAY oro scorrevole -->
+      <div class="ao-slide-overlay" aria-hidden="true">
+        <div class="ao-slide-overlay-bg"></div>
+        <!-- prompt mostrato quando si è su ACCESSO (invita a richiedere) -->
+        <div class="ao-slide-prompt ao-slide-prompt--toRequest">
+          <div class="ao-slide-prompt-title">Non sei ancora <em>socio?</em></div>
+          <div class="ao-slide-prompt-text">L'area riservata è su invito. Richiedi l'accesso con il tuo codice o prenota una call conoscitiva.</div>
+          <button type="button" class="ao-slide-btn" onclick="aoSlide('request')">Richiedi l'accesso →</button>
+        </div>
+        <!-- prompt mostrato quando si è su RICHIESTA (invita ad accedere) -->
+        <div class="ao-slide-prompt ao-slide-prompt--toLogin">
+          <div class="ao-slide-prompt-title">Hai già un <em>account?</em></div>
+          <div class="ao-slide-prompt-text">Accedi all'area riservata con le tue credenziali, Google o link via email.</div>
+          <button type="button" class="ao-slide-btn" onclick="aoSlide('login')">← Accedi</button>
+        </div>
+      </div>
+    </div><!-- /ao-slide -->
 
     <!-- REGISTER (stato overlay, raggiunto da codice verificato: ?ref=&mode=register) -->
     <form class="ao-card" id="ao-form-register" style="display:none" onsubmit="event.preventDefault();return false">
@@ -537,7 +586,19 @@ function aoShowLogin(){
   aoHideAllForms();
   var f = document.getElementById('ao-form-login'); if(f) f.style.display = 'flex';
   var req = document.getElementById('ao-col-request'); if(req) req.style.display = 'flex';
-  var cols = document.getElementById('ao-cols'); if(cols) cols.style.display = 'flex';
+  var cols = document.getElementById('ao-cols'); if(cols) cols.style.display = 'block';
+}
+
+// Slide tra accesso ('login') e richiesta ('request').
+function aoSlide(to){
+  var sl = document.getElementById('ao-cols'); if(!sl) return;
+  if(to === 'request'){
+    sl.classList.add('is-request');
+    setTimeout(function(){ try{ document.getElementById('reqCode').focus(); }catch(e){} }, 500);
+  } else {
+    sl.classList.remove('is-request');
+    setTimeout(function(){ try{ document.getElementById('authLoginEmail').focus(); }catch(e){} }, 500);
+  }
 }
 // Modalità "solo accesso": l'utente arriva da "Accedi all'area riservata"
 // (intent socio) SENZA un referral attivo. In questa modalità login, recupero
@@ -586,6 +647,9 @@ function rbApplyEntryMode(){
     if(qs.get('mode') === 'register' && ref){
       aoHideAllForms();
       var f = document.getElementById('ao-form-register'); if(f) f.style.display = 'flex';
+    } else if(ref){
+      // arrivo con codice ma non ancora verificato → mostra la colonna richiesta
+      if(typeof aoSlide === 'function') aoSlide('request');
     }
   }catch(e){ /* non bloccante */ }
 }
