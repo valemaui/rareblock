@@ -158,6 +158,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 .nav-btn.admin-only.active{color:var(--gold,#c9a84c);background:rgba(201,168,76,.08)}
 .nav-btn.vendor-only{border-left:1px solid var(--border);margin-left:4px;padding-left:14px}
 .nav-btn.vendor-only.active{color:var(--gold,#c9a84c);background:rgba(201,168,76,.08)}
+.subnav{display:flex;align-items:center;gap:6px;padding:9px 18px;background:var(--surface,#16161a);border-bottom:1px solid var(--border);flex-shrink:0}
+.subnav-eyebrow{font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted);margin-right:12px;font-family:var(--mono,ui-monospace,monospace)}
+.subnav-btn{padding:6px 14px;font-size:12.5px;font-weight:500;border:1px solid transparent;background:none;color:var(--text-muted);cursor:pointer;font-family:var(--font);border-radius:var(--r);transition:color var(--t-fast),background var(--t-fast),border-color var(--t-fast);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.subnav-btn:hover{color:var(--text);background:var(--surface2)}
+.subnav-btn.active{color:var(--gold,#c9a84c);background:rgba(201,168,76,.08);border-color:rgba(201,168,76,.28)}
 .user-badge{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .user-email{font-size:11px;font-family:var(--mono);color:var(--text-muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .user-role{font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:10px;font-weight:600;background:var(--surface2);color:var(--text-muted);border:1px solid var(--border)}
@@ -1731,11 +1736,8 @@ textarea{resize:vertical;min-height:60px}
   </div>
   <nav class="nav">
     <button class="nav-btn active" onclick="showTab('mkt')"><span class="rb-i rb-i-store"></span> Marketplace</button>
-    <button class="nav-btn" onclick="showTab('port')"><span class="rb-i rb-i-portfolio"></span> Portfolio</button>
+    <button class="nav-btn" id="portNavBtn" onclick="showTab('port')"><span class="rb-i rb-i-portfolio"></span> Portafoglio <span id="ctrPendingDot" style="display:none;width:7px;height:7px;border-radius:50%;background:var(--warning,#d29922);box-shadow:0 0 0 3px rgba(210,153,34,.18);margin-left:2px"></span></button>
     <button class="nav-btn" onclick="showTab('market')"><span class="rb-i rb-i-swap"></span> Secondario</button>
-    <button class="nav-btn" onclick="showTab('tx')"><span class="rb-i rb-i-list"></span> Transazioni</button>
-    <button class="nav-btn" onclick="showTab('agenda')"><span class="rb-i rb-i-calendar"></span> Agenda</button>
-    <button class="nav-btn" onclick="showTab('contracts')"><span class="rb-i rb-i-file"></span> Contratti <span id="ctrPendingDot" style="display:none;width:7px;height:7px;border-radius:50%;background:var(--warning,#d29922);box-shadow:0 0 0 3px rgba(210,153,34,.18);margin-left:2px"></span></button>
     <button class="nav-btn" onclick="showTab('profile')"><span class="rb-i rb-i-shield"></span> Profilo</button>
     <button class="nav-btn vendor-only" id="vendorNavBtn" style="display:none" onclick="showTab('vendor')"><span class="rb-i rb-i-package"></span> I miei prodotti</button>
     <button class="nav-btn admin-only" id="adminNavBtn" style="display:none" onclick="showTab('admin')"><span class="rb-i rb-i-gear"></span> Admin</button>
@@ -1749,7 +1751,16 @@ textarea{resize:vertical;min-height:60px}
 </header>
 
 <!-- MAIN CONTENT -->
-<div style="display:flex;flex:1;overflow:hidden">
+<div style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+
+<!-- ═══ SUB-NAV PORTAFOGLIO — raggruppa Posizioni · Transazioni · Agenda · Contratti ═══ -->
+<div id="portSubnav" class="subnav" style="display:none">
+  <span class="subnav-eyebrow">Il mio portafoglio</span>
+  <button class="subnav-btn active" data-sub="port" onclick="showTab('port')"><span class="rb-i rb-i-portfolio"></span> Posizioni</button>
+  <button class="subnav-btn" data-sub="tx" onclick="showTab('tx')"><span class="rb-i rb-i-list"></span> Transazioni</button>
+  <button class="subnav-btn" data-sub="agenda" onclick="showTab('agenda')"><span class="rb-i rb-i-calendar"></span> Agenda</button>
+  <button class="subnav-btn" data-sub="contracts" onclick="showTab('contracts')"><span class="rb-i rb-i-file"></span> Contratti <span id="ctrPendingDotSub" style="display:none;width:6px;height:6px;border-radius:50%;background:var(--warning,#d29922);margin-left:3px"></span></button>
+</div>
 
 <!-- ═══ TAB: MARKETPLACE ═══ -->
 <div class="tab active" id="tab-mkt" style="display:flex;flex:1;flex-direction:column;overflow:hidden">
@@ -2718,6 +2729,25 @@ function showTab(t){
       }
     }catch(e){ console.warn('[showTab] iframe reload failed for', t, ':', e); }
   }
+
+  // ── Sub-nav Portafoglio: per i quattro sotto-tab (Posizioni, Transazioni,
+  //    Agenda, Contratti) mostra la barra e tieni attivo il bottone padre.
+  try{
+    var PORT_SUBS = ['port','tx','agenda','contracts'];
+    var sub = document.getElementById('portSubnav');
+    if(sub){
+      var inPort = PORT_SUBS.indexOf(t) > -1;
+      sub.style.display = inPort ? 'flex' : 'none';
+      var pbtn = document.getElementById('portNavBtn');
+      if(pbtn) pbtn.classList.toggle('active', inPort);
+      sub.querySelectorAll('.subnav-btn').forEach(function(b){
+        b.classList.toggle('active', b.getAttribute('data-sub') === t);
+      });
+      var topDot = document.getElementById('ctrPendingDot');
+      var subDot = document.getElementById('ctrPendingDotSub');
+      if(topDot && subDot) subDot.style.display = (topDot.style.display && topDot.style.display!=='none') ? 'inline-block' : 'none';
+    }
+  }catch(e){ console.warn('[showTab] portSubnav update failed:', e); }
 }
 
 
