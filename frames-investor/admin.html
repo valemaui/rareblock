@@ -2524,7 +2524,7 @@ async function admKycLoad(){
   list.innerHTML = '<div class="ctr-empty"><div class="ctr-empty-title">Caricamento...</div></div>';
   try{
     _admKycFilter = (document.getElementById('admkycFilterStatus')||{}).value || 'review';
-    var query = 'profiles?select=id,email,full_name,first_name,last_name,kyc_status,kyc_level,kyc_completed_at,id_doc_type,id_doc_number,id_doc_front_path,id_doc_back_path,phone,tax_code,birth_date,birth_place,res_city,res_province,res_zip,res_address,res_civic,res_country&order=kyc_completed_at.desc.nullslast&limit=200';
+    var query = 'profiles?select=id,email,full_name,first_name,last_name,kyc_status,kyc_level,kyc_completed_at,id_doc_type,id_doc_number,id_doc_front_path,id_doc_back_path,phone,fiscal_code,birth_date,birth_place,res_city,res_province,res_zip,res_address,res_civic,res_country&order=kyc_completed_at.desc.nullslast&limit=200';
     if(_admKycFilter) query += '&kyc_status=eq.'+_admKycFilter;
     var rows = await supa('GET', query);
     _admKycList = Array.isArray(rows) ? rows : [];
@@ -2567,7 +2567,7 @@ function admKycCardHtml(p){
     +   '<div class="admkyc-meta">'
     +     '<span><strong>Stato:</strong> '+escHtml(statusLabel)+'</span>'
     +     '<span><strong>Livello KYC:</strong> L'+(p.kyc_level||'?')+'</span>'
-    +     '<span><strong>CF:</strong> <span class="mono">'+escHtml(p.tax_code||'—')+'</span></span>'
+    +     '<span><strong>CF:</strong> <span class="mono">'+escHtml(p.fiscal_code||'—')+'</span></span>'
     +     '<span><strong>Documento:</strong> '+escHtml(docInfo)+'</span>'
     +     (p.kyc_completed_at ? '<span><strong>Sottomesso:</strong> '+fmtDateIt(p.kyc_completed_at)+'</span>' : '')
     +   '</div>'
@@ -2613,7 +2613,7 @@ async function admKycOpenDrill(userId){
     html += '<div class="admctr-kv-grid">';
     html += kv('Nome completo', name);
     html += kv('Email', p.email);
-    html += kv('Codice fiscale', p.tax_code, true);
+    html += kv('Codice fiscale', p.fiscal_code, true);
     html += kv('Data di nascita', p.birth_date ? fmtDateIt(p.birth_date) : '—');
     html += kv('Luogo di nascita', p.birth_place);
     html += kv('Cellulare', p.phone, true);
