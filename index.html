@@ -578,6 +578,60 @@
       user-select: none;
     }
 
+    /* ── Waitlist / Richiedi accesso ── */
+    .waitlist-section {
+      text-align: center;
+      padding: 120px 48px 100px;
+      position: relative;
+      border-top: 0.5px solid var(--border-faint);
+    }
+    .waitlist-card {
+      max-width: 540px;
+      margin: 40px auto 0;
+      padding: 40px 36px 36px;
+      background: var(--bg-2);
+      border: 0.5px solid var(--border);
+      border-radius: 4px;
+    }
+    .waitlist-form { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
+    .waitlist-input, .waitlist-select {
+      font-family: var(--sans);
+      font-size: 15px;
+      color: var(--cream);
+      background: var(--bg-3);
+      border: 0.5px solid var(--border);
+      border-radius: 2px;
+      padding: 15px 16px;
+      width: 100%;
+      transition: border-color 0.2s;
+    }
+    .waitlist-select { cursor: pointer; }
+    .waitlist-input::placeholder { color: var(--cream-dim); }
+    .waitlist-input:focus, .waitlist-select:focus { outline: none; border-color: var(--gold); }
+    .waitlist-btn {
+      font-family: var(--sans);
+      font-size: 14px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--bg);
+      background: var(--gold);
+      border: none;
+      padding: 16px 36px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+      margin-top: 4px;
+    }
+    .waitlist-btn:hover:not(:disabled) { background: var(--gold-light); }
+    .waitlist-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .waitlist-msg { font-size: 13px; line-height: 1.5; margin-top: 16px; min-height: 18px; letter-spacing: 0.02em; }
+    .waitlist-msg.ok { color: var(--gold-light); }
+    .waitlist-msg.err { color: #d98a7a; }
+    .waitlist-success { display: none; flex-direction: column; align-items: center; gap: 10px; padding: 8px 0; }
+    .waitlist-success .wl-check { font-family: var(--serif); font-size: 34px; color: var(--gold); line-height: 1; }
+    .waitlist-success p { font-size: 14px; color: var(--cream); line-height: 1.6; max-width: 360px; }
+    .waitlist-note { font-size: 11px; color: var(--cream-dim); letter-spacing: 0.04em; margin-top: 18px; line-height: 1.6; }
+
     /* ── CTA section ── */
     .cta-section {
       text-align: center;
@@ -585,7 +639,6 @@
       position: relative;
       overflow: hidden;
     }
-
     .cta-section::before {
       content: '';
       position: absolute;
@@ -723,7 +776,7 @@
       RareBlock è la prima piattaforma italiana dedicata agli investimenti su prodotti sealed Pokémon. Asset fisici, rendimenti verificabili, gestione professionale.
     </p>
     <div class="hero-actions">
-      <a href="#call" class="btn-primary">Scopri come investire</a>
+      <a href="#accesso" class="btn-primary">Richiedi l'accesso</a>
       <a href="#how" class="btn-secondary">Come funziona</a>
     </div>
     <div class="hero-scroll">
@@ -898,6 +951,34 @@
     </div>
   </div>
 
+  <!-- WAITLIST / RICHIEDI ACCESSO -->
+  <div class="waitlist-section" id="accesso">
+    <p class="section-label reveal">Accesso riservato</p>
+    <h2 class="section-title reveal">Richiedi il tuo <em>invito.</em></h2>
+    <p class="section-body reveal" style="max-width:480px;margin:16px auto 0">
+      L'ingresso a RareBlock è su invito. Lascia la tua email per entrare nella lista d'attesa: ti contatteremo per una valutazione conoscitiva quando si apre una finestra di ammissione.
+    </p>
+    <div class="waitlist-card reveal">
+      <div class="waitlist-form" id="waitlistForm">
+        <input type="email" class="waitlist-input" id="wlEmail" placeholder="La tua email" autocomplete="email" inputmode="email"/>
+        <select class="waitlist-select" id="wlCapital" aria-label="Capitale orientativo">
+          <option value="">Capitale orientativo (facoltativo)</option>
+          <option value="lt5k">Fino a 5.000 €</option>
+          <option value="5k-25k">5.000 – 25.000 €</option>
+          <option value="25k-100k">25.000 – 100.000 €</option>
+          <option value="gt100k">Oltre 100.000 €</option>
+        </select>
+        <button class="waitlist-btn" id="wlSubmit" onclick="wlSubmit()">Entra in lista d'attesa</button>
+      </div>
+      <div class="waitlist-success" id="waitlistSuccess">
+        <div class="wl-check">✓</div>
+        <p>Richiesta registrata. Ti contatteremo all'apertura della prossima finestra di ammissione.</p>
+      </div>
+      <div class="waitlist-msg" id="wlMsg"></div>
+      <p class="waitlist-note">Nessuno spam. Useremo la tua email solo per gestire la richiesta di ammissione. Sei già socio? <a href="rareblock-accesso.html" style="color:var(--gold)">Accedi</a>.</p>
+    </div>
+  </div>
+
   <!-- CTA / CALL BOOKING -->
   <div class="cta-section" id="call">
     <p class="section-label reveal">Inizia ora</p>
@@ -937,6 +1018,95 @@
     }, { threshold: 0.12 });
 
     document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    // ── Waitlist / Richiedi accesso ──────────────────────────────────────
+    // Usa la RPC server-side request_admission (migration 072/073): anon,
+    // idempotente per email, RLS chiusa in lettura. Nessuna PII esposta:
+    // l'email viene inviata solo a Supabase via anon key.
+    var WL_SUPA = 'https://rbjaaeyjeeqfpbzyavag.supabase.co';
+    var WL_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
+
+    function wlEmailValid(e){ return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e); }
+
+    async function wlRpc(body){
+      var r = await fetch(WL_SUPA + '/rest/v1/rpc/request_admission', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'apikey':WL_ANON, 'Authorization':'Bearer ' + WL_ANON },
+        body: JSON.stringify(body)
+      });
+      var txt = await r.text().catch(function(){ return ''; });
+      if(!r.ok){ var err = new Error('HTTP ' + r.status); err.status = r.status; err.bodyText = txt; throw err; }
+      return txt ? JSON.parse(txt) : null;
+    }
+
+    async function wlSubmit(){
+      var email = (document.getElementById('wlEmail').value || '').trim();
+      var band  = document.getElementById('wlCapital').value || null;
+      var msg   = document.getElementById('wlMsg');
+      var btn   = document.getElementById('wlSubmit');
+      msg.className = 'waitlist-msg';
+      msg.textContent = '';
+
+      if(!wlEmailValid(email)){
+        msg.className = 'waitlist-msg err';
+        msg.textContent = 'Inserisci un indirizzo email valido.';
+        return;
+      }
+
+      btn.disabled = true;
+      var oldLabel = btn.textContent;
+      btn.textContent = 'Invio…';
+
+      var base = {
+        p_email:      email,
+        p_user_agent: (navigator.userAgent || '').slice(0,300),
+        p_referrer:   (document.referrer || '').slice(0,300) || null,
+        p_language:   navigator.language || null
+      };
+
+      try{
+        var res;
+        try{
+          // Versione estesa (migration 073) con fascia capitale.
+          res = await wlRpc(Object.assign({}, base, { p_capital_band: band }));
+        }catch(e){
+          // Fallback: se la 5-arg non è ancora deployata (404/PGRST202),
+          // riprova con la firma 4-arg (072). L'email viene comunque salvata.
+          if(e.status === 404 || (e.bodyText && e.bodyText.indexOf('PGRST202') > -1)){
+            res = await wlRpc(base);
+          } else {
+            throw e;
+          }
+        }
+
+        if(res && res.ok){
+          document.getElementById('waitlistForm').style.display = 'none';
+          msg.textContent = '';
+          var ok = document.getElementById('waitlistSuccess');
+          ok.style.display = 'flex';
+          if(res.reason === 'already_pending'){
+            ok.querySelector('p').textContent = 'Sei già nella lista d\u2019attesa. Ti contatteremo all\u2019apertura della prossima finestra di ammissione.';
+          }
+        } else {
+          msg.className = 'waitlist-msg err';
+          msg.textContent = (res && res.reason === 'invalid_email')
+            ? 'Inserisci un indirizzo email valido.'
+            : 'Qualcosa è andato storto. Riprova tra poco.';
+          btn.disabled = false; btn.textContent = oldLabel;
+        }
+      }catch(e){
+        msg.className = 'waitlist-msg err';
+        msg.textContent = 'Connessione non riuscita. Riprova tra poco.';
+        btn.disabled = false; btn.textContent = oldLabel;
+      }
+    }
+    window.wlSubmit = wlSubmit;
+
+    // Enter sull'email invia il form
+    (function(){
+      var em = document.getElementById('wlEmail');
+      if(em){ em.addEventListener('keydown', function(ev){ if(ev.key === 'Enter'){ ev.preventDefault(); wlSubmit(); } }); }
+    })();
 
     // Smooth scroll per link interni
     document.querySelectorAll('a[href^="#"]').forEach(a => {
