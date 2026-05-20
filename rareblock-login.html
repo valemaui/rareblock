@@ -58,9 +58,9 @@
 #authOverlay .ao-card-title{font-family:var(--ao-serif);font-size:20px;font-weight:300;margin-bottom:2px;color:var(--ao-cream)}
 #authOverlay .ao-card-title em{font-style:italic;color:var(--ao-gold)}
 #authOverlay .ao-card-sub{font-size:13px;color:var(--ao-cream-dim);font-weight:300}
-#authOverlay .ao-ref-badge{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--ao-gold-dim);border:.5px solid var(--ao-border);border-radius:3px}
-#authOverlay .ao-ref-badge-label{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ao-gold);font-weight:500}
-#authOverlay .ao-ref-badge-code{font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.08em;color:var(--ao-cream);text-transform:uppercase}
+#authOverlay .ao-field-hint{font-size:11px;color:var(--ao-cream-dim);margin-top:5px;line-height:1.5}
+#authOverlay #authRegReferral{text-transform:uppercase;letter-spacing:.06em}
+#authOverlay #authRegReferral::placeholder{text-transform:none;letter-spacing:normal;font-style:italic}
 #authOverlay .ao-alert{padding:10px 14px;border-radius:2px;font-size:12px;display:none;align-items:flex-start;gap:8px;line-height:1.5;letter-spacing:.01em}
 #authOverlay .ao-alert.err{display:flex;background:rgba(192,57,43,.08);border:.5px solid rgba(192,57,43,.25);color:#e07070}
 #authOverlay .ao-alert.ok{display:flex;background:rgba(201,168,76,.08);border:.5px solid rgba(201,168,76,.2);color:var(--ao-gold-light)}
@@ -207,12 +207,16 @@
         <div class="ao-card-title">Crea il tuo <em>account.</em></div>
         <div class="ao-card-sub">Accesso alla collezione e al portale investitori</div>
       </div>
-      <div class="ao-ref-badge" id="ao-ref-badge" style="display:none">
-        <span class="ao-ref-badge-label">Invito</span>
-        <span class="ao-ref-badge-code" id="ao-ref-badge-code"></span>
-      </div>
       <div class="ao-alert" id="ao-alert-reg"><span class="ao-alert-icon">—</span><span id="ao-alert-reg-msg"></span></div>
       <div class="ao-fields">
+        <div class="ao-field">
+          <label for="authRegReferral">Codice invito</label>
+          <div class="ao-input-wrap">
+            <input type="text" id="authRegReferral" placeholder="codice referral (facoltativo)" autocomplete="off" spellcheck="false" oninput="rbRefHint()"/>
+            <span class="ao-input-icon" id="authRegReferralIcon">◇</span>
+          </div>
+          <div class="ao-field-hint" id="authRegReferralHint">Con un codice valido l'accesso è immediato. Senza codice, la tua richiesta sarà valutata dal team.</div>
+        </div>
         <div class="ao-field">
           <label for="authRegEmail">Email</label>
           <div class="ao-input-wrap">
@@ -416,7 +420,10 @@ var RB_GATE = {
   ADMISSION_TTL_MS: 30 * 60 * 1000,
   // Se la migration 070 non è ancora deployata si può mettere true per
   // bypassare il gate in fase di rollout. In produzione: false (fail-closed).
-  DISABLED: false
+  // Login = schermata iniziale: il gate di rimbalzo alla pre-page è
+  // disattivato. La selezione dell'accesso avviene qui; la registrazione è
+  // sempre disponibile ma richiede referral (senza → richiesta in waiting).
+  DISABLED: true
 };
 
 // Legge l'ammissione valida (non scaduta) dallo storage. → {code,source_type} | null
@@ -537,12 +544,11 @@ function rbLoginOnly(){
 }
 
 function aoShowRegister(){
-  // Guard: in modalità solo-accesso l'iscrizione richiede il codice referral.
-  if(rbLoginOnly()){ location.href = RB_GATE.ACCESSO_PAGE; return; }
   aoHideAllForms();
   var f = document.getElementById('ao-form-register'); if(f) f.style.display = 'flex';
   var emLogin = (document.getElementById('authLoginEmail').value||'').trim();
   if(emLogin) document.getElementById('authRegEmail').value = emLogin;
+  if(typeof rbRefHint === 'function') rbRefHint();
 }
 
 // Risolve il codice referral attivo: priorità a ?ref= in URL, poi ammissione
@@ -575,27 +581,32 @@ function rbApplyEntryMode(){
     var ref  = rbActiveReferral();
     var mode = qs.get('mode');
 
-    // Se arrivo con un referral via URL ma senza ammissione salvata, salvala
-    // ora (così sopravvive a un eventuale refresh entro il TTL).
-    if(qs.get('ref') && typeof rbReadAdmission === 'function' && !rbReadAdmission()){
-      try{
-        sessionStorage.setItem(RB_GATE.ADMISSION_KEY, JSON.stringify({
-          code: ref, source_type: null, validated_at: Date.now()
-        }));
-      }catch(e){}
-    }
-
     if(ref){
-      var badge = document.getElementById('ao-ref-badge');
-      var bcode = document.getElementById('ao-ref-badge-code');
-      if(bcode) bcode.textContent = ref.toUpperCase();
-      if(badge) badge.style.display = 'flex';
+      var inp = document.getElementById('authRegReferral');
+      if(inp){ inp.value = ref.toUpperCase(); rbRefHint(); }
     }
 
     if(mode === 'register' || (ref && mode !== 'login')){
       aoShowRegister();
     }
   }catch(e){ /* non bloccante */ }
+}
+
+// Feedback live sul campo referral: aggiorna icona/hint in base alla presenza
+// di un codice. La validazione vera avviene server-side al submit.
+function rbRefHint(){
+  try{
+    var inp  = document.getElementById('authRegReferral');
+    var icon = document.getElementById('authRegReferralIcon');
+    var hint = document.getElementById('authRegReferralHint');
+    var btn  = document.getElementById('authRegBtn');
+    var has  = inp && inp.value.trim().length > 0;
+    if(icon) icon.textContent = has ? '◆' : '◇';
+    if(hint) hint.textContent = has
+      ? 'Il codice sarà verificato: se valido, accesso immediato.'
+      : 'Con un codice valido l\'accesso è immediato. Senza codice, la tua richiesta sarà valutata dal team.';
+    if(btn)  btn.textContent  = has ? 'Crea account' : 'Invia richiesta';
+  }catch(e){}
 }
 function aoShowReset(){
   aoHideAllForms();
@@ -790,15 +801,62 @@ window.authDoRegister = async function(){
   if(!privacyOk){   authMsg('authRegMsg','Devi accettare l\'Informativa Privacy per procedere'); return; }
   if(!tosOk){       authMsg('authRegMsg','Devi accettare i Termini di Servizio per procedere'); return; }
 
-  // ── Admission gate: la registrazione richiede un codice referral valido ──
-  var refCode = (typeof rbActiveReferral === 'function') ? rbActiveReferral() : '';
+  // ── Codice referral (dal campo del form o da ?ref=) ──
+  var refField = (document.getElementById('authRegReferral').value||'').trim().toLowerCase();
+  var refCode  = refField || ((typeof rbActiveReferral === 'function') ? rbActiveReferral() : '');
+
+  // ─── SENZA codice → richiesta di ammissione in WAITING (niente account) ───
   if(!refCode){
-    authMsg('authRegMsg','La registrazione è su invito. Inserisci un codice di ammissione.');
-    setTimeout(function(){ location.href = RB_GATE.ACCESSO_PAGE; }, 1600);
+    authBtn('authRegBtn',true,'Invio…');
+    try{
+      var rq = await fetch('https://rbjaaeyjeeqfpbzyavag.supabase.co/rest/v1/rpc/request_admission',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','apikey':RB_ANON_KEY,'Authorization':'Bearer '+RB_ANON_KEY},
+        body:JSON.stringify({
+          p_email: email.toLowerCase(),
+          p_user_agent: navigator.userAgent,
+          p_referrer: document.referrer || null,
+          p_language: navigator.language || null
+        })
+      });
+      var rqData = await rq.json().catch(function(){return null;});
+      if(!rq.ok) throw new Error((rqData && (rqData.message||rqData.error)) || ('HTTP '+rq.status));
+      authMsg('authRegMsg','Richiesta inviata. Il team valuterà la tua candidatura e ti contatterà via email.','ok');
+    }catch(e){
+      var em = e.message||'';
+      if(/already|duplicate/i.test(em)) authMsg('authRegMsg','Hai già una richiesta in valutazione per questa email.','ok');
+      else if(/Failed to fetch|NetworkError/i.test(em)) authMsg('authRegMsg','Connessione non disponibile. Verifica la rete.');
+      else if(/404/.test(em)) authMsg('authRegMsg','Servizio richieste non ancora attivo. Riprova più tardi.');
+      else authMsg('authRegMsg','Impossibile inviare la richiesta. Riprova.');
+    }finally{
+      authBtn('authRegBtn',false,'Invia richiesta');
+    }
     return;
   }
 
-  authBtn('authRegBtn',true,'Registrati');
+  // ─── CON codice → verifica server-side, poi signup ───
+  authBtn('authRegBtn',true,'Verifica…');
+  try{
+    var vr = await fetch('https://rbjaaeyjeeqfpbzyavag.supabase.co/rest/v1/rpc/validate_referral_code',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':RB_ANON_KEY,'Authorization':'Bearer '+RB_ANON_KEY},
+      body:JSON.stringify({p_code:refCode, p_user_agent:navigator.userAgent, p_language:navigator.language||null})
+    });
+    var vres = await vr.json().catch(function(){return null;});
+    if(!vr.ok || !vres || !vres.valid){
+      var reason = vres ? vres.reason : 'unknown';
+      var rmap = {expired:'Questo codice è scaduto.', exhausted:'Questo codice ha esaurito gli inviti.', inactive:'Questo codice non è più attivo.', not_found:'Codice non riconosciuto.'};
+      authMsg('authRegMsg', rmap[reason] || 'Codice non valido. Lascia il campo vuoto per inviare una richiesta.');
+      authBtn('authRegBtn',false,'Crea account');
+      return;
+    }
+  }catch(e){
+    authMsg('authRegMsg','Verifica codice non disponibile. Riprova più tardi.');
+    authBtn('authRegBtn',false,'Crea account');
+    return;
+  }
+
+  authBtn('authRegBtn',true,'Registrazione…');
   try{
     var hdrs={'Content-Type':'application/json','apikey':RB_ANON_KEY};
     // Passiamo i consensi GDPR come raw_user_meta_data nel signup payload.
@@ -849,8 +907,6 @@ window.authDoRegister = async function(){
         body:JSON.stringify({p_code:refCode, p_email:email})
       });
     }catch(e){ console.warn('[register] consume_referral_code:', e); }
-    // Ammissione esaurita: rimuovi il token così non viene riusato.
-    try{ sessionStorage.removeItem(RB_GATE.ADMISSION_KEY); }catch(e){}
 
     authMsg('authRegMsg','Account creato. Controlla la tua email per confermare.','ok');
   }catch(e){
