@@ -35,7 +35,7 @@ WITH candidates AS (
     AND p.created_at < now() - interval '7 days'
     -- nessuna attività in tabelle RESTRICT (proteggono dati reali)
     AND NOT EXISTS (SELECT 1 FROM public.inv_orders o
-                     WHERE o.buyer_user_id = u.id OR o.seller_user_id = u.id)
+                     WHERE o.user_id = u.id)
     AND NOT EXISTS (SELECT 1 FROM public.marketplace_orders m
                      WHERE m.buyer_user_id = u.id OR m.seller_user_id = u.id)
     AND NOT EXISTS (SELECT 1 FROM public.marketplace_listings l
@@ -85,7 +85,7 @@ DELETE FROM auth.users u
    AND COALESCE(p.kyc_status,'pending') = 'pending'
    AND p.created_at < now() - interval '7 days'
    AND NOT EXISTS (SELECT 1 FROM public.inv_orders o
-                    WHERE o.buyer_user_id = u.id OR o.seller_user_id = u.id)
+                    WHERE o.user_id = u.id)
    AND NOT EXISTS (SELECT 1 FROM public.marketplace_orders m
                     WHERE m.buyer_user_id = u.id OR m.seller_user_id = u.id)
    AND NOT EXISTS (SELECT 1 FROM public.marketplace_listings l
