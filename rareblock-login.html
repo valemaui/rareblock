@@ -48,7 +48,11 @@
 #authOverlay .ao-back{position:fixed;top:24px;left:32px;z-index:10;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:rgba(240,234,216,.3);text-decoration:none;display:flex;align-items:center;gap:8px;transition:color .2s;font-family:var(--ao-sans)}
 #authOverlay .ao-back:hover{color:var(--ao-cream-dim)}
 #authOverlay .ao-back-line{width:24px;height:.5px;background:currentColor}
-#authOverlay .ao-wrap{position:relative;z-index:1;width:100%;max-width:400px;padding:24px 20px;display:flex;flex-direction:column;align-items:center;gap:36px;animation:aoFadeUp .7s ease forwards}
+#authOverlay .ao-wrap{position:relative;z-index:1;width:100%;max-width:880px;padding:24px 20px;display:flex;flex-direction:column;align-items:center;gap:36px;animation:aoFadeUp .7s ease forwards}
+#authOverlay .ao-cols{display:flex;gap:24px;width:100%;align-items:stretch}
+#authOverlay .ao-cols .ao-card{flex:1;margin:0}
+#authOverlay .ao-cols .ao-card.ao-card--request{justify-content:flex-start}
+@media (max-width:760px){#authOverlay .ao-cols{flex-direction:column}}
 @keyframes aoFadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 #authOverlay .ao-logo{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
 #authOverlay .ao-logo-name{font-family:'Montserrat',system-ui,sans-serif;font-size:18px;font-weight:300;letter-spacing:.18em;text-transform:uppercase}
@@ -59,8 +63,6 @@
 #authOverlay .ao-card-title em{font-style:italic;color:var(--ao-gold)}
 #authOverlay .ao-card-sub{font-size:13px;color:var(--ao-cream-dim);font-weight:300}
 #authOverlay .ao-field-hint{font-size:11px;color:var(--ao-cream-dim);margin-top:5px;line-height:1.5}
-#authOverlay #authRegReferral{text-transform:uppercase;letter-spacing:.06em}
-#authOverlay #authRegReferral::placeholder{text-transform:none;letter-spacing:normal;font-style:italic}
 #authOverlay .ao-alert{padding:10px 14px;border-radius:2px;font-size:12px;display:none;align-items:flex-start;gap:8px;line-height:1.5;letter-spacing:.01em}
 #authOverlay .ao-alert.err{display:flex;background:rgba(192,57,43,.08);border:.5px solid rgba(192,57,43,.25);color:#e07070}
 #authOverlay .ao-alert.ok{display:flex;background:rgba(201,168,76,.08);border:.5px solid rgba(201,168,76,.2);color:var(--ao-gold-light)}
@@ -146,6 +148,8 @@
       <div class="ao-logo-sub">Collector &amp; Investor Club</div>
     </div>
 
+    <!-- ══ Due colonne: accesso (sx) + richiesta accesso (dx) ══ -->
+    <div class="ao-cols" id="ao-cols">
     <!-- LOGIN -->
     <form class="ao-card" id="ao-form-login" onsubmit="event.preventDefault();return false">
       <div>
@@ -197,26 +201,44 @@
         <span class="ao-btn-secondary-icon">✉</span>
         Accedi senza password
       </button>
-
-      <button class="ao-btn-ghost" id="authToRegisterBtn" onclick="aoShowRegister()">Non hai un account? Registrati</button>
     </form>
 
-    <!-- REGISTER -->
+    <!-- RICHIESTA ACCESSO (colonna destra) — flusso da rareblock-accesso.html -->
+    <div class="ao-card ao-card--request" id="ao-col-request">
+      <div>
+        <div class="ao-card-title">Richiedi <em>l'accesso.</em></div>
+        <div class="ao-card-sub">L'area riservata è su invito. Inserisci il tuo codice.</div>
+      </div>
+      <div class="ao-alert" id="ao-alert-req"><span class="ao-alert-icon">—</span><span id="ao-alert-req-msg"></span></div>
+      <div class="ao-fields">
+        <div class="ao-field">
+          <label for="reqCode">Codice invito</label>
+          <div class="ao-input-wrap">
+            <input type="text" id="reqCode" placeholder="codice referral" autocomplete="off" spellcheck="false" maxlength="48" onkeydown="if(event.key==='Enter')reqVerify()"/>
+            <span class="ao-input-icon">◇</span>
+          </div>
+        </div>
+      </div>
+      <button class="ao-btn-primary" id="reqVerifyBtn" onclick="reqVerify()">Verifica e registrati</button>
+
+      <div class="ao-divider"><span>non hai un codice?</span></div>
+
+      <div class="ao-field-hint" style="text-align:center;margin:0">L'accesso senza codice è valutato dopo una breve call conoscitiva.</div>
+      <button type="button" class="ao-btn-secondary" onclick="location.href='https://www.rareblock.eu/rareblock-accesso.html'">
+        <span class="ao-btn-secondary-icon">→</span>
+        Richiedi un codice
+      </button>
+    </div>
+    </div><!-- /ao-cols -->
+
+    <!-- REGISTER (stato overlay, raggiunto da codice verificato: ?ref=&mode=register) -->
     <form class="ao-card" id="ao-form-register" style="display:none" onsubmit="event.preventDefault();return false">
       <div>
         <div class="ao-card-title">Crea il tuo <em>account.</em></div>
-        <div class="ao-card-sub">Accesso alla collezione e al portale investitori</div>
+        <div class="ao-card-sub" id="ao-reg-sub">Invito verificato — completa la registrazione</div>
       </div>
       <div class="ao-alert" id="ao-alert-reg"><span class="ao-alert-icon">—</span><span id="ao-alert-reg-msg"></span></div>
       <div class="ao-fields">
-        <div class="ao-field">
-          <label for="authRegReferral">Codice invito</label>
-          <div class="ao-input-wrap">
-            <input type="text" id="authRegReferral" placeholder="codice referral (facoltativo)" autocomplete="off" spellcheck="false" oninput="rbRefHint()"/>
-            <span class="ao-input-icon" id="authRegReferralIcon">◇</span>
-          </div>
-          <div class="ao-field-hint" id="authRegReferralHint">Con un codice valido l'accesso è immediato. Senza codice potrai richiederne uno prenotando una call.</div>
-        </div>
         <div class="ao-field">
           <label for="authRegEmail">Email</label>
           <div class="ao-input-wrap">
@@ -238,45 +260,21 @@
             <span class="ao-input-icon">◎</span>
           </div>
         </div>
-
-        <!-- ─── Consensi GDPR (PR1) ─── -->
         <div class="ao-consents">
           <label class="ao-consent">
             <input type="checkbox" id="authRegConsentPrivacy"/>
             <span class="ao-consent-mark"></span>
-            <span class="ao-consent-text">
-              Ho letto e accetto l'<a href="/privacy.html" target="_blank" rel="noopener">Informativa Privacy</a>
-              <span class="ao-consent-required">*</span>
-            </span>
+            <span class="ao-consent-text">Ho letto e accetto l'<a href="/privacy.html" target="_blank" rel="noopener">Informativa Privacy</a><span class="ao-consent-required">*</span></span>
           </label>
           <label class="ao-consent">
             <input type="checkbox" id="authRegConsentTos"/>
             <span class="ao-consent-mark"></span>
-            <span class="ao-consent-text">
-              Accetto i <a href="/terms.html" target="_blank" rel="noopener">Termini di Servizio</a>
-              <span class="ao-consent-required">*</span>
-            </span>
+            <span class="ao-consent-text">Accetto i <a href="/terms.html" target="_blank" rel="noopener">Termini di Servizio</a><span class="ao-consent-required">*</span></span>
           </label>
         </div>
-
       </div>
       <button class="ao-btn-primary" id="authRegBtn" onclick="authDoRegister()">Crea account</button>
-
-      <!-- Divider sottile -->
-      <div class="ao-divider"><span>oppure</span></div>
-
-      <!-- PR3: Google OAuth (richiede consensi GDPR spuntati prima del redirect) -->
-      <button type="button" class="ao-btn-oauth" id="authRegGoogleBtn" onclick="authDoGoogle('register')">
-        <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
-          <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/>
-          <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
-          <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
-        </svg>
-        Registrati con Google
-      </button>
-
-      <button class="ao-btn-ghost" onclick="aoShowLogin()">← Torna al login</button>
+      <button class="ao-btn-ghost" onclick="aoShowLogin()">← Torna all'accesso</button>
     </form>
 
     <!-- RESET (richiesta link via email) -->
@@ -523,10 +521,15 @@ function aoHideAllForms(){
     var el = document.getElementById(id);
     if(el) el.style.display = 'none';
   });
+  // colonna richiesta accesso: visibile solo nella vista a due colonne (login)
+  var req = document.getElementById('ao-col-request'); if(req) req.style.display = 'none';
+  var cols = document.getElementById('ao-cols'); if(cols) cols.style.display = 'block';
 }
 function aoShowLogin(){
   aoHideAllForms();
   var f = document.getElementById('ao-form-login'); if(f) f.style.display = 'flex';
+  var req = document.getElementById('ao-col-request'); if(req) req.style.display = 'flex';
+  var cols = document.getElementById('ao-cols'); if(cols) cols.style.display = 'flex';
 }
 // Modalità "solo accesso": l'utente arriva da "Accedi all'area riservata"
 // (intent socio) SENZA un referral attivo. In questa modalità login, recupero
@@ -543,13 +546,9 @@ function rbLoginOnly(){
   }catch(e){ return false; }
 }
 
-function aoShowRegister(){
-  aoHideAllForms();
-  var f = document.getElementById('ao-form-register'); if(f) f.style.display = 'flex';
-  var emLogin = (document.getElementById('authLoginEmail').value||'').trim();
-  if(emLogin) document.getElementById('authRegEmail').value = emLogin;
-  if(typeof rbRefHint === 'function') rbRefHint();
-}
+// La registrazione vive ora nella colonna destra "Richiesta accesso".
+// aoShowRegister resta come alias di compatibilità (link/email vecchi).
+function aoShowRegister(){ aoShowLogin(); }
 
 // Risolve il codice referral attivo: priorità a ?ref= in URL, poi ammissione
 // salvata dalla pre-page (sessionStorage rb_admission). → codice normalizzato | ''
@@ -563,51 +562,55 @@ function rbActiveReferral(){
   return '';
 }
 
-// Applica la "modalità di ingresso" dopo che l'overlay è visibile:
-//  • ?mode=register  → apre direttamente il form di registrazione
-//  • referral attivo → mostra il badge invito nel form register
-// In modalità solo-accesso nasconde la via di iscrizione dal form login
-// (toggle "Registrati" + Google-register). Recovery e magic-link restano.
-function rbApplyLoginOnly(){
-  if(!rbLoginOnly()) return;
-  try{
-    var t = document.getElementById('authToRegisterBtn'); if(t) t.style.display = 'none';
-  }catch(e){}
-}
+// No-op mantenuto per compatibilità col boot.
+function rbApplyLoginOnly(){}
 
+// Se arrivo con ?ref=CODE precompilo il codice; con ?mode=register apro il
+// form di registrazione (codice già verificato dalla colonna richiesta).
 function rbApplyEntryMode(){
   try{
-    var qs   = new URLSearchParams(location.search);
-    var ref  = rbActiveReferral();
-    var mode = qs.get('mode');
-
+    var qs  = new URLSearchParams(location.search);
+    var ref = rbActiveReferral();
     if(ref){
-      var inp = document.getElementById('authRegReferral');
-      if(inp){ inp.value = ref.toUpperCase(); rbRefHint(); }
+      var inp = document.getElementById('reqCode');
+      if(inp) inp.value = ref.toUpperCase();
     }
-
-    if(mode === 'register' || (ref && mode !== 'login')){
-      aoShowRegister();
+    if(qs.get('mode') === 'register' && ref){
+      aoHideAllForms();
+      var f = document.getElementById('ao-form-register'); if(f) f.style.display = 'flex';
     }
   }catch(e){ /* non bloccante */ }
 }
 
-// Feedback live sul campo referral: aggiorna icona/hint in base alla presenza
-// di un codice. La validazione vera avviene server-side al submit.
-function rbRefHint(){
+// ── Colonna richiesta accesso: verifica codice (RPC) → registrazione ──
+window.reqVerify = async function(){
+  var raw  = (document.getElementById('reqCode').value||'').trim();
+  var code = raw.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+  authClear('ao-alert-req');
+  if(!code){ authMsg('ao-alert-req','Inserisci il codice invito'); return; }
+
+  authBtn('reqVerifyBtn',true,'Verifica e registrati');
   try{
-    var inp  = document.getElementById('authRegReferral');
-    var icon = document.getElementById('authRegReferralIcon');
-    var hint = document.getElementById('authRegReferralHint');
-    var btn  = document.getElementById('authRegBtn');
-    var has  = inp && inp.value.trim().length > 0;
-    if(icon) icon.textContent = has ? '◆' : '◇';
-    if(hint) hint.textContent = has
-      ? 'Il codice sarà verificato: se valido, accesso immediato.'
-      : 'Con un codice valido l\'accesso è immediato. Senza codice potrai richiederne uno prenotando una call.';
-    if(btn)  btn.textContent  = has ? 'Crea account' : 'Richiedi un codice';
-  }catch(e){}
-}
+    var r = await fetch(RB_AUTH_URL.replace('/auth/v1','') + '/rest/v1/rpc/validate_referral_code',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':RB_ANON_KEY,'Authorization':'Bearer '+RB_ANON_KEY},
+      body:JSON.stringify({p_code:code, p_user_agent:navigator.userAgent, p_language:navigator.language||null})
+    });
+    var res = await r.json().catch(function(){return null;});
+    if(r.ok && res && res.valid){
+      // codice valido → registrazione con referral precompilato
+      location.href = 'rareblock-login.html?ref=' + encodeURIComponent(code) + '&mode=register';
+      return;
+    }
+    var reason = res ? res.reason : 'unknown';
+    var rmap = {expired:'Codice scaduto.', exhausted:'Codice esaurito.', inactive:'Codice non più attivo.', not_found:'Codice non riconosciuto.'};
+    authMsg('ao-alert-req', rmap[reason] || 'Codice non valido.');
+  }catch(e){
+    authMsg('ao-alert-req','Verifica non disponibile. Riprova più tardi.');
+  }finally{
+    authBtn('reqVerifyBtn',false,'Verifica e registrati');
+  }
+};
 function aoShowReset(){
   aoHideAllForms();
   var f = document.getElementById('ao-form-reset'); if(f) f.style.display = 'flex';
@@ -801,9 +804,8 @@ window.authDoRegister = async function(){
   if(!privacyOk){   authMsg('authRegMsg','Devi accettare l\'Informativa Privacy per procedere'); return; }
   if(!tosOk){       authMsg('authRegMsg','Devi accettare i Termini di Servizio per procedere'); return; }
 
-  // ── Codice referral (dal campo del form o da ?ref=) ──
-  var refField = (document.getElementById('authRegReferral').value||'').trim().toLowerCase();
-  var refCode  = refField || ((typeof rbActiveReferral === 'function') ? rbActiveReferral() : '');
+  // ── Codice referral: dalla colonna richiesta (?ref=) già verificato ──
+  var refCode = (typeof rbActiveReferral === 'function') ? rbActiveReferral() : '';
 
   // ─── SENZA codice → invio alla pagina di richiesta accesso (call) ───
   if(!refCode){
