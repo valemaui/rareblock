@@ -174,6 +174,27 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 .rb-sw-item-check .rb-i{width:15px;height:15px}
 .rb-sw-item.active .rb-sw-item-check{opacity:1}
 .rb-sw-item.active .rb-sw-item-name{color:var(--gold)}
+/* ── Menu account (icona utente) ── */
+.rb-acct{position:relative;flex-shrink:0;margin-left:auto}
+.rb-acct-trigger{display:inline-flex;align-items:center;gap:5px;height:32px;padding:2px 7px 2px 2px;background:none;border:1px solid transparent;border-radius:20px;cursor:pointer;transition:all .12s}
+.rb-acct-trigger:hover,.rb-acct-trigger[aria-expanded="true"]{background:var(--surface2);border-color:var(--border)}
+.rb-acct-avatar{width:26px;height:26px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(180deg,#d8b85e 0%,#b1902f 100%);color:#15110a;font-family:var(--display,inherit);font-weight:300;font-size:13px;text-transform:uppercase}
+.rb-acct-avatar.lg{width:38px;height:38px;font-size:17px}
+.rb-acct-trigger .rb-sw-caret{width:12px;height:12px}
+.rb-acct-menu{position:absolute;top:calc(100% + 8px);right:0;min-width:248px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg,8px);box-shadow:var(--shadow-lg);padding:6px;z-index:1200;display:none;animation:rbMenuIn .14s ease}
+.rb-acct-menu.open{display:block}
+.rb-acct-head{display:flex;align-items:center;gap:11px;padding:8px 10px 10px}
+.rb-acct-head-txt{min-width:0}
+.rb-acct-head-name{font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rb-acct-head-email{font-size:11px;font-family:var(--mono);color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rb-acct-tier-row{display:flex;align-items:center;gap:6px;padding:0 10px 8px;flex-wrap:wrap}
+.rb-acct-sep{height:1px;background:var(--border);margin:4px 6px}
+.rb-acct-item{display:flex;align-items:center;gap:9px;width:100%;padding:8px 10px;background:none;border:none;border-radius:var(--r,6px);color:var(--text);font-family:var(--font);font-size:13px;text-align:left;cursor:pointer;text-decoration:none;transition:background .12s}
+.rb-acct-item:hover{background:var(--surface2)}
+.rb-acct-item .rb-i{width:15px;height:15px;color:var(--text-muted)}
+.rb-acct-item.danger{color:var(--danger)}
+.rb-acct-item.danger .rb-i{color:var(--danger)}
+.rb-acct-item.danger:hover{background:var(--danger-soft,rgba(248,81,73,.1))}
 .nav{display:flex;gap:2px;flex:1}
 .nav-btn{padding:6px 13px;font-size:13px;font-weight:500;border:none;background:none;color:var(--text-muted);cursor:pointer;font-family:var(--font);border-radius:var(--r);transition:color var(--t-fast),background var(--t-fast);white-space:nowrap;display:inline-flex;align-items:center;gap:7px;position:relative}
 .nav-btn:hover{color:var(--text);background:var(--surface2)}
@@ -1785,15 +1806,31 @@ textarea{resize:vertical;min-height:60px}
     <button class="nav-btn" onclick="showTab('market')"><span class="rb-i rb-i-swap"></span> Secondario</button>
     <button class="nav-btn" onclick="showTab('caveau')"><span class="rb-i rb-i-package"></span> Caveau</button>
     <button class="nav-btn" onclick="showTab('track')"><span class="rb-i rb-i-coin"></span> Track Record</button>
-    <button class="nav-btn" onclick="showTab('profile')"><span class="rb-i rb-i-shield"></span> Profilo</button>
     <button class="nav-btn vendor-only" id="vendorNavBtn" style="display:none" onclick="showTab('vendor')"><span class="rb-i rb-i-package"></span> I miei prodotti</button>
     <button class="nav-btn admin-only" id="adminNavBtn" style="display:none" onclick="showTab('admin')"><span class="rb-i rb-i-gear"></span> Admin</button>
   </nav>
-  <div class="user-badge" id="userBadge" style="display:none">
-    <span class="tier-badge basic" id="tierBadge" onclick="openTierModal()" title="Il tuo tier RareBlock">BASIC</span>
-    <span class="user-role" id="userRoleBadge" onclick="refreshRole()" title="Clicca per ricaricare il ruolo dal database" style="cursor:pointer">investor</span>
-    <span class="user-email" id="userEmail"></span>
-    <button class="user-logout" onclick="doLogout()">Esci</button>
+  <div class="rb-acct" id="userBadge" style="display:none">
+    <button class="rb-acct-trigger" id="rbAcctTrigger" type="button" onclick="rbAcctToggle(event)" aria-haspopup="true" aria-expanded="false" title="Account & impostazioni">
+      <span class="rb-acct-avatar" id="rbAcctAvatar">·</span>
+      <svg class="rb-sw-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+    <div class="rb-acct-menu" id="rbAcctMenu" role="menu">
+      <div class="rb-acct-head">
+        <span class="rb-acct-avatar lg" id="rbAcctAvatarLg">·</span>
+        <div class="rb-acct-head-txt">
+          <div class="rb-acct-head-name" id="rbAcctHeadName">Account</div>
+          <div class="rb-acct-head-email" id="userEmail"></div>
+        </div>
+      </div>
+      <div class="rb-acct-tier-row">
+        <span class="tier-badge basic" id="tierBadge" onclick="openTierModal()" title="Il tuo tier RareBlock">BASIC</span>
+        <span class="user-role" id="userRoleBadge" onclick="refreshRole()" title="Ricarica ruolo dal database" style="cursor:pointer">investor</span>
+      </div>
+      <div class="rb-acct-sep"></div>
+      <button class="rb-acct-item" role="menuitem" type="button" onclick="rbAcctClose();showTab('profile')"><span class="rb-i rb-i-gear"></span> Profilo &amp; impostazioni</button>
+      <div class="rb-acct-sep"></div>
+      <button class="rb-acct-item danger" role="menuitem" type="button" onclick="doLogout()"><span class="rb-i rb-i-x"></span> Esci</button>
+    </div>
   </div>
 </header>
 
@@ -2279,8 +2316,32 @@ function rbSwClose(){
   if(menu) menu.classList.remove('open');
   if(trg) trg.setAttribute('aria-expanded','false');
 }
-document.addEventListener('click', function(e){ if(!e.target.closest('#rbSwitcher')) rbSwClose(); });
-document.addEventListener('keydown', function(e){ if(e.key==='Escape') rbSwClose(); });
+// ── Menu account (icona utente) ──
+function rbAcctToggle(ev){
+  if(ev){ ev.stopPropagation(); }
+  var menu=document.getElementById('rbAcctMenu'), trg=document.getElementById('rbAcctTrigger');
+  if(!menu) return;
+  var open=menu.classList.toggle('open');
+  if(trg) trg.setAttribute('aria-expanded', open?'true':'false');
+  if(open) rbSwClose();
+}
+function rbAcctClose(){
+  var menu=document.getElementById('rbAcctMenu'), trg=document.getElementById('rbAcctTrigger');
+  if(menu) menu.classList.remove('open');
+  if(trg) trg.setAttribute('aria-expanded','false');
+}
+function rbAcctSync(){
+  var email=''; try{ email=(_session&&_session.user&&_session.user.email)||document.getElementById('userEmail')&&document.getElementById('userEmail').textContent||''; }catch(_){}
+  var name=(_profile&&_profile.full_name)||(email?email.split('@')[0]:'Account');
+  var initial=(name||email||'\u00b7').trim().charAt(0).toUpperCase()||'\u00b7';
+  ['rbAcctAvatar','rbAcctAvatarLg'].forEach(function(id){ var el=document.getElementById(id); if(el) el.textContent=initial; });
+  var nm=document.getElementById('rbAcctHeadName'); if(nm) nm.textContent=name;
+}
+document.addEventListener('click', function(e){
+  if(!e.target.closest('#rbSwitcher')) rbSwClose();
+  if(!e.target.closest('#userBadge')) rbAcctClose();
+});
+document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ rbSwClose(); rbAcctClose(); } });
 
 // _mktProducts e _mktStats: state condiviso. mktLoad popola questi nel frame
 // Marketplace e li sincronizza qui nel parent (il Portfolio frame e altri
@@ -2660,6 +2721,7 @@ async function onSession(data){
   if(emailEl) emailEl.textContent = user.email;
   var roleEl = document.getElementById('userRoleBadge');
   if(roleEl){ roleEl.textContent = _isAdmin ? 'ADMIN' : 'investor'; roleEl.classList.toggle('admin', _isAdmin); }
+  try{ rbAcctSync(); }catch(_){}
   var adminBtn = document.getElementById('adminNavBtn');
   if(adminBtn) adminBtn.style.display = _isAdmin ? '' : 'none';
   // Selettore sezione: mostra solo le aree abilitate (admin → tutte)
