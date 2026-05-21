@@ -1848,10 +1848,16 @@ async function anlStartLiveFetches(card){
       var is1st= document.getElementById('anl1st').value==='yes';
       var setId= card.set?card.set.id:null;
       var cmUrl = (rbParentFn("buildCMDirectUrl")||function(){return"#"})(card.name, setId, card.number, cond, lang, 'Normal', is1st, setNm, card.rarity||'');
-      // In graded mode forziamo minCondition a NM per non perdere listings (anche
-      // i venditori di carte gradate spesso non impostano la condizione raw).
-      // Per non interferire col link "apri →" esterno costruisco un URL parallelo.
+      // In graded mode forziamo minCondition a MINT (1) per non perdere listings:
+      // CM interpreta minCondition=N come "almeno N", e i venditori di carte
+      // GRADATE (PSA/BGS/CGC) impostano quasi sempre la condizione raw su Mint
+      // — o non la impostano. Se il cond utente è NM/EX/GD l'URL forzerebbe
+      // minCondition=2+ e CM ESCLUDEREBBE lato server molti slab Mint (es. PSA 9).
+      // Costruiamo un URL parallelo (il link "apri →" esterno resta col cond reale).
       var fetchUrl = cmUrl;
+      if(graded && fetchUrl && fetchUrl.indexOf('minCondition=') >= 0){
+        fetchUrl = fetchUrl.replace(/([?&]minCondition=)\d+/, '$11');
+      }
       var data = await anlFetchSmooth({source:'cardmarket', url:fetchUrl, urls:[fetchUrl], debug:true});
       anlPopCm(data, card);
     }catch(e){ anlPopCm({error:e.message||'errore rete'}, card); }
