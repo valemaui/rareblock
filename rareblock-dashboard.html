@@ -148,15 +148,32 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 .header{height:var(--header-h);flex-shrink:0;display:flex;align-items:center;padding:0 20px;border-bottom:1px solid var(--border);gap:16px;background:var(--surface)}
 .logo{font-family:'Montserrat',sans-serif;font-size:15px;font-weight:300;letter-spacing:.18em;text-transform:uppercase;display:flex;align-items:center;gap:8px;flex-shrink:0;white-space:nowrap;text-decoration:none;color:var(--text)}
 .logo-gold{color:var(--gold)}
-.mode-switch{display:flex;align-items:center;gap:2px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:2px}
-.mode-btn{font-size:11px;font-family:var(--mono);padding:3px 10px;border-radius:20px;border:none;background:none;cursor:pointer;color:var(--text-muted);transition:all .15s;white-space:nowrap}
-.mode-btn.active{background:var(--surface3);color:var(--text);font-weight:500}
-.mode-btn:not(.active):hover{color:var(--text)}
-/* Mode switch a 3 vie — pillola oro sull'attivo (coerente col Collector) */
-.mode-switch.rb-mode3{gap:2px;padding:3px}
-.mode-switch.rb-mode3 .mode-btn{padding:4px 13px;border-radius:16px;font-size:11px;letter-spacing:.03em;transition:color .15s,background .15s,box-shadow .15s}
-.mode-switch.rb-mode3 .mode-btn:not(.active):hover{color:var(--text);background:var(--surface3)}
-.mode-switch.rb-mode3 .mode-btn.active{background:linear-gradient(180deg,#d8b85e 0%,#b1902f 100%);color:#15110a;font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.28)}
+/* ── Selettore sezione — dropdown discreto (coerente col Collector) ── */
+.rb-sw{position:relative;flex-shrink:0}
+.rb-sw-trigger{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;background:none;border:1px solid transparent;border-radius:var(--r,6px);color:var(--text-muted);font-family:var(--font);cursor:pointer;transition:all .12s}
+.rb-sw-trigger:hover,.rb-sw-trigger[aria-expanded="true"]{color:var(--text);background:var(--surface2)}
+.rb-sw-trigger[aria-expanded="true"]{border-color:var(--border)}
+.rb-sw-label{font-size:13px;font-weight:500;letter-spacing:.02em}
+.rb-sw-caret{width:13px;height:13px;opacity:.7;transition:transform .12s}
+.rb-sw-trigger[aria-expanded="true"] .rb-sw-caret{transform:rotate(180deg)}
+.rb-sw.rb-sw-solo .rb-sw-caret{display:none}
+.rb-sw.rb-sw-solo .rb-sw-trigger{pointer-events:none}
+.rb-sw-menu{position:absolute;top:calc(100% + 8px);left:0;min-width:264px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg,8px);box-shadow:var(--shadow-lg);padding:6px;z-index:1200;display:none;animation:rbMenuIn .14s ease}
+.rb-sw-menu.open{display:block}
+@keyframes rbMenuIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.rb-sw-menu-label{font-size:9.5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.14em;color:var(--text-subtle);padding:6px 10px 4px}
+.rb-sw-item{display:flex;align-items:center;gap:11px;width:100%;padding:9px 10px;background:none;border:none;border-radius:var(--r,6px);color:var(--text);font-family:var(--font);text-align:left;cursor:pointer;transition:background .12s}
+.rb-sw-item:hover{background:var(--surface2)}
+.rb-sw-item-ic{width:30px;height:30px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:var(--r,6px);background:var(--surface2);border:1px solid var(--border);color:var(--text-muted)}
+.rb-sw-item-ic .rb-i{width:15px;height:15px}
+.rb-sw-item.active .rb-sw-item-ic{background:rgba(201,168,76,.12);border-color:rgba(201,168,76,.35);color:var(--gold)}
+.rb-sw-item-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.rb-sw-item-name{font-size:13px;font-weight:600;line-height:1.2}
+.rb-sw-item-desc{font-size:11px;color:var(--text-muted);line-height:1.25}
+.rb-sw-item-check{flex-shrink:0;color:var(--gold);opacity:0;transition:opacity .12s}
+.rb-sw-item-check .rb-i{width:15px;height:15px}
+.rb-sw-item.active .rb-sw-item-check{opacity:1}
+.rb-sw-item.active .rb-sw-item-name{color:var(--gold)}
 .nav{display:flex;gap:2px;flex:1}
 .nav-btn{padding:6px 13px;font-size:13px;font-weight:500;border:none;background:none;color:var(--text-muted);cursor:pointer;font-family:var(--font);border-radius:var(--r);transition:color var(--t-fast),background var(--t-fast);white-space:nowrap;display:inline-flex;align-items:center;gap:7px;position:relative}
 .nav-btn:hover{color:var(--text);background:var(--surface2)}
@@ -1738,10 +1755,29 @@ textarea{resize:vertical;min-height:60px}
 <!-- HEADER -->
 <header class="header">
   <a href="pokemon-db.html" class="logo"><span style="color:var(--text)">Rare</span><span class="logo-gold">Block</span></a>
-  <div class="mode-switch rb-mode3">
-    <button class="mode-btn" id="modeCollectorBtn" onclick="window.location.href='pokemon-db.html'">Collector</button>
-    <button class="mode-btn" id="modeSellerBtn" onclick="window.location.href='pokemon-db.html?mode=seller'">Seller</button>
-    <button class="mode-btn active">Investor</button>
+  <div class="rb-sw" id="rbSwitcher">
+    <button class="rb-sw-trigger" id="rbSwTrigger" type="button" onclick="rbSwToggle(event)" aria-haspopup="true" aria-expanded="false" title="Cambia area">
+      <span class="rb-sw-label">Investor</span>
+      <svg class="rb-sw-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+    <div class="rb-sw-menu" id="rbSwMenu" role="menu">
+      <div class="rb-sw-menu-label">Area</div>
+      <button class="rb-sw-item" id="modeCollectorBtn" data-section="collector" type="button" role="menuitem" onclick="window.location.href='pokemon-db.html'">
+        <span class="rb-sw-item-ic"><span class="rb-i rb-i-card"></span></span>
+        <span class="rb-sw-item-txt"><span class="rb-sw-item-name">Collector</span><span class="rb-sw-item-desc">Gestisci e analizza la collezione</span></span>
+        <span class="rb-sw-item-check"><span class="rb-i rb-i-check"></span></span>
+      </button>
+      <button class="rb-sw-item" id="modeSellerBtn" data-section="seller" type="button" role="menuitem" onclick="window.location.href='pokemon-db.html?mode=seller'">
+        <span class="rb-sw-item-ic"><span class="rb-i rb-i-store"></span></span>
+        <span class="rb-sw-item-txt"><span class="rb-sw-item-name">Seller</span><span class="rb-sw-item-desc">Carica e vendi i tuoi prodotti</span></span>
+        <span class="rb-sw-item-check"><span class="rb-i rb-i-check"></span></span>
+      </button>
+      <button class="rb-sw-item active" id="modeInvestorBtn" data-section="investor" type="button" role="menuitem" onclick="rbSwClose()">
+        <span class="rb-sw-item-ic"><span class="rb-i rb-i-package"></span></span>
+        <span class="rb-sw-item-txt"><span class="rb-sw-item-name">Investor</span><span class="rb-sw-item-desc">Il club d'investimento privato</span></span>
+        <span class="rb-sw-item-check"><span class="rb-i rb-i-check"></span></span>
+      </button>
+    </div>
   </div>
   <nav class="nav">
     <button class="nav-btn active" onclick="showTab('mkt')"><span class="rb-i rb-i-store"></span> Marketplace</button>
@@ -2230,6 +2266,22 @@ var _session = null;
 var _profile = null;
 var _isAdmin = false;
 
+// ── Selettore sezione (dropdown discreto) ────────────────────
+function rbSwToggle(ev){
+  if(ev){ ev.stopPropagation(); }
+  var menu=document.getElementById('rbSwMenu'), trg=document.getElementById('rbSwTrigger');
+  if(!menu) return;
+  var open=menu.classList.toggle('open');
+  if(trg) trg.setAttribute('aria-expanded', open?'true':'false');
+}
+function rbSwClose(){
+  var menu=document.getElementById('rbSwMenu'), trg=document.getElementById('rbSwTrigger');
+  if(menu) menu.classList.remove('open');
+  if(trg) trg.setAttribute('aria-expanded','false');
+}
+document.addEventListener('click', function(e){ if(!e.target.closest('#rbSwitcher')) rbSwClose(); });
+document.addEventListener('keydown', function(e){ if(e.key==='Escape') rbSwClose(); });
+
 // _mktProducts e _mktStats: state condiviso. mktLoad popola questi nel frame
 // Marketplace e li sincronizza qui nel parent (il Portfolio frame e altri
 // li leggono via bridge parent.<name>). Inizializzati come empty.
@@ -2553,6 +2605,11 @@ async function onSession(data){
       profiles = await supa('GET','profiles?id=eq.'+user.id+'&select=id,full_name,role,can_collector,can_investor,iban,phone,notes');
     }
     _profile = profiles && profiles[0];
+    // can_seller — letto in modo additivo (best-effort): non compromette il
+    // load se la colonna non esiste ancora (degrada a default false).
+    if(_profile){
+      try{ var ps = await supa('GET','profiles?id=eq.'+user.id+'&select=can_seller'); if(ps&&ps[0]&&typeof ps[0].can_seller==='boolean') _profile.can_seller = ps[0].can_seller; }catch(_eS){}
+    }
     if(!_profile){
       var initialRole = _isAdmin ? 'admin' : 'investor';
       try {
@@ -2605,12 +2662,18 @@ async function onSession(data){
   if(roleEl){ roleEl.textContent = _isAdmin ? 'ADMIN' : 'investor'; roleEl.classList.toggle('admin', _isAdmin); }
   var adminBtn = document.getElementById('adminNavBtn');
   if(adminBtn) adminBtn.style.display = _isAdmin ? '' : 'none';
-  // Mode-switch: nascondi Collector se non abilitato (admin sempre visibile)
+  // Selettore sezione: mostra solo le aree abilitate (admin → tutte)
   var colBtn=document.getElementById('modeCollectorBtn');
   var sellBtn=document.getElementById('modeSellerBtn');
   var canCollector = _isAdmin || !_profile || _profile.can_collector !== false;
+  var canSeller = _isAdmin || !!(_profile && _profile.can_seller);
   if(colBtn) colBtn.style.display = canCollector ? '' : 'none';
-  if(sellBtn) sellBtn.style.display = canCollector ? '' : 'none';
+  if(sellBtn) sellBtn.style.display = canSeller ? '' : 'none';
+  try{
+    var availD = [canCollector, canSeller, true].filter(Boolean).length; // Investor sempre (siamo qui)
+    var swD = document.getElementById('rbSwitcher');
+    if(swD) swD.classList.toggle('rb-sw-solo', availD<=1);
+  }catch(_){}
 
   // Initial load
   // mktLoad ora vive nel frame Marketplace (frames-investor/marketplace.html).

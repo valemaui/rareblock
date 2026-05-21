@@ -2039,82 +2039,170 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   MODE SWITCH a 3 vie — Collector · Seller · Investor
-   La classe base .mode-switch/.mode-btn vive nello shared CSS (condiviso
-   con l'Investor): qui la potenziamo a segmented control con pillola oro
-   sull'attivo. Override scoped su .rb-mode3 → zero impatto altrove.
+   SELETTORE SEZIONE — dropdown discreto (Collector · Seller · Investor)
+   Footprint fisso accanto al logo → l'header non si riorganizza cambiando
+   sezione. Sostituisce il vecchio segmented control.
    ═══════════════════════════════════════════════════════════════════════ */
-#modeSwitch.rb-mode3{gap:2px;padding:3px}
-#modeSwitch.rb-mode3 .mode-btn{padding:4px 13px;border-radius:16px;font-size:11px;letter-spacing:.03em;transition:color var(--t-med),background var(--t-med),box-shadow var(--t-med)}
-#modeSwitch.rb-mode3 .mode-btn:not(.active):hover{color:var(--text);background:var(--surface3)}
-#modeSwitch.rb-mode3 .mode-btn.active{
-  background:linear-gradient(180deg,#d8b85e 0%,#b1902f 100%);
-  color:#15110a;font-weight:600;
-  box-shadow:0 1px 4px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.28);
-}
+.rb-sw{position:relative;flex-shrink:0}
+.rb-sw-trigger{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;background:none;border:1px solid transparent;border-radius:var(--r);color:var(--text-muted);font-family:var(--font);cursor:pointer;transition:all var(--t-fast)}
+.rb-sw-trigger:hover{color:var(--text);background:var(--surface2)}
+.rb-sw-trigger[aria-expanded="true"]{color:var(--text);background:var(--surface2);border-color:var(--border)}
+.rb-sw-label{font-size:13px;font-weight:500;letter-spacing:.02em}
+.rb-sw-caret{width:13px;height:13px;opacity:.7;transition:transform var(--t-fast)}
+.rb-sw-trigger[aria-expanded="true"] .rb-sw-caret{transform:rotate(180deg)}
+.rb-sw.rb-sw-solo .rb-sw-caret{display:none}
+.rb-sw.rb-sw-solo .rb-sw-trigger{pointer-events:none}
 
-/* Nav mode-aware: mostra solo i tab della modalità attiva (CSS-driven,
+.rb-sw-menu{position:absolute;top:calc(100% + 8px);left:0;min-width:264px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);padding:6px;z-index:1200;display:none;animation:rbMenuIn .14s ease}
+.rb-sw-menu.open{display:block}
+@keyframes rbMenuIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.rb-sw-menu-label{font-size:9.5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.14em;color:var(--text-subtle);padding:6px 10px 4px}
+.rb-sw-item{display:flex;align-items:center;gap:11px;width:100%;padding:9px 10px;background:none;border:none;border-radius:var(--r);color:var(--text);font-family:var(--font);text-align:left;cursor:pointer;transition:background var(--t-fast)}
+.rb-sw-item:hover{background:var(--surface2)}
+.rb-sw-item-ic{width:30px;height:30px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:var(--r);background:var(--surface2);border:1px solid var(--border);color:var(--text-muted)}
+.rb-sw-item-ic .rb-i{width:15px;height:15px}
+.rb-sw-item.active .rb-sw-item-ic{background:rgba(201,168,76,.12);border-color:rgba(201,168,76,.35);color:var(--gold)}
+.rb-sw-item-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.rb-sw-item-name{font-size:13px;font-weight:600;line-height:1.2}
+.rb-sw-item-desc{font-size:11px;color:var(--text-muted);line-height:1.25}
+.rb-sw-item-check{flex-shrink:0;color:var(--gold);opacity:0;transition:opacity var(--t-fast)}
+.rb-sw-item-check .rb-i{width:15px;height:15px}
+.rb-sw-item.active .rb-sw-item-check{opacity:1}
+.rb-sw-item.active .rb-sw-item-name{color:var(--gold)}
+
+/* Nav mode-aware: mostra solo i tab della sezione attiva (CSS-driven,
    robusto anche se il JS fallisce: il default è collector). */
 .nav[data-mode="collector"] .nav-btn[data-mode="seller"]{display:none}
 .nav[data-mode="seller"]    .nav-btn[data-mode="collector"]{display:none}
 
 /* ═══════════════════════════════════════════════════════════════════════
-   SELLER · Carica prodotto — workspace con sotto-tab categoria
-   Gradate · Raw · Sealed · Set · Collezioni
+   ACCOUNT — icona utente + menu (Profilo & impostazioni · Esci)
+   Sostituisce email sciolta + tasto Esci. Profilo accessibile da qui,
+   non più dalla sezione Investor.
    ═══════════════════════════════════════════════════════════════════════ */
-.sell-wrap{display:flex;flex-direction:column;height:100%;overflow:hidden;background:var(--bg)}
-.sell-head{padding:20px 24px 0;flex-shrink:0}
-.sell-title{font-family:var(--display);font-weight:200;font-size:22px;letter-spacing:.1em;text-transform:uppercase;color:var(--text);line-height:1}
-.sell-title b{color:var(--gold);font-weight:300}
-.sell-sub{font-size:12.5px;color:var(--text-muted);margin-top:6px;max-width:680px;line-height:1.55}
+.rb-acct{position:relative;flex-shrink:0}
+.rb-acct-trigger{display:inline-flex;align-items:center;gap:5px;height:32px;padding:2px 7px 2px 2px;background:none;border:1px solid transparent;border-radius:20px;cursor:pointer;transition:all var(--t-fast)}
+.rb-acct-trigger:hover,.rb-acct-trigger[aria-expanded="true"]{background:var(--surface2);border-color:var(--border)}
+.rb-acct-avatar{width:26px;height:26px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(180deg,#d8b85e 0%,#b1902f 100%);color:#15110a;font-family:var(--display);font-weight:300;font-size:13px;letter-spacing:.02em;text-transform:uppercase}
+.rb-acct-avatar.lg{width:38px;height:38px;font-size:17px}
+.rb-acct-trigger .rb-sw-caret{width:12px;height:12px}
+.rb-acct-menu{position:absolute;top:calc(100% + 8px);right:0;min-width:248px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);padding:6px;z-index:1200;display:none;animation:rbMenuIn .14s ease}
+.rb-acct-menu.open{display:block}
+.rb-acct-head{display:flex;align-items:center;gap:11px;padding:8px 10px 10px}
+.rb-acct-head-txt{min-width:0}
+.rb-acct-head-name{font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rb-acct-head-email{font-size:11px;font-family:var(--mono);color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rb-acct-tier-row{display:flex;align-items:center;gap:6px;padding:0 10px 8px;flex-wrap:wrap}
+.rb-acct-sep{height:1px;background:var(--border);margin:4px 6px}
+.rb-acct-item{display:flex;align-items:center;gap:9px;width:100%;padding:8px 10px;background:none;border:none;border-radius:var(--r);color:var(--text);font-family:var(--font);font-size:13px;text-align:left;cursor:pointer;text-decoration:none;transition:background var(--t-fast)}
+.rb-acct-item:hover{background:var(--surface2)}
+.rb-acct-item .rb-i{width:15px;height:15px;color:var(--text-muted)}
+.rb-acct-item.danger{color:var(--danger)}
+.rb-acct-item.danger .rb-i{color:var(--danger)}
+.rb-acct-item.danger:hover{background:var(--danger-soft)}
 
-/* Sotto-tab categoria — underline oro stile editorial */
-.sell-cats{display:flex;gap:2px;padding:18px 24px 0;flex-shrink:0;flex-wrap:wrap;border-bottom:1px solid var(--border)}
-.sell-cat-btn{position:relative;display:inline-flex;align-items:center;gap:8px;padding:9px 16px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);font-family:var(--font);font-size:13px;cursor:pointer;transition:color var(--t-fast);margin-bottom:-1px;white-space:nowrap}
-.sell-cat-btn .rb-i{width:15px;height:15px}
+/* Modal Account */
+.acct-modal{width:min(440px,94vw);background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);overflow:hidden}
+.acct-modal-head{display:flex;align-items:center;gap:12px;padding:18px 20px;border-bottom:1px solid var(--border);position:relative}
+.acct-modal-head-txt{flex:1;min-width:0}
+.acct-modal-head h3{font-size:16px;font-weight:600;color:var(--text)}
+.acct-modal-email{font-size:12px;font-family:var(--mono);color:var(--text-muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct-modal-body{padding:18px 20px}
+.acct-rows{display:flex;flex-direction:column;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.acct-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px;background:var(--surface)}
+.acct-row-k{font-size:12px;color:var(--text-muted)}
+.acct-row-v{font-size:12.5px;color:var(--text);font-weight:500;text-align:right}
+.acct-note{font-size:11.5px;color:var(--text-muted);line-height:1.5;margin-top:14px;padding-left:11px;border-left:2px solid var(--border-strong)}
+.acct-modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SELLER · Console prodotti — stile marketplace (Catawiki / eBay seller hub)
+   Inventario a griglia full-width + drawer di caricamento per categoria.
+   ═══════════════════════════════════════════════════════════════════════ */
+.seller-console{display:flex;flex-direction:column;height:100%;overflow:hidden;background:var(--bg)}
+
+/* Toolbar */
+.sc-toolbar{display:flex;align-items:center;gap:16px;padding:16px 24px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+.sc-tb-left{display:flex;align-items:baseline;gap:12px;flex-shrink:0}
+.sc-title{font-family:var(--display);font-weight:200;font-size:20px;letter-spacing:.09em;text-transform:uppercase;color:var(--text);line-height:1}
+.sc-title b{color:var(--gold);font-weight:300}
+.sc-count{font-size:11.5px;font-family:var(--mono);color:var(--text-muted)}
+.sc-tb-search{position:relative;flex:1;min-width:180px;max-width:340px}
+.sc-tb-search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--text-subtle);pointer-events:none}
+.sc-tb-search input{padding-left:34px}
+.sc-tb-right{margin-left:auto;display:flex;gap:8px;flex-shrink:0}
+.btn-gold{background:linear-gradient(180deg,#d8b85e 0%,#b1902f 100%);color:#15110a;border:1px solid var(--gold-deep);font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.btn-gold:hover{filter:brightness(1.06)}
+.btn-gold .rb-i{width:14px;height:14px}
+
+/* Filtri categoria — chip */
+.sc-filters{display:flex;gap:7px;padding:13px 24px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+.sc-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;color:var(--text-muted);font-family:var(--font);font-size:12px;cursor:pointer;transition:all var(--t-fast);white-space:nowrap}
+.sc-chip .rb-i{width:13px;height:13px}
+.sc-chip:hover{color:var(--text);border-color:var(--border-strong)}
+.sc-chip.active{background:rgba(201,168,76,.1);border-color:rgba(201,168,76,.35);color:var(--gold);font-weight:500}
+
+/* Inventario a griglia */
+.sc-body{flex:1;overflow-y:auto;padding:20px 24px 32px}
+.sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:14px}
+.sc-card{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;transition:border-color var(--t-fast),transform var(--t-fast);box-shadow:var(--shadow-sm)}
+.sc-card:hover{border-color:var(--border-strong);transform:translateY(-2px)}
+.sc-card-media{height:120px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--surface2) 0%,var(--surface) 100%);border-bottom:1px solid var(--border);position:relative}
+.sc-card-media .rb-i{width:38px;height:38px;color:var(--text-subtle);opacity:.6}
+.sc-card-badge{position:absolute;top:9px;left:9px;font-size:9px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em;padding:3px 8px;border-radius:3px;background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-border)}
+.sc-card-badge.c-gradate{background:rgba(201,168,76,.14);color:var(--gold);border-color:rgba(201,168,76,.34)}
+.sc-card-badge.c-sealed{background:var(--success-soft);color:var(--success);border-color:rgba(63,185,80,.32)}
+.sc-card-badge.c-set{background:var(--warning-soft);color:var(--warning);border-color:rgba(210,153,34,.32)}
+.sc-card-badge.c-collezioni{background:rgba(189,147,249,.14);color:#bd93f9;border-color:rgba(189,147,249,.32)}
+.sc-card-status{position:absolute;top:9px;right:9px;font-size:9px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;padding:3px 7px;border-radius:3px;background:var(--surface3);color:var(--text-muted);border:1px solid var(--border)}
+.sc-card-body{padding:12px 13px;flex:1;display:flex;flex-direction:column;gap:3px}
+.sc-card-name{font-size:13.5px;font-weight:600;color:var(--text);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sc-card-meta{font-size:11px;color:var(--text-muted);font-family:var(--mono);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sc-card-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 13px;border-top:1px solid var(--border)}
+.sc-card-price{font-family:var(--mono);font-weight:600;font-size:14px;color:var(--text)}
+.sc-card-acts{display:flex;gap:4px}
+.sc-card-act{background:none;border:1px solid var(--border);color:var(--text-subtle);cursor:pointer;padding:5px;border-radius:var(--r);display:inline-flex;transition:all var(--t-fast)}
+.sc-card-act .rb-i{width:14px;height:14px}
+.sc-card-act:hover{color:var(--text);border-color:var(--border-strong)}
+.sc-card-act.del:hover{color:var(--danger);border-color:var(--danger);background:var(--danger-soft)}
+
+/* Empty state */
+.sc-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px 20px;color:var(--text-subtle);gap:14px}
+.sc-empty-ic{width:56px;height:56px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center}
+.sc-empty-ic .rb-i{width:26px;height:26px;color:var(--text-muted)}
+.sc-empty-title{font-size:15px;color:var(--text);font-weight:600}
+.sc-empty-sub{font-size:12.5px;color:var(--text-muted);max-width:380px;line-height:1.5}
+
+/* ── DRAWER di caricamento (slide-in da destra) ── */
+.sc-drawer-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1300;display:none;backdrop-filter:blur(2px)}
+.sc-drawer-bg.show{display:block}
+.sc-drawer{position:absolute;top:0;right:0;height:100%;width:min(560px,100vw);background:var(--surface);border-left:1px solid var(--border-strong);box-shadow:var(--shadow-lg);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1)}
+.sc-drawer-bg.show .sc-drawer{transform:none}
+.sc-drawer-head{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
+.sc-drawer-head h3{font-size:15px;font-weight:600;color:var(--text);flex:1}
+.sc-drawer-close{background:none;border:none;color:var(--text-muted);font-size:24px;line-height:1;cursor:pointer;padding:0 4px;border-radius:var(--r);transition:color var(--t-fast)}
+.sc-drawer-close:hover{color:var(--text)}
+.sc-drawer-cats{display:flex;gap:2px;padding:0 20px;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto}
+.sell-cat-btn{position:relative;display:inline-flex;align-items:center;gap:7px;padding:11px 13px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);font-family:var(--font);font-size:12.5px;cursor:pointer;transition:color var(--t-fast);margin-bottom:-1px;white-space:nowrap}
+.sell-cat-btn .rb-i{width:14px;height:14px}
 .sell-cat-btn:hover{color:var(--text)}
 .sell-cat-btn.active{color:var(--gold);border-bottom-color:var(--gold);font-weight:500}
-
-/* Corpo scrollabile + pannelli */
-.sell-body{flex:1;overflow-y:auto;padding:24px}
-.sell-panel{display:none;max-width:780px;margin:0 auto}
-.sell-panel.active{display:block;animation:sellFade .24s ease}
-@keyframes sellFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-
-.sell-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:22px;box-shadow:var(--shadow-sm)}
+.sc-drawer-body{flex:1;overflow-y:auto;padding:20px}
+.sell-panel{display:none}
+.sell-panel.active{display:block;animation:sellFade .2s ease}
+@keyframes sellFade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
 .sell-cat-desc{font-size:12px;color:var(--text-muted);line-height:1.55;margin-bottom:18px;padding-left:12px;border-left:2px solid var(--gold)}
-.sell-card .form-grid{gap:12px}
-.sell-card label{display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;font-weight:500}
+.sc-drawer-body .form-grid{gap:12px}
+.sc-drawer-body input,.sc-drawer-body select,.sc-drawer-body textarea{box-sizing:border-box;width:100%;max-width:100%}
+.sc-drawer-body label{display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;font-weight:500}
 .sell-inline-check{display:flex;align-items:center;gap:6px;white-space:nowrap;text-transform:none;letter-spacing:0;font-size:12px;font-weight:400;color:var(--text-muted);cursor:pointer;margin:0}
 .sell-inline-check input{width:14px;height:14px;accent-color:var(--gold);cursor:pointer}
 .sell-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
-.btn-gold{background:linear-gradient(180deg,#d8b85e 0%,#b1902f 100%);color:#15110a;border:1px solid var(--gold-deep);font-weight:600}
-.btn-gold:hover{filter:brightness(1.06)}
-
-/* Lista bozze prodotti caricati */
-.sell-drafts{max-width:780px;margin:26px auto 0}
-.sell-drafts-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-.sell-drafts-head .section-title{margin:0}
-.sell-draft-row{display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;transition:border-color var(--t-fast)}
-.sell-draft-row:hover{border-color:var(--border-strong)}
-.sell-draft-cat{font-size:9.5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;padding:3px 8px;border-radius:3px;background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-border);flex-shrink:0;min-width:74px;text-align:center}
-.sell-draft-cat.c-gradate{background:rgba(201,168,76,.12);color:var(--gold);border-color:rgba(201,168,76,.32)}
-.sell-draft-cat.c-sealed{background:var(--success-soft);color:var(--success);border-color:rgba(63,185,80,.3)}
-.sell-draft-cat.c-set{background:var(--warning-soft);color:var(--warning);border-color:rgba(210,153,34,.3)}
-.sell-draft-cat.c-collezioni{background:rgba(189,147,249,.12);color:#bd93f9;border-color:rgba(189,147,249,.3)}
-.sell-draft-main{flex:1;min-width:0}
-.sell-draft-name{font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sell-draft-meta{font-size:11px;color:var(--text-muted);font-family:var(--mono);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sell-draft-price{font-family:var(--mono);font-weight:600;color:var(--text);font-size:13px;flex-shrink:0}
-.sell-draft-del{background:none;border:none;color:var(--text-subtle);cursor:pointer;padding:5px;border-radius:4px;display:inline-flex;flex-shrink:0;transition:all var(--t-fast)}
-.sell-draft-del .rb-i{width:15px;height:15px}
-.sell-draft-del:hover{color:var(--danger);background:var(--danger-soft)}
-.sell-drafts-empty{font-size:12px;color:var(--text-subtle);font-style:italic;padding:14px;text-align:center;border:1px dashed var(--border);border-radius:var(--r)}
 
 @media (max-width:560px){
-  .sell-head,.sell-cats,.sell-body{padding-left:14px;padding-right:14px}
-  .sell-card{padding:16px}
-  .sell-card .form-grid{grid-template-columns:1fr}
+  .sc-toolbar,.sc-filters,.sc-body{padding-left:14px;padding-right:14px}
+  .sc-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .sc-drawer-body .form-grid{grid-template-columns:1fr}
 }
 </style>
 
@@ -2439,10 +2527,29 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
   <a href="index.html" class="logo">
     <span style="color:var(--text)">Rare</span><span class="logo-gold">Block</span>
   </a>
-  <div class="mode-switch rb-mode3" id="modeSwitch">
-    <button class="mode-btn active" id="modeCollectorBtn" data-mode="collector" onclick="setMode('collector')">Collector</button>
-    <button class="mode-btn" id="modeSellerBtn" data-mode="seller" onclick="setMode('seller')">Seller</button>
-    <button class="mode-btn" id="modeInvestorBtn" data-mode="investor" onclick="setMode('investor')">Investor</button>
+  <div class="rb-sw" id="rbSwitcher">
+    <button class="rb-sw-trigger" id="rbSwTrigger" type="button" onclick="rbSwToggle(event)" aria-haspopup="true" aria-expanded="false" title="Cambia area">
+      <span class="rb-sw-label" id="rbSwLabel">Collector</span>
+      <svg class="rb-sw-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+    <div class="rb-sw-menu" id="rbSwMenu" role="menu">
+      <div class="rb-sw-menu-label">Area</div>
+      <button class="rb-sw-item active" id="modeCollectorBtn" data-section="collector" role="menuitem" type="button" onclick="setMode('collector')">
+        <span class="rb-sw-item-ic"><span class="rb-i rb-i-card"></span></span>
+        <span class="rb-sw-item-txt"><span class="rb-sw-item-name">Collector</span><span class="rb-sw-item-desc">Gestisci e analizza la collezione</span></span>
+        <span class="rb-sw-item-check"><span class="rb-i rb-i-check"></span></span>
+      </button>
+      <button class="rb-sw-item" id="modeSellerBtn" data-section="seller" role="menuitem" type="button" onclick="setMode('seller')">
+        <span class="rb-sw-item-ic"><span class="rb-i rb-i-tag"></span></span>
+        <span class="rb-sw-item-txt"><span class="rb-sw-item-name">Seller</span><span class="rb-sw-item-desc">Carica e vendi i tuoi prodotti</span></span>
+        <span class="rb-sw-item-check"><span class="rb-i rb-i-check"></span></span>
+      </button>
+      <button class="rb-sw-item" id="modeInvestorBtn" data-section="investor" role="menuitem" type="button" onclick="setMode('investor')">
+        <span class="rb-sw-item-ic"><span class="rb-i rb-i-diamond"></span></span>
+        <span class="rb-sw-item-txt"><span class="rb-sw-item-name">Investor</span><span class="rb-sw-item-desc">Il club d'investimento privato</span></span>
+        <span class="rb-sw-item-check"><span class="rb-i rb-i-check"></span></span>
+      </button>
+    </div>
   </div>
   <nav class="nav" data-mode="collector">
     <!-- ▸ Modalità COLLECTOR — gestione & analisi della propria collezione -->
@@ -2467,14 +2574,58 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
     <div class="led checking" id="apiLed"></div>
     <span class="led-label" id="apiLabel">verifica...</span>
   </div>
-  <div class="user-badge" id="userBadge" style="display:none">
-    <span class="tier-badge basic" id="tierBadge" onclick="openTierModal()" title="Il tuo tier RareBlock">BASIC</span>
-    <span class="user-role-pill" id="userRolePill" style="display:none"></span>
-    <a href="rareblock-admin-users.html" class="user-admin-link" id="userAdminLink" style="display:none" title="Pannello gestione utenti">Utenti</a>
-    <span class="user-email" id="userEmail"></span>
-    <button class="user-logout" onclick="authLogout()">Esci</button>
+  <div class="rb-acct" id="userBadge" style="display:none">
+    <button class="rb-acct-trigger" id="rbAcctTrigger" type="button" onclick="rbAcctToggle(event)" aria-haspopup="true" aria-expanded="false" title="Account & impostazioni">
+      <span class="rb-acct-avatar" id="rbAcctAvatar">·</span>
+      <svg class="rb-sw-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+    <div class="rb-acct-menu" id="rbAcctMenu" role="menu">
+      <div class="rb-acct-head">
+        <span class="rb-acct-avatar lg" id="rbAcctAvatarLg">·</span>
+        <div class="rb-acct-head-txt">
+          <div class="rb-acct-head-name" id="rbAcctHeadName">Account</div>
+          <div class="rb-acct-head-email" id="userEmail"></div>
+        </div>
+      </div>
+      <div class="rb-acct-tier-row">
+        <span class="tier-badge basic" id="tierBadge" onclick="openTierModal()" title="Il tuo tier RareBlock">BASIC</span>
+        <span class="user-role-pill" id="userRolePill" style="display:none"></span>
+      </div>
+      <div class="rb-acct-sep"></div>
+      <button class="rb-acct-item" role="menuitem" type="button" onclick="openAccount()"><span class="rb-i rb-i-gear"></span> Profilo &amp; impostazioni</button>
+      <a class="rb-acct-item" id="userAdminLink" href="rareblock-admin-users.html" style="display:none" role="menuitem"><span class="rb-i rb-i-tools"></span> Gestione utenti</a>
+      <div class="rb-acct-sep"></div>
+      <button class="rb-acct-item danger" role="menuitem" type="button" onclick="authLogout()"><span class="rb-i rb-i-x"></span> Esci</button>
+    </div>
   </div>
 </header>
+
+<!-- ═══ MODAL ACCOUNT · Profilo & impostazioni ═══ -->
+<div class="modal-bg" id="acctModalBg" onclick="if(event.target===this)closeAccount()">
+  <div class="acct-modal">
+    <div class="acct-modal-head">
+      <span class="rb-acct-avatar lg" id="acctModalAvatar">·</span>
+      <div class="acct-modal-head-txt">
+        <h3 id="acctModalName">Account</h3>
+        <div class="acct-modal-email" id="acctModalEmail"></div>
+      </div>
+      <button class="share-modal-head-close" onclick="closeAccount()" type="button" title="Chiudi">×</button>
+    </div>
+    <div class="acct-modal-body">
+      <div class="acct-rows">
+        <div class="acct-row"><span class="acct-row-k">Tier</span><span class="acct-row-v" id="acctModalTier">—</span></div>
+        <div class="acct-row"><span class="acct-row-k">Ruolo</span><span class="acct-row-v" id="acctModalRole">—</span></div>
+        <div class="acct-row"><span class="acct-row-k">Stato KYC</span><span class="acct-row-v" id="acctModalKyc">—</span></div>
+        <div class="acct-row"><span class="acct-row-k">Aree abilitate</span><span class="acct-row-v" id="acctModalAreas">—</span></div>
+      </div>
+      <div class="acct-note">Per modificare dati anagrafici, documenti o preferenze di contatto contatta un amministratore. La gestione completa dell'account sarà disponibile a breve in questa sezione.</div>
+      <div class="acct-modal-actions">
+        <a class="btn" id="acctModalAdmin" href="rareblock-admin-users.html" style="display:none">Gestione utenti</a>
+        <button class="btn btn-danger" onclick="authLogout()">Esci dall'account</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- TAB COLLEZIONE -->
 <div class="tab active" id="tab-col">
@@ -3293,6 +3444,7 @@ async function loadUserProfile(){
     role:(ADMIN_EMAILS.indexOf(u.email)>-1?'admin':'investor'),
     can_collector:true,
     can_investor:true,
+    can_seller:false,  // capacità opt-in: abilitata per profilo, non di default
     status:'active',
     kyc_level:0,        // PR4c: serve per soft trigger onboarding
     kyc_status:'pending'
@@ -3330,10 +3482,17 @@ async function loadUserProfile(){
     }
   }catch(e){ console.warn('[profile] load fallback:',e.message); }
 
+  // can_seller — letto in modo additivo (best-effort): se la colonna non
+  // esiste ancora, resta al default senza compromettere il load principale.
+  try{
+    var rs=await fetch(SUPA_URL+'/rest/v1/profiles?id=eq.'+u.id+'&select=can_seller',{headers:getHDR()});
+    if(rs.ok){ var a2=await rs.json(); if(a2&&a2[0]&&typeof a2[0].can_seller==='boolean') prof.can_seller=a2[0].can_seller; }
+  }catch(_){}
+
   // Email nei founder list → forza admin (failsafe) + sempre attivo
   if(ADMIN_EMAILS.indexOf(u.email)>-1){ prof.role='admin'; prof.status='active'; }
   // Admin ha sempre tutti i permessi
-  if(prof.role==='admin'){ prof.can_collector=true; prof.can_investor=true; }
+  if(prof.role==='admin'){ prof.can_collector=true; prof.can_investor=true; prof.can_seller=true; }
 
   window._rbProfile=prof;
   return prof;
@@ -3348,17 +3507,29 @@ function applyProfileToUI(){
   var p=window._rbProfile;
   if(!p) return;
 
-  // Mode-switch: nasconde Investor se non abilitato
-  var invBtn=document.getElementById('modeInvestorBtn');
-  if(invBtn) invBtn.style.display = p.can_investor ? '' : 'none';
+  // Selettore sezione: mostra solo le aree abilitate sul profilo.
+  // can_collector è la sezione corrente (questa shell); se disabilitata
+  // l'utente non arriva comunque qui (gate in appStart). can_seller è
+  // opt-in; can_investor abilita la dashboard separata.
+  var secBtn = {
+    collector: document.getElementById('modeCollectorBtn'),
+    seller:    document.getElementById('modeSellerBtn'),
+    investor:  document.getElementById('modeInvestorBtn')
+  };
+  if(secBtn.collector) secBtn.collector.style.display = (p.can_collector!==false) ? '' : 'none';
+  if(secBtn.seller)    secBtn.seller.style.display    = p.can_seller ? '' : 'none';
+  if(secBtn.investor)  secBtn.investor.style.display  = p.can_investor ? '' : 'none';
+  // Se l'unica sezione disponibile è quella corrente, nascondi il caret
+  // del selettore (niente da scegliere) per un look più pulito.
+  try{
+    var avail = [p.can_collector!==false, !!p.can_seller, !!p.can_investor].filter(Boolean).length;
+    var sw = document.getElementById('rbSwitcher');
+    if(sw) sw.classList.toggle('rb-sw-solo', avail<=1);
+  }catch(_){}
 
   // Role pill — mostrato SOLO per ruoli non-admin futuri (collector-only, etc).
-  // Per admin il link rosso "Utenti" è già un indicatore visivo sufficiente.
   var pill=document.getElementById('userRolePill');
-  if(pill){
-    pill.style.display='none';
-    pill.classList.remove('admin');
-  }
+  if(pill){ pill.style.display='none'; pill.classList.remove('admin'); }
 
   // Admin link → pagina gestione utenti
   var adminLink=document.getElementById('userAdminLink');
@@ -11108,143 +11279,165 @@ function scReset(){
      attesa del wiring backend (tabella inv_sell_products / Inserzioni).
      ═══════════════════════════════════════════════════════════ -->
 <div class="tab" id="tab-sell" style="display:none;flex-direction:column;overflow:hidden">
- <div class="sell-wrap">
-  <div class="sell-head">
-    <div class="sell-title">Carica <b>prodotto</b></div>
-    <div class="sell-sub">Prepara i prodotti da mettere in vendita. Scegli la categoria: ogni tipologia ha i campi giusti per una scheda completa e una valutazione coerente.</div>
+ <div class="seller-console">
+
+  <!-- Toolbar -->
+  <div class="sc-toolbar">
+    <div class="sc-tb-left">
+      <div class="sc-title">I tuoi <b>prodotti</b></div>
+      <div class="sc-count" id="scCount">0 prodotti</div>
+    </div>
+    <div class="sc-tb-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input type="text" id="scSearch" placeholder="Cerca tra i tuoi prodotti…" oninput="sellRenderGrid()" autocomplete="off"/>
+    </div>
+    <div class="sc-tb-right">
+      <button class="btn btn-gold" onclick="sellOpenDrawer()"><span class="rb-i rb-i-tag"></span> Carica prodotto</button>
+    </div>
   </div>
 
-  <!-- Sotto-tab categoria -->
-  <div class="sell-cats" id="sellCats">
-    <button class="sell-cat-btn active" data-cat="gradate"   onclick="sellCat('gradate')"><span class="rb-i rb-i-diamond"></span> Gradate</button>
-    <button class="sell-cat-btn"        data-cat="raw"       onclick="sellCat('raw')"><span class="rb-i rb-i-card"></span> Raw</button>
-    <button class="sell-cat-btn"        data-cat="sealed"    onclick="sellCat('sealed')"><span class="rb-i rb-i-package"></span> Sealed</button>
-    <button class="sell-cat-btn"        data-cat="set"       onclick="sellCat('set')"><span class="rb-i rb-i-folder"></span> Set</button>
-    <button class="sell-cat-btn"        data-cat="collezioni" onclick="sellCat('collezioni')"><span class="rb-i rb-i-arch"></span> Collezioni</button>
+  <!-- Filtri categoria -->
+  <div class="sc-filters" id="scFilters">
+    <button class="sc-chip active" data-f="all" onclick="sellFilter('all')">Tutti</button>
+    <button class="sc-chip" data-f="gradate" onclick="sellFilter('gradate')"><span class="rb-i rb-i-diamond"></span> Gradate</button>
+    <button class="sc-chip" data-f="raw" onclick="sellFilter('raw')"><span class="rb-i rb-i-card"></span> Raw</button>
+    <button class="sc-chip" data-f="sealed" onclick="sellFilter('sealed')"><span class="rb-i rb-i-package"></span> Sealed</button>
+    <button class="sc-chip" data-f="set" onclick="sellFilter('set')"><span class="rb-i rb-i-folder"></span> Set</button>
+    <button class="sc-chip" data-f="collezioni" onclick="sellFilter('collezioni')"><span class="rb-i rb-i-arch"></span> Collezioni</button>
   </div>
 
-  <div class="sell-body">
-
-    <!-- ▸ GRADATE -->
-    <div class="sell-panel active" id="sellPanel-gradate">
-      <div class="sell-card">
-        <div class="sell-cat-desc">Carte slabbate da enti di grading (PSA, BGS, CGC, SGC). Il numero di certificato consente la verifica pubblica della valutazione.</div>
-        <div class="form-grid">
-          <div class="field"><label for="gdCompany">Compagnia</label><select id="gdCompany"><option>PSA</option><option>BGS</option><option>CGC</option><option>SGC</option><option>ACE</option><option>Altro</option></select></div>
-          <div class="field"><label for="gdGrade">Voto</label><select id="gdGrade"><option>10</option><option>9.5</option><option>9</option><option>8.5</option><option>8</option><option>7</option><option>6</option><option>5</option><option>≤4</option><option>Authentic</option></select></div>
-          <div class="field"><label for="gdCert">N° certificato</label><input id="gdCert" type="text" placeholder="es. 89456123"/></div>
-          <div class="field"><label for="gdYear">Anno</label><input id="gdYear" type="text" placeholder="es. 1999" inputmode="numeric"/></div>
-          <div class="field full"><label for="gdName">Nome carta</label><input id="gdName" type="text" placeholder="es. Charizard"/></div>
-          <div class="field"><label for="gdSet">Set</label><input id="gdSet" type="text" placeholder="es. Base Set"/></div>
-          <div class="field"><label for="gdNum">Numero</label><input id="gdNum" type="text" placeholder="es. 4/102"/></div>
-          <div class="field"><label for="gdLang">Lingua</label><select id="gdLang"><option>ITA</option><option selected>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option></select></div>
-          <div class="field"><label for="gdPrice">Prezzo richiesto (€)</label><input id="gdPrice" type="number" step="0.01" placeholder="0.00"/></div>
-          <div class="field full"><label for="gdNotes">Note</label><input id="gdNotes" type="text" placeholder="centratura, surface, sub-grades…"/></div>
-        </div>
-        <div class="sell-actions">
-          <button class="btn" onclick="sellClear('gradate')">Pulisci</button>
-          <button class="btn btn-gold" onclick="sellSubmit('gradate')">Salva bozza prodotto</button>
-        </div>
-      </div>
+  <!-- Inventario -->
+  <div class="sc-body">
+    <div class="sc-grid" id="sellGrid"></div>
+    <div class="sc-empty" id="sellEmpty" style="display:none">
+      <div class="sc-empty-ic"><span class="rb-i rb-i-tag"></span></div>
+      <div class="sc-empty-title">Nessun prodotto caricato</div>
+      <div class="sc-empty-sub">Carica il tuo primo prodotto da vendere — gradate, raw, sealed, set o collezioni — e comparirà qui pronto per la pubblicazione.</div>
+      <button class="btn btn-gold" onclick="sellOpenDrawer()"><span class="rb-i rb-i-tag"></span> Carica prodotto</button>
     </div>
+  </div>
 
-    <!-- ▸ RAW -->
-    <div class="sell-panel" id="sellPanel-raw">
-      <div class="sell-card">
-        <div class="sell-cat-desc">Carte singole non gradate. Indica condizione, variante ed eventuale prima edizione: sono i fattori che muovono di più il prezzo.</div>
-        <div class="form-grid">
-          <div class="field full"><label for="rwName">Nome carta</label><input id="rwName" type="text" placeholder="es. Blastoise"/></div>
-          <div class="field"><label for="rwSet">Set</label><input id="rwSet" type="text" placeholder="es. Base Set"/></div>
-          <div class="field"><label for="rwNum">Numero</label><input id="rwNum" type="text" placeholder="es. 2/102"/></div>
-          <div class="field"><label for="rwCond">Condizione</label><select id="rwCond"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select></div>
-          <div class="field"><label for="rwVar">Variante</label><select id="rwVar"><option>Normal</option><option>Holo</option><option>Reverse Holo</option><option>Full Art</option><option>Secret Rare</option><option>Rainbow Rare</option><option>Gold</option><option>Promo</option><option>Shadowless</option></select></div>
-          <div class="field"><label for="rwLang">Lingua</label><select id="rwLang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option></select></div>
-          <div class="field"><label for="rwQty">Quantità</label><input id="rwQty" type="number" value="1" min="1"/></div>
-          <div class="field"><label for="rwPrice">Prezzo richiesto (€)</label><input id="rwPrice" type="number" step="0.01" placeholder="0.00"/></div>
-          <div class="field"><label>&nbsp;</label><label class="sell-inline-check"><input type="checkbox" id="rw1st"/> Prima edizione</label></div>
-          <div class="field full"><label for="rwNotes">Note</label><input id="rwNotes" type="text" placeholder="firmata, difetti, provenienza…"/></div>
-        </div>
-        <div class="sell-actions">
-          <button class="btn" onclick="sellClear('raw')">Pulisci</button>
-          <button class="btn btn-gold" onclick="sellSubmit('raw')">Salva bozza prodotto</button>
-        </div>
-      </div>
-    </div>
+ </div>
 
-    <!-- ▸ SEALED -->
-    <div class="sell-panel" id="sellPanel-sealed">
-      <div class="sell-card">
-        <div class="sell-cat-desc">Prodotti sigillati: box, ETB, bundle, blister, tin. Per i sigillati lo stato della scatola e l'integrità del cellophane sono determinanti.</div>
-        <div class="form-grid">
-          <div class="field full"><label for="slName">Nome prodotto</label><input id="slName" type="text" placeholder="es. Booster Box Evolving Skies"/></div>
-          <div class="field"><label for="slType">Tipo</label><select id="slType"><option>Booster Box</option><option>Elite Trainer Box</option><option>Booster Bundle</option><option>Booster Pack</option><option>Collection Box</option><option>Premium Collection</option><option>Tin</option><option>Blister</option><option>Display</option><option>Altro</option></select></div>
-          <div class="field"><label for="slSet">Set / Serie</label><input id="slSet" type="text" placeholder="es. Sword & Shield"/></div>
-          <div class="field"><label for="slLang">Lingua</label><select id="slLang"><option>ITA</option><option selected>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option></select></div>
-          <div class="field"><label for="slYear">Anno</label><input id="slYear" type="text" placeholder="es. 2021" inputmode="numeric"/></div>
-          <div class="field"><label for="slCond">Stato</label><select id="slCond"><option selected>Sigillato (Mint)</option><option>Sigillato (Near Mint)</option><option>Sigillato (difetti scatola)</option><option>Reseal sospetto</option></select></div>
-          <div class="field"><label for="slQty">Quantità</label><input id="slQty" type="number" value="1" min="1"/></div>
-          <div class="field"><label for="slPrice">Prezzo richiesto (€)</label><input id="slPrice" type="number" step="0.01" placeholder="0.00"/></div>
-          <div class="field full"><label for="slNotes">Note</label><input id="slNotes" type="text" placeholder="provenienza, weight check, foto cellophane…"/></div>
-        </div>
-        <div class="sell-actions">
-          <button class="btn" onclick="sellClear('sealed')">Pulisci</button>
-          <button class="btn btn-gold" onclick="sellSubmit('sealed')">Salva bozza prodotto</button>
-        </div>
-      </div>
-    </div>
+ <!-- ═══ DRAWER · Carica prodotto ═══ -->
+ <div class="sc-drawer-bg" id="sellDrawerBg" onclick="if(event.target===this)sellCloseDrawer()">
+  <div class="sc-drawer" role="dialog" aria-label="Carica prodotto">
+   <div class="sc-drawer-head">
+     <h3>Carica prodotto</h3>
+     <button class="sc-drawer-close" onclick="sellCloseDrawer()" type="button" title="Chiudi">×</button>
+   </div>
+   <div class="sc-drawer-cats" id="sellCats">
+     <button class="sell-cat-btn active" data-cat="gradate"   type="button" onclick="sellCat('gradate')"><span class="rb-i rb-i-diamond"></span> Gradate</button>
+     <button class="sell-cat-btn"        data-cat="raw"       type="button" onclick="sellCat('raw')"><span class="rb-i rb-i-card"></span> Raw</button>
+     <button class="sell-cat-btn"        data-cat="sealed"    type="button" onclick="sellCat('sealed')"><span class="rb-i rb-i-package"></span> Sealed</button>
+     <button class="sell-cat-btn"        data-cat="set"       type="button" onclick="sellCat('set')"><span class="rb-i rb-i-folder"></span> Set</button>
+     <button class="sell-cat-btn"        data-cat="collezioni" type="button" onclick="sellCat('collezioni')"><span class="rb-i rb-i-arch"></span> Collezioni</button>
+   </div>
+   <div class="sc-drawer-body">
 
-    <!-- ▸ SET -->
-    <div class="sell-panel" id="sellPanel-set">
-      <div class="sell-card">
-        <div class="sell-cat-desc">Set completi o quasi completi. Indica la completezza e la condizione media: un set master vale molto più della somma delle singole.</div>
-        <div class="form-grid">
-          <div class="field full"><label for="stName">Nome set</label><input id="stName" type="text" placeholder="es. Base Set completo"/></div>
-          <div class="field"><label for="stLang">Lingua</label><select id="stLang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option></select></div>
-          <div class="field"><label for="stCount">N° carte</label><input id="stCount" type="text" placeholder="es. 102/102"/></div>
-          <div class="field"><label for="stCompl">Completezza</label><select id="stCompl"><option>Master Set (100% + reverse/holo)</option><option selected>Completo (100%)</option><option>Quasi completo (90%+)</option><option>Parziale</option></select></div>
-          <div class="field"><label for="stCond">Condizione media</label><select id="stCond"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>Mista</option></select></div>
-          <div class="field"><label for="stPrice">Prezzo richiesto (€)</label><input id="stPrice" type="number" step="0.01" placeholder="0.00"/></div>
-          <div class="field full"><label for="stIncludes">Include / highlights</label><input id="stIncludes" type="text" placeholder="es. tutte le holo, Charizard NM, 1st ed…"/></div>
-          <div class="field full"><label for="stNotes">Note</label><input id="stNotes" type="text" placeholder="carte sostituite, doppioni, difetti…"/></div>
-        </div>
-        <div class="sell-actions">
-          <button class="btn" onclick="sellClear('set')">Pulisci</button>
-          <button class="btn btn-gold" onclick="sellSubmit('set')">Salva bozza prodotto</button>
-        </div>
-      </div>
-    </div>
+     <!-- ▸ GRADATE -->
+     <div class="sell-panel active" id="sellPanel-gradate">
+       <div class="sell-cat-desc">Carte slabbate da enti di grading (PSA, BGS, CGC, SGC). Il numero di certificato consente la verifica pubblica della valutazione.</div>
+       <div class="form-grid">
+         <div class="field"><label for="gdCompany">Compagnia</label><select id="gdCompany"><option>PSA</option><option>BGS</option><option>CGC</option><option>SGC</option><option>ACE</option><option>Altro</option></select></div>
+         <div class="field"><label for="gdGrade">Voto</label><select id="gdGrade"><option>10</option><option>9.5</option><option>9</option><option>8.5</option><option>8</option><option>7</option><option>6</option><option>5</option><option>≤4</option><option>Authentic</option></select></div>
+         <div class="field"><label for="gdCert">N° certificato</label><input id="gdCert" type="text" placeholder="es. 89456123"/></div>
+         <div class="field"><label for="gdYear">Anno</label><input id="gdYear" type="text" placeholder="es. 1999" inputmode="numeric"/></div>
+         <div class="field full"><label for="gdName">Nome carta</label><input id="gdName" type="text" placeholder="es. Charizard"/></div>
+         <div class="field"><label for="gdSet">Set</label><input id="gdSet" type="text" placeholder="es. Base Set"/></div>
+         <div class="field"><label for="gdNum">Numero</label><input id="gdNum" type="text" placeholder="es. 4/102"/></div>
+         <div class="field"><label for="gdLang">Lingua</label><select id="gdLang"><option>ITA</option><option selected>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option></select></div>
+         <div class="field"><label for="gdPrice">Prezzo richiesto (€)</label><input id="gdPrice" type="number" step="0.01" placeholder="0.00"/></div>
+         <div class="field full"><label for="gdNotes">Note</label><input id="gdNotes" type="text" placeholder="centratura, surface, sub-grades…"/></div>
+       </div>
+       <div class="sell-actions">
+         <button class="btn" onclick="sellClear('gradate')">Pulisci</button>
+         <button class="btn btn-gold" onclick="sellSubmit('gradate')">Salva prodotto</button>
+       </div>
+     </div>
 
-    <!-- ▸ COLLEZIONI -->
-    <div class="sell-panel" id="sellPanel-collezioni">
-      <div class="sell-card">
-        <div class="sell-cat-desc">Lotti e collezioni miste (gradate, raw, sealed, set insieme). Ideale per vendite in blocco: descrivi bene cosa contiene il lotto.</div>
-        <div class="form-grid">
-          <div class="field full"><label for="clName">Titolo collezione / lotto</label><input id="clName" type="text" placeholder="es. Lotto Vintage WotC 1999-2003"/></div>
-          <div class="field"><label for="clLang">Lingua prevalente</label><select id="clLang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>Mista</option></select></div>
-          <div class="field"><label for="clItems">N° pezzi totali</label><input id="clItems" type="number" min="1" placeholder="es. 350"/></div>
-          <div class="field"><label for="clEstimate">Valore stimato (€)</label><input id="clEstimate" type="number" step="0.01" placeholder="0.00"/></div>
-          <div class="field"><label for="clPrice">Prezzo richiesto (€)</label><input id="clPrice" type="number" step="0.01" placeholder="0.00"/></div>
-          <div class="field full"><label for="clCats">Categorie incluse</label><input id="clCats" type="text" placeholder="es. 12 gradate + 200 raw + 3 box"/></div>
-          <div class="field full"><label for="clDesc">Descrizione</label><textarea id="clDesc" rows="3" placeholder="Composizione del lotto, condizioni, eventuali pezzi chiave…"></textarea></div>
-        </div>
-        <div class="sell-actions">
-          <button class="btn" onclick="sellClear('collezioni')">Pulisci</button>
-          <button class="btn btn-gold" onclick="sellSubmit('collezioni')">Salva bozza prodotto</button>
-        </div>
-      </div>
-    </div>
+     <!-- ▸ RAW -->
+     <div class="sell-panel" id="sellPanel-raw">
+       <div class="sell-cat-desc">Carte singole non gradate. Indica condizione, variante ed eventuale prima edizione: sono i fattori che muovono di più il prezzo.</div>
+       <div class="form-grid">
+         <div class="field full"><label for="rwName">Nome carta</label><input id="rwName" type="text" placeholder="es. Blastoise"/></div>
+         <div class="field"><label for="rwSet">Set</label><input id="rwSet" type="text" placeholder="es. Base Set"/></div>
+         <div class="field"><label for="rwNum">Numero</label><input id="rwNum" type="text" placeholder="es. 2/102"/></div>
+         <div class="field"><label for="rwCond">Condizione</label><select id="rwCond"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select></div>
+         <div class="field"><label for="rwVar">Variante</label><select id="rwVar"><option>Normal</option><option>Holo</option><option>Reverse Holo</option><option>Full Art</option><option>Secret Rare</option><option>Rainbow Rare</option><option>Gold</option><option>Promo</option><option>Shadowless</option></select></div>
+         <div class="field"><label for="rwLang">Lingua</label><select id="rwLang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option></select></div>
+         <div class="field"><label for="rwQty">Quantità</label><input id="rwQty" type="number" value="1" min="1"/></div>
+         <div class="field"><label for="rwPrice">Prezzo richiesto (€)</label><input id="rwPrice" type="number" step="0.01" placeholder="0.00"/></div>
+         <div class="field"><label>&nbsp;</label><label class="sell-inline-check"><input type="checkbox" id="rw1st"/> Prima edizione</label></div>
+         <div class="field full"><label for="rwNotes">Note</label><input id="rwNotes" type="text" placeholder="firmata, difetti, provenienza…"/></div>
+       </div>
+       <div class="sell-actions">
+         <button class="btn" onclick="sellClear('raw')">Pulisci</button>
+         <button class="btn btn-gold" onclick="sellSubmit('raw')">Salva prodotto</button>
+       </div>
+     </div>
 
-    <!-- ▸ Bozze prodotti salvate -->
-    <div class="sell-drafts" id="sellDrafts">
-      <div class="sell-drafts-head">
-        <div class="section-title">Bozze prodotti</div>
-        <button class="btn" onclick="showTab('ins')" title="Vai alla gestione inserzioni" style="font-size:11px;padding:5px 10px">Vai a Inserzioni →</button>
-      </div>
-      <div id="sellDraftsList"></div>
-    </div>
+     <!-- ▸ SEALED -->
+     <div class="sell-panel" id="sellPanel-sealed">
+       <div class="sell-cat-desc">Prodotti sigillati: box, ETB, bundle, blister, tin. Per i sigillati lo stato della scatola e l'integrità del cellophane sono determinanti.</div>
+       <div class="form-grid">
+         <div class="field full"><label for="slName">Nome prodotto</label><input id="slName" type="text" placeholder="es. Booster Box Evolving Skies"/></div>
+         <div class="field"><label for="slType">Tipo</label><select id="slType"><option>Booster Box</option><option>Elite Trainer Box</option><option>Booster Bundle</option><option>Booster Pack</option><option>Collection Box</option><option>Premium Collection</option><option>Tin</option><option>Blister</option><option>Display</option><option>Altro</option></select></div>
+         <div class="field"><label for="slSet">Set / Serie</label><input id="slSet" type="text" placeholder="es. Sword & Shield"/></div>
+         <div class="field"><label for="slLang">Lingua</label><select id="slLang"><option>ITA</option><option selected>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option></select></div>
+         <div class="field"><label for="slYear">Anno</label><input id="slYear" type="text" placeholder="es. 2021" inputmode="numeric"/></div>
+         <div class="field"><label for="slCond">Stato</label><select id="slCond"><option selected>Sigillato (Mint)</option><option>Sigillato (Near Mint)</option><option>Sigillato (difetti scatola)</option><option>Reseal sospetto</option></select></div>
+         <div class="field"><label for="slQty">Quantità</label><input id="slQty" type="number" value="1" min="1"/></div>
+         <div class="field"><label for="slPrice">Prezzo richiesto (€)</label><input id="slPrice" type="number" step="0.01" placeholder="0.00"/></div>
+         <div class="field full"><label for="slNotes">Note</label><input id="slNotes" type="text" placeholder="provenienza, weight check, foto cellophane…"/></div>
+       </div>
+       <div class="sell-actions">
+         <button class="btn" onclick="sellClear('sealed')">Pulisci</button>
+         <button class="btn btn-gold" onclick="sellSubmit('sealed')">Salva prodotto</button>
+       </div>
+     </div>
 
+     <!-- ▸ SET -->
+     <div class="sell-panel" id="sellPanel-set">
+       <div class="sell-cat-desc">Set completi o quasi completi. Indica la completezza e la condizione media: un set master vale molto più della somma delle singole.</div>
+       <div class="form-grid">
+         <div class="field full"><label for="stName">Nome set</label><input id="stName" type="text" placeholder="es. Base Set completo"/></div>
+         <div class="field"><label for="stLang">Lingua</label><select id="stLang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option></select></div>
+         <div class="field"><label for="stCount">N° carte</label><input id="stCount" type="text" placeholder="es. 102/102"/></div>
+         <div class="field"><label for="stCompl">Completezza</label><select id="stCompl"><option>Master Set (100% + reverse/holo)</option><option selected>Completo (100%)</option><option>Quasi completo (90%+)</option><option>Parziale</option></select></div>
+         <div class="field"><label for="stCond">Condizione media</label><select id="stCond"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>Mista</option></select></div>
+         <div class="field"><label for="stPrice">Prezzo richiesto (€)</label><input id="stPrice" type="number" step="0.01" placeholder="0.00"/></div>
+         <div class="field full"><label for="stIncludes">Include / highlights</label><input id="stIncludes" type="text" placeholder="es. tutte le holo, Charizard NM, 1st ed…"/></div>
+         <div class="field full"><label for="stNotes">Note</label><input id="stNotes" type="text" placeholder="carte sostituite, doppioni, difetti…"/></div>
+       </div>
+       <div class="sell-actions">
+         <button class="btn" onclick="sellClear('set')">Pulisci</button>
+         <button class="btn btn-gold" onclick="sellSubmit('set')">Salva prodotto</button>
+       </div>
+     </div>
+
+     <!-- ▸ COLLEZIONI -->
+     <div class="sell-panel" id="sellPanel-collezioni">
+       <div class="sell-cat-desc">Lotti e collezioni miste (gradate, raw, sealed, set insieme). Ideale per vendite in blocco: descrivi bene cosa contiene il lotto.</div>
+       <div class="form-grid">
+         <div class="field full"><label for="clName">Titolo collezione / lotto</label><input id="clName" type="text" placeholder="es. Lotto Vintage WotC 1999-2003"/></div>
+         <div class="field"><label for="clLang">Lingua prevalente</label><select id="clLang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>Mista</option></select></div>
+         <div class="field"><label for="clItems">N° pezzi totali</label><input id="clItems" type="number" min="1" placeholder="es. 350"/></div>
+         <div class="field"><label for="clEstimate">Valore stimato (€)</label><input id="clEstimate" type="number" step="0.01" placeholder="0.00"/></div>
+         <div class="field"><label for="clPrice">Prezzo richiesto (€)</label><input id="clPrice" type="number" step="0.01" placeholder="0.00"/></div>
+         <div class="field full"><label for="clCats">Categorie incluse</label><input id="clCats" type="text" placeholder="es. 12 gradate + 200 raw + 3 box"/></div>
+         <div class="field full"><label for="clDesc">Descrizione</label><textarea id="clDesc" rows="3" placeholder="Composizione del lotto, condizioni, eventuali pezzi chiave…"></textarea></div>
+       </div>
+       <div class="sell-actions">
+         <button class="btn" onclick="sellClear('collezioni')">Pulisci</button>
+         <button class="btn btn-gold" onclick="sellSubmit('collezioni')">Salva prodotto</button>
+       </div>
+     </div>
+
+   </div>
   </div>
  </div>
+
 </div>
 <!-- ════════════════════ FINE TAB SELLER ════════════════════ -->
 
@@ -11256,28 +11449,32 @@ function scReset(){
 // ═══════════════════════════════════════════════════════════
 var RB_MODE = 'collector';
 var RB_MODE_DEFAULT_TAB = { collector: 'col', seller: 'sell' };
+var RB_MODE_LABEL = { collector:'Collector', seller:'Seller', investor:'Investor' };
 
 function setMode(mode){
   // Investor è una shell separata (rareblock-dashboard.html), gated da profilo
   if(mode === 'investor'){
     var ib = document.getElementById('modeInvestorBtn');
-    if(ib && ib.style.display === 'none') return; // non abilitato → no-op
+    if(ib && ib.style.display === 'none'){ rbSwClose(); return; } // non abilitato
     window.location.href = 'rareblock-dashboard.html';
     return;
   }
   if(mode !== 'collector' && mode !== 'seller') mode = 'collector';
   RB_MODE = mode;
 
-  // Header: nav cambia set di tab in base alla modalità (CSS-driven)
+  // Nav: mostra il set di tab della sezione (CSS-driven)
   var nav = document.querySelector('header .nav');
   if(nav) nav.setAttribute('data-mode', mode);
 
-  // Segmented control: pillola oro sull'attivo
-  document.querySelectorAll('#modeSwitch .mode-btn').forEach(function(b){
-    b.classList.toggle('active', b.getAttribute('data-mode') === mode);
+  // Selettore: aggiorna label trigger + voce attiva
+  var lbl = document.getElementById('rbSwLabel');
+  if(lbl) lbl.textContent = RB_MODE_LABEL[mode] || 'Collector';
+  document.querySelectorAll('#rbSwMenu .rb-sw-item').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-section') === mode);
   });
+  rbSwClose();
 
-  // Se il tab attivo non appartiene alla modalità scelta → vai al default
+  // Se il tab attivo non appartiene alla sezione scelta → vai al default
   var activeBtn = document.querySelector('header .nav .nav-btn.active');
   var belongs = activeBtn && (activeBtn.getAttribute('data-mode') === mode);
   if(!belongs){
@@ -11287,14 +11484,98 @@ function setMode(mode){
   try{ localStorage.setItem('rb_mode', mode); }catch(_){}
 }
 
-// Ripristina la modalità all'avvio: ?mode=seller | #seller | localStorage
+// ── Dropdown selettore sezione ───────────────────────────────
+function rbSwToggle(ev){
+  if(ev){ ev.stopPropagation(); }
+  var menu = document.getElementById('rbSwMenu');
+  var trg  = document.getElementById('rbSwTrigger');
+  if(!menu) return;
+  var open = menu.classList.toggle('open');
+  if(trg) trg.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if(open) rbAcctClose();
+}
+function rbSwClose(){
+  var menu = document.getElementById('rbSwMenu');
+  var trg  = document.getElementById('rbSwTrigger');
+  if(menu) menu.classList.remove('open');
+  if(trg) trg.setAttribute('aria-expanded','false');
+}
+
+// ── Dropdown account ─────────────────────────────────────────
+function rbAcctToggle(ev){
+  if(ev){ ev.stopPropagation(); }
+  var menu = document.getElementById('rbAcctMenu');
+  var trg  = document.getElementById('rbAcctTrigger');
+  if(!menu) return;
+  var open = menu.classList.toggle('open');
+  if(trg) trg.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if(open) rbSwClose();
+}
+function rbAcctClose(){
+  var menu = document.getElementById('rbAcctMenu');
+  var trg  = document.getElementById('rbAcctTrigger');
+  if(menu) menu.classList.remove('open');
+  if(trg) trg.setAttribute('aria-expanded','false');
+}
+
+// Chiudi i dropdown al click esterno o ESC
+document.addEventListener('click', function(e){
+  if(!e.target.closest('#rbSwitcher')) rbSwClose();
+  if(!e.target.closest('#userBadge'))  rbAcctClose();
+});
+document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ rbSwClose(); rbAcctClose(); } });
+
+// ── Sync intestazione account (avatar/nome/email) ────────────
+function rbAcctSync(){
+  var s = window._rbSession, p = window._rbProfile;
+  var email = (s && s.user && s.user.email) || '';
+  var name  = (p && p.full_name) || (email ? email.split('@')[0] : 'Account');
+  var initial = (name || email || '·').trim().charAt(0).toUpperCase() || '·';
+  ['rbAcctAvatar','rbAcctAvatarLg'].forEach(function(id){ var el=document.getElementById(id); if(el) el.textContent=initial; });
+  var nm = document.getElementById('rbAcctHeadName'); if(nm) nm.textContent = name;
+  var em = document.getElementById('userEmail');      if(em) em.textContent = email;
+}
+
+// ── Modal Account · Profilo & impostazioni ───────────────────
+function openAccount(){
+  rbAcctClose();
+  var p = window._rbProfile || {}, s = window._rbSession;
+  var email = (s && s.user && s.user.email) || '';
+  var name  = p.full_name || (email ? email.split('@')[0] : 'Account');
+  var initial = (name || email || '·').trim().charAt(0).toUpperCase() || '·';
+  var set = function(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; };
+  set('acctModalAvatar', initial);
+  set('acctModalName', name);
+  set('acctModalEmail', email);
+  var tierEl = document.getElementById('tierBadge');
+  set('acctModalTier', tierEl ? (tierEl.textContent||'—').trim() : '—');
+  set('acctModalRole', p.role === 'admin' ? 'Admin' : 'Membro');
+  var kyc = p.kyc_status ? p.kyc_status : '—';
+  var kycMap = { approved:'Approvato', pending:'In attesa', rejected:'Respinto' };
+  set('acctModalKyc', kycMap[kyc] || kyc);
+  var areas = [];
+  if(p.can_collector!==false) areas.push('Collector');
+  if(p.can_seller) areas.push('Seller');
+  if(p.can_investor) areas.push('Investor');
+  set('acctModalAreas', areas.length ? areas.join(' · ') : '—');
+  var adm = document.getElementById('acctModalAdmin');
+  if(adm) adm.style.display = (p.role==='admin') ? '' : 'none';
+  var bg = document.getElementById('acctModalBg'); if(bg) bg.classList.add('show');
+}
+function closeAccount(){ var bg=document.getElementById('acctModalBg'); if(bg) bg.classList.remove('show'); }
+
+// Ripristina la sezione all'avvio: ?mode=seller | #seller | localStorage.
+// Rispetta il gating: se la sezione salvata non è abilitata, ripiega su collector.
 function rbInitMode(){
+  var p = window._rbProfile || {};
   var m = '';
   try{
     var qs = new URLSearchParams(window.location.search);
     m = qs.get('mode') || (location.hash === '#seller' ? 'seller' : '');
     if(!m) m = localStorage.getItem('rb_mode') || '';
   }catch(_){}
+  if(m === 'seller' && !p.can_seller) m = '';   // seller non abilitato → collector
+  try{ rbAcctSync(); }catch(_){}
   setMode(m === 'seller' ? 'seller' : 'collector');
 }
 
@@ -11368,9 +11649,10 @@ function sellSubmit(cat){
   var list = sellLoadDrafts();
   list.unshift(draft);
   sellSaveDrafts(list);
-  sellRenderDrafts();
   sellClear(cat);
-  showToast('Bozza prodotto salvata ✓', 2600);
+  sellCloseDrawer();
+  sellRenderGrid();
+  showToast('Prodotto salvato ✓', 2600);
   // TODO backend: persistere su Supabase (inv_sell_products) + push verso Inserzioni
 }
 
@@ -11396,39 +11678,101 @@ function sellSaveDrafts(list){
 function sellDeleteDraft(id){
   var list = sellLoadDrafts().filter(function(x){ return x.id !== id; });
   sellSaveDrafts(list);
-  sellRenderDrafts();
+  sellRenderGrid();
 }
 
 var SELL_CAT_LABEL = { gradate:'Gradata', raw:'Raw', sealed:'Sealed', set:'Set', collezioni:'Lotto' };
+var SELL_CAT_ICON  = { gradate:'rb-i-diamond', raw:'rb-i-card', sealed:'rb-i-package', set:'rb-i-folder', collezioni:'rb-i-arch' };
+var SELL_FILTER = 'all';
 
-function sellRenderDrafts(){
-  var wrap = document.getElementById('sellDraftsList');
-  if(!wrap) return;
-  var list = sellLoadDrafts();
-  if(!list.length){
-    wrap.innerHTML = '<div class="sell-drafts-empty">Nessuna bozza ancora. Compila un form qui sopra e salva.</div>';
+// ── Drawer di caricamento ────────────────────────────────────
+function sellOpenDrawer(){
+  var bg = document.getElementById('sellDrawerBg');
+  if(bg) bg.classList.add('show');
+  var cat = 'gradate';
+  try{ cat = sessionStorage.getItem('rb_sell_cat') || 'gradate'; }catch(_){}
+  sellCat(cat);
+}
+function sellCloseDrawer(){
+  var bg = document.getElementById('sellDrawerBg');
+  if(bg) bg.classList.remove('show');
+}
+
+// ── Filtro categoria inventario ──────────────────────────────
+function sellFilter(f){
+  SELL_FILTER = f || 'all';
+  document.querySelectorAll('#scFilters .sc-chip').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-f') === SELL_FILTER);
+  });
+  sellRenderGrid();
+}
+
+// ── Render inventario a griglia (stile marketplace) ──────────
+function sellRenderGrid(){
+  var grid = document.getElementById('sellGrid');
+  var empty = document.getElementById('sellEmpty');
+  var countEl = document.getElementById('scCount');
+  if(!grid) return;
+
+  var all = sellLoadDrafts();
+  var q = '';
+  var se = document.getElementById('scSearch');
+  if(se) q = String(se.value || '').trim().toLowerCase();
+
+  var list = all.filter(function(d){
+    if(SELL_FILTER !== 'all' && d.cat !== SELL_FILTER) return false;
+    if(q){
+      var hay = (d.name + ' ' + (d.meta||'')).toLowerCase();
+      if(hay.indexOf(q) === -1) return false;
+    }
+    return true;
+  });
+
+  if(countEl){
+    var tot = all.length;
+    countEl.textContent = tot + (tot === 1 ? ' prodotto' : ' prodotti') + (list.length !== tot ? ' · ' + list.length + ' mostrati' : '');
+  }
+
+  if(!all.length){
+    grid.innerHTML = '';
+    grid.style.display = 'none';
+    if(empty) empty.style.display = 'flex';
     return;
   }
-  wrap.innerHTML = list.map(function(d){
+  if(empty) empty.style.display = 'none';
+  grid.style.display = 'grid';
+
+  if(!list.length){
+    grid.innerHTML = '<div class="sc-empty" style="grid-column:1/-1"><div class="sc-empty-ic"><span class="rb-i rb-i-search"></span></div><div class="sc-empty-title">Nessun risultato</div><div class="sc-empty-sub">Nessun prodotto corrisponde al filtro o alla ricerca.</div></div>';
+    return;
+  }
+
+  grid.innerHTML = list.map(function(d){
     var price = '€ ' + Number(d.price).toLocaleString('it-IT', {minimumFractionDigits:2, maximumFractionDigits:2});
-    return '<div class="sell-draft-row">' +
-      '<span class="sell-draft-cat c-' + d.cat + '">' + (SELL_CAT_LABEL[d.cat] || d.cat) + '</span>' +
-      '<div class="sell-draft-main">' +
-        '<div class="sell-draft-name">' + escapeHtml(d.name) + '</div>' +
-        (d.meta ? '<div class="sell-draft-meta">' + escapeHtml(d.meta) + '</div>' : '') +
+    var ic = SELL_CAT_ICON[d.cat] || 'rb-i-tag';
+    return '<div class="sc-card">' +
+      '<div class="sc-card-media">' +
+        '<span class="sc-card-badge c-' + d.cat + '">' + (SELL_CAT_LABEL[d.cat] || d.cat) + '</span>' +
+        '<span class="sc-card-status">Bozza</span>' +
+        '<span class="rb-i ' + ic + '"></span>' +
       '</div>' +
-      '<div class="sell-draft-price">' + price + '</div>' +
-      '<button class="sell-draft-del" title="Elimina bozza" onclick="sellDeleteDraft(\'' + d.id + '\')"><span class="rb-i rb-i-trash"></span></button>' +
+      '<div class="sc-card-body">' +
+        '<div class="sc-card-name">' + escapeHtml(d.name) + '</div>' +
+        (d.meta ? '<div class="sc-card-meta">' + escapeHtml(d.meta) + '</div>' : '') +
+      '</div>' +
+      '<div class="sc-card-foot">' +
+        '<span class="sc-card-price">' + price + '</span>' +
+        '<div class="sc-card-acts">' +
+          '<button class="sc-card-act del" title="Elimina prodotto" onclick="sellDeleteDraft(\'' + d.id + '\')"><span class="rb-i rb-i-trash"></span></button>' +
+        '</div>' +
+      '</div>' +
     '</div>';
   }).join('');
 }
 
 // Init quando si entra nel tab Seller
 function initSell(){
-  var cat = 'gradate';
-  try{ cat = sessionStorage.getItem('rb_sell_cat') || 'gradate'; }catch(_){}
-  sellCat(cat);
-  sellRenderDrafts();
+  sellFilter(SELL_FILTER || 'all');
 }
 </script>
 
@@ -11481,6 +11825,7 @@ function rbSaveSession(s){
   var emailEl=document.getElementById('userEmail');
   if(badge) badge.style.display = s?'flex':'none';
   if(emailEl&&s) emailEl.textContent = s.user&&s.user.email||'Utente';
+  try{ if(typeof rbAcctSync==='function') rbAcctSync(); }catch(_){}
 }
 function rbLoadSession(){
   // localStorage prima (Ricorda + pre-T2b), poi sessionStorage (non-ricorda).
