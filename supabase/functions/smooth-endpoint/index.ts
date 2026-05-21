@@ -22,6 +22,26 @@ const COND_ORDER: Record<string,number> = {
 
 interface Listing { price: number; condition: string; condRank: number; seller?: string; comment?: string; grading?: { house: string; score: number; raw: string } | null; language?: string | null; has_photo?: boolean; }
 
+// ─── CAP DEI LISTING PRIMA DEL RETURN ──────────────────────────────────────
+// BUG STORICO: tutti i path facevano `.sort(prezzo crescente).slice(0, 30)` →
+// tenevano i 30 listing PIÙ ECONOMICI e scartavano quelli costosi. Su carte
+// popolari (es. Aerodactyl Fossil ENG NM+ con decine di raw/grade-bassi a
+// €50-60) i listing GRADATI costosi (PSA 9 a €170+) finivano oltre la
+// posizione 30 e venivano persi: l'analisi graded lato client non trovava
+// alcun PSA 9 match e ripiegava su "media PSA generica" mostrando prezzi raw.
+//
+// FIX: i listing gradati sono rari e analiticamente critici → li teniamo
+// SEMPRE tutti, poi riempiamo fino a `max` con i raw più economici. L'output
+// resta ordinato per prezzo crescente (invariato per il resto della pipeline).
+function capCMListings(listings: Listing[], max = 40): Listing[] {
+  const byPrice = (a: Listing, b: Listing) => a.price - b.price;
+  if (listings.length <= max) return listings.slice().sort(byPrice);
+  const graded = listings.filter(l => l.grading);
+  const raw = listings.filter(l => !l.grading).sort(byPrice);
+  const room = Math.max(0, max - graded.length);
+  return graded.concat(raw.slice(0, room)).sort(byPrice);
+}
+
 const USER_AGENTS = [
   // Desktop Chrome — ultime versioni stabili (più aggiornate possibili).
   // Header recenti hanno meno probabilità di essere fingerprintati come bot.
@@ -700,7 +720,7 @@ function extractCMListings(html: string): Listing[] {
       listings.push(listing);
     }
   }
-  if (listings.length > 0) return listings.slice(0, 30).sort((a,b) => a.price - b.price);
+  if (listings.length > 0) return capCMListings(listings);
 
   // ─── PHASE 2: PRICE-ANCHORED extraction ──
   // Fallback strutturalmente agnostico: se PHASE 1 non trova nulla (CM ha
@@ -762,7 +782,7 @@ function extractCMListings(html: string): Listing[] {
 
     if (listings.length >= 40) break; // safety cap
   }
-  if (listings.length > 0) return listings.slice(0, 30).sort((a,b) => a.price - b.price);
+  if (listings.length > 0) return capCMListings(listings);
 
   // ─── PHASE 3: legacy JSON-only extraction (no comments available) ──
   const pricePattern = /"price"\s*:\s*"?(\d{1,4}[,.]?\d{0,3}[,.]\d{2})"?/g;
@@ -775,7 +795,7 @@ function extractCMListings(html: string): Listing[] {
       listings.push({ price: n, condition: 'Near Mint', condRank: 2 });
     }
   }
-  if (listings.length > 0) return listings.slice(0, 30).sort((a,b) => a.price - b.price);
+  if (listings.length > 0) return capCMListings(listings);
 
   // Fallback ambidestro: € prima O dopo il numero
   const euroPatterns = [
@@ -791,7 +811,7 @@ function extractCMListings(html: string): Listing[] {
       }
     }
   }
-  return listings.slice(0, 30).sort((a, b) => a.price - b.price);
+  return capCMListings(listings);
 }
 
 // Estrae il commento/nota del seller dalla row CM.
@@ -1081,7 +1101,7 @@ function extractFromNextData(obj: unknown, depth = 0): Listing[] {
           if (hasPhoto) listing.has_photo = true;
           listings.push(listing);
         }
-        if (listings.length > 0) return listings.sort((a,b) => a.price - b.price).slice(0, 30);
+        if (listings.length > 0) return capCMListings(listings);
       }
     }
     if (typeof v === 'object' && v !== null) {
