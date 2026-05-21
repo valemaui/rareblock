@@ -2037,6 +2037,85 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
   .slab-result-actions .slab-verify-primary{flex:1;min-width:100%}
   .slab-result-actions .slab-verify-link{justify-content:center}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MODE SWITCH a 3 vie — Collector · Seller · Investor
+   La classe base .mode-switch/.mode-btn vive nello shared CSS (condiviso
+   con l'Investor): qui la potenziamo a segmented control con pillola oro
+   sull'attivo. Override scoped su .rb-mode3 → zero impatto altrove.
+   ═══════════════════════════════════════════════════════════════════════ */
+#modeSwitch.rb-mode3{gap:2px;padding:3px}
+#modeSwitch.rb-mode3 .mode-btn{padding:4px 13px;border-radius:16px;font-size:11px;letter-spacing:.03em;transition:color var(--t-med),background var(--t-med),box-shadow var(--t-med)}
+#modeSwitch.rb-mode3 .mode-btn:not(.active):hover{color:var(--text);background:var(--surface3)}
+#modeSwitch.rb-mode3 .mode-btn.active{
+  background:linear-gradient(180deg,#d8b85e 0%,#b1902f 100%);
+  color:#15110a;font-weight:600;
+  box-shadow:0 1px 4px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.28);
+}
+
+/* Nav mode-aware: mostra solo i tab della modalità attiva (CSS-driven,
+   robusto anche se il JS fallisce: il default è collector). */
+.nav[data-mode="collector"] .nav-btn[data-mode="seller"]{display:none}
+.nav[data-mode="seller"]    .nav-btn[data-mode="collector"]{display:none}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SELLER · Carica prodotto — workspace con sotto-tab categoria
+   Gradate · Raw · Sealed · Set · Collezioni
+   ═══════════════════════════════════════════════════════════════════════ */
+.sell-wrap{display:flex;flex-direction:column;height:100%;overflow:hidden;background:var(--bg)}
+.sell-head{padding:20px 24px 0;flex-shrink:0}
+.sell-title{font-family:var(--display);font-weight:200;font-size:22px;letter-spacing:.1em;text-transform:uppercase;color:var(--text);line-height:1}
+.sell-title b{color:var(--gold);font-weight:300}
+.sell-sub{font-size:12.5px;color:var(--text-muted);margin-top:6px;max-width:680px;line-height:1.55}
+
+/* Sotto-tab categoria — underline oro stile editorial */
+.sell-cats{display:flex;gap:2px;padding:18px 24px 0;flex-shrink:0;flex-wrap:wrap;border-bottom:1px solid var(--border)}
+.sell-cat-btn{position:relative;display:inline-flex;align-items:center;gap:8px;padding:9px 16px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);font-family:var(--font);font-size:13px;cursor:pointer;transition:color var(--t-fast);margin-bottom:-1px;white-space:nowrap}
+.sell-cat-btn .rb-i{width:15px;height:15px}
+.sell-cat-btn:hover{color:var(--text)}
+.sell-cat-btn.active{color:var(--gold);border-bottom-color:var(--gold);font-weight:500}
+
+/* Corpo scrollabile + pannelli */
+.sell-body{flex:1;overflow-y:auto;padding:24px}
+.sell-panel{display:none;max-width:780px;margin:0 auto}
+.sell-panel.active{display:block;animation:sellFade .24s ease}
+@keyframes sellFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.sell-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:22px;box-shadow:var(--shadow-sm)}
+.sell-cat-desc{font-size:12px;color:var(--text-muted);line-height:1.55;margin-bottom:18px;padding-left:12px;border-left:2px solid var(--gold)}
+.sell-card .form-grid{gap:12px}
+.sell-card label{display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;font-weight:500}
+.sell-inline-check{display:flex;align-items:center;gap:6px;white-space:nowrap;text-transform:none;letter-spacing:0;font-size:12px;font-weight:400;color:var(--text-muted);cursor:pointer;margin:0}
+.sell-inline-check input{width:14px;height:14px;accent-color:var(--gold);cursor:pointer}
+.sell-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+.btn-gold{background:linear-gradient(180deg,#d8b85e 0%,#b1902f 100%);color:#15110a;border:1px solid var(--gold-deep);font-weight:600}
+.btn-gold:hover{filter:brightness(1.06)}
+
+/* Lista bozze prodotti caricati */
+.sell-drafts{max-width:780px;margin:26px auto 0}
+.sell-drafts-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.sell-drafts-head .section-title{margin:0}
+.sell-draft-row{display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;transition:border-color var(--t-fast)}
+.sell-draft-row:hover{border-color:var(--border-strong)}
+.sell-draft-cat{font-size:9.5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;padding:3px 8px;border-radius:3px;background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-border);flex-shrink:0;min-width:74px;text-align:center}
+.sell-draft-cat.c-gradate{background:rgba(201,168,76,.12);color:var(--gold);border-color:rgba(201,168,76,.32)}
+.sell-draft-cat.c-sealed{background:var(--success-soft);color:var(--success);border-color:rgba(63,185,80,.3)}
+.sell-draft-cat.c-set{background:var(--warning-soft);color:var(--warning);border-color:rgba(210,153,34,.3)}
+.sell-draft-cat.c-collezioni{background:rgba(189,147,249,.12);color:#bd93f9;border-color:rgba(189,147,249,.3)}
+.sell-draft-main{flex:1;min-width:0}
+.sell-draft-name{font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sell-draft-meta{font-size:11px;color:var(--text-muted);font-family:var(--mono);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sell-draft-price{font-family:var(--mono);font-weight:600;color:var(--text);font-size:13px;flex-shrink:0}
+.sell-draft-del{background:none;border:none;color:var(--text-subtle);cursor:pointer;padding:5px;border-radius:4px;display:inline-flex;flex-shrink:0;transition:all var(--t-fast)}
+.sell-draft-del .rb-i{width:15px;height:15px}
+.sell-draft-del:hover{color:var(--danger);background:var(--danger-soft)}
+.sell-drafts-empty{font-size:12px;color:var(--text-subtle);font-style:italic;padding:14px;text-align:center;border:1px dashed var(--border);border-radius:var(--r)}
+
+@media (max-width:560px){
+  .sell-head,.sell-cats,.sell-body{padding-left:14px;padding-right:14px}
+  .sell-card{padding:16px}
+  .sell-card .form-grid{grid-template-columns:1fr}
+}
 </style>
 
 </head>
@@ -2360,21 +2439,25 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
   <a href="index.html" class="logo">
     <span style="color:var(--text)">Rare</span><span class="logo-gold">Block</span>
   </a>
-  <div class="mode-switch" id="modeSwitch">
-    <button class="mode-btn" id="modeInvestorBtn" onclick="window.location.href='rareblock-dashboard.html'">Investor</button>
-    <button class="mode-btn active" id="modeCollectorBtn">Collector</button>
+  <div class="mode-switch rb-mode3" id="modeSwitch">
+    <button class="mode-btn active" id="modeCollectorBtn" data-mode="collector" onclick="setMode('collector')">Collector</button>
+    <button class="mode-btn" id="modeSellerBtn" data-mode="seller" onclick="setMode('seller')">Seller</button>
+    <button class="mode-btn" id="modeInvestorBtn" data-mode="investor" onclick="setMode('investor')">Investor</button>
   </div>
-  <nav class="nav">
-    <button class="nav-btn active" onclick="showTab('col')">Collezione</button>
-    <button class="nav-btn" onclick="showTab('prev')">Preventivi</button>
-    <button class="nav-btn" onclick="showTab('ms')">Masterset</button>
-    <button class="nav-btn" onclick="showTab('auth')">Autentica</button>
-    <button class="nav-btn" onclick="showTab('anl')">Analizza</button>
-    <button class="nav-btn" onclick="showTab('dash')"><span class="rb-i rb-i-chart"></span> Dashboard</button>
-    <button class="nav-btn" onclick="showTab('vend')"><span class="rb-i rb-i-banknote"></span> Vendite</button>
-    <button class="nav-btn" onclick="showTab('ins')"><span class="rb-i rb-i-cart"></span> Inserzioni</button>
-    <button class="nav-btn" onclick="showTab('wish')"><span class="rb-i rb-i-star"></span> Wishlist</button>
-    <button class="nav-btn" onclick="showTab('hunt')"><span class="rb-i rb-i-radar"></span> Radar</button>
+  <nav class="nav" data-mode="collector">
+    <!-- ▸ Modalità COLLECTOR — gestione & analisi della propria collezione -->
+    <button class="nav-btn active" data-mode="collector" onclick="showTab('col')">Collezione</button>
+    <button class="nav-btn" data-mode="collector" onclick="showTab('prev')">Preventivi</button>
+    <button class="nav-btn" data-mode="collector" onclick="showTab('ms')">Masterset</button>
+    <button class="nav-btn" data-mode="collector" onclick="showTab('wish')"><span class="rb-i rb-i-star"></span> Wishlist</button>
+    <button class="nav-btn" data-mode="collector" onclick="showTab('auth')">Autentica</button>
+    <button class="nav-btn" data-mode="collector" onclick="showTab('anl')">Analizza</button>
+    <button class="nav-btn" data-mode="collector" onclick="showTab('dash')"><span class="rb-i rb-i-chart"></span> Dashboard</button>
+    <!-- ▸ Modalità SELLER — caricamento prodotti & vendita -->
+    <button class="nav-btn" data-mode="seller" onclick="showTab('sell')"><span class="rb-i rb-i-tag"></span> Carica prodotto</button>
+    <button class="nav-btn" data-mode="seller" onclick="showTab('ins')"><span class="rb-i rb-i-cart"></span> Inserzioni</button>
+    <button class="nav-btn" data-mode="seller" onclick="showTab('vend')"><span class="rb-i rb-i-banknote"></span> Vendite</button>
+    <button class="nav-btn" data-mode="seller" onclick="showTab('hunt')"><span class="rb-i rb-i-radar"></span> Radar</button>
   </nav>
   <button class="slab-trigger-btn" onclick="openSlabVerify()" title="Verifica codice slab gradata (PSA, BGS, CGC...)">
     <svg viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4Z"/><path d="m9 12 2 2 4-4"/></svg>
@@ -3506,6 +3589,7 @@ function showTab(t){
       if(fw && fw.contentWindow && fw.contentWindow.wlLoad) fw.contentWindow.wlLoad();
     }
   }catch(e){ console.error('wlLoad:',e); }
+  try{ if(t==='sell' && typeof initSell==='function') initSell(); }catch(e){ console.error('initSell:',e); }
 }
 
 function parseQuery(q){
@@ -9357,6 +9441,9 @@ async function appStart(){
   setTimeout(checkApiStatus, 800);
   loadCollection();
 
+  // Modalità iniziale (Collector default; ?mode=seller / #seller / localStorage)
+  try{ if(typeof rbInitMode==='function') rbInitMode(); }catch(e){ console.warn('[appStart] initMode:', e && e.message); }
+
   // Tier status badge — fire-and-forget
   try { loadTierStatus(); } catch(e){ console.warn('tier status:', e && e.message); }
 
@@ -11011,6 +11098,339 @@ function scReset(){
           style="flex:1;width:100%;border:0;background:var(--bg);display:block"></iframe>
 </div>
 <!-- ════════════════════ FINE TAB RADAR ════════════════════ -->
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     TAB SELLER · CARICA PRODOTTO
+     Workspace di caricamento prodotti da vendere, suddiviso per
+     categoria: Gradate · Raw · Sealed · Set · Collezioni.
+     Le bozze vengono salvate client-side (rb_seller_drafts) in
+     attesa del wiring backend (tabella inv_sell_products / Inserzioni).
+     ═══════════════════════════════════════════════════════════ -->
+<div class="tab" id="tab-sell" style="display:none;flex-direction:column;overflow:hidden">
+ <div class="sell-wrap">
+  <div class="sell-head">
+    <div class="sell-title">Carica <b>prodotto</b></div>
+    <div class="sell-sub">Prepara i prodotti da mettere in vendita. Scegli la categoria: ogni tipologia ha i campi giusti per una scheda completa e una valutazione coerente.</div>
+  </div>
+
+  <!-- Sotto-tab categoria -->
+  <div class="sell-cats" id="sellCats">
+    <button class="sell-cat-btn active" data-cat="gradate"   onclick="sellCat('gradate')"><span class="rb-i rb-i-diamond"></span> Gradate</button>
+    <button class="sell-cat-btn"        data-cat="raw"       onclick="sellCat('raw')"><span class="rb-i rb-i-card"></span> Raw</button>
+    <button class="sell-cat-btn"        data-cat="sealed"    onclick="sellCat('sealed')"><span class="rb-i rb-i-package"></span> Sealed</button>
+    <button class="sell-cat-btn"        data-cat="set"       onclick="sellCat('set')"><span class="rb-i rb-i-folder"></span> Set</button>
+    <button class="sell-cat-btn"        data-cat="collezioni" onclick="sellCat('collezioni')"><span class="rb-i rb-i-arch"></span> Collezioni</button>
+  </div>
+
+  <div class="sell-body">
+
+    <!-- ▸ GRADATE -->
+    <div class="sell-panel active" id="sellPanel-gradate">
+      <div class="sell-card">
+        <div class="sell-cat-desc">Carte slabbate da enti di grading (PSA, BGS, CGC, SGC). Il numero di certificato consente la verifica pubblica della valutazione.</div>
+        <div class="form-grid">
+          <div class="field"><label for="gdCompany">Compagnia</label><select id="gdCompany"><option>PSA</option><option>BGS</option><option>CGC</option><option>SGC</option><option>ACE</option><option>Altro</option></select></div>
+          <div class="field"><label for="gdGrade">Voto</label><select id="gdGrade"><option>10</option><option>9.5</option><option>9</option><option>8.5</option><option>8</option><option>7</option><option>6</option><option>5</option><option>≤4</option><option>Authentic</option></select></div>
+          <div class="field"><label for="gdCert">N° certificato</label><input id="gdCert" type="text" placeholder="es. 89456123"/></div>
+          <div class="field"><label for="gdYear">Anno</label><input id="gdYear" type="text" placeholder="es. 1999" inputmode="numeric"/></div>
+          <div class="field full"><label for="gdName">Nome carta</label><input id="gdName" type="text" placeholder="es. Charizard"/></div>
+          <div class="field"><label for="gdSet">Set</label><input id="gdSet" type="text" placeholder="es. Base Set"/></div>
+          <div class="field"><label for="gdNum">Numero</label><input id="gdNum" type="text" placeholder="es. 4/102"/></div>
+          <div class="field"><label for="gdLang">Lingua</label><select id="gdLang"><option>ITA</option><option selected>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option></select></div>
+          <div class="field"><label for="gdPrice">Prezzo richiesto (€)</label><input id="gdPrice" type="number" step="0.01" placeholder="0.00"/></div>
+          <div class="field full"><label for="gdNotes">Note</label><input id="gdNotes" type="text" placeholder="centratura, surface, sub-grades…"/></div>
+        </div>
+        <div class="sell-actions">
+          <button class="btn" onclick="sellClear('gradate')">Pulisci</button>
+          <button class="btn btn-gold" onclick="sellSubmit('gradate')">Salva bozza prodotto</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ▸ RAW -->
+    <div class="sell-panel" id="sellPanel-raw">
+      <div class="sell-card">
+        <div class="sell-cat-desc">Carte singole non gradate. Indica condizione, variante ed eventuale prima edizione: sono i fattori che muovono di più il prezzo.</div>
+        <div class="form-grid">
+          <div class="field full"><label for="rwName">Nome carta</label><input id="rwName" type="text" placeholder="es. Blastoise"/></div>
+          <div class="field"><label for="rwSet">Set</label><input id="rwSet" type="text" placeholder="es. Base Set"/></div>
+          <div class="field"><label for="rwNum">Numero</label><input id="rwNum" type="text" placeholder="es. 2/102"/></div>
+          <div class="field"><label for="rwCond">Condizione</label><select id="rwCond"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select></div>
+          <div class="field"><label for="rwVar">Variante</label><select id="rwVar"><option>Normal</option><option>Holo</option><option>Reverse Holo</option><option>Full Art</option><option>Secret Rare</option><option>Rainbow Rare</option><option>Gold</option><option>Promo</option><option>Shadowless</option></select></div>
+          <div class="field"><label for="rwLang">Lingua</label><select id="rwLang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option></select></div>
+          <div class="field"><label for="rwQty">Quantità</label><input id="rwQty" type="number" value="1" min="1"/></div>
+          <div class="field"><label for="rwPrice">Prezzo richiesto (€)</label><input id="rwPrice" type="number" step="0.01" placeholder="0.00"/></div>
+          <div class="field"><label>&nbsp;</label><label class="sell-inline-check"><input type="checkbox" id="rw1st"/> Prima edizione</label></div>
+          <div class="field full"><label for="rwNotes">Note</label><input id="rwNotes" type="text" placeholder="firmata, difetti, provenienza…"/></div>
+        </div>
+        <div class="sell-actions">
+          <button class="btn" onclick="sellClear('raw')">Pulisci</button>
+          <button class="btn btn-gold" onclick="sellSubmit('raw')">Salva bozza prodotto</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ▸ SEALED -->
+    <div class="sell-panel" id="sellPanel-sealed">
+      <div class="sell-card">
+        <div class="sell-cat-desc">Prodotti sigillati: box, ETB, bundle, blister, tin. Per i sigillati lo stato della scatola e l'integrità del cellophane sono determinanti.</div>
+        <div class="form-grid">
+          <div class="field full"><label for="slName">Nome prodotto</label><input id="slName" type="text" placeholder="es. Booster Box Evolving Skies"/></div>
+          <div class="field"><label for="slType">Tipo</label><select id="slType"><option>Booster Box</option><option>Elite Trainer Box</option><option>Booster Bundle</option><option>Booster Pack</option><option>Collection Box</option><option>Premium Collection</option><option>Tin</option><option>Blister</option><option>Display</option><option>Altro</option></select></div>
+          <div class="field"><label for="slSet">Set / Serie</label><input id="slSet" type="text" placeholder="es. Sword & Shield"/></div>
+          <div class="field"><label for="slLang">Lingua</label><select id="slLang"><option>ITA</option><option selected>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option></select></div>
+          <div class="field"><label for="slYear">Anno</label><input id="slYear" type="text" placeholder="es. 2021" inputmode="numeric"/></div>
+          <div class="field"><label for="slCond">Stato</label><select id="slCond"><option selected>Sigillato (Mint)</option><option>Sigillato (Near Mint)</option><option>Sigillato (difetti scatola)</option><option>Reseal sospetto</option></select></div>
+          <div class="field"><label for="slQty">Quantità</label><input id="slQty" type="number" value="1" min="1"/></div>
+          <div class="field"><label for="slPrice">Prezzo richiesto (€)</label><input id="slPrice" type="number" step="0.01" placeholder="0.00"/></div>
+          <div class="field full"><label for="slNotes">Note</label><input id="slNotes" type="text" placeholder="provenienza, weight check, foto cellophane…"/></div>
+        </div>
+        <div class="sell-actions">
+          <button class="btn" onclick="sellClear('sealed')">Pulisci</button>
+          <button class="btn btn-gold" onclick="sellSubmit('sealed')">Salva bozza prodotto</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ▸ SET -->
+    <div class="sell-panel" id="sellPanel-set">
+      <div class="sell-card">
+        <div class="sell-cat-desc">Set completi o quasi completi. Indica la completezza e la condizione media: un set master vale molto più della somma delle singole.</div>
+        <div class="form-grid">
+          <div class="field full"><label for="stName">Nome set</label><input id="stName" type="text" placeholder="es. Base Set completo"/></div>
+          <div class="field"><label for="stLang">Lingua</label><select id="stLang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option></select></div>
+          <div class="field"><label for="stCount">N° carte</label><input id="stCount" type="text" placeholder="es. 102/102"/></div>
+          <div class="field"><label for="stCompl">Completezza</label><select id="stCompl"><option>Master Set (100% + reverse/holo)</option><option selected>Completo (100%)</option><option>Quasi completo (90%+)</option><option>Parziale</option></select></div>
+          <div class="field"><label for="stCond">Condizione media</label><select id="stCond"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>Mista</option></select></div>
+          <div class="field"><label for="stPrice">Prezzo richiesto (€)</label><input id="stPrice" type="number" step="0.01" placeholder="0.00"/></div>
+          <div class="field full"><label for="stIncludes">Include / highlights</label><input id="stIncludes" type="text" placeholder="es. tutte le holo, Charizard NM, 1st ed…"/></div>
+          <div class="field full"><label for="stNotes">Note</label><input id="stNotes" type="text" placeholder="carte sostituite, doppioni, difetti…"/></div>
+        </div>
+        <div class="sell-actions">
+          <button class="btn" onclick="sellClear('set')">Pulisci</button>
+          <button class="btn btn-gold" onclick="sellSubmit('set')">Salva bozza prodotto</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ▸ COLLEZIONI -->
+    <div class="sell-panel" id="sellPanel-collezioni">
+      <div class="sell-card">
+        <div class="sell-cat-desc">Lotti e collezioni miste (gradate, raw, sealed, set insieme). Ideale per vendite in blocco: descrivi bene cosa contiene il lotto.</div>
+        <div class="form-grid">
+          <div class="field full"><label for="clName">Titolo collezione / lotto</label><input id="clName" type="text" placeholder="es. Lotto Vintage WotC 1999-2003"/></div>
+          <div class="field"><label for="clLang">Lingua prevalente</label><select id="clLang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>Mista</option></select></div>
+          <div class="field"><label for="clItems">N° pezzi totali</label><input id="clItems" type="number" min="1" placeholder="es. 350"/></div>
+          <div class="field"><label for="clEstimate">Valore stimato (€)</label><input id="clEstimate" type="number" step="0.01" placeholder="0.00"/></div>
+          <div class="field"><label for="clPrice">Prezzo richiesto (€)</label><input id="clPrice" type="number" step="0.01" placeholder="0.00"/></div>
+          <div class="field full"><label for="clCats">Categorie incluse</label><input id="clCats" type="text" placeholder="es. 12 gradate + 200 raw + 3 box"/></div>
+          <div class="field full"><label for="clDesc">Descrizione</label><textarea id="clDesc" rows="3" placeholder="Composizione del lotto, condizioni, eventuali pezzi chiave…"></textarea></div>
+        </div>
+        <div class="sell-actions">
+          <button class="btn" onclick="sellClear('collezioni')">Pulisci</button>
+          <button class="btn btn-gold" onclick="sellSubmit('collezioni')">Salva bozza prodotto</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ▸ Bozze prodotti salvate -->
+    <div class="sell-drafts" id="sellDrafts">
+      <div class="sell-drafts-head">
+        <div class="section-title">Bozze prodotti</div>
+        <button class="btn" onclick="showTab('ins')" title="Vai alla gestione inserzioni" style="font-size:11px;padding:5px 10px">Vai a Inserzioni →</button>
+      </div>
+      <div id="sellDraftsList"></div>
+    </div>
+
+  </div>
+ </div>
+</div>
+<!-- ════════════════════ FINE TAB SELLER ════════════════════ -->
+
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  MODE SWITCH (Collector · Seller · Investor) + SELLER WORKSPACE
+//  Nessun IIFE, globals via var (regole architetturali RareBlock).
+// ═══════════════════════════════════════════════════════════
+var RB_MODE = 'collector';
+var RB_MODE_DEFAULT_TAB = { collector: 'col', seller: 'sell' };
+
+function setMode(mode){
+  // Investor è una shell separata (rareblock-dashboard.html), gated da profilo
+  if(mode === 'investor'){
+    var ib = document.getElementById('modeInvestorBtn');
+    if(ib && ib.style.display === 'none') return; // non abilitato → no-op
+    window.location.href = 'rareblock-dashboard.html';
+    return;
+  }
+  if(mode !== 'collector' && mode !== 'seller') mode = 'collector';
+  RB_MODE = mode;
+
+  // Header: nav cambia set di tab in base alla modalità (CSS-driven)
+  var nav = document.querySelector('header .nav');
+  if(nav) nav.setAttribute('data-mode', mode);
+
+  // Segmented control: pillola oro sull'attivo
+  document.querySelectorAll('#modeSwitch .mode-btn').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-mode') === mode);
+  });
+
+  // Se il tab attivo non appartiene alla modalità scelta → vai al default
+  var activeBtn = document.querySelector('header .nav .nav-btn.active');
+  var belongs = activeBtn && (activeBtn.getAttribute('data-mode') === mode);
+  if(!belongs){
+    try{ showTab(RB_MODE_DEFAULT_TAB[mode]); }catch(_){}
+  }
+
+  try{ localStorage.setItem('rb_mode', mode); }catch(_){}
+}
+
+// Ripristina la modalità all'avvio: ?mode=seller | #seller | localStorage
+function rbInitMode(){
+  var m = '';
+  try{
+    var qs = new URLSearchParams(window.location.search);
+    m = qs.get('mode') || (location.hash === '#seller' ? 'seller' : '');
+    if(!m) m = localStorage.getItem('rb_mode') || '';
+  }catch(_){}
+  setMode(m === 'seller' ? 'seller' : 'collector');
+}
+
+// ── SELLER · sotto-tab categoria ─────────────────────────────
+function sellCat(cat){
+  document.querySelectorAll('#sellCats .sell-cat-btn').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-cat') === cat);
+  });
+  document.querySelectorAll('.sell-panel').forEach(function(p){
+    p.classList.toggle('active', p.id === 'sellPanel-' + cat);
+  });
+  try{ sessionStorage.setItem('rb_sell_cat', cat); }catch(_){}
+}
+
+// ── SELLER · raccolta campi per categoria ────────────────────
+function _v(id){ var e = document.getElementById(id); return e ? String(e.value || '').trim() : ''; }
+function _chk(id){ var e = document.getElementById(id); return !!(e && e.checked); }
+
+function sellCollect(cat){
+  if(cat === 'gradate') return {
+    company:_v('gdCompany'), grade:_v('gdGrade'), cert:_v('gdCert'), year:_v('gdYear'),
+    name:_v('gdName'), set:_v('gdSet'), number:_v('gdNum'), lang:_v('gdLang'),
+    price:_v('gdPrice'), notes:_v('gdNotes')
+  };
+  if(cat === 'raw') return {
+    name:_v('rwName'), set:_v('rwSet'), number:_v('rwNum'), cond:_v('rwCond'),
+    variant:_v('rwVar'), lang:_v('rwLang'), qty:_v('rwQty'), price:_v('rwPrice'),
+    firstEd:_chk('rw1st'), notes:_v('rwNotes')
+  };
+  if(cat === 'sealed') return {
+    name:_v('slName'), type:_v('slType'), set:_v('slSet'), lang:_v('slLang'),
+    year:_v('slYear'), cond:_v('slCond'), qty:_v('slQty'), price:_v('slPrice'), notes:_v('slNotes')
+  };
+  if(cat === 'set') return {
+    name:_v('stName'), lang:_v('stLang'), count:_v('stCount'), completeness:_v('stCompl'),
+    cond:_v('stCond'), price:_v('stPrice'), includes:_v('stIncludes'), notes:_v('stNotes')
+  };
+  if(cat === 'collezioni') return {
+    name:_v('clName'), lang:_v('clLang'), items:_v('clItems'), estimate:_v('clEstimate'),
+    price:_v('clPrice'), categories:_v('clCats'), desc:_v('clDesc')
+  };
+  return {};
+}
+
+// Riga riassuntiva (meta) per la lista bozze
+function _sellMeta(cat, d){
+  if(cat === 'gradate')    return [d.company, d.grade && ('Voto '+d.grade), d.set, d.number, d.lang].filter(Boolean).join(' · ');
+  if(cat === 'raw')        return [d.cond, d.variant, d.lang, d.firstEd && '1ª ed.', d.qty>1?('x'+d.qty):''].filter(Boolean).join(' · ');
+  if(cat === 'sealed')     return [d.type, d.set, d.lang, d.qty>1?('x'+d.qty):''].filter(Boolean).join(' · ');
+  if(cat === 'set')        return [d.completeness, d.count, d.cond, d.lang].filter(Boolean).join(' · ');
+  if(cat === 'collezioni') return [d.items && (d.items+' pz'), d.categories, d.lang].filter(Boolean).join(' · ');
+  return '';
+}
+
+function sellSubmit(cat){
+  var d = sellCollect(cat);
+  // Validazione minima: nome/titolo + prezzo
+  if(!d.name){ showToast('Inserisci il nome del prodotto', 2600); return; }
+  if(!d.price || parseFloat(d.price) <= 0){ showToast('Inserisci un prezzo richiesto valido', 2600); return; }
+
+  var draft = {
+    id: 'sd_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+    cat: cat,
+    name: d.name,
+    price: parseFloat(d.price),
+    meta: _sellMeta(cat, d),
+    data: d,
+    ts: new Date().toISOString()
+  };
+
+  var list = sellLoadDrafts();
+  list.unshift(draft);
+  sellSaveDrafts(list);
+  sellRenderDrafts();
+  sellClear(cat);
+  showToast('Bozza prodotto salvata ✓', 2600);
+  // TODO backend: persistere su Supabase (inv_sell_products) + push verso Inserzioni
+}
+
+function sellClear(cat){
+  var panel = document.getElementById('sellPanel-' + cat);
+  if(!panel) return;
+  panel.querySelectorAll('input, textarea').forEach(function(el){
+    if(el.type === 'checkbox') el.checked = false;
+    else if(el.id === 'rwQty' || el.id === 'slQty') el.value = '1';
+    else el.value = '';
+  });
+  panel.querySelectorAll('select').forEach(function(el){ el.selectedIndex = 0; });
+}
+
+// ── SELLER · persistenza bozze (client-side, in attesa backend) ──
+function sellLoadDrafts(){
+  try{ return JSON.parse(localStorage.getItem('rb_seller_drafts') || '[]'); }
+  catch(_){ return []; }
+}
+function sellSaveDrafts(list){
+  try{ localStorage.setItem('rb_seller_drafts', JSON.stringify(list)); }catch(_){}
+}
+function sellDeleteDraft(id){
+  var list = sellLoadDrafts().filter(function(x){ return x.id !== id; });
+  sellSaveDrafts(list);
+  sellRenderDrafts();
+}
+
+var SELL_CAT_LABEL = { gradate:'Gradata', raw:'Raw', sealed:'Sealed', set:'Set', collezioni:'Lotto' };
+
+function sellRenderDrafts(){
+  var wrap = document.getElementById('sellDraftsList');
+  if(!wrap) return;
+  var list = sellLoadDrafts();
+  if(!list.length){
+    wrap.innerHTML = '<div class="sell-drafts-empty">Nessuna bozza ancora. Compila un form qui sopra e salva.</div>';
+    return;
+  }
+  wrap.innerHTML = list.map(function(d){
+    var price = '€ ' + Number(d.price).toLocaleString('it-IT', {minimumFractionDigits:2, maximumFractionDigits:2});
+    return '<div class="sell-draft-row">' +
+      '<span class="sell-draft-cat c-' + d.cat + '">' + (SELL_CAT_LABEL[d.cat] || d.cat) + '</span>' +
+      '<div class="sell-draft-main">' +
+        '<div class="sell-draft-name">' + escapeHtml(d.name) + '</div>' +
+        (d.meta ? '<div class="sell-draft-meta">' + escapeHtml(d.meta) + '</div>' : '') +
+      '</div>' +
+      '<div class="sell-draft-price">' + price + '</div>' +
+      '<button class="sell-draft-del" title="Elimina bozza" onclick="sellDeleteDraft(\'' + d.id + '\')"><span class="rb-i rb-i-trash"></span></button>' +
+    '</div>';
+  }).join('');
+}
+
+// Init quando si entra nel tab Seller
+function initSell(){
+  var cat = 'gradate';
+  try{ cat = sessionStorage.getItem('rb_sell_cat') || 'gradate'; }catch(_){}
+  sellCat(cat);
+  sellRenderDrafts();
+}
+</script>
 
 
 <script>

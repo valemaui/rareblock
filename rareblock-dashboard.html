@@ -152,6 +152,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 .mode-btn{font-size:11px;font-family:var(--mono);padding:3px 10px;border-radius:20px;border:none;background:none;cursor:pointer;color:var(--text-muted);transition:all .15s;white-space:nowrap}
 .mode-btn.active{background:var(--surface3);color:var(--text);font-weight:500}
 .mode-btn:not(.active):hover{color:var(--text)}
+/* Mode switch a 3 vie — pillola oro sull'attivo (coerente col Collector) */
+.mode-switch.rb-mode3{gap:2px;padding:3px}
+.mode-switch.rb-mode3 .mode-btn{padding:4px 13px;border-radius:16px;font-size:11px;letter-spacing:.03em;transition:color .15s,background .15s,box-shadow .15s}
+.mode-switch.rb-mode3 .mode-btn:not(.active):hover{color:var(--text);background:var(--surface3)}
+.mode-switch.rb-mode3 .mode-btn.active{background:linear-gradient(180deg,#d8b85e 0%,#b1902f 100%);color:#15110a;font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.28)}
 .nav{display:flex;gap:2px;flex:1}
 .nav-btn{padding:6px 13px;font-size:13px;font-weight:500;border:none;background:none;color:var(--text-muted);cursor:pointer;font-family:var(--font);border-radius:var(--r);transition:color var(--t-fast),background var(--t-fast);white-space:nowrap;display:inline-flex;align-items:center;gap:7px;position:relative}
 .nav-btn:hover{color:var(--text);background:var(--surface2)}
@@ -1733,9 +1738,10 @@ textarea{resize:vertical;min-height:60px}
 <!-- HEADER -->
 <header class="header">
   <a href="pokemon-db.html" class="logo"><span style="color:var(--text)">Rare</span><span class="logo-gold">Block</span></a>
-  <div class="mode-switch">
-    <button class="mode-btn active">Investor</button>
+  <div class="mode-switch rb-mode3">
     <button class="mode-btn" id="modeCollectorBtn" onclick="window.location.href='pokemon-db.html'">Collector</button>
+    <button class="mode-btn" id="modeSellerBtn" onclick="window.location.href='pokemon-db.html?mode=seller'">Seller</button>
+    <button class="mode-btn active">Investor</button>
   </div>
   <nav class="nav">
     <button class="nav-btn active" onclick="showTab('mkt')"><span class="rb-i rb-i-store"></span> Marketplace</button>
@@ -2601,10 +2607,10 @@ async function onSession(data){
   if(adminBtn) adminBtn.style.display = _isAdmin ? '' : 'none';
   // Mode-switch: nascondi Collector se non abilitato (admin sempre visibile)
   var colBtn=document.getElementById('modeCollectorBtn');
-  if(colBtn){
-    var canCollector = _isAdmin || !_profile || _profile.can_collector !== false;
-    colBtn.style.display = canCollector ? '' : 'none';
-  }
+  var sellBtn=document.getElementById('modeSellerBtn');
+  var canCollector = _isAdmin || !_profile || _profile.can_collector !== false;
+  if(colBtn) colBtn.style.display = canCollector ? '' : 'none';
+  if(sellBtn) sellBtn.style.display = canCollector ? '' : 'none';
 
   // Initial load
   // mktLoad ora vive nel frame Marketplace (frames-investor/marketplace.html).
