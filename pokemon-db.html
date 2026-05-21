@@ -1637,6 +1637,53 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
   background:var(--surface);  /* opaco per coprire eventuale scroll dietro */
   position:relative;z-index:2;
 }
+
+/* ── MODE TOGGLE: foto ↔ manuale ──────────────────────────────────── */
+.slab-mode-toggle{
+  display:flex;gap:0;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--r,6px);padding:3px;
+}
+.slab-mode-btn{
+  flex:1;background:transparent;border:none;cursor:pointer;
+  padding:7px 10px;border-radius:4px;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  font-family:var(--mono);font-size:10.5px;font-weight:500;
+  letter-spacing:.05em;text-transform:uppercase;
+  color:var(--text-muted);
+  transition:all .15s;
+}
+.slab-mode-btn svg{flex-shrink:0;opacity:.7}
+.slab-mode-btn:hover:not(.active){color:var(--text)}
+.slab-mode-btn.active{
+  background:var(--surface);color:var(--gold,#c9a84c);
+  box-shadow:0 1px 3px rgba(0,0,0,.2);
+}
+.slab-mode-btn.active svg{opacity:1}
+
+/* ── MANUAL INPUT AREA ────────────────────────────────────────────── */
+.slab-manual-row{display:flex;gap:8px;align-items:flex-end;margin-bottom:10px}
+.slab-manual-field{display:flex;flex-direction:column;gap:5px}
+.slab-manual-field-grader{flex:0 0 110px}
+.slab-manual-field-cert{flex:1;min-width:0}
+.slab-manual-field label{
+  font-size:10px;font-family:var(--mono);font-weight:500;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);
+}
+.slab-manual-select{
+  width:100%;max-width:100%;flex:none;min-height:44px;
+}
+.slab-manual-cert-input{
+  width:100%;min-height:44px;box-sizing:border-box;
+  font-family:var(--mono);font-size:16px;font-weight:500;
+  color:var(--text);letter-spacing:.06em;
+  padding:0 12px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--r,6px);outline:none;
+  transition:border-color .12s;
+}
+.slab-manual-cert-input:focus{border-color:var(--gold,#c9a84c)}
+.slab-manual-cert-input::placeholder{color:var(--text-subtle,#666);font-weight:400;letter-spacing:.02em}
+
 .slab-scroll-area{
   padding:14px 20px 20px;
   display:flex;flex-direction:column;gap:0;
@@ -13147,6 +13194,20 @@ document.addEventListener('keydown', function(e){
     <div class="slab-modal-body">
       <!-- STICKY TOP: foto + action bar restano visibili durante lo scroll dei risultati -->
       <div class="slab-sticky-top">
+        <!-- TOGGLE MODALITÀ: foto (default) ↔ inserimento manuale -->
+        <div class="slab-mode-toggle">
+          <button type="button" class="slab-mode-btn active" id="slabModePhoto" onclick="slabSetMode('photo')">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <span>Da foto</span>
+          </button>
+          <button type="button" class="slab-mode-btn" id="slabModeManual" onclick="slabSetMode('manual')">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            <span>Inserisci a mano</span>
+          </button>
+        </div>
+
+        <!-- MODALITÀ FOTO (default) -->
+        <div id="slabModePhotoArea">
         <!-- DROPZONE — in stato "loaded" diventa thumbnail compatto -->
         <div class="slab-dz" id="slabDz"
              onclick="if(!slabState.imageBase64) document.getElementById('slabFile').click()"
@@ -13186,6 +13247,38 @@ document.addEventListener('keydown', function(e){
             <span class="slab-analyze-btn-txt">Estrai numero / Slab type</span>
           </button>
         </div>
+        </div><!-- /slabModePhotoArea -->
+
+        <!-- MODALITÀ MANUALE (nascosta di default) -->
+        <div id="slabModeManualArea" style="display:none">
+          <div class="slab-manual-row">
+            <div class="slab-manual-field slab-manual-field-grader">
+              <label for="slabManualGrader">Grader</label>
+              <select id="slabManualGrader" class="slab-grader-select slab-manual-select">
+                <option value="PSA">PSA</option>
+                <option value="BGS">BGS</option>
+                <option value="CGC">CGC</option>
+                <option value="SGC">SGC</option>
+                <option value="TAG">TAG</option>
+                <option value="ARS">ARS</option>
+                <option value="HGA">HGA</option>
+                <option value="GMA">GMA</option>
+              </select>
+            </div>
+            <div class="slab-manual-field slab-manual-field-cert">
+              <label for="slabManualCert">Numero di certificazione</label>
+              <input type="text" id="slabManualCert" class="slab-manual-cert-input"
+                     inputmode="numeric" autocomplete="off" spellcheck="false"
+                     placeholder="es. 58205969"
+                     onkeydown="if(event.key==='Enter'){event.preventDefault();slabVerifyManual();}"/>
+            </div>
+          </div>
+          <button id="slabManualBtn" class="slab-analyze-btn" onclick="slabVerifyManual()" type="button">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4Z"/><path d="m9 12 2 2 4-4"/></svg>
+            <span>Verifica numero</span>
+          </button>
+        </div>
+
         <div id="slabStatus" class="slab-status"></div>
       </div>
 
@@ -13209,7 +13302,7 @@ document.addEventListener('keydown', function(e){
           <div class="slab-tabs-bar" id="slabTabsBar">
             <button type="button" class="slab-tab" data-tab="ocr" id="slabTabOcr" onclick="slabSwitchTab('ocr')">
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-              <span>OCR</span>
+              <span id="slabTabOcrLabel">OCR</span>
               <span class="slab-tab-confidence" id="slabTabOcrConfidence"></span>
             </button>
             <button type="button" class="slab-tab" data-tab="db" id="slabTabDb" onclick="slabSwitchTab('db')">
@@ -13374,7 +13467,10 @@ var slabState = {
   busy: false,
   lastResult: null,    // {grader, cert, grade, card_name, set, language, confidence}
   pasteBound: false,
-  keyBound: false
+  keyBound: false,
+  mode: 'photo',       // 'photo' | 'manual'
+  activeTab: null,     // 'ocr' | 'db'
+  userPickedTab: false
 };
 
 // ── HELPERS ──────────────────────────────────────────────────────────
@@ -13571,13 +13667,99 @@ function slabReset(){
   // Reset label tab DB al generico
   var dbLabelReset = document.getElementById('slabTabDbLabel');
   if(dbLabelReset) dbLabelReset.textContent = 'Ufficiale';
+  // Reset label tab OCR + visibilità
+  var ocrLabelReset = document.getElementById('slabTabOcrLabel');
+  if(ocrLabelReset) ocrLabelReset.textContent = 'OCR';
+  var ocrTabReset = document.getElementById('slabTabOcr');
+  if(ocrTabReset) ocrTabReset.style.display = '';
+  // Reset campo cert manuale (lascia il grader selezionato)
+  var manualCertReset = document.getElementById('slabManualCert');
+  if(manualCertReset) manualCertReset.value = '';
   slabSetStatus('');
+}
+
+// ── MODE TOGGLE (foto ↔ manuale) ──────────────────────────────────────
+// Permette di inserire il cert # a mano senza foto (es. slab davanti
+// fisicamente, o numero letto da un'altra fonte).
+function slabSetMode(mode){
+  slabState.mode = mode;
+  var photoArea = document.getElementById('slabModePhotoArea');
+  var manualArea = document.getElementById('slabModeManualArea');
+  var photoBtn = document.getElementById('slabModePhoto');
+  var manualBtn = document.getElementById('slabModeManual');
+
+  if(mode === 'manual'){
+    if(photoArea) photoArea.style.display = 'none';
+    if(manualArea) manualArea.style.display = '';
+    if(photoBtn) photoBtn.classList.remove('active');
+    if(manualBtn) manualBtn.classList.add('active');
+    // Focus sul campo cert per digitazione immediata
+    setTimeout(function(){
+      var inp = document.getElementById('slabManualCert');
+      if(inp) inp.focus();
+    }, 50);
+  } else {
+    if(photoArea) photoArea.style.display = '';
+    if(manualArea) manualArea.style.display = 'none';
+    if(photoBtn) photoBtn.classList.add('active');
+    if(manualBtn) manualBtn.classList.remove('active');
+  }
+  slabSetStatus('');
+}
+
+// ── VERIFICA MANUALE ──────────────────────────────────────────────────
+// Salta l'OCR: prende grader + cert dall'input manuale e va dritto
+// alla verifica server-side. lastResult viene costruito senza dati OCR
+// (confidence=null, no card_name/grade letti dall'etichetta).
+function slabVerifyManual(){
+  var graderSel = document.getElementById('slabManualGrader');
+  var certInp = document.getElementById('slabManualCert');
+  var grader = graderSel ? graderSel.value : '';
+  var cert = certInp ? String(certInp.value || '').trim().replace(/\s+/g,'') : '';
+
+  if(!grader || !SLAB_GRADERS[grader]){
+    slabSetStatus('Seleziona un grader valido.', 'err');
+    return;
+  }
+  if(!cert){
+    slabSetStatus('Inserisci il numero di certificazione.', 'err');
+    if(certInp) certInp.focus();
+    return;
+  }
+
+  console.info('[slab-verify] verifica MANUALE:', { grader: grader, cert: cert });
+
+  // Costruisci lastResult senza dati OCR
+  slabState.lastResult = {
+    grader: grader,
+    cert: cert,
+    cert_original_ocr: cert,  // in manuale, il "valore originale" è quello digitato
+    grade: null,
+    card_name: null,
+    set: null,
+    language: null,
+    confidence: null,         // null = nessun OCR, niente chip confidence
+    verified: null,
+    verdict: null,
+    manual: true              // flag per distinguere da OCR
+  };
+
+  // Sincronizza dropdown grader risultato (per coerenza con onGraderChange)
+  var hintSel = document.getElementById('slabGraderHint');
+  if(hintSel) hintSel.value = grader;
+
+  slabRenderResult();
+  slabSetStatus('Verifica numero ' + cert + '…', 'info');
+  // Verifica server-side immediata (fromUserEdit=false → comportamento standard)
+  setTimeout(function(){ slabRunVerification(false); }, 50);
 }
 
 // ── PASTE da clipboard (quando modal aperto) ─────────────────────────
 function slabHandlePaste(e){
   var bg = document.getElementById('slabModalBg');
   if(!bg || !bg.classList.contains('show')) return;
+  // In modalità manuale il paste va nell'input testo, non come immagine
+  if(slabState.mode === 'manual') return;
   var items = (e.clipboardData || window.clipboardData || {}).items || [];
   for(var i=0; i<items.length; i++){
     var it = items[i];
@@ -14349,7 +14531,14 @@ function slabUpdateTabsState(){
   var dbBadge = document.getElementById('slabTabDbBadge');
   var dbLabelEl = document.getElementById('slabTabDbLabel');
   var ocrConf = document.getElementById('slabTabOcrConfidence');
+  var ocrLabelEl = document.getElementById('slabTabOcrLabel');
+  var ocrTab = document.getElementById('slabTabOcr');
   var tabsBar = document.getElementById('slabTabsBar');
+
+  // Label tab "OCR" → "Inserito" in modalità manuale (non c'è OCR)
+  if(ocrLabelEl){
+    ocrLabelEl.textContent = r.manual ? 'Inserito' : 'OCR';
+  }
 
   // Aggiorna SEMPRE label tab DB col nome del grader corrente (anche pre-verifica
   // o se la verifica è fallita) — così l'utente vede "PSA" / "BGS" / "CGC"
@@ -14366,14 +14555,27 @@ function slabUpdateTabsState(){
   if(dbTab){
     dbTab.style.display = hideDbTab ? 'none' : '';
   }
-  if(tabsBar){
-    // Quando una sola tab è visibile, la barra ha senso solo come header
-    // del panel OCR. Aggiungiamo classe per styling (border-bottom rimane).
-    tabsBar.classList.toggle('single-tab', hideDbTab);
+
+  // In modalità manuale, se la verifica DB ha avuto successo (verdict ok),
+  // la tab "Inserito" contiene solo grader+cert (nessun dato carta letto),
+  // quindi è ridondante: la nascondiamo e mostriamo solo i dati ufficiali.
+  // Eccezione: se DB non disponibile (bad/error), teniamo "Inserito" visibile
+  // perché è l'unica info che abbiamo.
+  var hideOcrTab = r.manual && (r.verdict === 'ok');
+  if(ocrTab){
+    ocrTab.style.display = hideOcrTab ? 'none' : '';
   }
-  // Se DB nascosta e tab attivo è 'db', forza switch a OCR
+
+  if(tabsBar){
+    // Single-tab styling quando solo una tab è visibile
+    tabsBar.classList.toggle('single-tab', hideDbTab || hideOcrTab);
+  }
+  // Forza switch se il tab attivo è stato nascosto
   if(hideDbTab && slabState.activeTab === 'db'){
     slabApplyTab('ocr');
+  }
+  if(hideOcrTab && slabState.activeTab === 'ocr'){
+    slabApplyTab('db');
   }
 
   // Confidence OCR sul tab
@@ -14551,6 +14753,8 @@ window.closeSlabVerify   = closeSlabVerify;
 window.slabHandleFile    = slabHandleFile;
 window.slabRunVerification = slabRunVerification;
 window.slabOnCertEdit    = slabOnCertEdit;
+window.slabSetMode       = slabSetMode;
+window.slabVerifyManual  = slabVerifyManual;
 </script>
 </body>
 </html><!-- v20260424 -->
