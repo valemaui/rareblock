@@ -378,6 +378,41 @@ Deno.serve(async (req) => {
 // ═════════════════════════════════════════════════════════════════════
 //  CARDMARKET (v4 logic invariata)
 // ═════════════════════════════════════════════════════════════════════
+
+// Riconosce la pagina d'errore "Prodotto sbagliato!" / "Wrong product!" che
+// Cardmarket serve (HTTP 200) quando lo slug del prodotto nell'URL non esiste.
+// Multilingua: il dominio /it/ serve italiano, ma teniamo gli altri locali per
+// robustezza (CM può rispondere in EN su alcuni edge / CDN).
+//
+// Strategia a due segnali per evitare falsi positivi:
+//   A) <title> contiene la frase d'errore  → segnale forte (basta da solo)
+//   B) heading/alert nel body contiene la frase  → segnale forte
+// La frase "prodotto sbagliato" non compare mai in una pagina prodotto valida,
+// quindi un singolo match affidabile è sufficiente. Restringiamo al <head> +
+// primi ~8KB di body per non intercettare testo in recensioni/commenti utente.
+function isCMWrongProductPage(html: string): boolean {
+  if (!html) return false;
+  // Frasi d'errore localizzate (CM usa "!" finale nel titolo della pagina).
+  const phrase = /(wrong product|prodotto sbagliato|falsches produkt|mauvais produit|producto (?:incorrecto|equivocado)|verkeerd product|produkt nieprawid)/i;
+
+  // Segnale A: title
+  const titleMatch = html.match(/<title>([^<]*)<\/title>/i);
+  if (titleMatch && phrase.test(titleMatch[1])) return true;
+
+  // Segnale B: heading / alert nei primi 8KB (header CM + eventuale alert box).
+  // CM rende l'errore in un <h1>/<h2> o in un div d'alert vicino all'inizio del
+  // contenuto. Limitare la finestra evita match dentro commenti venditore.
+  const head = html.substring(0, 8000);
+  if (phrase.test(head)) {
+    // Conferma extra: deve apparire in un contesto da heading/alert, non in un
+    // attributo qualunque. Cerchiamo la frase entro un tag heading o alert.
+    const ctx = /<(?:h1|h2|h3)[^>]*>[\s\S]{0,120}?(?:wrong product|prodotto sbagliato|falsches produkt|mauvais produit|producto (?:incorrecto|equivocado)|verkeerd product|produkt nieprawid)/i;
+    const alertCtx = /class="[^"]*alert[^"]*"[\s\S]{0,200}?(?:wrong product|prodotto sbagliato|falsches produkt|mauvais produit|producto (?:incorrecto|equivocado)|verkeerd product|produkt nieprawid)/i;
+    if (ctx.test(head) || alertCtx.test(head)) return true;
+  }
+  return false;
+}
+
 async function handleCardmarket(url: string, debug = false): Promise<Response> {
   const { html, ok, status } = await fetchWithRetry(url);
   if (!ok || !html) {
@@ -389,6 +424,29 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
   if (/Just a moment|cf-browser-verification/i.test(html)) {
     return json({ error: 'Cloudflare challenge attivo', listings: [], prices: [], status: 403 });
   }
+
+  // ─── WRONG-PRODUCT PAGE DETECTION ───────────────────────────────────────
+  // Quando lo slug nell'URL non corrisponde a un prodotto reale (es.
+  // /Bayleef-V2-EX71 quando esiste solo /Bayleef-EX71), Cardmarket NON dà 404:
+  // serve HTTP 200 con una pagina d'errore "Prodotto sbagliato!" / "Wrong
+  // product!" che contiene una vetrina di prodotti consigliati. Quei listing
+  // consigliati (spesso common a €0.10–€0.99) venivano estratti e applicati
+  // come prezzo della carta cercata → prezzo completamente sbagliato.
+  //
+  // Riconosciamo la pagina via <title> + heading/alert localizzati e ritorniamo
+  // un flag esplicito `wrong_product:true` con listings vuoti, così il client
+  // (fetchCmPriceLive) scarta il risultato e ritenta la variante slug corretta
+  // (no-V / V1 / V2) o il fallback ricerca, invece di applicare la vetrina.
+  if (isCMWrongProductPage(html)) {
+    const wpTitle = (html.match(/<title>([^<]*)<\/title>/i) || [, ''])[1].trim().substring(0, 80);
+    return json({
+      error: 'prodotto sbagliato (slug URL non corrisponde ad alcun prodotto CM)',
+      wrong_product: true,
+      listings: [], prices: [], url, source: 'cardmarket', count: 0,
+      debug: debug ? { page_title: wpTitle, html_length: html.length, reason: 'wrong_product_page' } : undefined,
+    });
+  }
+
   const listings = extractCMListings(html);
 
   // ─── POST-EXTRACTION GLOBAL GRADING SCAN ──

@@ -8819,8 +8819,8 @@ async function _vpServerSideCMScrape(cmUrl){
       if(!res.ok) return {listings:[], error:'HTTP '+res.status};
     }
     var data = await res.json();
-    if(data.error) return {listings:[], error:data.error, debug:data.debug};
-    return {listings: data.listings || [], error: null, debug: data.debug};
+    if(data.error) return {listings:[], error:data.error, debug:data.debug, wrong_product:data.wrong_product===true};
+    return {listings: data.listings || [], error: null, debug: data.debug, wrong_product:data.wrong_product===true};
   }catch(e){
     return {listings:[], error: e.name==='AbortError' ? 'timeout 10s' : (e.message || String(e))};
   }
@@ -8838,9 +8838,10 @@ function _logCmAttempts(log, attempts){
   attempts.forEach(function(a){
     var shortUrl = (a.url||'').replace('https://www.cardmarket.com','CM');
     var status = a.count > 0 ? 'ok' : (a.error ? 'err' : 'warn');
-    var msg = '<b>'+a.kind+'</b> \u2192 <a>'+shortUrl+'</a> \u2192 '
-      + (a.count > 0 ? '<b>'+a.count+'</b> listing'
-         : (a.error ? '<i>'+a.error+'</i>' : '<i>0 listing</i>'));
+    var tail = a.count > 0 ? '<b>'+a.count+'</b> listing'
+             : a.wrong_product ? '<b>\u2716 Prodotto sbagliato</b>'
+             : (a.error ? '<i>'+a.error+'</i>' : '<i>0 listing</i>');
+    var msg = '<b>'+a.kind+'</b> \u2192 <a>'+shortUrl+'</a> \u2192 ' + tail;
     log.log(msg, status, a.url);
   });
 }
@@ -8984,29 +8985,41 @@ async function fetchCmPriceLive(opts){
     error:'name="'+name+'" setId="'+(setId||'?')+'" rarity="'+(rarity||'\u2205')+'" variant="'+variant+'" \u2192 primaryV="'+(primaryV||'no-V')+'"',
   });
 
+  // Traccia se almeno un tentativo è atterrato sulla pagina d'errore CM
+  // "Prodotto sbagliato!" (slug URL non corrispondente). Serve per dare un
+  // messaggio finale chiaro e per sapere che la cascata DEVE proseguire.
+  var sawWrongProduct = false;
+
   var srv = await _vpServerSideCMScrape(cmUrl);
+  if(srv.wrong_product) sawWrongProduct = true;
   if(_isFakeCmListings(srv.listings)){
     srv = {listings:[], error:'pagina CM probabilmente non valida (vetrina \u20ac0.10)', _fake:true};
   }
-  attempts.push({url:cmUrl, kind:(isDirect?'L1-base':'L2-search'), count:(srv.listings||[]).length, error:srv.error||null});
+  attempts.push({url:cmUrl, kind:(isDirect?'L1-base':'L2-search'), count:(srv.listings||[]).length,
+                 error:srv.error||null, wrong_product:!!srv.wrong_product});
 
   // Fallback A: per set "ambigui" (Base, e-Card, Evolutions) ritenta le altre
-  // varianti del cardSlug (V1, V2, no-V) se il primo tentativo è vuoto. Le
-  // pagine V1/V2 sono detail pages parsabili dall'edge function, quindi è il
-  // retry più efficace per recuperare carte irregolari (es. Venusaur-V2-EX68).
+  // varianti del cardSlug (V1, V2, no-V) se il primo tentativo è vuoto, fake,
+  // OPPURE è una pagina "Prodotto sbagliato!". Le pagine V1/V2 sono detail
+  // pages parsabili dall'edge function, quindi è il retry più efficace per
+  // recuperare carte irregolari (es. Venusaur-V2-EX68, Bayleef-EX71 vs -V2-).
+  // Si ferma al PRIMO URL che restituisce listing reali (non-fake, non-wrong).
   if(isDirect && (!srv.listings || !srv.listings.length)){
     var variants = buildCMDirectUrlVariants(name, setId, number, cond, lang, variant, first1st, setName, rarity);
     variants = variants.filter(function(u){ return u !== cmUrl; });
     for(var i=0; i<variants.length; i++){
       var srvV = await _vpServerSideCMScrape(variants[i]);
+      if(srvV.wrong_product) sawWrongProduct = true;
       if(_isFakeCmListings(srvV.listings)){
         srvV = {listings:[], error:'pagina CM probabilmente non valida (vetrina \u20ac0.10)', _fake:true};
       }
       var vKind = variants[i].indexOf('-V1-')>=0 ? 'L1-V1'
                 : variants[i].indexOf('-V2-')>=0 ? 'L1-V2'
                 : 'L1-noV';
-      attempts.push({url:variants[i], kind:vKind, count:(srvV.listings||[]).length, error:srvV.error||null});
-      if(srvV.listings && srvV.listings.length){
+      attempts.push({url:variants[i], kind:vKind, count:(srvV.listings||[]).length,
+                     error:srvV.error||null, wrong_product:!!srvV.wrong_product});
+      // Accetta SOLO listing genuini: non vuoti, non fake, non da pagina errore.
+      if(srvV.listings && srvV.listings.length && !srvV.wrong_product){
         srv = srvV;
         cmUrl = variants[i];
         break;
@@ -9022,11 +9035,13 @@ async function fetchCmPriceLive(opts){
     var searchUrl = buildCMSearchUrl(name, setId, number, cond, lang, variant, first1st, setName);
     if(searchUrl && searchUrl !== cmUrl){
       var srv2 = await _vpServerSideCMScrape(searchUrl);
+      if(srv2.wrong_product) sawWrongProduct = true;
       if(_isFakeCmListings(srv2.listings)){
         srv2 = {listings:[], error:'pagina CM probabilmente non valida (vetrina \u20ac0.10)', _fake:true};
       }
-      attempts.push({url:searchUrl, kind:'L2-search', count:(srv2.listings||[]).length, error:srv2.error||null});
-      if(srv2.listings && srv2.listings.length){
+      attempts.push({url:searchUrl, kind:'L2-search', count:(srv2.listings||[]).length,
+                     error:srv2.error||null, wrong_product:!!srv2.wrong_product});
+      if(srv2.listings && srv2.listings.length && !srv2.wrong_product){
         srv = srv2;
         cmUrl = searchUrl;
         isDirect = false;  // ora siamo su URL ricerca
@@ -9035,12 +9050,16 @@ async function fetchCmPriceLive(opts){
   }
 
   if(!srv.listings || !srv.listings.length){
+    var finalErr = sawWrongProduct
+      ? 'tutte le varianti slug danno "Prodotto sbagliato" su CM \u2014 nessuna pagina prodotto valida trovata'
+      : (srv.error || (isDirect ? 'nessun listing trovato' : 'set non supportato per CM diretto'));
     return {
       ok: false,
-      error: srv.error || (isDirect ? 'nessun listing trovato' : 'set non supportato per CM diretto'),
+      error: finalErr,
       listings: [],
       isDirect: isDirect,
       cmUrl: cmUrl,
+      wrong_product: sawWrongProduct,
       debug: srv.debug,
       attempts: attempts,
     };
