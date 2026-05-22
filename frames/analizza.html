@@ -163,6 +163,33 @@ body{display:flex;flex-direction:column}
 .anl-tcg-cell-sub.dn{color:var(--danger,#c8503c)}
 .anl-tcg-cell-sub.neutral{color:var(--text-subtle)}
 
+/* ── BOX POP (popolazione esemplari gradati) ─────────────────────────── */
+.anl-pop-box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:10px}
+.anl-pop-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.anl-pop-title{font-size:10px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;font-weight:500}
+.anl-pop-sub{font-size:10px;color:var(--text-subtle);font-family:var(--mono);letter-spacing:0.04em}
+.anl-pop-rows{display:flex;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:6px;overflow:hidden;flex-wrap:wrap}
+.anl-pop-row{flex:1;min-width:88px;background:var(--surface);padding:9px 12px;display:flex;flex-direction:column;gap:3px}
+.anl-pop-row.target{background:rgba(201,169,110,0.07)}
+.anl-pop-grade{font-size:10px;font-family:var(--mono);color:var(--text-muted);letter-spacing:0.04em;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.anl-pop-row.target .anl-pop-grade{color:var(--accent)}
+.anl-pop-tag{font-size:8px;text-transform:uppercase;letter-spacing:0.08em;background:rgba(201,169,110,0.14);color:var(--accent);border-radius:3px;padding:1px 5px;font-weight:600}
+.anl-pop-val{font-size:18px;font-weight:600;font-family:var(--mono);color:var(--text);letter-spacing:-0.015em;line-height:1.1;min-height:20px;display:flex;align-items:center}
+.anl-pop-num{color:var(--text)}
+.anl-pop-na{color:var(--text-subtle)}
+.anl-pop-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:10px}
+.anl-pop-note{font-size:10px;color:var(--text-subtle);font-family:var(--mono);line-height:1.45;flex:1;min-width:200px}
+.anl-pop-links{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.anl-pop-link{font-size:10px;font-family:var(--mono);color:var(--text-muted);text-decoration:none;border:1px solid var(--border);border-radius:4px;padding:3px 8px;letter-spacing:0.03em;transition:all .12s;white-space:nowrap}
+.anl-pop-link:hover{color:var(--text);border-color:var(--text-subtle)}
+.anl-pop-link.primary{color:var(--accent);border-color:rgba(201,169,110,0.35);background:rgba(201,169,110,0.06)}
+.anl-pop-link.primary:hover{border-color:var(--accent)}
+
+/* ── Strip TCG "demota" (spostata in fondo, dato di contorno) ─────────── */
+.anl-tcg-demoted{margin-top:10px;opacity:0.82}
+.anl-tcg-demoted-head{font-size:10px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;font-weight:500;margin-bottom:6px}
+.anl-tcg-demoted .anl-tcg-strip{border-top:1px solid var(--border);border-radius:8px;margin-top:0}
+
 /* Overlay zoom carta */
 .anl-zoom-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;z-index:9999;cursor:zoom-out;backdrop-filter:blur(4px)}
 .anl-zoom-overlay.show{display:flex;animation:anlFadeIn .15s ease-out}
@@ -473,6 +500,7 @@ function anlEndFetch(sig){
     anlLiveData._loading = false;
     try{ anlRenderToday(); }catch(e){}
     try{ anlRenderProjection(); }catch(e){}
+    try{ anlRenderPop(); }catch(e){}
   }
 }
 
@@ -770,11 +798,16 @@ function anlRenderAll(card){
     +  '<div class="anl-card-summary-price mute" id="anlTodayPrice">\u2014</div>'
     +  '<div class="anl-card-summary-method" id="anlTodayMethod">caricamento sorgenti\u2026</div>'
     +'</div>'
-    +'</div>'
-    + tcgStripHtml;
+    +'</div>';
+  // NB: la strip TCG (anl-tcg-strip) NON è più qui — spostata in fondo al body
+  // (BOX secondario) su richiesta: la "seconda fila" non era prioritaria.
+
+  // BOX POP: popolazione esemplari gradati — tra card head e sorgenti.
+  // Riempito da anlRenderPop() (numeri best-effort + deep-link autorevoli).
+  var bodyHtml='<div id="anlPopBox" class="anl-pop-box"></div>';
 
   // BOX 2: Sorgenti con toggle on/off
-  var bodyHtml='<div class="anl-sources-v2">'
+  bodyHtml+='<div class="anl-sources-v2">'
     +'<div class="anl-sources-v2-head">Sorgenti per il calcolo · click sul pallino per escludere/includere</div>'
     +'<div class="anl-sources-v2-grid" id="anlSources">'+anlSourcesScaffold(card)+'</div>'
     +'</div>';
@@ -790,6 +823,16 @@ function anlRenderAll(card){
     +'<div class="anl-interest-spread" id="anlInterestSpread" style="display:none"></div>'
     +'</div>';
 
+  // BOX SECONDARIO (in fondo): strip dati CardMarket dalla TCG API.
+  // Spostata qui dalla testa: dato di contorno, non prioritario. Da valutare
+  // se rimuoverla del tutto. Wrapper "demoted" per staccarla visivamente.
+  if(tcgStripHtml){
+    bodyHtml+='<div class="anl-tcg-demoted">'
+      +'<div class="anl-tcg-demoted-head">Dati CardMarket · TCG API</div>'
+      + tcgStripHtml
+      +'</div>';
+  }
+
   // Render: BOX 1 in #anlHead, BOX 2+3 in #anlBody
   // Se #anlHead non esiste (fallback su file vecchi cached), usa anlBody
   var headEl = document.getElementById('anlHead');
@@ -803,9 +846,101 @@ function anlRenderAll(card){
   }
   document.getElementById('anlBtnReset').style.display='';
 
+  // Riempi il box POP (scaffold con numeri "—"; si aggiorna a fetch PC conclusa)
+  try{ anlRenderPop(); }catch(e){}
+
   // Avvia fetch live
   anlStartLiveFetches(card);
 }
+
+// ─── BOX POP (popolazione esemplari gradati) ─────────────────────────────────
+// Mostrato SOLO in modalità gradata, tra card head e sorgenti.
+// Numeri POP: best-effort dai sold-listing PriceCharting (campo .pop, può
+// mancare). Fonte ufficiale (PSA/Beckett Pop Report) è dietro Cloudflare 403
+// per le fetch server-side → forniamo deep-link che si aprono nel browser reale
+// dell'utente. Mostra il grado cercato + i gradi di livello più alto.
+function anlRenderPop(){
+  var box=document.getElementById('anlPopBox');
+  if(!box) return;
+  if(anlMode!=='graded'){ box.innerHTML=''; box.style.display='none'; return; }
+  box.style.display='';
+
+  var house=document.getElementById('anlHouse').value;
+  var score=document.getElementById('anlGradeScore').value;
+  var houseLbl=(ANL_HOUSES[house]&&ANL_HOUSES[house].label)||house;
+  var targetNum=parseFloat(score);
+
+  // Scala gradi per casa (desc). I "livelli più alti" sono quelli sopra al target.
+  var ladder=(house==='PSA'||house==='SGC')
+    ? [10,9,8,7,6,5,4,3,2,1]
+    : [10,9.5,9,8.5,8,7.5,7,6.5,6,5.5,5,4.5,4];
+  var ti=ladder.indexOf(targetNum);
+  var rows;
+  if(ti<0){ rows=[targetNum]; }
+  else {
+    var fromTop=ladder.slice(0, ti+1);          // da 10 fino al target incluso
+    rows = fromTop.length<=5 ? fromTop : ladder.slice(0,4).concat([targetNum]);
+  }
+
+  // POP best-effort dal dato PC (grades_from_listings[HOUSE_SCORE].pop)
+  var pc=anlLiveData.pc;
+  var loading=anlIsLoading();
+  function popFor(s){
+    if(!pc||!pc.grades_from_listings) return null;
+    var L=pc.grades_from_listings[house+'_'+s];
+    return (L&&L.pop!=null)?L.pop:null;
+  }
+  var anyPop=false;
+  var rowsHtml=rows.map(function(s){
+    var p=popFor(s);
+    if(p!=null) anyPop=true;
+    var isTarget=(parseFloat(s)===targetNum);
+    var valHtml = p!=null
+      ? '<span class="anl-pop-num">'+Number(p).toLocaleString('it-IT')+'</span>'
+      : (loading
+          ? '<span class="anl-spin anl-spin-dot"></span>'
+          : '<span class="anl-pop-na" title="Non rilevato dai listing — apri il Pop Report ufficiale">\u2014</span>');
+    return '<div class="anl-pop-row'+(isTarget?' target':'')+'">'
+      +   '<span class="anl-pop-grade">'+houseLbl+' '+s+(isTarget?' <span class="anl-pop-tag">cercato</span>':'')+'</span>'
+      +   '<span class="anl-pop-val">'+valHtml+'</span>'
+      + '</div>';
+  }).join('');
+
+  // Deep-link autorevoli (si aprono nel browser dell'utente, no fetch server)
+  var card=anlCurrentCard||{};
+  var setN=(card.set&&card.set.name)||'';
+  var qParts=[setN, card.name, card.number||''].filter(Boolean);
+  var q=encodeURIComponent(qParts.join(' ').trim());
+  var psaUrl='https://www.psacard.com/pop/search?q='+q;
+  var bgsUrl='https://www.beckett.com/grading/pop-report';
+  var gemUrl='https://www.gemrate.com/universal-search';
+
+  // Link primario coerente con la casa selezionata
+  var primaryLink = house==='BGS'
+    ? '<a class="anl-pop-link primary" href="'+bgsUrl+'" target="_blank" rel="noopener">Beckett Pop Report \u2197</a>'
+    : '<a class="anl-pop-link primary" href="'+psaUrl+'" target="_blank" rel="noopener">PSA Pop Report \u2197</a>';
+  var secondaryLinks = ''
+    + (house==='BGS'
+        ? '<a class="anl-pop-link" href="'+psaUrl+'" target="_blank" rel="noopener">PSA \u2197</a>'
+        : '<a class="anl-pop-link" href="'+bgsUrl+'" target="_blank" rel="noopener">Beckett \u2197</a>')
+    + '<a class="anl-pop-link" href="'+gemUrl+'" target="_blank" rel="noopener">GemRate (tutte) \u2197</a>';
+
+  var note = anyPop
+    ? 'Numeri rilevati dai sold-listing (best-effort, non ufficiali). Per il censimento esatto apri il Pop Report.'
+    : 'POP non rilevata automaticamente. Apri il Pop Report ufficiale per il censimento esatto degli esemplari.';
+
+  box.innerHTML =
+    '<div class="anl-pop-head">'
+    +  '<span class="anl-pop-title">Popolazione \u00b7 POP</span>'
+    +  '<span class="anl-pop-sub">esemplari gradati \u00b7 '+anlEsc(houseLbl)+'</span>'
+    +'</div>'
+    +'<div class="anl-pop-rows">'+rowsHtml+'</div>'
+    +'<div class="anl-pop-foot">'
+    +  '<span class="anl-pop-note">'+note+'</span>'
+    +  '<span class="anl-pop-links">'+primaryLink+secondaryLinks+'</span>'
+    +'</div>';
+}
+window.anlRenderPop = anlRenderPop;
 
 function anlSourcesScaffold(card){
   var setNm=card.set?card.set.name:'';
@@ -1610,6 +1745,7 @@ async function anlStartLiveFetches(card){
     anlRestoreDotsFromCache();
     anlRenderToday();
     anlRenderProjection();
+    try{ anlRenderPop(); }catch(e){}
     return;
   }
   anlLiveData = { _sig: sig };

@@ -1302,6 +1302,13 @@ interface GradeListingData {
   // Date opzionali: PC le pubblica adiacenti al prezzo nei sold listings,
   // ma il pattern non è 100% stabile, quindi best-effort.
   listings?: Array<{ price: number; date?: string }>;
+  // POP (population) best-effort: alcuni sold-listing eBay riportano nel titolo
+  // "... GEM MINT POP 17 ..." → catturiamo il valore MASSIMO visto per questa
+  // casa+grado (la POP cresce nel tempo, quindi il numero più alto ≈ più recente).
+  // NON è il dato ufficiale del Pop Report (quello è dietro Cloudflare 403), ma
+  // un indizio gratuito già presente nell'HTML PriceCharting. Il client mostra
+  // comunque i deep-link autorevoli a PSA/Beckett/GemRate per la verifica esatta.
+  pop?: number;
 }
 
 interface PCPrices {
@@ -1716,7 +1723,7 @@ function extractAllGradesFromListingsOnePass(html: string): Record<string, Grade
 
   // Aggrega tutti i match per chiave HOUSE_SCORE
   // Salva prezzi individuali + match index per recuperare contesto (data)
-  const buckets: Record<string, { entries: Array<{ price: number; sym: string; matchIdx: number; matchEnd: number }>; symbols: string[] }> = {};
+  const buckets: Record<string, { entries: Array<{ price: number; sym: string; matchIdx: number; matchEnd: number }>; symbols: string[]; popMax: number }> = {};
   let m: RegExpExecArray | null;
   let iters = 0;
   while ((m = rx.exec(text)) !== null && iters < 2000) {
@@ -1737,7 +1744,17 @@ function extractAllGradesFromListingsOnePass(html: string): Record<string, Grade
     if (isNaN(n) || n <= 0) continue;
 
     const key = `${house}_${score}`;
-    if (!buckets[key]) buckets[key] = { entries: [], symbols: [] };
+    if (!buckets[key]) buckets[key] = { entries: [], symbols: [], popMax: 0 };
+    // POP best-effort: il segmento matchato (m[0]) va da "PSA 10" fino al prezzo
+    // e talvolta contiene "... GEM MINT POP 17 ...". Estrai il numero dopo "POP".
+    const popM = /\bPOP\s*([\d,]+)\b/i.exec(m[0]);
+    if (popM) {
+      const popN = parseInt(popM[1].replace(/,/g, ''), 10);
+      // Sanity: scarta valori assurdi (titoli rumorosi). POP plausibile 1..2.000.000.
+      if (!isNaN(popN) && popN > 0 && popN < 2000000 && popN > buckets[key].popMax) {
+        buckets[key].popMax = popN;
+      }
+    }
     if (buckets[key].entries.length < 60) {
       buckets[key].entries.push({
         price: n,
@@ -1836,6 +1853,7 @@ function extractAllGradesFromListingsOnePass(html: string): Record<string, Grade
       currency_symbol: dominantSym,
       confidence,
       listings: orderedListings,
+      pop: buckets[key].popMax > 0 ? buckets[key].popMax : undefined,
     };
   }
   return out;
