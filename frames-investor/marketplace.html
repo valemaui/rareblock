@@ -4016,6 +4016,7 @@ body{display:flex;flex-direction:column}
                 <li class="active" data-val="purchasable" onclick="iwcPickFilter('status','purchasable',this)">Acquistabili</li>
                 <li data-val="closing_soon" onclick="iwcPickFilter('status','closing_soon',this)">In chiusura</li>
                 <li data-val="closed" onclick="iwcPickFilter('status','closed',this)">Chiusi</li>
+                <li data-val="sold" onclick="iwcPickFilter('status','sold',this)">Venduti</li>
                 <li data-val="" onclick="iwcPickFilter('status','',this)">Tutti</li>
               </ul>
             </div>
@@ -4086,6 +4087,7 @@ body{display:flex;flex-direction:column}
             <option value="open">Aperti</option>
             <option value="closing_soon">In chiusura</option>
             <option value="closed">Chiusi</option>
+            <option value="sold">Venduti</option>
             <option value="liquidated">Liquidati</option>
           </select>
           <select id="iwcSort">
@@ -4773,6 +4775,16 @@ async function mktLoad(){
   }
 }
 
+// Helper: un prodotto è effettivamente VENDUTO quando tutte le quote sono esaurite.
+// Indipendente da p.status (che può restare 'open' su pezzi unici non aggiornati a DB).
+// Unica fonte di verità, usata sia dal filtro STATO sia dal badge "Venduto".
+function mktIsSold(p){
+  var st = _mktStats[p.id] || {};
+  var totalQ = p.total_quotes || 0;
+  var soldQ  = st.sold_quotes || 0;
+  return totalQ > 0 && soldQ >= totalQ;
+}
+
 function mktRender(){
   var q      = (document.getElementById('mktSearch').value||'').toLowerCase();
   var typeEl = document.getElementById('mktType');
@@ -4786,11 +4798,22 @@ function mktRender(){
   var rows   = _mktProducts.filter(function(p){
     if(q && p.name.toLowerCase().indexOf(q)===-1) return false;
     if(type && p.type!==type) return false;
+    var sold = mktIsSold(p);
     if(status==='purchasable'){
+      // Acquistabili = aperto/in chiusura E con quote ancora disponibili
+      if(sold) return false;
       if(p.status!=='open' && p.status!=='closing_soon') return false;
+    } else if(status==='sold'){
+      // Venduti = vista dedicata (Track Record), solo pezzi esauriti
+      if(!sold) return false;
+    } else if(status==='closing_soon'){
+      if(sold) return false;
+      if(p.status!=='closing_soon') return false;
     } else if(status){
+      // Altri stati espliciti (closed, open, liquidated...) per p.status
       if(p.status!==status) return false;
     }
+    // status==='' (Tutti) → nessun filtro stato: mostra anche i venduti
     // Filtro range prezzo
     if(_iwcPriceRange){
       var pr = parseFloat(p.price_per_quote)||0;
@@ -4868,7 +4891,7 @@ function mktRender(){
     var DAY = 86400000;
     var totalQ = p.total_quotes || 0;
     var soldQ  = st.sold_quotes || 0;
-    var allSold = totalQ > 0 && soldQ >= totalQ;
+    var allSold = mktIsSold(p);
 
     if(allSold){
       badges.push('<span class="prod-badge sold">Venduto</span>');
