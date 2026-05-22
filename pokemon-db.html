@@ -8642,7 +8642,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-05-15-2400';
+var RB_BUILD = '2026-05-22-cm403guard';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -8816,13 +8816,26 @@ async function _vpServerSideCMScrape(cmUrl){
           body:JSON.stringify({source:'cardmarket', url:cmUrl, debug:true}),
         });
       }
-      if(!res.ok) return {listings:[], error:'HTTP '+res.status};
+      if(!res.ok) return {listings:[], error:'HTTP '+res.status,
+                          blocked:(res.status===403||res.status===429||res.status===503)};
     }
     var data = await res.json();
-    if(data.error) return {listings:[], error:data.error, debug:data.debug, wrong_product:data.wrong_product===true};
-    return {listings: data.listings || [], error: null, debug: data.debug, wrong_product:data.wrong_product===true};
+    // "blocked" = pagina NON leggibile (403 Cloudflare / WAF / challenge / rate
+    // limit / 5xx). Diverso da "pagina valida ma vuota/sbagliata": un blocco NON
+    // implica che lo slug sia errato, quindi il chiamante deve RITENTARE lo
+    // stesso URL, MAI sostituirlo con uno slug diverso (V1/V2 = altro prodotto).
+    var _st = data.status || 0;
+    var _err = data.error || '';
+    var _blocked = _st===403 || _st===429 || _st===503
+                || /\b(403|429|503)\b|cloudflare|\bwaf\b|challenge|just a moment/i.test(_err);
+    if(data.error) return {listings:[], error:data.error, debug:data.debug,
+                           wrong_product:data.wrong_product===true, blocked:_blocked, status:_st};
+    return {listings: data.listings || [], error: null, debug: data.debug,
+            wrong_product:data.wrong_product===true, blocked:false, status:_st||200};
   }catch(e){
-    return {listings:[], error: e.name==='AbortError' ? 'timeout 10s' : (e.message || String(e))};
+    // Timeout / errore di rete: pagina non letta → trattata come "blocked" così
+    // non innesca la sostituzione di slug (che porterebbe a un prodotto diverso).
+    return {listings:[], error: e.name==='AbortError' ? 'timeout 10s' : (e.message || String(e)), blocked:true};
   }
 }
 
@@ -8840,6 +8853,7 @@ function _logCmAttempts(log, attempts){
     var status = a.count > 0 ? 'ok' : (a.error ? 'err' : 'warn');
     var tail = a.count > 0 ? '<b>'+a.count+'</b> listing'
              : a.wrong_product ? '<b>\u2716 Prodotto sbagliato</b>'
+             : a.blocked ? '<b>\u26d4 bloccato (Cloudflare)</b>'
              : (a.error ? '<i>'+a.error+'</i>' : '<i>0 listing</i>');
     var msg = '<b>'+a.kind+'</b> \u2192 <a>'+shortUrl+'</a> \u2192 ' + tail;
     log.log(msg, status, a.url);
@@ -8985,26 +8999,42 @@ async function fetchCmPriceLive(opts){
     error:'name="'+name+'" setId="'+(setId||'?')+'" rarity="'+(rarity||'\u2205')+'" variant="'+variant+'" \u2192 primaryV="'+(primaryV||'no-V')+'"',
   });
 
-  // Traccia se almeno un tentativo è atterrato sulla pagina d'errore CM
-  // "Prodotto sbagliato!" (slug URL non corrispondente). Serve per dare un
-  // messaggio finale chiaro e per sapere che la cascata DEVE proseguire.
+  // Traccia stato dei tentativi: pagina d'errore "Prodotto sbagliato" e blocco
+  // Cloudflare sulla pagina PRIMARIA (quella con lo slug corretto).
   var sawWrongProduct = false;
+  var primaryBlocked = false;
 
   var srv = await _vpServerSideCMScrape(cmUrl);
+
+  // Retry SULLO STESSO URL se la pagina corretta è bloccata da Cloudflare (403).
+  // Il blocco CM è probabilistico (stesso edge, IP diverso/timing): un retry ha
+  // buone chance di passare. NON sostituiamo lo slug — la pagina è quella giusta,
+  // è solo bloccata. (Caso Erika's Gloom: no-V 403 → prima si cadeva su V2, un
+  // PRODOTTO DIVERSO a €0.10. Ora si ritenta il no-V corretto.)
+  var _blkRetry = 0;
+  while(srv.blocked && _blkRetry < 2){
+    _blkRetry++;
+    attempts.push({url:cmUrl, kind:(isDirect?'L1-base':'L2-search')+' retry'+_blkRetry,
+                   count:0, error:srv.error||'bloccato', blocked:true});
+    await new Promise(function(r){ setTimeout(r, 600*_blkRetry); });
+    srv = await _vpServerSideCMScrape(cmUrl);
+  }
+  if(srv.blocked) primaryBlocked = true;
+
   if(srv.wrong_product) sawWrongProduct = true;
   if(_isFakeCmListings(srv.listings)){
     srv = {listings:[], error:'pagina CM probabilmente non valida (vetrina \u20ac0.10)', _fake:true};
   }
   attempts.push({url:cmUrl, kind:(isDirect?'L1-base':'L2-search'), count:(srv.listings||[]).length,
-                 error:srv.error||null, wrong_product:!!srv.wrong_product});
+                 error:srv.error||null, wrong_product:!!srv.wrong_product, blocked:!!srv.blocked});
 
-  // Fallback A: per set "ambigui" (Base, e-Card, Evolutions) ritenta le altre
-  // varianti del cardSlug (V1, V2, no-V) se il primo tentativo è vuoto, fake,
-  // OPPURE è una pagina "Prodotto sbagliato!". Le pagine V1/V2 sono detail
-  // pages parsabili dall'edge function, quindi è il retry più efficace per
-  // recuperare carte irregolari (es. Venusaur-V2-EX68, Bayleef-EX71 vs -V2-).
-  // Si ferma al PRIMO URL che restituisce listing reali (non-fake, non-wrong).
-  if(isDirect && (!srv.listings || !srv.listings.length)){
+  // Fallback A: ritenta le altre varianti dello slug (V1, V2, no-V) SOLO se la
+  // pagina primaria è stata LETTA (HTTP 200) ed è vuota / fake / "Prodotto
+  // sbagliato". Se la primaria è BLOCCATA (403), NON cascatiamo: un blocco non
+  // significa slug errato, e gli slug V1/V2 sono PRODOTTI DIVERSI — accettarne i
+  // prezzi darebbe valori sbagliati (bug Erika's Gloom #45 → €0.10 da V2).
+  // Si ferma al PRIMO URL che restituisce listing reali (non-fake, non-wrong, non-bloccato).
+  if(isDirect && !primaryBlocked && (!srv.listings || !srv.listings.length)){
     var variants = buildCMDirectUrlVariants(name, setId, number, cond, lang, variant, first1st, setName, rarity);
     variants = variants.filter(function(u){ return u !== cmUrl; });
     for(var i=0; i<variants.length; i++){
@@ -9017,9 +9047,9 @@ async function fetchCmPriceLive(opts){
                 : variants[i].indexOf('-V2-')>=0 ? 'L1-V2'
                 : 'L1-noV';
       attempts.push({url:variants[i], kind:vKind, count:(srvV.listings||[]).length,
-                     error:srvV.error||null, wrong_product:!!srvV.wrong_product});
-      // Accetta SOLO listing genuini: non vuoti, non fake, non da pagina errore.
-      if(srvV.listings && srvV.listings.length && !srvV.wrong_product){
+                     error:srvV.error||null, wrong_product:!!srvV.wrong_product, blocked:!!srvV.blocked});
+      // Accetta SOLO listing genuini: non vuoti, non fake, non pagina errore, non bloccati.
+      if(srvV.listings && srvV.listings.length && !srvV.wrong_product && !srvV.blocked){
         srv = srvV;
         cmUrl = variants[i];
         break;
@@ -9028,10 +9058,9 @@ async function fetchCmPriceLive(opts){
   }
 
   // Fallback B: search URL livello 2 (browse set + searchString). Tentato come
-  // ultima spiaggia — l'edge function ha parser limitato per le pagine di
-  // ricerca, quindi spesso ritorna 0 listings anche qui. Ma resta utile per
-  // futuri set non in CM_DIRECT_SETS dove il pattern semplice è inapplicabile.
-  if(isDirect && (!srv.listings || !srv.listings.length)){
+  // ultima spiaggia — anche qui solo se la primaria NON era bloccata (stesso
+  // ragionamento: su 403 si ritenta lo slug corretto, non si cambia pagina).
+  if(isDirect && !primaryBlocked && (!srv.listings || !srv.listings.length)){
     var searchUrl = buildCMSearchUrl(name, setId, number, cond, lang, variant, first1st, setName);
     if(searchUrl && searchUrl !== cmUrl){
       var srv2 = await _vpServerSideCMScrape(searchUrl);
@@ -9040,8 +9069,8 @@ async function fetchCmPriceLive(opts){
         srv2 = {listings:[], error:'pagina CM probabilmente non valida (vetrina \u20ac0.10)', _fake:true};
       }
       attempts.push({url:searchUrl, kind:'L2-search', count:(srv2.listings||[]).length,
-                     error:srv2.error||null, wrong_product:!!srv2.wrong_product});
-      if(srv2.listings && srv2.listings.length && !srv2.wrong_product){
+                     error:srv2.error||null, wrong_product:!!srv2.wrong_product, blocked:!!srv2.blocked});
+      if(srv2.listings && srv2.listings.length && !srv2.wrong_product && !srv2.blocked){
         srv = srv2;
         cmUrl = searchUrl;
         isDirect = false;  // ora siamo su URL ricerca
@@ -9050,7 +9079,9 @@ async function fetchCmPriceLive(opts){
   }
 
   if(!srv.listings || !srv.listings.length){
-    var finalErr = sawWrongProduct
+    var finalErr = primaryBlocked
+      ? 'Cloudflare ha bloccato la pagina CM corretta (HTTP 403) dopo i retry \u2014 riprova tra poco o usa lo userscript Tampermonkey. Non applico prezzi da slug alternativi per evitare un prodotto sbagliato.'
+      : sawWrongProduct
       ? 'tutte le varianti slug danno "Prodotto sbagliato" su CM \u2014 nessuna pagina prodotto valida trovata'
       : (srv.error || (isDirect ? 'nessun listing trovato' : 'set non supportato per CM diretto'));
     return {
@@ -9060,6 +9091,7 @@ async function fetchCmPriceLive(opts){
       isDirect: isDirect,
       cmUrl: cmUrl,
       wrong_product: sawWrongProduct,
+      blocked: primaryBlocked,
       debug: srv.debug,
       attempts: attempts,
     };
