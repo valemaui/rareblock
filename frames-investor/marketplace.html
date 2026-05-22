@@ -895,10 +895,9 @@ body{display:flex;flex-direction:column}
   width: 100%;
   height: 100%;
   object-fit: contain;
-  /* Padding 35% !important — forzato per scavalcare qualsiasi cache/regola
-     che ancora applichi il valore precedente. Le immagini occupano circa
-     30% di larghezza card, look molto elegante con ampio respiro. */
-  padding: 35% !important;
+  /* Padding ridotto a 16% (era 35%): prodotto più protagonista, stile alt.xyz,
+     mantenendo respiro editoriale ai bordi. */
+  padding: 16% !important;
   transition: transform .4s cubic-bezier(.2,.8,.2,1);
 }
 .iwc-mode .prod-card:hover .prod-card-img img{ transform: scale(1.04); }
@@ -1136,6 +1135,118 @@ body{display:flex;flex-direction:column}
   color: var(--iwc-text-subtle);
   font-style: italic;
   margin: 0;
+}
+
+/* ── Barra sezioni editoriali (Sealed / Graded / Collection) ───── */
+.iwc-mode .mkt-section-bar{
+  display: flex;
+  gap: 30px;
+  align-items: center;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--iwc-border);
+  margin: 4px 0 20px;
+}
+.iwc-mode .mkt-section-tab{
+  background: none;
+  border: none;
+  padding: 0 0 13px;
+  margin: 0;
+  cursor: pointer;
+  font-family: var(--iwc-sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--iwc-text-subtle);
+  position: relative;
+  transition: color .15s ease;
+}
+.iwc-mode .mkt-section-tab:hover{ color: var(--iwc-text-muted); }
+.iwc-mode .mkt-section-tab.active{ color: var(--iwc-text); }
+.iwc-mode .mkt-section-tab.active::after{
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 2px;
+  background: var(--iwc-gold, #c9a84c);
+}
+
+/* ── 2.2 Card data-forward (ispirata ad alt.xyz, palette RareBlock) ── */
+/* Eyebrow meta: categoria (sx) + chip grading/cert (dx) */
+.iwc-mode .prod-card-meta{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 15px;
+  margin: 0 0 7px;
+}
+.iwc-mode .prod-card-cat{
+  font-family: var(--iwc-sans);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--iwc-text-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.iwc-mode .prod-card-grade{
+  font-family: var(--iwc-sans);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .03em;
+  color: #7a6324;
+  background: rgba(201,168,76,.13);
+  border: 1px solid rgba(201,168,76,.42);
+  padding: 2px 6px;
+  border-radius: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 64%;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.iwc-mode .prod-card-grade::before{
+  content: '';
+  width: 8px; height: 8px;
+  flex: none;
+  background: #9a7d2e;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.4'><path d='M20 6L9 17l-5-5'/></svg>") no-repeat center / contain;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.4'><path d='M20 6L9 17l-5-5'/></svg>") no-repeat center / contain;
+}
+/* Nome: leggermente più grande, clamp 2 righe */
+.iwc-mode .prod-card-name{
+  font-size: 13px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+/* Blocco prezzo verticale: prezzo prominente in mono + stima sotto */
+.iwc-mode .prod-card-price-block{
+  margin-top: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.iwc-mode .prod-card-price{
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--iwc-text);
+  letter-spacing: .01em;
+}
+.iwc-mode .prod-card-est{
+  font-family: var(--iwc-sans);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: .02em;
+  color: var(--iwc-text-subtle);
 }
 
 /* Empty state minimal */
@@ -4110,6 +4221,13 @@ body{display:flex;flex-direction:column}
           </div>
           <div class="iwc-listhead-note">Custodia &amp; autenticazione incluse</div>
         </div>
+        <!-- Sezioni editoriali: Sealed / Graded / Collection -->
+        <nav class="mkt-section-bar" id="mktSectionBar" aria-label="Sezioni marketplace">
+          <button type="button" class="mkt-section-tab active" data-section="" onclick="mktPickSection('',this)">Tutto</button>
+          <button type="button" class="mkt-section-tab" data-section="sealed" onclick="mktPickSection('sealed',this)">Sealed Product</button>
+          <button type="button" class="mkt-section-tab" data-section="graded" onclick="mktPickSection('graded',this)">Graded Cards</button>
+          <button type="button" class="mkt-section-tab" data-section="collection" onclick="mktPickSection('collection',this)">Collection</button>
+        </nav>
         <!-- DROP COUNTDOWN BANNER (sopra prodotti, scorre con essi, sparisce alla scroll-out) -->
         <div class="drop-banner-wrap" id="dropBannerWrap" style="display:none">
           <div class="drop-banner" id="dropBanner" onclick="dropBannerClick()">
@@ -4785,6 +4903,32 @@ function mktIsSold(p){
   return totalQ > 0 && soldQ >= totalQ;
 }
 
+// Etichette categoria — fonte unica usata sia dalle card sia dalla scheda dettaglio.
+var MKT_CAT_LABELS = {booster_box:'Booster Box',etb:'ETB',booster_bundle:'Booster Bundle',collection_box:'Collection Box',tin:'Tin',case:'Case',box_break:'Box Break',blister:'Blister',single_pack:'Singola busta',graded_card:'Carta gradata',sealed_other:'Altro sigillato',other:'Altro'};
+
+// Sezioni editoriali del marketplace → categorie prodotto.
+// graded = carte gradate · collection = set tematici (collection box, tin) · sealed = tutto il resto sigillato
+var MKT_SECTION_CATS = {
+  sealed:     ['booster_box','etb','booster_bundle','case','box_break','blister','single_pack','sealed_other','other'],
+  graded:     ['graded_card'],
+  collection: ['collection_box','tin']
+};
+function mktSectionOf(cat){
+  if(MKT_SECTION_CATS.graded.indexOf(cat) >= 0)     return 'graded';
+  if(MKT_SECTION_CATS.collection.indexOf(cat) >= 0) return 'collection';
+  return 'sealed'; // default: categoria sconosciuta/assente trattata come sigillato
+}
+var _mktSection = ''; // '' = Tutto
+
+function mktPickSection(section, el){
+  _mktSection = section || '';
+  var bar = document.getElementById('mktSectionBar');
+  if(bar){
+    bar.querySelectorAll('.mkt-section-tab').forEach(function(t){ t.classList.toggle('active', t === el); });
+  }
+  mktRender();
+}
+
 function mktRender(){
   var q      = (document.getElementById('mktSearch').value||'').toLowerCase();
   var typeEl = document.getElementById('mktType');
@@ -4798,6 +4942,7 @@ function mktRender(){
   var rows   = _mktProducts.filter(function(p){
     if(q && p.name.toLowerCase().indexOf(q)===-1) return false;
     if(type && p.type!==type) return false;
+    if(_mktSection && mktSectionOf(p.category) !== _mktSection) return false;
     var sold = mktIsSold(p);
     if(status==='purchasable'){
       // Acquistabili = aperto/in chiusura E con quote ancora disponibili
@@ -4855,7 +5000,7 @@ function mktRender(){
   var grid  = document.getElementById('mktGrid');
   if(!rows.length){
     // Distinguo: nessun prodotto in catalogo VS filtri troppo restrittivi
-    var hasFilters = !!(q || type || (status && status!=='purchasable') || _iwcPriceRange || watchOnly);
+    var hasFilters = !!(q || type || _mktSection || (status && status!=='purchasable') || _iwcPriceRange || watchOnly);
     if(hasFilters){
       empty.innerHTML = uiEmpty('search', 'Nessun risultato', 'Prova a modificare o rimuovere i filtri attivi.', 'Reset filtri', 'iwcResetFilters()');
     } else {
@@ -4966,6 +5111,26 @@ function mktRender(){
       dotsHtml = '<div class="iwc-card-dots" data-pid="'+p.id+'">'+dots+'</div>';
     }
 
+    // ── 2.2 Dati in evidenza: categoria · grading/cert · valore stimato ──
+    var catLabel = p.category ? (MKT_CAT_LABELS[p.category] || p.category) : '';
+    var gradeChip = '';
+    if(p.grading_house){
+      var gCert  = p.grading_cert_number ? (' · #'+esc(String(p.grading_cert_number))) : '';
+      var gTitle = 'Autenticità certificata'+(p.grading_cert_number ? ' — cert #'+esc(String(p.grading_cert_number)) : '');
+      gradeChip = '<span class="prod-card-grade" title="'+gTitle+'">'+esc(p.grading_house)+gCert+'</span>';
+    }
+    var metaHtml = (catLabel || gradeChip)
+      ? '<div class="prod-card-meta">'
+          +(catLabel ? '<span class="prod-card-cat">'+esc(catLabel)+'</span>' : '<span></span>')
+          +gradeChip
+        +'</div>'
+      : '';
+    // Valore stimato solo su lotti a quota unica (full/graded), dove prezzo e stima sono comparabili.
+    var estHtml = '';
+    if((p.total_quotes||0) <= 1 && parseFloat(p.estimated_value) > 0){
+      estHtml = '<div class="prod-card-est">Valore stimato '+fmtPrice(p.estimated_value)+'\u202F€</div>';
+    }
+
     return '<div class="prod-card" data-pid="'+p.id+'">'
       +badgesHtml
       +'<button type="button" class="prod-card-watch '+(watched?'active':'')+'" onclick="event.stopPropagation();mktToggleWatch(\''+p.id+'\',this)" title="Preferiti"></button>'
@@ -4977,11 +5142,11 @@ function mktRender(){
       +'</div>'
       +progressHtml
       +'<div class="prod-card-body" onclick="openProductDetail(\''+p.id+'\')">'
-        +'<div class="prod-card-body-top">'
-          +'<div class="prod-card-name">'+esc(p.name)+'</div>'
-          +'<div class="prod-card-price-row">'
-            +'<div class="prod-card-price">'+fmtPrice(p.price_per_quote)+'\u202F€</div>'
-          +'</div>'
+        +metaHtml
+        +'<div class="prod-card-name">'+esc(p.name)+'</div>'
+        +'<div class="prod-card-price-block">'
+          +'<div class="prod-card-price">'+fmtPrice(p.price_per_quote)+'\u202F€</div>'
+          +estHtml
         +'</div>'
         +vendorHtml
         +countdownHtml
@@ -5162,6 +5327,14 @@ function iwcResetFilters(){
   var wo = document.getElementById('iwcWatchOnly'); if(wo) wo.checked = false;
   // Sort
   var so = document.getElementById('iwcSort'); if(so) so.value = 'newest';
+  // Sezione editoriale → Tutto
+  _mktSection = '';
+  var secBar = document.getElementById('mktSectionBar');
+  if(secBar){
+    secBar.querySelectorAll('.mkt-section-tab').forEach(function(t){
+      t.classList.toggle('active', (t.getAttribute('data-section')||'') === '');
+    });
+  }
   // Aggiorna i 4 summary visibili + count + chiudi tutti i blocchi aperti
   iwcUpdateSummary('type');
   iwcUpdateSummary('status');
@@ -7251,7 +7424,7 @@ async function openProductDetail(pid){
 
   // Dettagli
   document.getElementById('pdvType').textContent = ({full:'Full Ownership',fractional:'Fractional',millesimal:'Millesimale',grade_hold:'Grade & Hold'})[p.type]||p.type||'—';
-  var catLabels = {booster_box:'Booster Box',etb:'ETB',booster_bundle:'Booster Bundle',collection_box:'Collection Box',tin:'Tin',case:'Case',box_break:'Box Break',blister:'Blister',single_pack:'Singola busta',graded_card:'Carta gradata',sealed_other:'Altro sigillato',other:'Altro'};
+  var catLabels = MKT_CAT_LABELS;
   document.getElementById('pdvCategory').textContent = p.category ? (catLabels[p.category]||p.category) : '—';
   document.getElementById('pdvTotalQuotes').textContent = (p.total_quotes||0)+' '+(p.quote_unit||'quote');
   document.getElementById('pdvEstValue').textContent = p.estimated_value ? (fmtPrice(p.estimated_value)+'\u202F€') : '—';
