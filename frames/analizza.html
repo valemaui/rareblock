@@ -913,7 +913,13 @@ function anlRenderPop(){
   var q=encodeURIComponent(qParts.join(' ').trim());
   var psaUrl='https://www.psacard.com/pop/search?q='+q;
   var bgsUrl='https://www.beckett.com/grading/pop-report';
-  var gemUrl='https://www.gemrate.com/universal-search';
+  // GemRate Universal Search: passiamo la query (set + nome + numero) come param.
+  // Il sito è dietro Cloudflare quindi non possiamo verificare server-side quale
+  // parametro precompila il campo; usiamo 'q' (lo stesso standard di PSA). Se in
+  // futuro GemRate dovesse usare un nome diverso (es. 'search'/'query'), basta
+  // aggiornare qui. In caso di mismatch l'utente atterra comunque sulla pagina
+  // di ricerca, identico al comportamento precedente (nessuna regressione).
+  var gemUrl='https://www.gemrate.com/universal-search'+(q?('?q='+q):'');
 
   // Link primario coerente con la casa selezionata
   var primaryLink = house==='BGS'
@@ -923,7 +929,7 @@ function anlRenderPop(){
     + (house==='BGS'
         ? '<a class="anl-pop-link" href="'+psaUrl+'" target="_blank" rel="noopener">PSA \u2197</a>'
         : '<a class="anl-pop-link" href="'+bgsUrl+'" target="_blank" rel="noopener">Beckett \u2197</a>')
-    + '<a class="anl-pop-link" href="'+gemUrl+'" target="_blank" rel="noopener">GemRate (tutte) \u2197</a>';
+    + '<a class="anl-pop-link" href="'+gemUrl+'" target="_blank" rel="noopener"'+(q?' title="Ricerca precompilata: '+anlEsc(decodeURIComponent(q))+'"':'')+'>GemRate (tutte) \u2197</a>';
 
   var note = anyPop
     ? 'Numeri rilevati dai sold-listing (best-effort, non ufficiali). Per il censimento esatto apri il Pop Report.'
