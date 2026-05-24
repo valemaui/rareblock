@@ -3618,6 +3618,19 @@ async function supa(method,path,body){
       r = await fetch(SUPA_URL+'/rest/v1/'+path,{method,headers:getHDR(),body:body?JSON.stringify(body):undefined});
     }
   }
+  // Degradazione graziosa: se l'insert/update fallisce perché la colonna cm_url
+  // non esiste ancora sul DB (migrazione non applicata), rimuovi cm_url dal body
+  // e riprova. Così l'app resta funzionante prima dell'ALTER TABLE.
+  if(!r.ok && (method==='POST'||method==='PATCH') && body){
+    const errTxt = await r.clone().text().catch(function(){return '';});
+    if(/cm_url/.test(errTxt) && /(does not exist|schema cache|Could not find)/i.test(errTxt)){
+      const stripped = Array.isArray(body)
+        ? body.map(function(o){ if(o&&typeof o==='object'){ const n=Object.assign({},o); delete n.cm_url; return n; } return o; })
+        : (function(){ const n=Object.assign({},body); delete n.cm_url; return n; })();
+      console.warn('[supa] colonna cm_url assente sul DB → retry senza cm_url. Esegui: ALTER TABLE cards ADD COLUMN IF NOT EXISTS cm_url text default null;');
+      r = await fetch(SUPA_URL+'/rest/v1/'+path,{method,headers:getHDR(),body:JSON.stringify(stripped)});
+    }
+  }
   if(!r.ok){const e=await r.text();throw new Error(e)}
   const t=await r.text();
   return t?JSON.parse(t):null;
@@ -5131,7 +5144,7 @@ async function addQuickCard(){
       first_edition:first1st,qty:parseInt(document.getElementById('qQty').value)||1,
       buy_price:parseFloat(document.getElementById('qBuy').value)||0,
       sell_price:parseFloat(document.getElementById('qSell').value)||0,
-      cm_avg30:p?p.price:0,notes:document.getElementById('qNotes').value,is_manual:false,user_id:getCurrentUserId()
+      cm_avg30:p?p.price:0,notes:document.getElementById('qNotes').value,is_manual:false,cm_url:cmAuthoritativeUrl(quickCard),user_id:getCurrentUserId()
     });
     document.getElementById('st').className='status ok';
     document.getElementById('st').innerHTML='<span class="rb-i rb-i-check"></span> "'+quickCard.name+'"'+(first1st?' (1ª ed.)':'')+' aggiunta!';
@@ -5194,7 +5207,7 @@ async function addSelCard(){
       first_edition:first1st,qty:parseInt(document.getElementById('sQty').value)||1,
       buy_price:parseFloat(document.getElementById('sBuy').value)||0,
       sell_price:parseFloat(document.getElementById('sSell').value)||0,
-      cm_avg30:p?p.price:0,notes:document.getElementById('sNotes').value,is_manual:false
+      cm_avg30:p?p.price:0,notes:document.getElementById('sNotes').value,is_manual:false,cm_url:cmAuthoritativeUrl(selCard)
     });
     document.getElementById('st').className='status ok';
     document.getElementById('st').innerHTML='<span class="rb-i rb-i-check"></span> "'+selCard.name+'"'+(first1st?' (1ª ed.)':'')+' aggiunta!';
@@ -6000,6 +6013,7 @@ async function verifyPriceColEdit(){
       first_edition: first1st,
       setName:     c.set_name || '',
       rarity:      c.rarity || '',
+      cmUrl:       c.cm_url || null,
     });
     const elapsed = Date.now()-t0;
 
@@ -7204,6 +7218,7 @@ async function confirmDealConversion(){
         cm_avg30:cm,
         notes:cardNote,
         is_manual:false,
+        cm_url:c.cm_url||null,
         created_at:nowIso // esplicito per garantire ordinamento corretto in collezione
       };
       if(uid) row.user_id=uid;
@@ -7394,7 +7409,7 @@ function renderPrevTable(){
       if(byNum&&byNum.set) return byNum.set.id;
       return cached[0]&&cached[0].set ? cached[0].set.id : null;
     })();
-    var cmUrl=buildCMDirectUrl(c.name, setId, c.number, c.condition, c.language||'ITA', c.variant||'Normal', c.first_edition||false, c.set||'');
+    var cmUrl=buildCMDirectUrl(c.name, setId, c.number, c.condition, c.language||'ITA', c.variant||'Normal', c.first_edition||false, c.set||'', c.rarity, c.cm_url);
     // Colore prezzo in base all'origine:
     // - 'avg30' (default se mancante) → warning: prezzo suggerito dall'algoritmo, da verificare
     // - 'cm_verified' → success: verificato su Cardmarket live
@@ -7561,7 +7576,7 @@ function openEditModal(idx){
   const _cached2 = cache[(c.name||'').toLowerCase().trim()];
   const tcgCard2 = _cached2 ? (_cached2.find(function(x){return x.number===c.number;})||_cached2[0]) : null;
   const setId2 = c.set_id || (tcgCard2&&tcgCard2.set ? tcgCard2.set.id : null);
-  document.getElementById('emCmLink').href = buildCMDirectUrl(c.name, setId2, c.number, c.condition||'NM', c.language||'ITA', c.variant||'Normal', c.first_edition||false, c.set||'');
+  document.getElementById('emCmLink').href = buildCMDirectUrl(c.name, setId2, c.number, c.condition||'NM', c.language||'ITA', c.variant||'Normal', c.first_edition||false, c.set||'', c.rarity, c.cm_url);
   // Sincronizza il visual del toggle "1\u00aa" (gold quando checked)
   if(typeof _emToggle1st === 'function') _emToggle1st(document.getElementById('em1st'));
   // Reset stash precedente (era di un'altra carta) e nascondi banner
@@ -7650,8 +7665,9 @@ function emPickReplace(c,el){
     item.name=c.name; item.set=c.set&&c.set.name||''; item.set_id=c.set&&c.set.id||'';
     item.number=c.number||''; item.rarity=c.rarity||'';
     item.image=c.images&&c.images.small||''; item.image_lg=c.images&&c.images.large||'';
+    item.cm_url=cmAuthoritativeUrl(c);
     // Aggiorna link Cardmarket con URL diretto
-    document.getElementById('emCmLink').href = buildCMDirectUrl(c.name, c.set&&c.set.id, c.number, document.getElementById('emCond').value, document.getElementById('emLang').value, document.getElementById('emVar').value, document.getElementById('em1st').checked);
+    document.getElementById('emCmLink').href = buildCMDirectUrl(c.name, c.set&&c.set.id, c.number, document.getElementById('emCond').value, document.getElementById('emLang').value, document.getElementById('emVar').value, document.getElementById('em1st').checked, c.set&&c.set.name, c.rarity, cmAuthoritativeUrl(c));
     // Ricalcola prezzo con nuova carta
     if(c.cardmarket&&c.cardmarket.prices){
       const p=calcPrice(c.cardmarket.prices,document.getElementById('emCond').value,document.getElementById('emVar').value,document.getElementById('em1st').checked);
@@ -7735,6 +7751,7 @@ async function verifyPriceEdit(opts){
       first_edition: first1st,
       setName:     c.set || '',
       rarity:      c.rarity || '',
+      cmUrl:       c.cm_url || null,
     });
     const elapsed = Date.now()-t0;
 
@@ -8273,15 +8290,58 @@ const CM_SET_NAME_TO_ID={
   'Stellar Crown':'sv7','Surging Sparks':'sv7pt5','Prismatic Evolutions':'sv8',
 };
 
+// ── SOLUZIONE DEFINITIVA: URL Cardmarket autoritativo dalla TCG API ──
+// La Pokémon TCG API restituisce per ogni carta il campo cardmarket.url, che
+// è l'URL ESATTO del prodotto su cardmarket.com (es. .../Singles/Expedition-Base-Set/
+// Venusaur-V2-EX68). Questo elimina ogni guessing di slug/abbreviazione/versione.
+// Quando disponibile, lo usiamo direttamente appendendo solo i parametri filtro
+// (lingua / condizione minima / prima edizione / reverse holo).
+//
+// Appende i parametri filtro a un URL prodotto Cardmarket già valido.
+// Gestisce sia URL puliti che URL che già contengono query string.
+function cmAppendParams(baseUrl, cond, lang, variant, first1st){
+  if(!baseUrl) return null;
+  try{
+    // Forza il dominio italiano (la TCG API può restituire /en/). Manteniamo il path.
+    var u=baseUrl.replace(/cardmarket\.com\/[a-z]{2}\//i,'cardmarket.com/it/');
+    var hasQ=u.indexOf('?')>=0;
+    var params=new URLSearchParams();
+    params.set('language',     CM_LANG_ID[lang||'ITA'] || 5);
+    params.set('minCondition', CM_COND_ID[cond||'NM']  || 2);
+    if(variant==='Reverse Holo') params.set('isReverseHolo','Y');
+    params.set('isFirstEd', first1st ? 'Y' : 'N');
+    return u + (hasQ?'&':'?') + params.toString();
+  }catch(e){ return baseUrl; }
+}
+
+// Estrae l'URL autoritativo da un oggetto carta (TCG API) o da un record salvato.
+// Cerca in: card.cardmarket.url (TCG API live), card.cm_url (record salvato),
+// card.cardmarketUrl (alias). Ritorna null se non disponibile.
+function cmAuthoritativeUrl(card){
+  if(!card) return null;
+  if(card.cardmarket && card.cardmarket.url) return card.cardmarket.url;
+  if(card.cm_url) return card.cm_url;
+  if(card.cardmarketUrl) return card.cardmarketUrl;
+  return null;
+}
+
 // Costruisce URL alla pagina prodotto Cardmarket con filtri lingua/condizione/ed.
 // Accetta sia setId (TCG API ID) che setName (nome del set) come fallback per item vecchi
 // L'ultimo parametro `rarity` è opzionale (retro-compat): permette di scegliere
 // la versione corretta dei set ambigui (V1/V2/no-V) senza ricorrere alla cascata.
+// Il parametro `cmUrlOverride` (se passato) ha PRECEDENZA ASSOLUTA: è l'URL
+// autoritativo dalla TCG API, quindi salta tutto il guessing.
 // Strategia a cascata:
+//  0. URL autoritativo TCG API (cmUrlOverride) → usato direttamente
 //  1. Pagina prodotto diretta: /Singles/{SetSlug}/{NameSlug}[-V1|V2-]{SetAbbrev}{Number}
 //  2. Browse set filtrato per nome: /Singles/{SetSlug}?searchString={Name}
 //  3. Ricerca generica: /Products/Search?searchString={Name}
-function buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, setName, rarity){
+function buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, setName, rarity, cmUrlOverride){
+  // Livello 0: URL autoritativo dalla TCG API → precedenza assoluta
+  if(cmUrlOverride){
+    var authUrl=cmAppendParams(cmUrlOverride, cond, lang, variant, first1st);
+    if(authUrl) return authUrl;
+  }
   // Risolvi setId: usa quello fornito, poi prova dal nome del set
   const resolvedSetId = setId || CM_SET_NAME_TO_ID[setName||''] || null;
   const setSlug   = CM_SET_SLUG[resolvedSetId]   || null;
@@ -8457,7 +8517,7 @@ function openCardmarketAdd(){
     window.open(stash.cmUrl, '_blank');
     return;
   }
-  window.open(buildCMDirectUrl(c.name, c.set?.id, c.number, cond, lang, variant, first1st, c.set?.name, c.rarity),'_blank');
+  window.open(buildCMDirectUrl(c.name, c.set?.id, c.number, cond, lang, variant, first1st, c.set?.name, c.rarity, cmAuthoritativeUrl(c)),'_blank');
 }
 
 function openCardmarket(){
@@ -8472,7 +8532,7 @@ function openCardmarket(){
     window.open(stash.cmUrl, '_blank');
     return;
   }
-  window.open(buildCMDirectUrl(prevCard.name, prevCard.set?.id, prevCard.number, cond, lang, variant, is1st, prevCard.set?.name, prevCard.rarity),'_blank');
+  window.open(buildCMDirectUrl(prevCard.name, prevCard.set?.id, prevCard.number, cond, lang, variant, is1st, prevCard.set?.name, prevCard.rarity, cmAuthoritativeUrl(prevCard)),'_blank');
 }
 
 // ── VERIFICA PREZZI LIVE ──────────────────────────────────────────────────────
@@ -8543,9 +8603,10 @@ async function alignAllPrices(){
     var _vc = cache[(item.name||'').toLowerCase().trim()];
     var _vt = _vc ? (_vc.find(function(x){return x.number===item.number;}) || _vc[0]) : null;
     var setId = item.set_id || (_vt && _vt.set ? _vt.set.id : null);
+    var _itemCmUrl = item.cm_url || (_vt ? cmAuthoritativeUrl(_vt) : null);
     var cmUrl = buildCMDirectUrl(item.name, setId, item.number, item.condition,
                                   item.language||'ITA', item.variant||'Normal',
-                                  item.first_edition||false, item.set||'');
+                                  item.first_edition||false, item.set||'', item.rarity, _itemCmUrl);
 
     // Solo URL diretti possono essere server-side scraped
     var isDirect = cmUrl.includes('/Singles/') && !cmUrl.includes('searchString=');
@@ -8940,6 +9001,7 @@ async function fetchCmPriceLive(opts){
   var first1st  = !!(opts && opts.first_edition);
   var setName   = (opts && opts.setName) || '';
   var rarity    = (opts && opts.rarity) || '';
+  var cmUrlAuth = (opts && (opts.cmUrl || opts.cm_url)) || null;
 
   if(!name) return {ok:false, error:'nome carta mancante', attempts:[]};
 
@@ -8950,9 +9012,15 @@ async function fetchCmPriceLive(opts){
     if(_hit && _hit.set) setId = _hit.set.id;
     // Recupera anche rarity dalla cache se mancante (importante per i set ambigui)
     if(!rarity && _hit && _hit.rarity) rarity = _hit.rarity;
+    // Recupera URL autoritativo dalla cache TCG se non fornito esplicitamente
+    if(!cmUrlAuth && _hit) cmUrlAuth = cmAuthoritativeUrl(_hit);
   }
 
-  var cmUrl = buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, setName, rarity);
+  var cmUrl = buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, setName, rarity, cmUrlAuth);
+  // Se l'URL deriva dall'URL autoritativo TCG API, è già esatto: niente cascata di
+  // varianti V1/V2 (che genererebbe PRODOTTI DIVERSI). Su 403 si ritenta solo lo
+  // stesso URL.
+  var isAuthoritative = !!cmUrlAuth;
   var isDirect = cmUrl.indexOf('/Singles/') !== -1 && cmUrl.indexOf('searchString=') === -1;
 
   // Traccia tutti i tentativi fatti — esposto al caller per logging dettagliato
@@ -9034,7 +9102,7 @@ async function fetchCmPriceLive(opts){
   // significa slug errato, e gli slug V1/V2 sono PRODOTTI DIVERSI — accettarne i
   // prezzi darebbe valori sbagliati (bug Erika's Gloom #45 → €0.10 da V2).
   // Si ferma al PRIMO URL che restituisce listing reali (non-fake, non-wrong, non-bloccato).
-  if(isDirect && !primaryBlocked && (!srv.listings || !srv.listings.length)){
+  if(isDirect && !isAuthoritative && !primaryBlocked && (!srv.listings || !srv.listings.length)){
     var variants = buildCMDirectUrlVariants(name, setId, number, cond, lang, variant, first1st, setName, rarity);
     variants = variants.filter(function(u){ return u !== cmUrl; });
     for(var i=0; i<variants.length; i++){
@@ -9119,7 +9187,8 @@ async function verifyPrice(idx){
 
     const _vc = cache[(c.name||'').toLowerCase().trim()];
     const _vt = _vc?(_vc.find(function(x){return x.number===c.number;})||_vc[0]):null;
-    const cmUrl = buildCMDirectUrl(c.name,c.set_id||(_vt&&_vt.set?_vt.set.id:null),c.number,c.condition,c.language||'ITA',c.variant||'Normal',c.first_edition||false,c.set||'');
+    const _vCmUrl = c.cm_url || (_vt?cmAuthoritativeUrl(_vt):null);
+    const cmUrl = buildCMDirectUrl(c.name,c.set_id||(_vt&&_vt.set?_vt.set.id:null),c.number,c.condition,c.language||'ITA',c.variant||'Normal',c.first_edition||false,c.set||'',c.rarity,_vCmUrl);
     const log = cmLogger(c.name+' \u00b7 #'+(c.number||'?'));
 
     const _cp = _vt&&_vt.cardmarket&&_vt.cardmarket.prices;
@@ -9240,6 +9309,7 @@ async function verifyPriceAdd(prefix, opts){
       name: name, setId: setId, number: number,
       condition: cond, language: lang, variant: variant,
       first_edition: first1st, setName: setName, rarity: rarity,
+      cmUrl: (typeof cmAuthoritativeUrl==='function' && card) ? cmAuthoritativeUrl(card) : null,
     });
     const elapsed = Date.now()-t0;
 
@@ -9496,6 +9566,7 @@ async function addToPrev(){
     language:document.getElementById('pLang').value,
     qty:parseInt(document.getElementById('pQty').value)||1,
     cm_avg30:finalPrice,
+    cm_url:cmAuthoritativeUrl(prevCard),
     // usedManual=true se l'utente ha digitato un prezzo diverso da quello calcolato
     // (es. dopo verifyPriceAdd o inserimento a mano). Altrimenti è il valore AVG30
     // suggerito dall'algoritmo e va marcato per la revisione.
@@ -9791,6 +9862,7 @@ setInterval(checkForUpdates,3600000);
 // ALTER TABLE cards ADD COLUMN IF NOT EXISTS cm_price numeric(10,2) default 0;
 // ALTER TABLE cards ADD COLUMN IF NOT EXISTS is_manual boolean default false;
 // ALTER TABLE cards ADD COLUMN IF NOT EXISTS first_edition boolean default false;
+// ALTER TABLE cards ADD COLUMN IF NOT EXISTS cm_url text default null;
 // ALTER TABLE preventivi ADD COLUMN IF NOT EXISTS provenienza text default null;
 // ALTER TABLE preventivi ADD COLUMN IF NOT EXISTS note text default null;
 // ALTER TABLE preventivi ADD COLUMN IF NOT EXISTS seller_name text default null;
