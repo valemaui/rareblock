@@ -4,6 +4,11 @@
 --  Ogni utente può creare uno o più "share" con token URL-safe; tramite
 --  l'RPC `get_public_collection(token)` un visitatore anonimo può vedere
 --  la collezione senza login (solo lettura, dati filtrati lato server).
+--
+--  FIX 2026-05-25: rimossa la colonna `set_id` dalla RPC. La tabella `cards`
+--  reale non possiede `set_id` (è un campo presente solo sugli item dei
+--  preventivi), quindi il SELECT `c.set_id` causava HTTP 400 "column
+--  c.set_id does not exist". La vista pubblica non usa set_id.
 -- ═══════════════════════════════════════════════════════════════════════
 
 -- ── 1. Tabella collection_shares ─────────────────────────────────────
@@ -124,7 +129,6 @@ RETURNS TABLE (
   image_url      TEXT,
   notes          TEXT,
   is_manual      BOOLEAN,
-  set_id         TEXT,
   created_at     TIMESTAMPTZ,
   share_title    TEXT,
   share_show_prices BOOLEAN,
@@ -167,7 +171,6 @@ BEGIN
     c.image_url,
     CASE WHEN v_share.show_notes  THEN c.notes       ELSE NULL END,
     COALESCE(c.is_manual, FALSE),
-    c.set_id,
     c.created_at,
     v_share.title,
     v_share.show_prices,
