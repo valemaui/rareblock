@@ -138,7 +138,8 @@ RETURNS TABLE (
   share_show_prices BOOLEAN,
   share_show_notes  BOOLEAN,
   share_view_count  INTEGER,
-  share_created_at  TIMESTAMPTZ
+  share_created_at  TIMESTAMPTZ,
+  owner_full_name   TEXT
 )
 LANGUAGE plpgsql SECURITY DEFINER STABLE
 SET search_path = public
@@ -180,8 +181,10 @@ BEGIN
     v_share.show_prices,
     v_share.show_notes,
     v_share.view_count,
-    v_share.created_at
+    v_share.created_at,
+    p.full_name
   FROM cards c
+  LEFT JOIN profiles p ON p.id = c.user_id
   WHERE c.user_id = v_share.user_id
   ORDER BY c.created_at DESC NULLS LAST
   LIMIT 5000;
