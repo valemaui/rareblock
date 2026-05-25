@@ -287,6 +287,57 @@ table.pc-list{width:100%;border-collapse:collapse;font-size:12px}
   .pc-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:9px}
   .pc-footer{padding:14px}
 }
+
+/* ═══ COLLEZIONE 2.0 · banner livello collezionista + nota sub-collezione ═══ */
+.pc-prest{
+  display:flex;align-items:center;gap:18px;
+  margin:0;padding:16px 22px;
+  background:linear-gradient(115deg,var(--surface) 0%,var(--surface2) 100%);
+  border-bottom:1px solid var(--border);
+  position:relative;overflow:hidden;
+}
+.pc-prest::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 480px 160px at 4% 30%,var(--pcprest-glow,rgba(201,168,76,.10)),transparent 70%);
+}
+.pc-prest-emblem{
+  width:54px;height:54px;border-radius:14px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--surface);border:1px solid var(--pcprest-color,var(--gold));
+  box-shadow:0 0 0 1px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.04);
+  position:relative;z-index:1;
+}
+.pc-prest-emblem svg{width:28px;height:28px;stroke:var(--pcprest-color,var(--gold));fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.pc-prest-main{flex:1;min-width:0;position:relative;z-index:1;display:flex;flex-direction:column;gap:6px}
+.pc-prest-toprow{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.pc-prest-roman{font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:var(--pcprest-color,var(--gold));font-weight:600;text-transform:uppercase}
+.pc-prest-name{font-family:var(--serif);font-style:italic;font-weight:400;font-size:21px;color:var(--text);line-height:1;letter-spacing:-.01em}
+.pc-prest-sub{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
+.pc-prest-progwrap{display:flex;align-items:center;gap:10px;max-width:520px}
+.pc-prest-progbar{flex:1;height:5px;border-radius:5px;background:var(--surface3);overflow:hidden;position:relative}
+.pc-prest-progfill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--pcprest-color,var(--gold)),var(--pcprest-color2,var(--gold)));transition:width .7s cubic-bezier(.3,1,.4,1);box-shadow:0 0 8px var(--pcprest-color,var(--gold))}
+.pc-prest-progtxt{font-size:10.5px;color:var(--text-muted);font-family:var(--mono);white-space:nowrap}
+.pc-prest-value{text-align:right;flex-shrink:0;position:relative;z-index:1;padding-left:16px;border-left:1px solid var(--border)}
+.pc-prest-value-num{font-family:var(--mono);font-size:24px;font-weight:600;color:var(--text);line-height:1;letter-spacing:-.02em}
+.pc-prest-value-lbl{font-size:9.5px;color:var(--text-subtle);font-family:var(--mono);text-transform:uppercase;letter-spacing:.1em;margin-top:5px}
+.pc-subset-note{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:9px 16px;background:var(--accent-softer);
+  border-bottom:1px solid var(--border);
+  font-size:12px;color:var(--text-muted);font-family:var(--mono);
+}
+.pc-subset-note b{color:var(--accent);font-weight:600}
+.pc-subset-note .pc-subset-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:3px 10px;border-radius:999px;
+  background:var(--accent-soft);border:1px solid var(--accent-border);
+  color:var(--accent);font-weight:600;
+}
+@media(max-width:760px){
+  .pc-prest{flex-wrap:wrap;gap:12px;padding:13px 15px}
+  .pc-prest-value{border-left:none;padding-left:0;text-align:left;width:100%;display:flex;align-items:baseline;gap:10px}
+  .pc-prest-value-lbl{margin-top:0}
+}
 </style>
 </head>
 <body>
@@ -309,6 +360,11 @@ table.pc-list{width:100%;border-collapse:collapse;font-size:12px}
       <a class="pc-cta-btn" href="https://www.rareblock.eu" target="_blank" rel="noopener">Crea la tua collezione</a>
     </div>
   </header>
+
+  <!-- LIVELLO COLLEZIONISTA -->
+  <div class="pc-prest" id="pcPrest" style="display:none"></div>
+  <!-- NOTA SUB-COLLEZIONE (quando il link condivide un sottoinsieme filtrato) -->
+  <div class="pc-subset-note" id="pcSubsetNote" style="display:none"></div>
 
   <!-- STATS -->
   <div class="pc-stats" id="pcStats" style="display:none"></div>
@@ -387,8 +443,179 @@ const pcState = {
   sort: 'created_desc',
   view: 'grid',
   listSortKey: '',
-  listSortDir: 'desc'
+  listSortDir: 'desc',
+  allRows: [],          // tutte le righe condivise (pre-filtro sub-collezione)
+  subset: null,         // filtro sub-collezione decodificato da ?f= (o null)
+  subsetActive: false
 };
+
+// ═══ COLLEZIONE 2.0 — livello collezionista + sub-collezione condivisa ═══
+const PC_COND_ORDER_MAP = {MINT:1, NM:2, EX:3, GD:4, LP:5, PL:6, PO:7, 'INK/ALT':8};
+const PC_TIERS = [
+  { id:1, roman:'I',   name:'Iniziato',     min:0,      color:'#6e7681', glow:'rgba(110,118,129,.12)' },
+  { id:2, roman:'II',  name:'Collezionista',min:1000,   color:'#b9824f', glow:'rgba(185,130,79,.14)' },
+  { id:3, roman:'III', name:'Curatore',     min:5000,   color:'#c2c8d0', glow:'rgba(194,200,208,.12)' },
+  { id:4, roman:'IV',  name:'Connoisseur',  min:25000,  color:'#c9a84c', glow:'rgba(201,168,76,.16)' },
+  { id:5, roman:'V',   name:'Élite',        min:100000, color:'#5fd0e0', glow:'rgba(95,208,224,.15)' },
+  { id:6, roman:'VI',  name:'Leggenda',     min:500000, color:'#e6c25a', glow:'rgba(230,194,90,.20)' }
+];
+const PC_PREST_EMBLEM = '<svg viewBox="0 0 24 24"><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M12 21L6 3M12 21l6-18M9 9l3-6 3 6"/></svg>';
+
+function pcCollectionValue(cards){
+  return (cards||[]).reduce(function(a,c){
+    var q = parseInt(c.qty)||1;
+    var cm = parseFloat(c.cm_avg30)||0;
+    var sp = parseFloat(c.sell_price)||0;
+    var unit = cm>0 ? cm : sp;
+    return a + unit*q;
+  }, 0);
+}
+function pcComputeLevel(value){
+  var tier = PC_TIERS[0], next = null;
+  for(var i=0;i<PC_TIERS.length;i++){ if(value >= PC_TIERS[i].min) tier = PC_TIERS[i]; }
+  var idx = PC_TIERS.indexOf(tier);
+  next = PC_TIERS[idx+1] || null;
+  var progress = 1, toNext = 0;
+  if(next){
+    var span = next.min - tier.min;
+    progress = span>0 ? Math.min(1,(value - tier.min)/span) : 1;
+    toNext = Math.max(0, next.min - value);
+  }
+  return { tier:tier, next:next, progress:progress, toNext:toNext };
+}
+function pcFmtEur(n){
+  n = Math.round(n);
+  if(n>=1000000) return '€'+(n/1000000).toFixed(n%1000000?1:0).replace('.',',')+'M';
+  if(n>=10000)   return '€'+(n/1000).toFixed(0)+'k';
+  if(n>=1000)    return '€'+(n/1000).toFixed(1).replace('.',',')+'k';
+  return '€'+n;
+}
+// Banner livello — calcolato SEMPRE su tutte le righe condivise (pcState.allRows),
+// non sul sottoinsieme filtrato. Mostrato solo se i prezzi sono visibili.
+function pcRenderPrestige(){
+  var host = document.getElementById('pcPrest');
+  if(!host) return;
+  var m = pcState.meta || {};
+  if(!m.show_prices){ host.style.display='none'; return; }
+  var all = pcState.allRows || pcState.rows || [];
+  var value = pcCollectionValue(all);
+  var lvl = pcComputeLevel(value);
+  var t = lvl.tier;
+  host.style.setProperty('--pcprest-color', t.color);
+  host.style.setProperty('--pcprest-color2', lvl.next ? lvl.next.color : t.color);
+  host.style.setProperty('--pcprest-glow', t.glow);
+  var progPct = Math.round(lvl.progress*100);
+  var progHtml;
+  if(lvl.next){
+    progHtml =
+      '<div class="pc-prest-progwrap">'+
+        '<div class="pc-prest-progbar"><div class="pc-prest-progfill" style="width:'+progPct+'%"></div></div>'+
+        '<div class="pc-prest-progtxt">'+pcFmtEur(lvl.toNext)+' al livello <b style="color:'+lvl.next.color+'">'+escapeHtml(lvl.next.name)+'</b></div>'+
+      '</div>';
+  } else {
+    progHtml = '<div class="pc-prest-progwrap"><div class="pc-prest-progbar"><div class="pc-prest-progfill" style="width:100%"></div></div><div class="pc-prest-progtxt">Vertice della scala raggiunto</div></div>';
+  }
+  var cardCount = all.reduce(function(a,c){ return a+(parseInt(c.qty)||1); }, 0);
+  var setCount  = new Set(all.map(function(c){return c.set_name;}).filter(Boolean)).size;
+  host.innerHTML =
+    '<div class="pc-prest-emblem">'+PC_PREST_EMBLEM+'</div>'+
+    '<div class="pc-prest-main">'+
+      '<div class="pc-prest-toprow">'+
+        '<span class="pc-prest-roman">Livello '+t.roman+'</span>'+
+        '<span class="pc-prest-name">'+escapeHtml(t.name)+'</span>'+
+        '<span class="pc-prest-sub">· '+cardCount+' carte · '+setCount+' set</span>'+
+      '</div>'+
+      progHtml+
+    '</div>'+
+    '<div class="pc-prest-value">'+
+      '<div class="pc-prest-value-num">'+pcFmtEur(value)+'</div>'+
+      '<div class="pc-prest-value-lbl">Valore stimato</div>'+
+    '</div>';
+  host.style.display='flex';
+}
+
+// Decodifica il filtro sub-collezione passato via ?f= (base64 URL-safe → JSON).
+function pcDecodeFilter(){
+  try{
+    var sp = new URLSearchParams(window.location.search);
+    var raw = sp.get('f');
+    if(!raw) return null;
+    var b64 = raw.replace(/-/g,'+').replace(/_/g,'/');
+    while(b64.length % 4) b64 += '=';
+    var json = decodeURIComponent(escape(atob(b64)));
+    var f = JSON.parse(json);
+    return (f && typeof f==='object') ? f : null;
+  }catch(e){ return null; }
+}
+// Applica un filtro sub-collezione alle righe — speculare a colApplyFilters
+// dell'app. Le condizioni su prezzi/CM si attivano solo se i prezzi sono
+// visibili nello share (altrimenti sarebbero NULL e filtrerebbero tutto).
+function pcApplySubsetFilter(rows, f){
+  if(!f) return rows;
+  var pricesOn = !!(pcState.meta && pcState.meta.show_prices);
+  var s = (f.search||'').toLowerCase();
+  var sets = f.sets||[], langs = f.langs||[], vars = f.vars||[], conds = f.conds||[];
+  var condMin = f.condMin ? PC_COND_ORDER_MAP[f.condMin] : null;
+  var condMax = f.condMax ? PC_COND_ORDER_MAP[f.condMax] : null;
+  var fe = f.firstEd||'', mf = f.manFilter||'';
+  var pMin = (pricesOn && f.priceMin!=='' && f.priceMin!=null) ? parseFloat(f.priceMin) : null;
+  var pMax = (pricesOn && f.priceMax!=='' && f.priceMax!=null) ? parseFloat(f.priceMax) : null;
+  var cMin = (pricesOn && f.cmMin!=='' && f.cmMin!=null) ? parseFloat(f.cmMin) : null;
+  var cMax = (pricesOn && f.cmMax!=='' && f.cmMax!=null) ? parseFloat(f.cmMax) : null;
+  return rows.filter(function(c){
+    if(s){
+      var hay = ((c.name||'')+' '+(c.set_name||'')+' '+(c.card_number||'')+' '+(c.notes||'')).toLowerCase();
+      if(hay.indexOf(s) < 0) return false;
+    }
+    if(sets.length  && sets.indexOf(c.set_name)<0) return false;
+    if(langs.length && langs.indexOf(c.language)<0) return false;
+    if(vars.length){ var v = c.variant || 'Normal'; if(vars.indexOf(v)<0) return false; }
+    if((f.condMode||'single')==='single'){
+      if(conds.length && conds.indexOf(c.condition)<0) return false;
+    } else {
+      var rank = PC_COND_ORDER_MAP[c.condition];
+      if(rank == null){ if(condMin!=null || condMax!=null) return false; }
+      else {
+        if(condMin!=null && rank < condMin) return false;
+        if(condMax!=null && rank > condMax) return false;
+      }
+    }
+    if(fe==='yes' && !c.first_edition) return false;
+    if(fe==='no'  &&  c.first_edition) return false;
+    if(mf==='tcg' && c.is_manual) return false;
+    if(mf==='man' && !c.is_manual) return false;
+    if(pMin!=null || pMax!=null){
+      var sp2 = parseFloat(c.sell_price)||0;
+      if(pMin!=null && sp2 < pMin) return false;
+      if(pMax!=null && sp2 > pMax) return false;
+    }
+    if(cMin!=null || cMax!=null){
+      var cp = parseFloat(c.cm_avg30)||0;
+      if(cMin!=null && cp < cMin) return false;
+      if(cMax!=null && cp > cMax) return false;
+    }
+    return true;
+  });
+}
+// Riepilogo leggibile dei filtri attivi (per la nota sub-collezione).
+function pcDescribeFilter(f){
+  if(!f) return '';
+  var bits = [];
+  if(f.search) bits.push('“'+f.search+'”');
+  if((f.sets||[]).length)  bits.push((f.sets.length)+' set');
+  if((f.langs||[]).length) bits.push(f.langs.join(', '));
+  if((f.vars||[]).length)  bits.push(f.vars.join(', '));
+  if((f.conds||[]).length && (f.condMode||'single')==='single') bits.push(f.conds.join('/'));
+  if((f.condMode==='range') && (f.condMin||f.condMax)) bits.push('cond. '+(f.condMin||'…')+'–'+(f.condMax||'…'));
+  if(f.firstEd==='yes') bits.push('1ª ed.');
+  if(f.firstEd==='no')  bits.push('no 1ª ed.');
+  if(f.manFilter==='tcg') bits.push('solo TCG');
+  if(f.manFilter==='man') bits.push('solo manuali');
+  if(f.priceMin||f.priceMax) bits.push('prezzo '+(f.priceMin||'0')+'–'+(f.priceMax||'∞')+'€');
+  if(f.cmMin||f.cmMax) bits.push('CM '+(f.cmMin||'0')+'–'+(f.cmMax||'∞')+'€');
+  return bits.join(' · ');
+}
+
 
 function escapeHtml(s){
   return String(s==null?'':s).replace(/[&<>"']/g, function(c){
@@ -470,7 +697,20 @@ async function pcLoad(){
       view_count:   rows[0].share_view_count,
       created_at:   rows[0].share_created_at
     };
-    pcState.rows = rows;
+    // Sub-collezione: se il link contiene ?f=, applica il filtro al sottoinsieme.
+    // pcState.allRows resta l'insieme completo (per livello + conteggi globali).
+    pcState.allRows = rows;
+    var subF = pcDecodeFilter();
+    if(subF){
+      var sub = pcApplySubsetFilter(rows, subF);
+      pcState.subset = subF;
+      pcState.subsetActive = true;
+      pcState.rows = sub;
+    } else {
+      pcState.subset = null;
+      pcState.subsetActive = false;
+      pcState.rows = rows;
+    }
     pcRenderHeader();
     // Best-effort: incrementa il view counter (non blocchiamo il render se fallisce)
     fetch(SUPA_URL + '/rest/v1/rpc/incr_collection_share_view', {
@@ -528,6 +768,22 @@ function pcRenderHeader(){
   document.getElementById('pcShareMeta').innerHTML = metaItems
     .map(function(x){ return '<span class="pc-share-meta-item">'+escapeHtml(x)+'</span>'; })
     .join('');
+  // Banner livello collezionista (su tutte le righe condivise)
+  pcRenderPrestige();
+  // Nota sub-collezione (se il link condivide un sottoinsieme filtrato)
+  var note = document.getElementById('pcSubsetNote');
+  if(note){
+    if(pcState.subsetActive){
+      var desc = pcDescribeFilter(pcState.subset);
+      note.innerHTML =
+        '<span class="pc-subset-pill">◑ Sub-collezione</span>'+
+        '<span>Questo link mostra un sottoinsieme filtrato: <b>'+pcState.rows.length+'</b> di '+pcState.allRows.length+' voci'+
+        (desc ? ' — '+escapeHtml(desc) : '')+'</span>';
+      note.style.display='flex';
+    } else {
+      note.style.display='none';
+    }
+  }
 }
 
 function pcOnSearch(){

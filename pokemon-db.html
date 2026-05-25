@@ -2638,8 +2638,178 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 </div>
 
 <!-- TAB COLLEZIONE -->
+<!-- ═══════════════════════════════════════════════════════════════════
+     COLLEZIONE 2.0 — Prestige / Group-by / Sub-collezioni / Batch update
+     Stili isolati (prefisso .col2-/.cprest-/.cgrp-/.csub-/.cbatch-).
+     Coerenti col tema dark-luxury: accent #58a6ff, gold #c9a84c, Fraunces.
+     ═══════════════════════════════════════════════════════════════════ -->
+<style id="col2-styles">
+/* ── Prestige banner (livello collezionista) ───────────────────────── */
+.cprest{
+  display:flex;align-items:center;gap:18px;
+  margin:0;padding:14px 20px;
+  background:linear-gradient(115deg,var(--surface) 0%,var(--surface2) 100%);
+  border-bottom:1px solid var(--border);
+  position:relative;overflow:hidden;flex-shrink:0;
+}
+.cprest::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 480px 160px at 4% 30%,var(--cprest-glow,rgba(201,168,76,.10)),transparent 70%);
+}
+.cprest-emblem{
+  width:54px;height:54px;border-radius:14px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--surface);border:1px solid var(--cprest-color,var(--gold));
+  box-shadow:0 0 0 1px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.04);
+  position:relative;z-index:1;
+}
+.cprest-emblem svg{width:28px;height:28px;stroke:var(--cprest-color,var(--gold));fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.cprest-main{flex:1;min-width:0;position:relative;z-index:1;display:flex;flex-direction:column;gap:6px}
+.cprest-toprow{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.cprest-roman{font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:var(--cprest-color,var(--gold));font-weight:600;text-transform:uppercase}
+.cprest-name{font-family:var(--serif);font-style:italic;font-weight:400;font-size:21px;color:var(--text);line-height:1;letter-spacing:-.01em}
+.cprest-sub{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
+.cprest-progwrap{display:flex;align-items:center;gap:10px;max-width:520px}
+.cprest-progbar{flex:1;height:5px;border-radius:5px;background:var(--surface3);overflow:hidden;position:relative}
+.cprest-progfill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--cprest-color,var(--gold)),var(--cprest-color2,var(--gold)));transition:width .7s cubic-bezier(.3,1,.4,1);box-shadow:0 0 8px var(--cprest-color,var(--gold))}
+.cprest-progtxt{font-size:10.5px;color:var(--text-muted);font-family:var(--mono);white-space:nowrap}
+.cprest-value{text-align:right;flex-shrink:0;position:relative;z-index:1;padding-left:14px;border-left:1px solid var(--border)}
+.cprest-value-num{font-family:var(--mono);font-size:24px;font-weight:600;color:var(--text);line-height:1;letter-spacing:-.02em}
+.cprest-value-lbl{font-size:9.5px;color:var(--text-subtle);font-family:var(--mono);text-transform:uppercase;letter-spacing:.1em;margin-top:5px}
+.cprest-value-num.estimating{opacity:.5}
+@media(max-width:760px){
+  .cprest{flex-wrap:wrap;gap:12px;padding:12px 14px}
+  .cprest-value{border-left:none;padding-left:0;text-align:left;width:100%;display:flex;align-items:baseline;gap:10px}
+  .cprest-value-lbl{margin-top:0}
+}
+
+/* ── View toggle: nuova opzione "Raggruppa" + group-by select ──────── */
+.col-groupby-select{
+  background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  padding:6px 26px 6px 10px;border-radius:var(--r);font-size:11.5px;font-family:var(--mono);
+  cursor:pointer;height:31px;
+  appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%237d8590' stroke-width='1.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 9px center;
+}
+.col-groupby-select:focus{outline:none;border-color:var(--border-focus)}
+
+/* ── Sub-collezioni: barra chip ────────────────────────────────────── */
+.csub-bar{display:flex;align-items:center;gap:8px;padding:8px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap;background:var(--bg)}
+.csub-bar:empty{display:none}
+.csub-label{font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.1em;color:var(--text-subtle);margin-right:2px}
+.csub-chip{
+  display:inline-flex;align-items:center;gap:6px;font-size:11.5px;
+  padding:5px 11px;border-radius:20px;cursor:pointer;
+  background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);
+  transition:all var(--t-fast);font-family:var(--font);
+}
+.csub-chip:hover{color:var(--text);border-color:var(--border-strong)}
+.csub-chip.on{background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent)}
+.csub-chip .csub-count{font-family:var(--mono);font-size:9.5px;opacity:.7}
+.csub-chip .csub-x{font-family:var(--mono);font-size:13px;line-height:1;opacity:.5;margin-left:1px}
+.csub-chip .csub-x:hover{opacity:1;color:var(--danger)}
+.csub-add{
+  display:inline-flex;align-items:center;gap:5px;font-size:11px;
+  padding:5px 10px;border-radius:20px;cursor:pointer;
+  background:transparent;border:1px dashed var(--border-strong);color:var(--text-muted);
+  font-family:var(--mono);transition:all var(--t-fast);
+}
+.csub-add:hover{border-color:var(--accent-border);color:var(--accent)}
+
+/* ── Vista raggruppata ─────────────────────────────────────────────── */
+.col-group-area{display:none;flex-direction:column;gap:12px;padding:16px 20px;overflow-y:auto;flex:1}
+.cgrp{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  overflow:hidden;transition:border-color var(--t-fast);
+}
+.cgrp:hover{border-color:var(--border-strong)}
+.cgrp-head{
+  display:flex;align-items:center;gap:14px;padding:12px 16px;cursor:pointer;
+  user-select:none;background:linear-gradient(180deg,var(--surface2),var(--surface));
+}
+.cgrp-head:hover{background:var(--surface2)}
+.cgrp-chevron{width:14px;height:14px;flex-shrink:0;color:var(--text-muted);transition:transform var(--t-med)}
+.cgrp.open .cgrp-chevron{transform:rotate(90deg)}
+.cgrp-mosaic{display:flex;flex-shrink:0}
+.cgrp-mosaic img,.cgrp-mosaic .cgrp-mph{
+  width:30px;height:42px;border-radius:3px;object-fit:cover;
+  border:1px solid var(--border);margin-left:-12px;background:var(--surface3);
+  box-shadow:0 2px 6px rgba(0,0,0,.4);
+}
+.cgrp-mosaic img:first-child,.cgrp-mosaic .cgrp-mph:first-child{margin-left:0}
+.cgrp-mph{display:flex;align-items:center;justify-content:center;font-size:13px}
+.cgrp-title{flex:1;min-width:0}
+.cgrp-title-name{font-size:14px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cgrp-title-meta{font-size:11px;color:var(--text-muted);font-family:var(--mono);margin-top:2px}
+.cgrp-val{text-align:right;flex-shrink:0}
+.cgrp-val-num{font-family:var(--mono);font-size:15px;font-weight:600;color:var(--accent)}
+.cgrp-val-lbl{font-size:9px;color:var(--text-subtle);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em}
+.cgrp-filterbtn{
+  flex-shrink:0;background:var(--surface2);border:1px solid var(--border);
+  color:var(--text-muted);border-radius:var(--r);padding:5px 10px;font-size:10.5px;
+  font-family:var(--mono);cursor:pointer;transition:all var(--t-fast);display:flex;align-items:center;gap:5px;
+}
+.cgrp-filterbtn:hover{color:var(--accent);border-color:var(--accent-border)}
+.cgrp-body{display:none;padding:14px 16px;border-top:1px solid var(--border);
+  grid-template-columns:repeat(auto-fill,minmax(116px,1fr));gap:10px}
+.cgrp.open .cgrp-body{display:grid}
+.cgrp-mini{
+  background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;cursor:pointer;transition:all var(--t-fast);
+}
+.cgrp-mini:hover{border-color:var(--accent-border);transform:translateY(-2px)}
+.cgrp-mini-img{aspect-ratio:.72;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:20px}
+.cgrp-mini-img img{width:100%;height:100%;object-fit:cover}
+.cgrp-mini-info{padding:6px 8px}
+.cgrp-mini-name{font-size:11px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cgrp-mini-sub{font-size:9.5px;color:var(--text-muted);font-family:var(--mono);display:flex;justify-content:space-between;margin-top:2px}
+.cgrp-mini-price{color:var(--accent)}
+
+/* ── Batch update overlay (riusa look ao-* ma scoped) ──────────────── */
+.cbatch-ov{
+  position:fixed;left:20px;bottom:20px;z-index:9500;width:min(340px,calc(100vw - 40px));
+  background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);
+  box-shadow:var(--shadow-lg);overflow:hidden;animation:cbatchIn .25s ease;
+}
+@keyframes cbatchIn{from{transform:translateY(14px);opacity:0}to{transform:translateY(0);opacity:1}}
+.cbatch-head{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--border)}
+.cbatch-title{font-size:12.5px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:7px}
+.cbatch-title svg{width:14px;height:14px;stroke:var(--accent);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.cbatch-counter{font-family:var(--mono);font-size:11px;color:var(--text-muted)}
+.cbatch-body{padding:12px 14px;display:flex;flex-direction:column;gap:9px}
+.cbatch-current{font-size:11.5px;color:var(--text-muted);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:15px}
+.cbatch-bar{height:5px;border-radius:5px;background:var(--surface3);overflow:hidden}
+.cbatch-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--accent),#8fd6e0);transition:width .35s ease;width:0}
+.cbatch-stats{display:flex;gap:12px;font-size:10.5px;font-family:var(--mono)}
+.cbatch-stats .ok{color:var(--success)}
+.cbatch-stats .up{color:var(--accent)}
+.cbatch-stats .err{color:var(--text-subtle)}
+.cbatch-cancel{align-self:flex-start;background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);padding:5px 12px;border-radius:var(--r);font-size:11px;cursor:pointer;font-family:var(--mono)}
+.cbatch-cancel:hover{color:var(--danger);border-color:var(--danger)}
+
+/* ── Modal salva sub-collezione ────────────────────────────────────── */
+.csub-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px);padding:20px}
+.csub-modal-bg.show{display:flex}
+.csub-modal{background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);width:min(460px,96vw);box-shadow:var(--shadow-lg);overflow:hidden;animation:cbatchIn .22s ease}
+.csub-modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)}
+.csub-modal-head h3{font-family:var(--serif);font-style:italic;font-weight:400;font-size:17px;margin:0;color:var(--text)}
+.csub-modal-close{background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:22px;line-height:1;font-family:var(--mono)}
+.csub-modal-body{padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.csub-modal-body label{font-size:11px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em}
+.csub-modal-body input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:9px 11px;border-radius:var(--r);font-size:13px;width:100%}
+.csub-modal-body input:focus{outline:none;border-color:var(--border-focus)}
+.csub-modal-summary{font-size:11.5px;color:var(--text-muted);line-height:1.5;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px}
+.csub-modal-summary b{color:var(--text)}
+.csub-modal-foot{display:flex;gap:8px;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--border)}
+</style>
+
+
 <div class="tab active" id="tab-col">
   <div class="col-layout">
+
+    <!-- ▸ Banner prestige (livello collezionista) -->
+    <div class="cprest" id="colPrestige"></div>
 
     <!-- ▸ Toolbar principale: ricerca, view toggle, ordinamento, azioni -->
     <div class="col-toolbar">
@@ -2665,7 +2835,19 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
             <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
             <span>Elenco</span>
           </button>
+          <button class="col-view-btn" id="colViewGroup" onclick="colSetView('group')" type="button" title="Vista raggruppata / sub-collezioni">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="6" rx="1"/><rect x="3" y="13" width="18" height="8" rx="1"/></svg>
+            <span>Raggruppa</span>
+          </button>
         </div>
+        <select id="colGroupBy" class="col-groupby-select" onchange="colOnGroupByChange()" title="Raggruppa per" style="display:none">
+          <option value="set_name">per Set</option>
+          <option value="name">per Pokémon</option>
+          <option value="rarity">per Rarità</option>
+          <option value="condition">per Condizione</option>
+          <option value="language">per Lingua</option>
+          <option value="variant">per Variante</option>
+        </select>
 
         <select id="colSort" class="col-sort-select" onchange="colOnSortChange()" title="Ordina per">
           <option value="created_desc">Recenti prima</option>
@@ -2686,6 +2868,10 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
       <div class="col-tb-spacer"></div>
 
       <div class="col-tb-grp">
+        <button class="col-tb-btn" id="colBatchBtn" onclick="colBatchUpdatePrices()" type="button" title="Aggiorna il valore di mercato di tutte le carte TCG (Pokémon TCG API)">
+          <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          <span>Aggiorna valori</span>
+        </button>
         <button class="col-tb-btn col-tb-btn-share" onclick="colShareOpen()" type="button" title="Condividi collezione">
           <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
           <span>Condividi</span>
@@ -2823,6 +3009,9 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
     <!-- ▸ Active filter chips bar (compare filtri attivi rapidi da rimuovere) -->
     <div class="col-active-filters" id="colActiveFilters"></div>
 
+    <!-- ▸ Sub-collezioni salvate (filtri smart) -->
+    <div class="csub-bar" id="colSubsetBar"></div>
+
     <!-- ▸ Stats bar (dinamica in base ai dati filtrati) -->
     <div class="col-stats-bar" id="colStats"></div>
 
@@ -2839,6 +3028,8 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
             <tbody id="colListBody"></tbody>
           </table>
         </div>
+        <!-- Group view (sub-collezioni visive) -->
+        <div class="col-group-area" id="colGroupArea"></div>
         <!-- Legacy: kept for backward compat with any external script that targets #colGrid -->
         <div class="col-grid" id="colGrid" hidden></div>
       </div>
@@ -3034,6 +3225,22 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
     </div>
     <div class="share-modal-body" id="colShareBody">
       <!-- Body popolato dinamicamente da colShareRender() -->
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SUB-COLLECTION SAVE MODAL ═══ -->
+<div class="csub-modal-bg" id="csubModalBg" onclick="if(event.target===this)colSubsetCloseSave()">
+  <div class="csub-modal">
+    <div class="csub-modal-head"><h3>Salva sub-collezione</h3><button class="csub-modal-close" type="button" onclick="colSubsetCloseSave()">×</button></div>
+    <div class="csub-modal-body">
+      <div><label for="csubSaveName">Nome</label>
+        <input type="text" id="csubSaveName" maxlength="40" placeholder="es. Tutti i Gengar, Gradate PSA, Vintage WotC…" onkeydown="if(event.key==='Enter')colSubsetConfirmSave()"/></div>
+      <div class="csub-modal-summary">Salva i <b>filtri attivi</b> come sub-collezione riutilizzabile. Attualmente selezionano <b><span id="csubSaveCount">0</span></b> carte. È una vista <b>smart</b>: si aggiorna da sola quando aggiungi nuove carte che corrispondono ai filtri.</div>
+    </div>
+    <div class="csub-modal-foot">
+      <button class="col-tb-btn" type="button" onclick="colSubsetCloseSave()">Annulla</button>
+      <button class="btn btn-primary" type="button" onclick="colSubsetConfirmSave()">Salva sub-collezione</button>
     </div>
   </div>
 </div>
@@ -5344,12 +5551,15 @@ function colClearSearch(){
 }
 
 function colSetView(view){
-  if(view!=='grid' && view!=='list') return;
+  if(view!=='grid' && view!=='list' && view!=='group') return;
   colState.view = view;
   document.getElementById('colViewGrid')?.classList.toggle('active', view==='grid');
   document.getElementById('colViewList')?.classList.toggle('active', view==='list');
-  document.getElementById('colGridArea').style.display = (view==='grid')?'grid':'none';
-  document.getElementById('colListArea').style.display = (view==='list')?'block':'none';
+  document.getElementById('colViewGroup')?.classList.toggle('active', view==='group');
+  document.getElementById('colGridArea').style.display  = (view==='grid')?'grid':'none';
+  document.getElementById('colListArea').style.display  = (view==='list')?'block':'none';
+  var ga=document.getElementById('colGroupArea'); if(ga) ga.style.display = (view==='group')?'flex':'none';
+  var gb=document.getElementById('colGroupBy');   if(gb) gb.style.display = (view==='group')?'inline-block':'none';
   colRender();
 }
 
@@ -5649,6 +5859,485 @@ function colListSort(key){
 }
 window.colListSort = colListSort;
 
+// ═══════════════════════════════════════════════════════════════════════
+//  COLLEZIONE 2.0 — Livello collezionista · Raggruppa · Sub-collezioni · Batch
+//  Tutte le funzioni sono globali (no IIFE) e si appoggiano agli helper
+//  esistenti: colState, window.colData, colRender, colApplyFilters,
+//  colApplySort, calcPrice, supa, getCurrentUserId, escapeHtml, _fetchTCGDirect.
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── LIVELLO COLLEZIONISTA ────────────────────────────────────────────
+// Scala a 6 tier su valore di mercato stimato (Σ cm_avg30 con fallback sell).
+// Posizionamento "luxury ladder": ogni tier ha colore-metallo dedicato.
+var COL_TIERS = [
+  { id:1, roman:'I',   name:'Iniziato',     min:0,      color:'#6e7681', glow:'rgba(110,118,129,.12)' },
+  { id:2, roman:'II',  name:'Collezionista',min:1000,   color:'#b9824f', glow:'rgba(185,130,79,.14)' },
+  { id:3, roman:'III', name:'Curatore',     min:5000,   color:'#c2c8d0', glow:'rgba(194,200,208,.12)' },
+  { id:4, roman:'IV',  name:'Connoisseur',  min:25000,  color:'#c9a84c', glow:'rgba(201,168,76,.16)' },
+  { id:5, roman:'V',   name:'Élite',        min:100000, color:'#5fd0e0', glow:'rgba(95,208,224,.15)' },
+  { id:6, roman:'VI',  name:'Leggenda',     min:500000, color:'#e6c25a', glow:'rgba(230,194,90,.20)' }
+];
+
+// Valore di mercato di un set di carte: per ogni voce usa cm_avg30 × qty,
+// con fallback a sell_price quando cm manca. Robusto a NaN.
+function colCollectionValue(cards){
+  return (cards||[]).reduce(function(a,c){
+    var q = parseInt(c.qty)||1;
+    var cm = parseFloat(c.cm_avg30)||0;
+    var sp = parseFloat(c.sell_price)||0;
+    var unit = cm>0 ? cm : sp;
+    return a + unit*q;
+  }, 0);
+}
+
+// Restituisce { tier, next, progress(0..1), toNext } dato un valore €.
+function colComputeLevel(value){
+  var tier = COL_TIERS[0], next = null;
+  for(var i=0;i<COL_TIERS.length;i++){
+    if(value >= COL_TIERS[i].min) tier = COL_TIERS[i];
+  }
+  var idx = COL_TIERS.indexOf(tier);
+  next = COL_TIERS[idx+1] || null;
+  var progress = 1, toNext = 0;
+  if(next){
+    var span = next.min - tier.min;
+    progress = span>0 ? Math.min(1,(value - tier.min)/span) : 1;
+    toNext = Math.max(0, next.min - value);
+  }
+  return { tier:tier, next:next, progress:progress, toNext:toNext };
+}
+
+function colFmtEurFull(n){
+  n = Math.round(n);
+  if(n>=1000000) return '€'+(n/1000000).toFixed(n%1000000?1:0).replace('.',',')+'M';
+  if(n>=10000)   return '€'+(n/1000).toFixed(0)+'k';
+  if(n>=1000)    return '€'+(n/1000).toFixed(1).replace('.',',')+'k';
+  return '€'+n;
+}
+
+// Emblema SVG: una gemma sfaccettata che eredita il colore del tier.
+var COL_PREST_EMBLEM = '<svg viewBox="0 0 24 24"><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M12 21L6 3M12 21l6-18M9 9l3-6 3 6"/></svg>';
+
+// Renderizza il banner prestige. Calcola SEMPRE sull'intera collezione
+// (window.colData), non sui dati filtrati: il livello rappresenta il
+// patrimonio totale del collezionista, indipendente dai filtri attivi.
+function colRenderPrestige(){
+  var host = document.getElementById('colPrestige');
+  if(!host) return;
+  var all = window.colData || [];
+  var value = colCollectionValue(all);
+  var lvl = colComputeLevel(value);
+  var t = lvl.tier;
+  host.style.setProperty('--cprest-color', t.color);
+  host.style.setProperty('--cprest-color2', lvl.next ? lvl.next.color : t.color);
+  host.style.setProperty('--cprest-glow', t.glow);
+
+  var progPct = Math.round(lvl.progress*100);
+  var progHtml;
+  if(lvl.next){
+    progHtml =
+      '<div class="cprest-progwrap">'+
+        '<div class="cprest-progbar"><div class="cprest-progfill" style="width:'+progPct+'%"></div></div>'+
+        '<div class="cprest-progtxt">'+colFmtEurFull(lvl.toNext)+' al livello <b style="color:'+lvl.next.color+'">'+lvl.next.name+'</b></div>'+
+      '</div>';
+  } else {
+    progHtml = '<div class="cprest-progwrap"><div class="cprest-progbar"><div class="cprest-progfill" style="width:100%"></div></div><div class="cprest-progtxt">Vertice della scala raggiunto</div></div>';
+  }
+
+  var cardCount = all.reduce(function(a,c){ return a+(parseInt(c.qty)||1); }, 0);
+  var setCount  = new Set(all.map(function(c){return c.set_name;}).filter(Boolean)).size;
+
+  host.innerHTML =
+    '<div class="cprest-emblem">'+COL_PREST_EMBLEM+'</div>'+
+    '<div class="cprest-main">'+
+      '<div class="cprest-toprow">'+
+        '<span class="cprest-roman">Livello '+t.roman+'</span>'+
+        '<span class="cprest-name">'+t.name+'</span>'+
+        '<span class="cprest-sub">· '+cardCount+' carte · '+setCount+' set</span>'+
+      '</div>'+
+      progHtml+
+    '</div>'+
+    '<div class="cprest-value">'+
+      '<div class="cprest-value-num" id="cprestValueNum">'+colFmtEurFull(value)+'</div>'+
+      '<div class="cprest-value-lbl">Valore stimato</div>'+
+    '</div>';
+}
+
+// ── VIEW: estensione a "group" (gestita in colSetView patchato) ───────
+// dimensione di raggruppamento corrente
+if(typeof colState.groupBy === 'undefined') colState.groupBy = 'set_name';
+
+function colOnGroupByChange(){
+  var sel = document.getElementById('colGroupBy');
+  colState.groupBy = sel ? sel.value : 'set_name';
+  if(colState.view==='group') colRender();
+}
+
+// Etichette leggibili per le chiavi di gruppo
+var COL_GROUP_LABELS = {
+  set_name:'Set', name:'Pokémon / Carta', rarity:'Rarità',
+  condition:'Condizione', language:'Lingua', variant:'Variante'
+};
+
+// Estrae la chiave di gruppo per una carta in base alla dimensione scelta.
+function colGroupKeyOf(c, dim){
+  if(dim==='name'){
+    // Raggruppa per "famiglia" Pokémon: prima parola significativa del nome
+    // (così "Gengar V", "Gengar VMAX", "M Gengar EX" → "Gengar").
+    var n = (c.name||'').trim();
+    if(!n) return '—';
+    // rimuovi prefissi comuni (M, Mega, Dark, Light, Shining, Radiant…) e suffissi
+    var cleaned = n.replace(/^(m|mega|dark|light|shining|radiant|origin|galarian|alolan|hisuian|paldean)\s+/i,'');
+    var first = cleaned.split(/[\s\-]/)[0];
+    return first || n;
+  }
+  var v = c[dim];
+  if(dim==='variant' && !v) v = 'Normal';
+  return (v==null || v==='') ? '—' : String(v);
+}
+
+// Raggruppa + ordina i gruppi per valore decrescente. Restituisce array di
+// { key, cards, count, value, thumbs[] }.
+function colBuildGroups(cards, dim){
+  var map = {};
+  cards.forEach(function(c){
+    var k = colGroupKeyOf(c, dim);
+    if(!map[k]) map[k] = [];
+    map[k].push(c);
+  });
+  var groups = Object.keys(map).map(function(k){
+    var arr = map[k];
+    var value = colCollectionValue(arr);
+    var count = arr.reduce(function(a,c){ return a+(parseInt(c.qty)||1); }, 0);
+    var thumbs = arr.filter(function(c){ return c.image_url && String(c.image_url).indexOf('http')===0; })
+                    .slice(0,5).map(function(c){ return c.image_url; });
+    return { key:k, cards:arr, count:count, value:value, thumbs:thumbs };
+  });
+  groups.sort(function(a,b){ return b.value - a.value || b.count - a.count; });
+  return groups;
+}
+
+function colRenderGrouped(cards){
+  var host = document.getElementById('colGroupArea');
+  if(!host) return;
+  var dim = colState.groupBy || 'set_name';
+  if(!cards.length){
+    host.innerHTML = '<div class="col-empty"><div class="col-empty-icon">🃏</div>'+
+      '<div class="col-empty-title">'+(window.colData.length?'Nessuna carta corrisponde ai filtri':'La tua collezione è vuota')+'</div>'+
+      '<div class="col-empty-hint">'+(window.colData.length?'Modifica o azzera i filtri attivi.':'Aggiungi la tua prima carta.')+'</div></div>';
+    return;
+  }
+  var groups = colBuildGroups(cards, dim);
+  var dimLabel = COL_GROUP_LABELS[dim] || dim;
+  host.innerHTML = groups.map(function(g, gi){
+    var mosaic = g.thumbs.map(function(u){ return '<img src="'+escapeHtml(u)+'" loading="lazy" alt=""/>'; }).join('');
+    if(!mosaic) mosaic = '<div class="cgrp-mph">🃏</div>';
+    // primi 12 mini-card; se di più, mostra contatore "+N"
+    var minis = g.cards.slice(0,12).map(function(c){
+      var img = (c.image_url && String(c.image_url).indexOf('http')===0)
+        ? '<img src="'+escapeHtml(c.image_url)+'" loading="lazy" alt=""/>' : '🃏';
+      var cm = parseFloat(c.cm_avg30)||0;
+      var sp = parseFloat(c.sell_price)||0;
+      var price = cm>0?cm:sp;
+      return '<div class="cgrp-mini" onclick="openColEditModal(\''+c.id+'\')" title="'+escapeHtml(c.name||'')+'">'+
+        '<div class="cgrp-mini-img">'+img+'</div>'+
+        '<div class="cgrp-mini-info"><div class="cgrp-mini-name">'+escapeHtml(c.name||'—')+'</div>'+
+        '<div class="cgrp-mini-sub"><span>'+(c.card_number?('#'+escapeHtml(c.card_number)):'—')+'</span>'+
+        '<span class="cgrp-mini-price">'+(price>0?('€'+price.toFixed(0)):'—')+'</span></div></div></div>';
+    }).join('');
+    var moreBadge = g.cards.length>12 ? '<div class="cgrp-mini" style="display:flex;align-items:center;justify-content:center;font-family:var(--mono);color:var(--text-muted);font-size:12px" onclick="colGroupFilterTo(\''+dim+'\',this.dataset.k)" data-k="'+escapeHtml(g.key)+'">+'+(g.cards.length-12)+' altre →</div>' : '';
+    var openCls = gi===0 ? ' open' : '';
+    return '<div class="cgrp'+openCls+'">'+
+      '<div class="cgrp-head" onclick="colToggleGroup(this.parentNode)">'+
+        '<svg class="cgrp-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'+
+        '<div class="cgrp-mosaic">'+mosaic+'</div>'+
+        '<div class="cgrp-title"><div class="cgrp-title-name">'+escapeHtml(g.key)+'</div>'+
+          '<div class="cgrp-title-meta">'+g.count+' cart'+(g.count===1?'a':'e')+' · '+dimLabel+'</div></div>'+
+        '<div class="cgrp-val"><div class="cgrp-val-num">'+colFmtEurFull(g.value)+'</div><div class="cgrp-val-lbl">valore</div></div>'+
+        '<button class="cgrp-filterbtn" onclick="event.stopPropagation();colGroupFilterTo(\''+dim+'\',this.dataset.k)" data-k="'+escapeHtml(g.key)+'" title="Filtra la collezione su questo gruppo">'+
+          '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> isola</button>'+
+      '</div>'+
+      '<div class="cgrp-body">'+minis+moreBadge+'</div>'+
+    '</div>';
+  }).join('');
+}
+
+function colToggleGroup(el){ if(el) el.classList.toggle('open'); }
+
+// Clicca "isola": imposta il filtro corrispondente e passa a vista griglia.
+function colGroupFilterTo(dim, key){
+  if(key==null) return;
+  if(dim==='set_name'){ colState.sets = [key]; }
+  else if(dim==='language'){ colState.langs = [key]; }
+  else if(dim==='variant'){ colState.vars = [key==='Normal'?'Normal':key]; }
+  else if(dim==='condition'){ colState.condMode='single'; colState.conds = [key]; }
+  else if(dim==='name'){ colState.search = (key||'').toLowerCase(); var s=document.getElementById('searchCol'); if(s){ s.value=key; document.getElementById('colSearchWrap')&&document.getElementById('colSearchWrap').classList.add('has-value'); } }
+  else if(dim==='rarity'){ colState.search = (key||'').toLowerCase(); var s2=document.getElementById('searchCol'); if(s2) s2.value=key; }
+  colSetView('grid');
+  try{ colRenderFilterPanel(); }catch(e){}
+  colRender();
+}
+
+// ── BATCH UPDATE VALORI (TCG API) ────────────────────────────────────
+// Scorre le carte NON manuali della collezione, ri-quota ognuna via
+// Pokémon TCG API (cardmarket.prices → calcPrice) e aggiorna cm_avg30 +
+// sell_price (se sell era allineato a cm o a zero). Progress bar + cancel.
+var _colBatchState = null;
+
+async function colBatchUpdatePrices(){
+  if(_colBatchState && _colBatchState.running){ _colBatchState.cancelled = true; return; }
+  var all = window.colData || [];
+  // Aggiorna solo le carte TCG (le manuali non hanno match API affidabile)
+  var targets = all.filter(function(c){ return !c.is_manual; });
+  if(!targets.length){ alert('Nessuna carta TCG da aggiornare (le carte manuali sono escluse).'); return; }
+  if(!confirm('Aggiornare il valore di mercato di '+targets.length+' carte tramite Pokémon TCG API?\n\nLe carte manuali sono escluse. L\'operazione può richiedere qualche minuto.')) return;
+
+  _colBatchState = { running:true, cancelled:false, stats:{ok:0,up:0,fail:0} };
+  _colBatchOverlay(targets.length);
+  var btn = document.getElementById('colBatchBtn');
+  if(btn){ btn.dataset._lbl = btn.innerHTML; btn.classList.add('active'); }
+
+  for(var i=0;i<targets.length;i++){
+    if(_colBatchState.cancelled) break;
+    var c = targets[i];
+    _colBatchUpdate(i+1, targets.length, c, _colBatchState.stats);
+    try{
+      var prices = await _colFetchTcgPrices(c);
+      if(prices){
+        var p = calcPrice(prices, c.condition||'NM', c.variant||'Normal', !!c.first_edition);
+        if(p && !p.notQuoted && p.price>0){
+          var newCm = Math.round(p.price*100)/100;
+          var oldCm = parseFloat(c.cm_avg30)||0;
+          var patch = { cm_avg30: newCm };
+          // Allinea sell_price se era 0 o coincideva (entro 1c) col vecchio cm
+          var oldSell = parseFloat(c.sell_price)||0;
+          if(oldSell<=0 || Math.abs(oldSell-oldCm)<0.011) patch.sell_price = newCm;
+          await supa('PATCH','cards?id=eq.'+c.id, patch);
+          c.cm_avg30 = newCm;
+          if(patch.sell_price!=null) c.sell_price = patch.sell_price;
+          if(Math.abs(newCm-oldCm)>=0.01) _colBatchState.stats.up++;
+          _colBatchState.stats.ok++;
+        } else { _colBatchState.stats.fail++; }
+      } else { _colBatchState.stats.fail++; }
+    } catch(e){ _colBatchState.stats.fail++; }
+    // Aggiorna prestige + stats live ogni 5
+    if((i+1)%5===0){ try{ colRenderPrestige(); colRenderStats(colApplySort(colApplyFilters(window.colData||[]))); }catch(_){ } }
+    await new Promise(function(r){ setTimeout(r, 160); }); // rate-limit gentile TCG API
+  }
+
+  var stats = _colBatchState.stats;
+  var cancelled = _colBatchState.cancelled;
+  _colBatchState = null;
+  if(btn){ btn.classList.remove('active'); if(btn.dataset._lbl) btn.innerHTML = btn.dataset._lbl; }
+  try{ colRender(); }catch(_){}
+  _colBatchFinish(stats, cancelled);
+}
+window.colBatchUpdatePrices = colBatchUpdatePrices;
+
+// Ricava cardmarket.prices per una carta della collezione via TCG API.
+// Strategia: nome + numero esatto → nome+numero (loose) → solo nome.
+async function _colFetchTcgPrices(c){
+  var name = (c.name||'').replace(/"/g,'').trim();
+  if(!name) return null;
+  var num = (c.card_number||'').trim();
+  var results = [];
+  try{
+    if(num){
+      results = await _fetchTCGDirect('name:"'+name+'" number:'+num, 12);
+    }
+    if(!results.length){
+      results = await _fetchTCGDirect('name:"'+name+'"', 16);
+    }
+  }catch(e){ return null; }
+  if(!results.length) return null;
+  // Disambigua per set_name se presente
+  var pick = null;
+  if(c.set_name){
+    var sn = c.set_name.toLowerCase();
+    pick = results.find(function(r){ return r.set && (r.set.name||'').toLowerCase()===sn; });
+    if(!pick && num) pick = results.find(function(r){ return r.set && (r.set.name||'').toLowerCase()===sn && String(r.number)===String(num); });
+  }
+  if(!pick && num) pick = results.find(function(r){ return String(r.number)===String(num); });
+  if(!pick) pick = results[0];
+  return (pick && pick.cardmarket && pick.cardmarket.prices) ? pick.cardmarket.prices : null;
+}
+
+function _colBatchOverlay(total){
+  var old = document.getElementById('colBatchOv'); if(old) old.remove();
+  var el = document.createElement('div');
+  el.id = 'colBatchOv'; el.className = 'cbatch-ov';
+  el.innerHTML =
+    '<div class="cbatch-head">'+
+      '<span class="cbatch-title"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Aggiornamento valori</span>'+
+      '<span class="cbatch-counter" id="colBatchCounter">0/'+total+'</span>'+
+    '</div>'+
+    '<div class="cbatch-body">'+
+      '<div class="cbatch-current" id="colBatchCurrent">Preparazione…</div>'+
+      '<div class="cbatch-bar"><div class="cbatch-fill" id="colBatchFill"></div></div>'+
+      '<div class="cbatch-stats" id="colBatchStats"><span class="ok">0 ok</span><span class="up">0 aggiornate</span><span class="err">0 saltate</span></div>'+
+      '<button class="cbatch-cancel" onclick="colBatchUpdatePrices()">Annulla</button>'+
+    '</div>';
+  document.body.appendChild(el);
+}
+function _colBatchUpdate(curr, total, c, stats){
+  var cnt = document.getElementById('colBatchCounter');
+  var cur = document.getElementById('colBatchCurrent');
+  var fill = document.getElementById('colBatchFill');
+  var st = document.getElementById('colBatchStats');
+  if(cnt) cnt.textContent = curr+'/'+total;
+  if(cur) cur.textContent = (c.name||'?') + (c.card_number?(' · #'+c.card_number):'') + (c.set_name?(' ('+(c.set_name.length>16?c.set_name.slice(0,15)+'…':c.set_name)+')'):'');
+  if(fill) fill.style.width = Math.round((curr/total)*100)+'%';
+  if(st) st.innerHTML = '<span class="ok">'+stats.ok+' ok</span><span class="up">'+stats.up+' aggiornate</span><span class="err">'+stats.fail+' saltate</span>';
+}
+function _colBatchFinish(stats, cancelled){
+  var el = document.getElementById('colBatchOv'); if(!el) return;
+  var title = cancelled ? 'Aggiornamento annullato' : 'Aggiornamento completato';
+  el.querySelector('.cbatch-title').innerHTML = '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> '+title;
+  var cur = document.getElementById('colBatchCurrent');
+  if(cur) cur.textContent = stats.up+' valori aggiornati, '+stats.ok+' verificati, '+stats.fail+' senza match';
+  var cancelBtn = el.querySelector('.cbatch-cancel');
+  if(cancelBtn){ cancelBtn.textContent='Chiudi'; cancelBtn.setAttribute('onclick',"var x=document.getElementById('colBatchOv');if(x)x.remove();"); }
+  setTimeout(function(){ var x=document.getElementById('colBatchOv'); if(x) x.remove(); }, 8000);
+}
+
+// ── SUB-COLLEZIONI SALVATE (smart, filter-based) ─────────────────────
+// Persistite in localStorage scoped per utente: chiave rb_subsets_<uid>.
+// Ogni subset = { id, name, filters{...}, created }. Applicare un subset
+// ripristina lo snapshot dei filtri su colState.
+function colSubsetKey(){
+  var uid = (typeof getCurrentUserId==='function' && getCurrentUserId()) || 'anon';
+  return 'rb_subsets_'+uid;
+}
+function colSubsetGetAll(){
+  try{ var raw = localStorage.getItem(colSubsetKey()); return raw ? (JSON.parse(raw)||[]) : []; }
+  catch(e){ return []; }
+}
+function colSubsetSaveAll(arr){
+  try{ localStorage.setItem(colSubsetKey(), JSON.stringify(arr||[])); }catch(e){}
+}
+// Snapshot dei soli campi-filtro (no view/sort) per salvataggio/condivisione.
+function colSubsetSnapshotFilters(){
+  return {
+    search: colState.search||'',
+    sets: (colState.sets||[]).slice(),
+    langs: (colState.langs||[]).slice(),
+    vars: (colState.vars||[]).slice(),
+    condMode: colState.condMode||'single',
+    conds: (colState.conds||[]).slice(),
+    condMin: colState.condMin||'', condMax: colState.condMax||'',
+    firstEd: colState.firstEd||'', manFilter: colState.manFilter||'',
+    priceMin: colState.priceMin||'', priceMax: colState.priceMax||'',
+    cmMin: colState.cmMin||'', cmMax: colState.cmMax||''
+  };
+}
+function colSubsetApplyFilters(f){
+  if(!f) return;
+  colState.search=f.search||''; colState.sets=(f.sets||[]).slice(); colState.langs=(f.langs||[]).slice();
+  colState.vars=(f.vars||[]).slice(); colState.condMode=f.condMode||'single'; colState.conds=(f.conds||[]).slice();
+  colState.condMin=f.condMin||''; colState.condMax=f.condMax||''; colState.firstEd=f.firstEd||'';
+  colState.manFilter=f.manFilter||''; colState.priceMin=f.priceMin||''; colState.priceMax=f.priceMax||'';
+  colState.cmMin=f.cmMin||''; colState.cmMax=f.cmMax||'';
+  // Sync UI
+  var s=document.getElementById('searchCol'); if(s){ s.value=colState.search; var w=document.getElementById('colSearchWrap'); if(w) w.classList.toggle('has-value', !!colState.search); }
+  ['colPriceMin','colPriceMax','colCmMin','colCmMax'].forEach(function(id){ var el=document.getElementById(id); if(el){ var k={colPriceMin:'priceMin',colPriceMax:'priceMax',colCmMin:'cmMin',colCmMax:'cmMax'}[id]; el.value=colState[k]||''; } });
+  try{ colSetCondMode(colState.condMode); }catch(e){}
+  try{ colSet1st(colState.firstEd); colSetMan(colState.manFilter); }catch(e){}
+  try{ colRenderFilterPanel(); }catch(e){}
+}
+// Conta quante carte matchano uno snapshot (per il badge sul chip).
+function colSubsetCount(f){
+  var saved = colSubsetSnapshotFilters();
+  colSubsetApplyState(f);
+  var n = colApplyFilters(window.colData||[]).length;
+  colSubsetApplyState(saved);
+  return n;
+}
+// Applica snapshot SOLO a colState (senza toccare UI), usata da colSubsetCount.
+function colSubsetApplyState(f){
+  colState.search=f.search||''; colState.sets=(f.sets||[]).slice(); colState.langs=(f.langs||[]).slice();
+  colState.vars=(f.vars||[]).slice(); colState.condMode=f.condMode||'single'; colState.conds=(f.conds||[]).slice();
+  colState.condMin=f.condMin||''; colState.condMax=f.condMax||''; colState.firstEd=f.firstEd||'';
+  colState.manFilter=f.manFilter||''; colState.priceMin=f.priceMin||''; colState.priceMax=f.priceMax||'';
+  colState.cmMin=f.cmMin||''; colState.cmMax=f.cmMax||'';
+}
+
+function colRenderSubsetBar(){
+  var host = document.getElementById('colSubsetBar');
+  if(!host) return;
+  var subs = colSubsetGetAll();
+  var cur = JSON.stringify(colSubsetSnapshotFilters());
+  var html = '<span class="csub-label">Sub-collezioni</span>';
+  subs.forEach(function(s){
+    var active = JSON.stringify(s.filters)===cur ? ' on' : '';
+    var cnt = colSubsetCount(s.filters);
+    html += '<span class="csub-chip'+active+'" onclick="colSubsetApply(\''+s.id+'\')" title="Applica filtri salvati">'+
+              escapeHtml(s.name)+' <span class="csub-count">'+cnt+'</span>'+
+              '<span class="csub-x" onclick="event.stopPropagation();colSubsetShare(\''+s.id+'\')" title="Condividi questa sub-collezione">⇄</span>'+
+              '<span class="csub-x" onclick="event.stopPropagation();colSubsetDelete(\''+s.id+'\')" title="Elimina">×</span>'+
+            '</span>';
+  });
+  html += '<button class="csub-add" onclick="colSubsetOpenSave()" title="Salva i filtri attivi come sub-collezione">+ salva filtri attivi</button>';
+  host.innerHTML = html;
+}
+
+function colSubsetOpenSave(){
+  var n = colApplyFilters(window.colData||[]).length;
+  if(!colCountActiveFilters() && !colState.search){
+    alert('Imposta almeno un filtro (o una ricerca) prima di salvare una sub-collezione.');
+    return;
+  }
+  document.getElementById('csubSaveCount').textContent = n;
+  document.getElementById('csubSaveName').value = '';
+  document.getElementById('csubModalBg').classList.add('show');
+  setTimeout(function(){ var i=document.getElementById('csubSaveName'); if(i) i.focus(); }, 60);
+}
+window.colSubsetOpenSave = colSubsetOpenSave;
+function colSubsetCloseSave(){ document.getElementById('csubModalBg').classList.remove('show'); }
+window.colSubsetCloseSave = colSubsetCloseSave;
+
+function colSubsetConfirmSave(){
+  var name = (document.getElementById('csubSaveName').value||'').trim();
+  if(!name){ alert('Dai un nome alla sub-collezione.'); return; }
+  var subs = colSubsetGetAll();
+  subs.unshift({ id:'sub_'+Date.now().toString(36), name:name.slice(0,40), filters:colSubsetSnapshotFilters(), created:Date.now() });
+  colSubsetSaveAll(subs.slice(0,30));
+  colSubsetCloseSave();
+  colRenderSubsetBar();
+}
+window.colSubsetConfirmSave = colSubsetConfirmSave;
+
+function colSubsetApply(id){
+  var s = colSubsetGetAll().find(function(x){ return x.id===id; });
+  if(!s) return;
+  colSubsetApplyFilters(s.filters);
+  colRender();
+}
+window.colSubsetApply = colSubsetApply;
+
+function colSubsetDelete(id){
+  var subs = colSubsetGetAll().filter(function(x){ return x.id!==id; });
+  colSubsetSaveAll(subs);
+  colRenderSubsetBar();
+}
+window.colSubsetDelete = colSubsetDelete;
+
+// Codifica filtro in base64 URL-safe per condivisione via ?f=
+function colEncodeFilter(f){
+  try{ return btoa(unescape(encodeURIComponent(JSON.stringify(f)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+  catch(e){ return ''; }
+}
+// Condividi una sub-collezione: apre la share modal e (dopo creazione) il
+// link generato includerà il filtro così la vista pubblica lo applica.
+function colSubsetShare(id){
+  var s = colSubsetGetAll().find(function(x){ return x.id===id; });
+  if(!s) return;
+  window._colShareSubsetFilter = s.filters;
+  window._colShareSubsetName = s.name;
+  colShareOpen();
+}
+window.colSubsetShare = colSubsetShare;
+
+
 // ── RENDER MASTER ────────────────────────────────────────────────────
 function colRender(){
   const data = window.colData || [];
@@ -5658,8 +6347,12 @@ function colRender(){
   colRenderStats(sorted);
   colRenderActiveFilters();
   colUpdateFilterCount();
+  try{ colRenderPrestige(); }catch(e){ console.error('colRenderPrestige:',e); }
+  try{ colRenderSubsetBar(); }catch(e){ console.error('colRenderSubsetBar:',e); }
 
-  if(colState.view==='list'){
+  if(colState.view==='group'){
+    colRenderGrouped(sorted);
+  } else if(colState.view==='list'){
     colRenderList(sorted);
   } else {
     colRenderGrid(sorted);
@@ -6098,7 +6791,12 @@ function colShareBuildPublicUrl(token){
   const origin = window.location.origin;
   // Se siamo su file:// o qualche dev local, fallback a rareblock.eu
   const host = (origin && origin.indexOf('http')===0) ? origin : 'https://www.rareblock.eu';
-  return host + '/collection.html?t=' + encodeURIComponent(token);
+  let url = host + '/collection.html?t=' + encodeURIComponent(token);
+  // Se stiamo condividendo una sub-collezione, allega lo snapshot filtri
+  if(window._colShareSubsetFilter && typeof colEncodeFilter==='function'){
+    try{ var fEnc = colEncodeFilter(window._colShareSubsetFilter); if(fEnc) url += '&f=' + fEnc; }catch(e){}
+  }
+  return url;
 }
 
 async function colShareOpen(){
@@ -6130,6 +6828,7 @@ window.colShareOpen = colShareOpen;
 
 function colShareClose(){
   document.getElementById('colShareModalBg').classList.remove('show');
+  window._colShareSubsetFilter = null; window._colShareSubsetName = null;
 }
 window.colShareClose = colShareClose;
 
@@ -6139,6 +6838,12 @@ function colShareRender(){
   // Banner informativo + form creazione + lista esistenti
   const totalCards = (window.colData||[]).length;
   let html = '';
+  if(window._colShareSubsetFilter){
+    html += '<div class="share-info-banner" style="border-color:var(--accent-border)">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>' +
+            '<div>Stai condividendo la sub-collezione <b>“' + escapeHtml(window._colShareSubsetName||'') + '”</b>. Il link pubblico mostrerà solo le carte che corrispondono ai suoi filtri.</div>' +
+          '</div>';
+  }
   html += '<div class="share-info-banner">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
             '<div>Genera un link pubblico in <b>sola lettura</b> per la tua collezione (' + totalCards + ' carte). Chiunque abbia il link potrà visualizzarla, ma <b>non potrà modificarla</b>. Puoi disattivarlo o eliminarlo in qualsiasi momento.</div>' +
