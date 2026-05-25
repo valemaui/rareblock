@@ -112,6 +112,10 @@ CREATE TRIGGER collection_shares_default_token_tg
 -- il token può vedere; altrimenti la funzione restituisce zero righe.
 -- I campi sensibili (buy_price, notes private) sono filtrati in base
 -- alle preferenze dello share.
+-- DROP necessario quando cambia il tipo di ritorno (es. rimozione colonna):
+-- CREATE OR REPLACE non può modificare il RETURNS TABLE di una funzione esistente.
+DROP FUNCTION IF EXISTS get_public_collection(text);
+
 CREATE OR REPLACE FUNCTION get_public_collection(p_token TEXT)
 RETURNS TABLE (
   card_id        UUID,
