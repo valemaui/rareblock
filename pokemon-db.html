@@ -536,6 +536,43 @@
 .share-existing-actions button.danger:hover{color:var(--danger);border-color:var(--danger)}
 .share-existing-actions button svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.8;display:block}
 
+/* ── EDIT INLINE PANNELLO ──────────────────────────────────────── */
+.share-edit-panel{
+  display:none;flex-direction:column;gap:10px;
+  padding:12px 13px;margin-top:6px;
+  background:var(--surface3);border:1px solid var(--border);
+  border-radius:var(--r);
+}
+.share-edit-panel.open{display:flex}
+.share-edit-panel .share-edit-row{display:flex;flex-direction:column;gap:3px}
+.share-edit-panel label{font-size:11px;color:var(--text-muted)}
+.share-edit-panel input[type="text"],
+.share-edit-panel input[type="date"]{
+  background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);border-radius:4px;padding:5px 8px;
+  font-size:12.5px;font-family:var(--font);
+}
+.share-edit-panel input[type="text"]:focus,
+.share-edit-panel input[type="date"]:focus{outline:none;border-color:var(--border-focus)}
+.share-edit-checkrow{display:flex;flex-direction:column;gap:6px}
+.share-edit-check{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);cursor:pointer}
+.share-edit-check input{accent-color:var(--accent);cursor:pointer}
+.share-edit-hint{font-size:10.5px;color:var(--text-subtle);margin-left:24px;margin-top:-3px}
+.share-edit-btns{display:flex;gap:8px;margin-top:4px}
+.share-edit-btns .btn-save{
+  background:var(--accent-soft);border:1px solid var(--accent-border);
+  color:var(--accent);padding:5px 13px;border-radius:4px;
+  font-size:11.5px;font-family:var(--mono);cursor:pointer;
+  transition:all .12s;
+}
+.share-edit-btns .btn-save:hover{background:var(--accent-softer);border-color:var(--accent)}
+.share-edit-btns .btn-cancel{
+  background:transparent;border:1px solid var(--border);
+  color:var(--text-muted);padding:5px 11px;border-radius:4px;
+  font-size:11.5px;font-family:var(--mono);cursor:pointer;
+}
+.share-edit-btns .btn-cancel:hover{color:var(--text);border-color:var(--border-strong)}
+
 .share-info-banner{
   background:var(--info-soft);border:1px solid var(--accent-border);
   border-radius:var(--r);padding:10px 12px;font-size:11.5px;
@@ -6881,7 +6918,7 @@ function colShareRender(){
       if(!r.show_prices) meta.push('senza prezzi');
       if(expired) meta.push('SCADUTO');
       if(!r.is_active && !expired) meta.push('DISATTIVO');
-      html += '<div class="share-existing-row'+(inactive?' inactive':'')+'">' +
+      html += '<div class="share-existing-row'+(inactive?' inactive':'')+'" id="share-row-'+r.id+'">' +
                 '<div class="share-existing-info">' +
                   '<div class="share-existing-title-row">' + escapeHtml(r.title || '(senza titolo)') + '</div>' +
                   '<div class="share-existing-meta">' + meta.map(function(m){return '<span class="share-existing-meta-item">'+escapeHtml(m)+'</span>';}).join('') + '</div>' +
@@ -6889,6 +6926,9 @@ function colShareRender(){
                 '<div class="share-existing-actions">' +
                   '<button type="button" onclick="colShareShow(\''+r.token+'\')" title="Mostra QR + link">'+
                     '<svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'+
+                  '</button>' +
+                  '<button type="button" onclick="colShareEditToggle(\''+r.id+'\')" title="Modifica parametri">'+
+                    '<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'+
                   '</button>' +
                   '<button type="button" onclick="colShareToggle(\''+r.id+'\','+(!r.is_active)+')" title="'+(r.is_active?'Disattiva':'Attiva')+'">' +
                     (r.is_active
@@ -6898,6 +6938,26 @@ function colShareRender(){
                   '<button class="danger" type="button" onclick="colShareDelete(\''+r.id+'\')" title="Elimina link">' +
                     '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>' +
                   '</button>' +
+                '</div>' +
+              '</div>' +
+              '<div class="share-edit-panel" id="share-edit-'+r.id+'">' +
+                '<div class="share-edit-row">' +
+                  '<label>Titolo</label>' +
+                  '<input type="text" id="share-edit-title-'+r.id+'" maxlength="80" value="'+escapeHtml(r.title||'')+'" placeholder="es. La mia collezione vintage"/>' +
+                '</div>' +
+                '<div class="share-edit-checkrow">' +
+                  '<label class="share-edit-check"><input type="checkbox" id="share-edit-prices-'+r.id+'"+(r.show_prices?' checked':'')+'/> Mostra i valori delle carte (CM + prezzi)</label>' +
+                  '<div class="share-edit-hint">Disattiva per condividere il contenuto senza esporre i prezzi.</div>' +
+                  '<label class="share-edit-check"><input type="checkbox" id="share-edit-notes-'+r.id+'"+(r.show_notes?' checked':'')+'/> Mostra note personali</label>' +
+                  '<div class="share-edit-hint">Di default le note sono private.</div>' +
+                '</div>' +
+                '<div class="share-edit-row">' +
+                  '<label>Scadenza (opzionale — lascia vuoto per nessuna)</label>' +
+                  '<input type="date" id="share-edit-exp-'+r.id+'" value="'+(r.expires_at ? r.expires_at.slice(0,10) : '')+'"/>' +
+                '</div>' +
+                '<div class="share-edit-btns">' +
+                  '<button type="button" class="btn-save" onclick="colShareSaveEdit(\''+r.id+'\')" id="share-edit-save-'+r.id+'">Salva modifiche</button>' +
+                  '<button type="button" class="btn-cancel" onclick="colShareEditToggle(\''+r.id+'\')" >Annulla</button>' +
                 '</div>' +
               '</div>';
     });
@@ -6964,7 +7024,57 @@ async function colShareDelete(id){
 }
 window.colShareDelete = colShareDelete;
 
-// Mostra QR + URL per un dato token (in fondo al body modal)
+// Apre/chiude il pannello edit inline per un link esistente
+function colShareEditToggle(id){
+  var panel = document.getElementById('share-edit-'+id);
+  if(!panel) return;
+  var isOpen = panel.classList.contains('open');
+  // Chiudi tutti gli altri pannelli aperti
+  document.querySelectorAll('.share-edit-panel.open').forEach(function(p){ p.classList.remove('open'); });
+  if(!isOpen) panel.classList.add('open');
+}
+window.colShareEditToggle = colShareEditToggle;
+
+// Salva le modifiche al link tramite PATCH su collection_shares
+async function colShareSaveEdit(id){
+  var title      = (document.getElementById('share-edit-title-'+id)||{}).value;
+  var showPrices = !!(document.getElementById('share-edit-prices-'+id)||{}).checked;
+  var showNotes  = !!(document.getElementById('share-edit-notes-'+id)||{}).checked;
+  var expRaw     = (document.getElementById('share-edit-exp-'+id)||{}).value;
+  var expires_at = expRaw ? new Date(expRaw+'T23:59:59').toISOString() : null;
+  var btn = document.getElementById('share-edit-save-'+id);
+  if(btn){ btn.textContent = 'Salvataggio…'; btn.disabled = true; }
+  try{
+    await supa('PATCH', 'collection_shares?id=eq.'+id, {
+      title:      (title||'').trim() || null,
+      show_prices: showPrices,
+      show_notes:  showNotes,
+      expires_at:  expires_at
+    });
+    // Aggiorna cache locale
+    window._colShareCache = (window._colShareCache||[]).map(function(r){
+      if(r.id !== id) return r;
+      return Object.assign({}, r, {
+        title:      (title||'').trim() || null,
+        show_prices: showPrices,
+        show_notes:  showNotes,
+        expires_at:  expires_at
+      });
+    });
+    colShareRender();
+    // Riapri il pannello edit per conferma visiva (lampeggio bordo verde)
+    var panel2 = document.getElementById('share-edit-'+id);
+    if(panel2){
+      panel2.classList.add('open');
+      panel2.style.borderColor = 'var(--success)';
+      setTimeout(function(){ if(panel2) panel2.style.borderColor = ''; }, 1200);
+    }
+  } catch(e){
+    if(btn){ btn.textContent = 'Salva modifiche'; btn.disabled = false; }
+    alert('Errore salvataggio: '+(e.message||'sconosciuto'));
+  }
+}
+window.colShareSaveEdit = colShareSaveEdit;
 async function colShareShow(token){
   const url = colShareBuildPublicUrl(token);
   const slot = document.getElementById('colShareResult');
