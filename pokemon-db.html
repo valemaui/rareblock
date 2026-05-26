@@ -4883,7 +4883,9 @@ async function _tcgdexCardsByDexIds(dexIds, langCode){
   var all=[];
   for(var i=0;i<ids.length;i++){
     try{
-      var part=await _fetchTCGdex('/'+langCode+'/cards?dexId='+encodeURIComponent(ids[i]));
+      // pageSize=30: Pikachu ha >1000 stampe JP — senza limite blocca la UI.
+      // Ritorna le carte più recenti (default sort TCGdex: releaseDate desc).
+      var part=await _fetchTCGdex('/'+langCode+'/cards?dexId='+encodeURIComponent(ids[i])+'&pageSize=30');
       if(Array.isArray(part)) all=all.concat(part);
     }catch(e){}
   }
@@ -4903,28 +4905,26 @@ async function rbSearchTCGdex(name, number, langCode){
   var briefs=[];
 
   if(isAsian){
-    // Bridge dexId: nome inglese → dexId → carte JP per dexId.
+    // Bridge dexId: nome inglese → dexId → carte JP più recenti (max 30).
     var dexIds=await _tcgdexResolveDexIds(name);
     if(dexIds.length){
       briefs=await _tcgdexCardsByDexIds(dexIds, langCode);
       console.log('[tcgdex] JP via dexId', dexIds, '→', briefs.length, 'carte');
     }
-    // Fallback: ricerca diretta per nome (utile se l'utente digita in giapponese).
+    // Fallback solo se dexId non ha trovato nulla (es. l'utente digita in giapponese).
     if(!briefs.length){
-      try{ briefs=await _fetchTCGdex('/'+langCode+'/cards?name='+encodeURIComponent(name)); }catch(e){ briefs=[]; }
+      try{ briefs=await _fetchTCGdex('/'+langCode+'/cards?name='+encodeURIComponent(name)+'&pageSize=30'); }
+      catch(e){ briefs=[]; }
       console.log('[tcgdex] JP via nome diretto →', (briefs&&briefs.length)||0, 'carte');
     }
   } else {
-    try{ briefs=await _fetchTCGdex('/'+langCode+'/cards?name='+encodeURIComponent(name)); }catch(e){ return []; }
+    try{ briefs=await _fetchTCGdex('/'+langCode+'/cards?name='+encodeURIComponent(name)+'&pageSize=30'); }
+    catch(e){ return []; }
     console.log('[tcgdex]', langCode, 'via nome →', (briefs&&briefs.length)||0, 'carte');
   }
   if(!Array.isArray(briefs)||!briefs.length) return [];
 
-  // Cap difensivo sul totale (i Pokemon comuni hanno centinaia di stampe JP).
-  if(briefs.length>60) briefs=briefs.slice(0,60);
-
-  // Se ho un numero, porta in cima i briefs con localId esatto: cosi'
-  // l'idratazione prezzi (cap 8) colpisce con priorita' la carta giusta.
+  // Se ho un numero, porta in cima i briefs con localId esatto.
   if(number){
     var num=String(number);
     briefs=briefs.slice().sort(function(a,b){
@@ -4934,11 +4934,10 @@ async function rbSearchTCGdex(name, number, langCode){
     });
   }
 
+  // Idrata i primi 8 per ottenere i prezzi CM; il resto rimane brief.
   var HYDRATE_CAP=8;
-  var head=briefs.slice(0,HYDRATE_CAP);
-  var tail=briefs.slice(HYDRATE_CAP);
-  var hydrated=await Promise.all(head.map(function(b){ return _tcgdexHydrate(b, langCode); }));
-  var rest=tail.map(function(b){ return tcgdexToTCGShape(b, langCode); });
+  var hydrated=await Promise.all(briefs.slice(0,HYDRATE_CAP).map(function(b){ return _tcgdexHydrate(b, langCode); }));
+  var rest=briefs.slice(HYDRATE_CAP).map(function(b){ return tcgdexToTCGShape(b, langCode); });
   var out=hydrated.concat(rest).filter(Boolean);
 
   out.sort(function(a,b){
@@ -4949,6 +4948,7 @@ async function rbSearchTCGdex(name, number, langCode){
   });
   return out;
 }
+
 
 // ── SEARCH ENGINE ──
 const cache={};
@@ -5101,14 +5101,6 @@ window.rbSearchCards = async function(name, number, setId, lang){
       if(na!==nb) return na-nb;
       return (a.number||'').localeCompare(b.number||'');
     });
-    // Fallback automatico: se un set occidentale non trova nulla, prova TCGdex JP
-    // (alcune carte/promo asiatici non esistono su pokemontcg.io).
-    if(!cards.length && name){
-      try{
-        var jf=await rbSearchTCGdex(name, number||null, 'ja');
-        if(jf.length) return jf;
-      }catch(e){}
-    }
     return cards;
   }
   // Senza setId: usa fetchCards (engine classico con fuzzy+translate+cache)
@@ -5118,15 +5110,6 @@ window.rbSearchCards = async function(name, number, setId, lang){
     var ex=all.filter(function(c){return c.number===number;});
     var pa=all.filter(function(c){return c.number&&c.number.startsWith(number+'/');});
     return ex.length?ex:(pa.length?pa:all);
-  }
-  // Fallback automatico a TCGdex JP quando pokemontcg.io non trova nulla:
-  // risolve il caso "non vedo le carte giapponesi" senza che l'utente debba
-  // selezionare esplicitamente la lingua.
-  if(!all.length && name){
-    try{
-      var jall=await rbSearchTCGdex(name, number||null, 'ja');
-      if(jall.length) return jall;
-    }catch(e){ console.warn('[rbSearchCards] TCGdex fallback error:', e); }
   }
   return all;
 };
