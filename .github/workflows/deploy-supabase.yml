@@ -39,19 +39,25 @@ jobs:
       - name: Determina funzioni da deployare
         id: which
         run: |
+          # elenco function gestite da questo workflow
+          ALL_FNS="smooth-endpoint slab-verify cmapi-test"
           FN_INPUT="${{ github.event.inputs.function }}"
-          if [ "$FN_INPUT" = "smooth-endpoint" ] || [ "$FN_INPUT" = "slab-verify" ]; then
-            echo "fns=$FN_INPUT" >> $GITHUB_OUTPUT
-            echo "Deploy esplicito: $FN_INPUT"
-            exit 0
-          fi
+          # dispatch esplicito di una singola function
+          for f in $ALL_FNS; do
+            if [ "$FN_INPUT" = "$f" ]; then
+              echo "fns=$f" >> $GITHUB_OUTPUT
+              echo "Deploy esplicito: $f"
+              exit 0
+            fi
+          done
           # auto-detect dal diff
           CHANGED=$(git diff --name-only HEAD^ HEAD -- 'supabase/functions/' || true)
           FNS=""
-          if echo "$CHANGED" | grep -q "supabase/functions/smooth-endpoint/"; then FNS="$FNS smooth-endpoint"; fi
-          if echo "$CHANGED" | grep -q "supabase/functions/slab-verify/";    then FNS="$FNS slab-verify"; fi
+          for f in $ALL_FNS; do
+            if echo "$CHANGED" | grep -q "supabase/functions/$f/"; then FNS="$FNS $f"; fi
+          done
           # se nessuna detectata (es. workflow_dispatch all), deploya tutte
-          if [ -z "$FNS" ]; then FNS="smooth-endpoint slab-verify"; fi
+          if [ -z "$FNS" ]; then FNS="$ALL_FNS"; fi
           echo "fns=$FNS" >> $GITHUB_OUTPUT
           echo "Functions da deployare:$FNS"
 
