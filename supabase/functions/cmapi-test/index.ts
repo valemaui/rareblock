@@ -84,20 +84,25 @@ Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   try {
-    // ── Auth: solo admin (non bruciare quota dal client) ──
+    // ── Auth: admin via JWT, OPPURE test-secret dal Dashboard ──
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) return json({ error: 'Missing Authorization' }, 401);
+    const TEST_SECRET = Deno.env.get('CMAPI_TEST_SECRET');
+    const providedSecret = req.headers.get('x-test-secret');
+    const secretOk = !!TEST_SECRET && providedSecret === TEST_SECRET;
 
     const SUPABASE_URL      = Deno.env.get('SUPABASE_URL')!;
     const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: u, error: uErr } = await userClient.auth.getUser();
-    if (uErr || !u?.user) return json({ error: 'Sessione non valida' }, 401);
 
-    const { data: isAdmin } = await userClient.rpc('is_admin');
-    if (!isAdmin) return json({ error: 'Forbidden: admin required' }, 403);
+    if (!secretOk) {
+      if (!authHeader) return json({ error: 'Missing Authorization (o usa header x-test-secret)' }, 401);
+      const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: u, error: uErr } = await userClient.auth.getUser();
+      if (uErr || !u?.user) return json({ error: 'Sessione non valida' }, 401);
+      const { data: isAdmin } = await userClient.rpc('is_admin');
+      if (!isAdmin) return json({ error: 'Forbidden: admin required' }, 403);
+    }
 
     // ── Secret ──
     const CMAPI_KEY = Deno.env.get('CMAPI_KEY');
