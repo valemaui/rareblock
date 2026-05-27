@@ -9571,6 +9571,7 @@ async function alignAllPrices(){
     try{
       var srv = await _vpServerSideCMScrape(cmUrl);
       if(srv.listings && srv.listings.length > 0){
+        _rbPersistConditionPrices(item, srv.listings, cmUrl);  // persisti per-condizione (non-bloccante)
         var smart = smartCMPrice(srv.listings, item.condition);
         var finalPrice = (smart && smart.price > 0) ? smart.price : srv.listings[0].price;
         item.cm_avg30 = Math.round(finalPrice * 100) / 100;
@@ -10105,6 +10106,38 @@ async function fetchCmPriceLive(opts){
   };
 }
 
+// ── Persistenza per-condizione: salva i listing CM aggregati in cm_price_by_condition ──
+// Chiamata fire-and-forget da verifyPrice: ogni carta quotata popola il DB con
+// 3 minimi + media per ogni condizione (Mint→Poor). Non blocca il preventivo.
+// card_key stabile = set_id|number|language|variant|firstEd (lower).
+function _rbBuildCardKey(c){
+  if(!c) return null;
+  var setId = (c.set_id || (c.set && c.set.id) || '').toString().toLowerCase().trim();
+  var num   = (c.number || c.card_number || '').toString().toLowerCase().trim();
+  if(!setId || !num) return null; // senza identità stabile non persistiamo
+  var lang  = (c.language || 'ITA').toString().toUpperCase().trim();
+  var vari  = (c.variant  || 'Normal').toString().trim();
+  var fe    = c.first_edition ? '1' : '0';
+  return [setId, num, lang, vari, fe].join('|');
+}
+function _rbPersistConditionPrices(c, listings, cmUrl){
+  try{
+    if(!listings || !listings.length) return;
+    var cardKey = _rbBuildCardKey(c);
+    if(!cardKey) return;
+    var clean = listings
+      .filter(function(l){ return l && typeof l.price === 'number' && l.price > 0 && l.condition && l.condition !== 'Unknown'; })
+      .map(function(l){ return { price: l.price, condition: l.condition, condRank: l.condRank || null, isFoil: !!l.isFoil }; });
+    if(!clean.length) return;
+    var meta = { cardName: c.name || null, cmUrl: cmUrl || null, source: 'verifyPrice' };
+    // fire-and-forget: nessun await, errori solo in console
+    supa('POST','rpc/cm_upsert_condition_from_listings',
+         { p_card_key: cardKey, p_meta: meta, p_listings: clean })
+      .then(function(n){ try{ console.log('[RareBlock] per-condizione salvate:', n, 'cond per', cardKey); }catch(e){} })
+      .catch(function(err){ try{ console.warn('[RareBlock] persist per-condizione fallita:', err && err.message); }catch(e){} });
+  }catch(e){ try{ console.warn('[RareBlock] _rbPersistConditionPrices error:', e); }catch(_){} }
+}
+
 async function verifyPrice(idx){
   const btn = document.getElementById('vbtn_'+idx);
   try{
@@ -10131,6 +10164,7 @@ async function verifyPrice(idx){
     log.log('\u{1F680} Scraping server-side\u2026','info');
     const srv = await _vpServerSideCMScrape(cmUrl);
     if(srv.listings && srv.listings.length > 0){
+      _rbPersistConditionPrices(c, srv.listings, cmUrl);  // persisti per-condizione (non-bloccante)
       const processed = _vpProcessListings(srv.listings, c.condition, log);
       if(processed){
         log.log('Server-side OK \u2014 nessuna tab aperta','ok');
