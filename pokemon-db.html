@@ -9393,12 +9393,30 @@ function cmAppendParams(baseUrl, cond, lang, variant, first1st){
 // Estrae l'URL autoritativo da un oggetto carta (TCG API) o da un record salvato.
 // Cerca in: card.cardmarket.url (TCG API live), card.cm_url (record salvato),
 // card.cardmarketUrl (alias). Ritorna null se non disponibile.
+//
+// FILTRO 'cardmarket.com only': la TCG API ritorna spesso card.cardmarket.url
+// come URL mirror su prices.pokemontcg.io (es. https://prices.pokemontcg.io/
+// cardmarket/ecard1-103). Quel dominio è dietro Cloudflare strict e blocca
+// sistematicamente le richieste server-side → smooth-endpoint fa 4 retry da
+// ~8s ciascuno = 33s totali per fallire. Accettiamo come autoritativo SOLO
+// gli URL diretti cardmarket.com (in qualunque lingua /it/, /en/, /de/, ...):
+// per gli altri torniamo null e si cade sulla cascata di ricostruzione client-
+// side (buildCMDirectUrl livelli 1/2/3) che storicamente funziona meglio per
+// lo scraping su www.cardmarket.com.
+// Effetto secondario benefico: i nuovi insert col cm_url salvato via questa
+// funzione conterranno solo URL veri cardmarket.com — il DB non si sporca più
+// con URL mirror inutili.
+function _isAuthoritativeCMUrl(u){
+  if(!u || typeof u !== 'string') return false;
+  return /^https?:\/\/(?:www\.)?cardmarket\.com\//i.test(u);
+}
 function cmAuthoritativeUrl(card){
   if(!card) return null;
-  if(card.cardmarket && card.cardmarket.url) return card.cardmarket.url;
-  if(card.cm_url) return card.cm_url;
-  if(card.cardmarketUrl) return card.cardmarketUrl;
-  return null;
+  var u = (card.cardmarket && card.cardmarket.url)
+       || card.cm_url
+       || card.cardmarketUrl
+       || null;
+  return _isAuthoritativeCMUrl(u) ? u : null;
 }
 
 // Costruisce URL alla pagina prodotto Cardmarket con filtri lingua/condizione/ed.
@@ -9413,8 +9431,14 @@ function cmAuthoritativeUrl(card){
 //  2. Browse set filtrato per nome: /Singles/{SetSlug}?searchString={Name}
 //  3. Ricerca generica: /Products/Search?searchString={Name}
 function buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, setName, rarity, cmUrlOverride){
-  // Livello 0: URL autoritativo dalla TCG API → precedenza assoluta
-  if(cmUrlOverride){
+  // Livello 0: URL autoritativo dalla TCG API → precedenza assoluta.
+  // NB: filtriamo cmUrlOverride con _isAuthoritativeCMUrl (cardmarket.com only)
+  // anche qui, oltre che in cmAuthoritativeUrl. Difesa-in-profondità: alcuni
+  // call site passano direttamente c.cm_url (record salvato) e in DB ci sono
+  // ancora URL mirror prices.pokemontcg.io scritti dai primi insert post-fix
+  // del 24 mag. Senza questo controllo entreremmo nel ramo override con un URL
+  // che server-side dà 33s di retry+403 (vedi note in _isAuthoritativeCMUrl).
+  if(cmUrlOverride && _isAuthoritativeCMUrl(cmUrlOverride)){
     var authUrl=cmAppendParams(cmUrlOverride, cond, lang, variant, first1st);
     if(authUrl) return authUrl;
   }
@@ -10097,7 +10121,14 @@ async function fetchCmPriceLive(opts){
   // Se l'URL deriva dall'URL autoritativo TCG API, è già esatto: niente cascata di
   // varianti V1/V2 (che genererebbe PRODOTTI DIVERSI). Su 403 si ritenta solo lo
   // stesso URL.
-  var isAuthoritative = !!cmUrlAuth;
+  // NB: 'autoritativo' vale SOLO se il cmUrlAuth ricevuto passa il filtro
+  // cardmarket.com-only (vedi _isAuthoritativeCMUrl). Senza questo controllo, un
+  // call site che passa direttamente c.cm_url='https://prices.pokemontcg.io/...'
+  // (record salvato pre-fix) marcherebbe isAuthoritative=true ANCHE quando
+  // buildCMDirectUrl ricostruisce l'URL client-side (e quindi vorremmo proprio
+  // la cascata varianti). Risultato del fix: per i set ambigui la cascata V1/V2
+  // torna ad attivarsi quando l'URL è effettivamente ricostruito.
+  var isAuthoritative = _isAuthoritativeCMUrl(cmUrlAuth);
   var isDirect = cmUrl.indexOf('/Singles/') !== -1 && cmUrl.indexOf('searchString=') === -1;
 
   // Traccia tutti i tentativi fatti — esposto al caller per logging dettagliato
