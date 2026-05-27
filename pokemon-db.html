@@ -4619,6 +4619,16 @@ function itToEn(name){
 // Cerca direttamente via TCG API (fallback quando Edge Function non trova)
 async function _fetchTCGDirect(query, pageSize){
   pageSize = pageSize||30;
+  // PRIMARIO: proxy hyper-endpoint (evita CORS di api.pokemontcg.io dal browser).
+  // Passiamo la query grezza come ?q=; il proxy inoltra alla TCG API server-side.
+  try{
+    const pUrl = SUPA_URL+'/functions/v1/hyper-endpoint?q='+encodeURIComponent(query)
+               +'&pageSize='+pageSize+'&orderBy=-set.releaseDate';
+    const pr = await fetch(pUrl, {headers:{'Authorization':'Bearer '+(window._rbSession&&window._rbSession.access_token||SUPA_KEY)}});
+    if(pr.ok){ const pd = await pr.json(); if(pd && pd.data) return pd.data; }
+  }catch(e){ /* proxy non disponibile/non supporta q → fallback diretto sotto */ }
+  // FALLBACK: chiamata diretta (puo' fallire per CORS su alcuni domini; in tal
+  // caso il chiamante ha gia' i propri catch e degrada).
   const r = await fetch(
     TCG_URL+'?q='+encodeURIComponent(query)+'&pageSize='+pageSize+'&orderBy=-set.releaseDate',
     {headers:{'X-Api-Key':TCG_KEY}}
@@ -11032,10 +11042,16 @@ async function scLoadAllSets(){
   if(scState.allSets && scState.allSets.length > 0) return;
   // Prima passata: usa subito la lista statica (nessuna attesa)
   scState.allSets = SC_SETS_STATIC.slice();
-  // Background: fetch API per lista completa e aggiornata
+  // Background: fetch API per lista completa e aggiornata.
+  // NB: chiamata diretta a api.pokemontcg.io dal browser → CORS/400 (l'API non
+  // espone Access-Control-Allow-Origin su /sets). Instradiamo via il proxy
+  // hyper-endpoint (stesso usato per le carte) con Authorization. Se il proxy
+  // non supporta i set, degradiamo in SILENZIO sulla lista statica (gia' attiva)
+  // senza generare errori in console.
   scState.setsLoading = true;
-  fetch('https://api.pokemontcg.io/v2/sets?orderBy=-releaseDate&pageSize=250', { headers:{'X-Api-Key':TCG_KEY} })
-    .then(function(r){ return r.ok ? r.json() : Promise.reject(r.status); })
+  var _setsProxy = SUPA_URL+'/functions/v1/hyper-endpoint?sets=1&orderBy=-releaseDate&pageSize=250';
+  fetch(_setsProxy, { headers:{'Authorization':'Bearer '+(window._rbSession&&window._rbSession.access_token||SUPA_KEY)} })
+    .then(function(r){ return r.ok ? r.json() : Promise.reject('HTTP '+r.status); })
     .then(function(d){
       if(d.data && d.data.length > 0){
         scState.allSets = d.data.map(function(s){
@@ -11052,7 +11068,7 @@ async function scLoadAllSets(){
         }catch(e){ console.warn('[setpicker] msSetsAll upgrade failed:', e); }
       }
     })
-    .catch(function(e){ console.warn('scLoadAllSets API:', e); /* usa lista statica */ })
+    .catch(function(e){ /* proxy non disponibile o /sets non supportato → lista statica (gia' attiva), nessun errore */ if(window._rbDebug) console.debug('scLoadAllSets: uso lista statica', e); })
     .finally(function(){ scState.setsLoading = false; });
 }
 
