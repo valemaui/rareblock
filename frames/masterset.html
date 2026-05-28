@@ -1253,16 +1253,45 @@ window.msCreateMasterset = function(){
 };
 
 function msFetchSetCards(setId,page,acc,done,fail,prog){
-  fetch(TCG_BASE+'/cards?q=set.id:'+encodeURIComponent(setId)+'&page='+page+'&pageSize=250&orderBy=number',{headers:{'X-Api-Key':TCG_KEY}})
-    .then(function(r){ if(!r.ok) throw new Error('Pokémon TCG API HTTP '+r.status); return r.json(); })
-    .then(function(d){
-      var all=acc.concat(d.data||[]);
-      var total=d.totalCount||0;
-      if(typeof prog==='function'){ try{ prog(all.length, total); }catch(_){} }
-      if(all.length<total&&page<10) msFetchSetCards(setId,page+1,all,done,fail,prog);
-      else if(!all.length) fail('nessuna carta trovata per il set "'+setId+'" (set.id non valido?)');
-      else done(all);
-    }).catch(function(e){ fail(e&&e.message?e.message:String(e)); });
+  // Le chiamate dirette a api.pokemontcg.io sono CORS-bloccate dal browser
+  // ("Failed to fetch" su Chrome, "NetworkError" su Firefox). Pattern del
+  // resto del codebase (vedi pokemon-db.html _fetchTCGDirect / _fetchRaw):
+  // SEMPRE proxy via Edge Function hyper-endpoint, che accetta ?q=<raw> con
+  // page/pageSize/orderBy e ritorna il body TCG-shape (data + totalCount).
+  // Header minimale: SOLO Authorization, niente Content-Type/apikey/Prefer
+  // per non triggerare CORS preflight.
+  var token = (window._rbSession && window._rbSession.access_token) || SUPA_KEY;
+  var url = SUPA_URL + '/functions/v1/hyper-endpoint?q='
+          + encodeURIComponent('set.id:'+setId)
+          + '&page=' + page + '&pageSize=250&orderBy=number';
+  async function attempt(n){
+    try{
+      var r = await fetch(url, {headers:{'Authorization':'Bearer '+token}});
+      if(!r.ok) throw new Error('proxy HTTP '+r.status);
+      var d = await r.json();
+      // hyper-endpoint può restituire 200 con {data:[],error:'...'} su fail upstream
+      if(d && d.error && (!d.data || !d.data.length)) throw new Error('upstream: '+d.error);
+      var all = acc.concat(d.data || []);
+      var total = d.totalCount || 0;
+      if(typeof prog === 'function'){ try{ prog(all.length, total); }catch(_){} }
+      if(all.length < total && page < 10){
+        msFetchSetCards(setId, page+1, all, done, fail, prog);
+      } else if(!all.length){
+        fail('nessuna carta trovata per il set "'+setId+'" (set.id non valido?)');
+      } else {
+        done(all);
+      }
+    }catch(e){
+      var msg = e && e.message ? e.message : String(e);
+      if(n < 3){
+        console.warn('[msFetchSetCards] tentativo '+n+' fallito ('+msg+') — retry tra '+(n*1000)+'ms');
+        setTimeout(function(){ attempt(n+1); }, n*1000);
+      } else {
+        fail(msg+' (3 tentativi falliti · set='+setId+' · pagina='+page+')');
+      }
+    }
+  }
+  attempt(1);
 }
 
 })();
