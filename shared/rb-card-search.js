@@ -831,7 +831,7 @@ async function _fetchRaw(name,attempt=1){
     cache[key]=cards;
     setLed('green','Online ('+(Date.now()-start)+'ms)');
     clearTimeout(apiCheckTimer);
-    apiCheckTimer=setTimeout(checkApiStatus,API_CHECK_INTERVAL);
+    window.apiCheckTimer=setTimeout(checkApiStatus,API_CHECK_INTERVAL);
     return cards;
   }catch(e){setLed('red','Errore: '+e.message);throw e;}
 }

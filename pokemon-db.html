@@ -3649,6 +3649,10 @@ const SUPA_URL='https://rbjaaeyjeeqfpbzyavag.supabase.co';
 const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
 const TCG_URL='https://api.pokemontcg.io/v2/cards';
 const TCG_KEY='ca385a14-d149-4a9f-a275-3bda5b7b1555';
+/* Esposti su window: letti dai moduli shared/ (script separati). I const NON
+ * sono condivisi cross-script → senza questo, _fetchTCGDirect/_vpServerSideCMScrape
+ * vanno in ReferenceError (ricerca lenta + CardMarket non recuperato). */
+window.SUPA_URL=SUPA_URL; window.SUPA_KEY=SUPA_KEY; window.TCG_URL=TCG_URL; window.TCG_KEY=TCG_KEY;
 
 // ── API keys placeholders (sostituiti da GitHub Actions in deploy) ───────
 // In repo restano come placeholder; il workflow deploy-ftp.yml fa sed-i
@@ -9157,9 +9161,10 @@ dz.addEventListener('drop',e=>{
 
 // ── API STATUS MONITOR ──
 const API_CHECK_INTERVAL = 30000; // check LED ogni 30s
+window.API_CHECK_INTERVAL = API_CHECK_INTERVAL; // letto dal modulo rb-card-search.js
 const API_WARN_MS = 1500;
 const KEEPALIVE_INTERVAL = 4 * 60 * 1000; // keep-alive ogni 4 minuti
-let apiCheckTimer = null;
+window.apiCheckTimer = null; // riferimento timer condiviso col modulo (riassegnato qui e in _fetchRaw)
 let lastApiStatus = null;
 
 // ── KEEP-ALIVE ──
@@ -9223,7 +9228,7 @@ async function checkApiStatus(){
   }
   // Prossimo check sull'intervallo normale (nessun loop di retry rapido)
   clearTimeout(apiCheckTimer);
-  apiCheckTimer = setTimeout(checkApiStatus, API_CHECK_INTERVAL);
+  window.apiCheckTimer = setTimeout(checkApiStatus, API_CHECK_INTERVAL);
 }
 
 // Avvio controllato dall'auth — rbAuthInit() chiama appStart() dopo login
