@@ -162,6 +162,7 @@ body{display:flex;flex-direction:column}
           <div class="ms-topbar-title" id="msTopTitle"></div>
           <div class="ms-topbar-meta" id="msTopMeta"></div>
           <button class="btn" onclick="msToggleConditions()" id="msToggleCondBtn" title="Attiva/Disattiva tracciamento per condizione (NM/EX/GD/LP/PL/PO)">Condizioni</button>
+          <button class="btn" onclick="msDupesOpen()" title="Lista delle carte in eccesso da scambiare">⇄ Doppie</button>
           <button class="btn" onclick="msExportCSV()">&#8595; CSV</button>
           <button class="btn btn-danger" onclick="msDeleteCurrent()">Elimina</button>
         </div>
@@ -254,6 +255,32 @@ body{display:flex;flex-direction:column}
     <div class="ms-cond-pop-foot">
       <div class="ms-cond-pop-tot">Totale: <b id="msCondPopTot">0</b></div>
       <button class="btn" onclick="msCondPopClose()">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Doppie modal ────────────────────────────────────────────────────── -->
+<div class="ms-modal-bg" id="msDupesBg" onclick="if(event.target===this)msDupesClose()">
+  <div class="ms-modal" style="max-width:780px;width:92vw;max-height:90vh;display:flex;flex-direction:column">
+    <h3 id="msDupesTitle" style="margin:0 0 4px">⇄ Doppie da scambiare</h3>
+    <div id="msDupesSub" style="font-size:11px;color:var(--text-subtle);margin-bottom:10px"></div>
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:10px">
+      <div style="flex:1">
+        <div style="font-size:11px;color:var(--text-muted);font-weight:500">Tieni per stampa</div>
+        <div style="font-size:10px;color:var(--text-subtle);margin-top:2px">Per ogni stampa (carta+variante), quante copie tenere. Le copie in eccesso vanno nella lista.</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <button class="btn" onclick="msDupesAdjust(-1)" style="padding:4px 10px;font-size:14px;line-height:1">−</button>
+        <input type="number" id="msDupesKeep" value="1" min="0" max="99" onchange="msDupesRender()" style="width:60px;text-align:center;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:6px;border-radius:6px;font-size:13px;font-family:inherit"/>
+        <button class="btn" onclick="msDupesAdjust(1)" style="padding:4px 10px;font-size:14px;line-height:1">+</button>
+      </div>
+    </div>
+    <div id="msDupesSummary" style="font-size:12px;color:var(--text);margin-bottom:8px"></div>
+    <div id="msDupesList" style="flex:1;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:8px"></div>
+    <div class="ms-modal-foot" style="margin-top:10px">
+      <button class="btn" onclick="msDupesClose()">Chiudi</button>
+      <button class="btn" onclick="msDupesCopyText()" id="msDupesCopyBtn" title="Copia un testo formattato per Discord/Telegram/WhatsApp">📋 Copia testo</button>
+      <button class="btn btn-primary" onclick="msDupesExportCSV()">↓ Esporta CSV</button>
     </div>
   </div>
 </div>
@@ -1029,6 +1056,158 @@ window.msExportCSV = function(){
   var a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(rows.join('\n'));
   a.download='masterset_'+ms.setName.replace(/\s+/g,'_')+'_'+ms.lang+(ms.trackConditions?'_cond':'')+'.csv'; a.click();
+};
+
+// ── Doppie (carte in eccesso da scambiare) ───────────────────────────────
+// Granulato: una riga per (carta, variante). qty_totale_variante sommata su
+// tutte le condizioni (se trackConditions ON), o sui qty raw. dupes = max(0,
+// owned - keep). Le stampe con owned===0 o owned<=keep non compaiono.
+// La preferenza keep è per-masterset, in localStorage (UX preference).
+function _msDupesKeepKey(msId){
+  var uid = getCurrentUserId() || 'anon';
+  return 'rb_ms_dupes_keep_'+uid+'_'+msId;
+}
+function _msDupesReadKeep(msId){
+  try{ var v=parseInt(localStorage.getItem(_msDupesKeepKey(msId)),10); return (isNaN(v)||v<0)?1:Math.min(99,v); }
+  catch(_){ return 1; }
+}
+function _msDupesWriteKeep(msId,v){
+  try{ localStorage.setItem(_msDupesKeepKey(msId), String(v)); }catch(_){}
+}
+// Costruisce la lista delle doppie per il masterset corrente, dato keep.
+function _msDupesCompute(ms, keep){
+  var out = [];
+  ms.cards.forEach(function(card){
+    ms.variants.forEach(function(v){
+      var owned = qtyTotal(card, v);
+      if(owned > keep){
+        out.push({
+          num: card.num, name: card.name, rarity: card.rarity||'',
+          variant: v, owned: owned, keep: keep, dupes: owned - keep,
+          img: card.img||''
+        });
+      }
+    });
+  });
+  return out;
+}
+window.msDupesOpen = function(){
+  if(!msActive) return;
+  var ms = msData.find(function(m){return m.id===msActive;});
+  if(!ms) return;
+  var keep = _msDupesReadKeep(ms.id);
+  document.getElementById('msDupesKeep').value = String(keep);
+  document.getElementById('msDupesTitle').textContent = '⇄ Doppie · '+ms.setName+(ms.label?(' · '+ms.label):'');
+  document.getElementById('msDupesSub').textContent = ms.lang+' · '+ms.cards.length+' carte nel set';
+  document.getElementById('msDupesBg').classList.add('show');
+  msDupesRender();
+};
+window.msDupesClose = function(){
+  document.getElementById('msDupesBg').classList.remove('show');
+};
+window.msDupesAdjust = function(delta){
+  var inp = document.getElementById('msDupesKeep');
+  var v = parseInt(inp.value,10); if(isNaN(v)) v=1;
+  v = Math.max(0, Math.min(99, v+delta));
+  inp.value = String(v);
+  msDupesRender();
+};
+window.msDupesRender = function(){
+  if(!msActive) return;
+  var ms = msData.find(function(m){return m.id===msActive;});
+  if(!ms) return;
+  var keep = parseInt(document.getElementById('msDupesKeep').value,10);
+  if(isNaN(keep)||keep<0) keep=0;
+  if(keep>99) keep=99;
+  _msDupesWriteKeep(ms.id, keep);
+  var list = _msDupesCompute(ms, keep);
+  var totDupes = list.reduce(function(s,r){return s+r.dupes;},0);
+  document.getElementById('msDupesSummary').innerHTML =
+    list.length
+      ? '<b>'+list.length+'</b> '+(list.length===1?'stampa':'stampe')+' in eccesso · <b>'+totDupes+'</b> '+(totDupes===1?'doppia totale':'doppie totali')
+      : '<span style="color:var(--text-subtle)">Nessuna stampa in eccesso con tieni='+keep+'</span>';
+  var el = document.getElementById('msDupesList');
+  if(!list.length){
+    el.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-subtle);font-size:12px">Niente da scambiare ✓</div>';
+    document.getElementById('msDupesCopyBtn').disabled = true;
+    return;
+  }
+  document.getElementById('msDupesCopyBtn').disabled = false;
+  var html = '<table style="width:100%;border-collapse:collapse;font-size:12px">'+
+    '<thead style="position:sticky;top:0;background:var(--surface2);z-index:1">'+
+      '<tr style="text-align:left">'+
+        '<th style="padding:8px 10px;font-weight:500;color:var(--text-muted);font-size:11px;border-bottom:1px solid var(--border);width:44px"></th>'+
+        '<th style="padding:8px 6px;font-weight:500;color:var(--text-muted);font-size:11px;border-bottom:1px solid var(--border);width:50px">#</th>'+
+        '<th style="padding:8px 6px;font-weight:500;color:var(--text-muted);font-size:11px;border-bottom:1px solid var(--border)">Nome</th>'+
+        '<th style="padding:8px 6px;font-weight:500;color:var(--text-muted);font-size:11px;border-bottom:1px solid var(--border)">Variante</th>'+
+        '<th style="padding:8px 6px;font-weight:500;color:var(--text-muted);font-size:11px;border-bottom:1px solid var(--border)">Rarità</th>'+
+        '<th style="padding:8px 6px;text-align:right;font-weight:500;color:var(--text-muted);font-size:11px;border-bottom:1px solid var(--border);width:50px">Hai</th>'+
+        '<th style="padding:8px 6px;text-align:right;font-weight:500;color:var(--text-muted);font-size:11px;border-bottom:1px solid var(--border);width:60px">Tieni</th>'+
+        '<th style="padding:8px 10px;text-align:right;font-weight:600;color:var(--accent);font-size:11px;border-bottom:1px solid var(--border);width:70px">Doppie</th>'+
+      '</tr></thead><tbody>';
+  list.forEach(function(r){
+    html += '<tr style="border-bottom:1px solid var(--border)">'+
+      '<td style="padding:6px 10px">'+(r.img?'<img src="'+esc(r.img)+'" style="height:36px;border-radius:3px" loading="lazy"/>':'')+'</td>'+
+      '<td style="padding:6px;font-family:var(--font-mono,monospace);color:var(--text-subtle)">'+esc(r.num)+'</td>'+
+      '<td style="padding:6px">'+esc(r.name)+'</td>'+
+      '<td style="padding:6px;color:var(--text-muted)">'+esc(r.variant)+'</td>'+
+      '<td style="padding:6px;color:var(--text-subtle);font-size:11px">'+esc(r.rarity)+'</td>'+
+      '<td style="padding:6px;text-align:right;font-family:var(--font-mono,monospace)">'+r.owned+'</td>'+
+      '<td style="padding:6px;text-align:right;font-family:var(--font-mono,monospace);color:var(--text-subtle)">'+r.keep+'</td>'+
+      '<td style="padding:6px 10px;text-align:right;font-family:var(--font-mono,monospace);color:var(--accent);font-weight:600">×'+r.dupes+'</td>'+
+      '</tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+};
+window.msDupesExportCSV = function(){
+  if(!msActive) return;
+  var ms = msData.find(function(m){return m.id===msActive;});
+  if(!ms) return;
+  var keep = parseInt(document.getElementById('msDupesKeep').value,10)||0;
+  var list = _msDupesCompute(ms, keep);
+  // CSV: virgolette doppie nei nomi escapate raddoppiandole (RFC 4180).
+  function csvCell(s){ return '"'+String(s).replace(/"/g,'""')+'"'; }
+  var rows = ['#,Nome,Variante,Rarità,Hai,Tieni,Doppie'];
+  list.forEach(function(r){
+    rows.push([csvCell(r.num),csvCell(r.name),csvCell(r.variant),csvCell(r.rarity),r.owned,r.keep,r.dupes].join(','));
+  });
+  var a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(rows.join('\n'));
+  a.download = 'doppie_'+ms.setName.replace(/\s+/g,'_')+'_'+ms.lang+(ms.label?'_'+ms.label.replace(/\s+/g,'_'):'')+'_keep'+keep+'.csv';
+  a.click();
+};
+window.msDupesCopyText = function(){
+  if(!msActive) return;
+  var ms = msData.find(function(m){return m.id===msActive;});
+  if(!ms) return;
+  var keep = parseInt(document.getElementById('msDupesKeep').value,10)||0;
+  var list = _msDupesCompute(ms, keep);
+  if(!list.length){ alert('Nessuna doppia da copiare con tieni='+keep+'.'); return; }
+  var totDupes = list.reduce(function(s,r){return s+r.dupes;},0);
+  var header = '🔄 Doppie · '+ms.setName+' · '+ms.lang+(ms.label?(' · '+ms.label):'');
+  var sub = 'Tengo: '+keep+'/stampa · '+list.length+' stampe · '+totDupes+' doppie totali';
+  var lines = list.map(function(r){
+    return '• #'+r.num+' '+r.name+(r.variant&&r.variant!=='NORMAL'?(' ('+r.variant+')'):'')+' ×'+r.dupes;
+  });
+  var txt = header+'\n'+sub+'\n\n'+lines.join('\n');
+  var btn = document.getElementById('msDupesCopyBtn');
+  var ok = function(){
+    var orig = btn.textContent; btn.textContent = '✓ Copiato'; btn.disabled = true;
+    setTimeout(function(){ btn.textContent = orig; btn.disabled = false; }, 1500);
+  };
+  var fallback = function(){
+    // Fallback per browser/contesti dove navigator.clipboard non è disponibile
+    var ta = document.createElement('textarea');
+    ta.value = txt; ta.style.position='fixed'; ta.style.left='-9999px';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try{ document.execCommand('copy'); ok(); }
+    catch(_){ alert('Copia non supportata in questo browser. Testo:\n\n'+txt); }
+    document.body.removeChild(ta);
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(ok, fallback);
+  } else { fallback(); }
 };
 
 window.msOpenModal = function(){
