@@ -15,7 +15,7 @@ threshold PriceCharting). Riscriverla "da zero" regredirebbe mesi di lavoro. "Da
 | Cluster | Funzioni chiave | Accoppiamento | Stato |
 |---|---|---|---|
 | **URL CardMarket** (puro) | `buildCMDirectUrl`, `buildCMSearchUrl`, `buildCMDirectUrlVariants`, `cmAuthoritativeUrl`, `cmAppendParams`, `buildCardmarketSlug`, `_cmPrimaryVersionFor` + mappe `CM_SET_SLUG/ABBREV/NAME_TO_ID/LANG_ID/COND_ID/DIRECT_SETS/AMBIGUOUS_VERSION_SETS` | nessuno (solo stringhe) | ✅ **estratto** → `shared/rb-cm-url.js` |
-| **Ricerca dati carte** | `rbSearchCards` (entry), `_fetchTCGDirect` (TCG API via proxy `hyper-endpoint`), cluster TCGdex (`rbSearchTCGdex`, `_tcgdexHydrate`, `_tcgdexResolveDexIds`, `_tcgdexCardsByDexIds`, `tcgdexToTCGShape`...), `itToEn` | rete (Supabase proxy), `SUPA_URL/KEY`, `window._rbSession` | ⏳ Fase 2 |
+| **Ricerca dati carte** | `rbSearchCards` (entry), `_fetchTCGDirect` (TCG API via proxy `hyper-endpoint`), cluster TCGdex (`rbSearchTCGdex`, `_tcgdexHydrate`, `_tcgdexResolveDexIds`, `_tcgdexCardsByDexIds`, `tcgdexToTCGShape`...), `itToEn`+`IT_EN_MAP`, cache+`nameVariants`/`_fetchRaw`/`fetchCards` | rete (Supabase proxy), `SUPA_URL/KEY`, `TCG_URL/KEY`, `window._rbSession`, `calcPrice`, `document` (1 punto) | ✅ **estratto** → `shared/rb-card-search.js` |
 | **Scraping prezzo CM** | `fetchCmPriceLive`, `verifyPrice`, `_vpServerSideCMScrape` (`smooth-endpoint`), `_vpProcessListings`, `_isFakeCmListings`, `_rbPersistConditionPrices`, registry `_rbRegisterPriceHandler`, conversione valuta `frankfurter.app` | rete, Supabase, sessionStorage, Realtime/tab CM | ⏳ Fase 3 |
 | **Matematica prezzo** | `calcBaseNMPrice`, `calcPrice`, `smartCMPrice` | puro | ⏳ Fase 2 (con la ricerca) |
 
@@ -30,10 +30,14 @@ Scan (`scResolveTCG`, `scManualSearch`), Analizza, più i `frames/` (analizza.ht
   inline; blocco duplicato rimosso dal monolite. API: nomi globali retro-compatibili
   **+** namespace `RBCM.*`. Atomico per evitare il `SyntaxError` da ridichiarazione `const`.
 
-- **Fase 2 — Motore di ricerca** (`shared/rb-card-search.js`)
-  Estrarre `rbSearchCards` + TCGdex + `_fetchTCGDirect` + matematica prezzo. Dipendenze di
-  rete iniettate via piccolo config (`RBCardSearch.init({supaUrl, supaKey, getSession})`)
-  invece di leggere globali → testabile e usabile dai `frames/`.
+- **Fase 2 — Motore di ricerca** ✅ *(fatto)*
+  Estratto il range contiguo 4199–5126 (IT_EN_MAP, itToEn, _fetchTCGDirect, cluster
+  TCGdex, rbSearchTCGdex, cache+nameVariants/_fetchRaw/fetchCards, rbSearchCards) in
+  `shared/rb-card-search.js`. API: nomi globali retro-compatibili + namespace `RBSearch.*`.
+  Include caricato dopo rb-cm-url e prima dello <script> inline; blocco rimosso atomico.
+  L'autocomplete UI (DOM, da ~5127) resta nel monolite. Validato `node --check` (5/5 blocchi).
+  Dipendenze runtime ancora dai global del monolite (SUPA/TCG/calcPrice): diventano
+  parametri di `RBSearch.init({...})` in Fase 4 per il riuso nei frames/.
 
 - **Fase 3 — Motore prezzo CM** (`shared/rb-cm-price.js`)
   Estrarre `fetchCmPriceLive`/`verifyPrice` e il registry handler. È il cluster più
