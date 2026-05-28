@@ -4,8 +4,7 @@
  * MODULO ISOLATO — Livello "ricerca dati carte" del Card Engine.
  * Unifica due fonti e le normalizza nella stessa forma (TCG API shape):
  *   • Pokémon TCG API (api.pokemontcg.io) via proxy Supabase hyper-endpoint
- *   • TCGdex (api.tcgdex.net) per JP/KO/ZH e come fallback automatico
- * Entry pubblica: rbSearchCards(name, number, setId, lang) → Card[] normalizzate.
+ *  * Entry pubblica: rbSearchCards(name, number, setId, lang) → Card[] normalizzate.
  * Estratto verbatim da pokemon-db.html (righe 4199–5126) — NON riscritto.
  * Vedi docs/REFACTOR-CARD-ENGINE.md (Fase 2).
  *
@@ -21,10 +20,8 @@
  *
  * API pubblica (namespace RBSearch, oltre ai nomi globali retro-compatibili):
  *   RBSearch.search(name, number, setId, lang)   → alias di rbSearchCards
- *   RBSearch.searchTCGdex(name, number, langCode) → alias di rbSearchTCGdex
  *   RBSearch.fetchTCGDirect(query, pageSize)
  *   RBSearch.itToEn(name)
- *   RBSearch.toTCGShape(card, langCode)           → alias di tcgdexToTCGShape
  * ==========================================================================*/
 
 // Nomi italiani non standard (quelli identici all'inglese non servono)
@@ -572,224 +569,6 @@ async function _fetchTCGDirect(query, pageSize){
   return d.data||[];
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-// TCGDEX · fonte dati multilingua (giapponese, coreano, cinese, ...)
-// ──────────────────────────────────────────────────────────────────────────
-// La Pokémon TCG API (api.pokemontcg.io) copre SOLO le lingue occidentali
-// (EN/IT/FR/DE/ES): le carte giapponesi e molti set asiatici NON esistono nel
-// suo database, quindi NESSUNA query li trova (era questo il motivo per cui le
-// carte JP non comparivano nei risultati). TCGdex (api.tcgdex.net) e' gratuito,
-// senza key, open-source, ~130k carte, supporta ja/ko/zh e fornisce gia' il
-// pricing Cardmarket in EUR. Lo usiamo in due modi:
-//   • fonte ESPLICITA quando l'utente cerca in lingua JPN/KOR/ZH/...
-//   • FALLBACK automatico quando pokemontcg.io non trova nulla
-// Tutte le carte TCGdex vengono normalizzate nella STESSA forma di
-// pokemontcg.io (tcgdexToTCGShape) cosi' il resto dell'app — calcPrice,
-// renderResultsGrid, showQuickMatch, salvataggio Supabase — funziona invariato.
-//
-// NOTA prezzi: molte carte JP di nicchia non hanno pricing CM su TCGdex; in quel
-// caso calcPrice resta silente (nessun prezzo mostrato) e l'utente puo' comunque
-// catalogare la carta e verificare manualmente via il link ↗ CM.
-const TCGDEX_BASE='https://api.tcgdex.net/v2';
-
-// Lingue presenti SOLO su TCGdex (assenti su pokemontcg.io). Le occidentali
-// (en/it/fr/de/es/pt) restano sul motore classico; queste forzano TCGdex.
-const TCGDEX_ONLY_LANGS={'ja':1,'ko':1,'zh-tw':1,'zh-cn':1,'th':1,'id':1};
-
-// UI lingua (valore dropdown ITA/ENG/JPN/...) → codice lingua TCGdex.
-// Mappa locale auto-contenuta (non dipende da CM_LANG, definita piu' in basso:
-// evita fragilita' di ordine fra const cross-script, cfr. ban IIFE).
-const TCGDEX_LANG_MAP={'ITA':'it','ENG':'en','JPN':'ja','DEU':'de','FRA':'fr','ESP':'es','KOR':'ko','POR':'pt'};
-function tcgdexLangCode(uiLang){ return (uiLang&&TCGDEX_LANG_MAP[uiLang])||'en'; }
-// Reverse: codice lingua TCGdex (ja/ko/...) → valore dropdown UI (JPN/KOR/...).
-function tcgdexUiLangFromCode(code){
-  for(var k in TCGDEX_LANG_MAP){ if(TCGDEX_LANG_MAP[k]===code) return k; }
-  return null;
-}
-// Imposta il dropdown lingua sul valore corretto se la carta proviene da TCGdex.
-// Best-effort: non fa nulla per carte pokemontcg.io o se il select non esiste.
-function tcgdexSyncLangSelect(card, selectId){
-  if(!card || card._source!=='tcgdex') return;
-  var ui=tcgdexUiLangFromCode(card._tcgdexLang||'ja');
-  var el=document.getElementById(selectId);
-  if(el && ui) el.value=ui;
-}
-
-// Costruisce l'URL immagine: il campo `image` di TCGdex e' un base URL SENZA
-// estensione (es. https://assets.tcgdex.net/ja/sv/sv1/25). Va appeso
-// /{quality}.{format}. quality: high|low ; format: png|webp|jpg.
-function tcgdexImg(baseImage, quality){
-  if(!baseImage) return '';
-  return baseImage+'/'+(quality||'high')+'.webp';
-}
-
-// URL ricerca Cardmarket (per verifica manuale ↗) filtrato per lingua. I set
-// JP non hanno URL prodotto deterministico → usiamo sempre la ricerca generica.
-function tcgdexCmSearchUrl(card, langCode){
-  var name=(card&&card.name)||'';
-  var cmLangId=({'en':1,'fr':2,'de':3,'es':4,'it':5,'ja':7,'pt':8,'ko':10})[langCode||'ja']||7;
-  return 'https://www.cardmarket.com/it/Pokemon/Products/Search?searchString='
-       +encodeURIComponent(name)+'&language='+cmLangId;
-}
-
-// Mappa pricing.cardmarket di TCGdex nelle chiavi lette da calcBaseNMPrice.
-// TCGdex: avg/low/trend/avg1/avg7/avg30 (non-foil) + *-holo (foil).
-// pokemontcg.io: trendPrice/lowPrice/avg1/avg7/avg30/averageSellPrice
-//                + reverseHoloTrend/Low/Avg7/Avg30 (foil → ramo reverse).
-function tcgdexPricesToTCG(cm){
-  if(!cm) return null;
-  var out={};
-  if(cm.trend!=null)  out.trendPrice      =cm.trend;
-  if(cm.low!=null)    out.lowPrice         =cm.low;
-  if(cm.avg!=null)    out.averageSellPrice =cm.avg;
-  if(cm.avg1!=null)   out.avg1             =cm.avg1;
-  if(cm.avg7!=null)   out.avg7             =cm.avg7;
-  if(cm.avg30!=null)  out.avg30            =cm.avg30;
-  if(cm['trend-holo']!=null) out.reverseHoloTrend=cm['trend-holo'];
-  if(cm['low-holo']!=null)   out.reverseHoloLow  =cm['low-holo'];
-  if(cm['avg7-holo']!=null)  out.reverseHoloAvg7 =cm['avg7-holo'];
-  if(cm['avg30-holo']!=null) out.reverseHoloAvg30=cm['avg30-holo'];
-  return Object.keys(out).length?out:null;
-}
-
-// Normalizza una carta TCGdex (full o brief) nella forma pokemontcg.io.
-function tcgdexToTCGShape(card, langCode){
-  if(!card) return null;
-  var setObj=card.set||{};
-  var prices=(card.pricing&&card.pricing.cardmarket)?tcgdexPricesToTCG(card.pricing.cardmarket):null;
-  var shaped={
-    id:card.id,
-    name:card.name||'',
-    number:(card.localId!=null?String(card.localId):''),
-    rarity:card.rarity||'',
-    set:{
-      id:setObj.id||'',
-      name:setObj.name||'',
-      series:(setObj.serie&&setObj.serie.name)?setObj.serie.name:''
-    },
-    images:{
-      small:tcgdexImg(card.image,'low'),
-      large:tcgdexImg(card.image,'high')
-    },
-    _source:'tcgdex',
-    _tcgdexLang:langCode||'ja'
-  };
-  // cardmarket.url sempre presente (verifica manuale); prices solo se disponibili.
-  shaped.cardmarket=prices
-    ? {prices:prices, url:tcgdexCmSearchUrl(card, langCode)}
-    : {url:tcgdexCmSearchUrl(card, langCode)};
-  return shaped;
-}
-
-// Fetch grezzo verso TCGdex (ritorna array di brief o singolo oggetto).
-async function _fetchTCGdex(path){
-  var r=await fetch(TCGDEX_BASE+path,{headers:{'Accept':'application/json'}});
-  if(!r.ok) throw new Error('TCGdex '+r.status);
-  return await r.json();
-}
-
-// Idrata un brief in carta completa (per ottenere il pricing). Best-effort:
-// se l'idratazione fallisce, ritorna la forma normalizzata dal solo brief.
-async function _tcgdexHydrate(brief, langCode){
-  try{
-    var full=await _fetchTCGdex('/'+langCode+'/cards/'+encodeURIComponent(brief.id));
-    return tcgdexToTCGShape(full, langCode);
-  }catch(e){
-    return tcgdexToTCGShape(brief, langCode);
-  }
-}
-
-// Risolve nome (in inglese/romaji) → dexId Pokédex via endpoint EN di TCGdex.
-// Il dexId e' indipendente dalla lingua, quindi permette di trovare le carte
-// giapponesi anche se l'utente digita il nome in inglese (l'endpoint ja filtra
-// invece sul nome GIAPPONESE). Best-effort: ritorna [] se non risolvibile.
-async function _tcgdexResolveDexIds(name){
-  try{
-    var en=null;
-    // 1) match esatto (pinna il Pokemon giusto, es. "Pikachu")
-    try{ en=await _fetchTCGdex('/en/cards?category=Pokemon&name=eq:'+encodeURIComponent(name)); }catch(e){}
-    // 2) fallback contains (es. "Charizard ex" → trova Charizard)
-    if(!Array.isArray(en)||!en.length){
-      try{ en=await _fetchTCGdex('/en/cards?category=Pokemon&name='+encodeURIComponent(name)); }catch(e){}
-    }
-    if(!Array.isArray(en)||!en.length) return [];
-    // I brief non includono dexId → idrata il primo risultato per leggerlo.
-    var full=await _fetchTCGdex('/en/cards/'+encodeURIComponent(en[0].id));
-    return Array.isArray(full.dexId)?full.dexId:[];
-  }catch(e){ return []; }
-}
-
-// Recupera i brief delle carte JP per uno o piu' dexId (di norma 1). Dedup per id.
-async function _tcgdexCardsByDexIds(dexIds, langCode){
-  var ids=(dexIds||[]).slice(0,3); // di norma 1 dexId; cap difensivo
-  var all=[];
-  for(var i=0;i<ids.length;i++){
-    try{
-      // pageSize=30: Pikachu ha >1000 stampe JP — senza limite blocca la UI.
-      // Ritorna le carte più recenti (default sort TCGdex: releaseDate desc).
-      var part=await _fetchTCGdex('/'+langCode+'/cards?dexId='+encodeURIComponent(ids[i])+'&pageSize=30');
-      if(Array.isArray(part)) all=all.concat(part);
-    }catch(e){}
-  }
-  var seen={},out=[];
-  all.forEach(function(b){ if(b&&b.id&&!seen[b.id]){ seen[b.id]=1; out.push(b); } });
-  return out;
-}
-
-// Ricerca per nome su TCGdex in una lingua specifica → carte normalizzate.
-// La ricerca ritorna SOLO briefs (id/localId/name/image); idratiamo i primi N
-// per popolare i prezzi (TCGdex e' veloce, rate limit generoso). Cap a 8 idratazioni
-// e 60 risultati totali. Per le lingue asiatiche usa il bridge dexId (vedi sopra).
-async function rbSearchTCGdex(name, number, langCode){
-  langCode=langCode||'ja';
-  if(!name) return [];
-  var isAsian=!!TCGDEX_ONLY_LANGS[langCode];
-  var briefs=[];
-
-  if(isAsian){
-    // Bridge dexId: nome inglese → dexId → carte JP più recenti (max 30).
-    var dexIds=await _tcgdexResolveDexIds(name);
-    if(dexIds.length){
-      briefs=await _tcgdexCardsByDexIds(dexIds, langCode);
-      console.log('[tcgdex] JP via dexId', dexIds, '→', briefs.length, 'carte');
-    }
-    // Fallback solo se dexId non ha trovato nulla (es. l'utente digita in giapponese).
-    if(!briefs.length){
-      try{ briefs=await _fetchTCGdex('/'+langCode+'/cards?name='+encodeURIComponent(name)+'&pageSize=30'); }
-      catch(e){ briefs=[]; }
-      console.log('[tcgdex] JP via nome diretto →', (briefs&&briefs.length)||0, 'carte');
-    }
-  } else {
-    try{ briefs=await _fetchTCGdex('/'+langCode+'/cards?name='+encodeURIComponent(name)+'&pageSize=30'); }
-    catch(e){ return []; }
-    console.log('[tcgdex]', langCode, 'via nome →', (briefs&&briefs.length)||0, 'carte');
-  }
-  if(!Array.isArray(briefs)||!briefs.length) return [];
-
-  // Se ho un numero, porta in cima i briefs con localId esatto.
-  if(number){
-    var num=String(number);
-    briefs=briefs.slice().sort(function(a,b){
-      var am=String(a.localId)===num?0:1;
-      var bm=String(b.localId)===num?0:1;
-      return am-bm;
-    });
-  }
-
-  // Idrata i primi 8 per ottenere i prezzi CM; il resto rimane brief.
-  var HYDRATE_CAP=8;
-  var hydrated=await Promise.all(briefs.slice(0,HYDRATE_CAP).map(function(b){ return _tcgdexHydrate(b, langCode); }));
-  var rest=briefs.slice(HYDRATE_CAP).map(function(b){ return tcgdexToTCGShape(b, langCode); });
-  var out=hydrated.concat(rest).filter(Boolean);
-
-  out.sort(function(a,b){
-    var na=parseInt((a.number||'').replace(/\D/g,''),10)||0;
-    var nb=parseInt((b.number||'').replace(/\D/g,''),10)||0;
-    if(na!==nb) return na-nb;
-    return (a.number||'').localeCompare(b.number||'');
-  });
-  return out;
-}
 
 
 // ── SEARCH ENGINE ──
@@ -812,73 +591,70 @@ function nameVariants(name){
   return[...v];
 }
 
-async function _fetchRaw(name,attempt=1){
+async function _fetchRaw(name){
+  // Proxy hyper-endpoint (path ?name=). NIENTE retry bloccante da 3s: se il
+  // container Supabase è in cold-start e risponde 500/503, lanciamo errore
+  // subito → in fetchCards la chiamata TCG diretta (parallela) vince la gara.
   const key=name.toLowerCase().trim();
   if(cache[key]) return cache[key];
-  setLed('checking',attempt===1?'Ricerca in corso…':'Nuovo tentativo…');
   const start=Date.now();
-  try{
-    const proxyUrl=`${SUPA_URL}/functions/v1/hyper-endpoint?name=${encodeURIComponent(name)}`;
-    const r=await fetch(proxyUrl,{headers:{'Authorization':'Bearer '+(window._rbSession?.access_token||SUPA_KEY)}});
-    if((r.status===500||r.status===503)&&attempt===1){
-      setLed('yellow','Avvio server in corso…');
-      await new Promise(res=>setTimeout(res,3000));
-      return _fetchRaw(name,2);
-    }
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const d=await r.json();
-    const cards=d.data||[];
-    cache[key]=cards;
-    setLed('green','Online ('+(Date.now()-start)+'ms)');
-    clearTimeout(apiCheckTimer);
-    window.apiCheckTimer=setTimeout(checkApiStatus,API_CHECK_INTERVAL);
-    return cards;
-  }catch(e){setLed('red','Errore: '+e.message);throw e;}
+  const proxyUrl=`${SUPA_URL}/functions/v1/hyper-endpoint?name=${encodeURIComponent(name)}`;
+  const r=await fetch(proxyUrl,{headers:{'Authorization':'Bearer '+(window._rbSession?.access_token||SUPA_KEY)}});
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const d=await r.json();
+  const cards=d.data||[];
+  cache[key]=cards;
+  setLed('green','Online ('+(Date.now()-start)+'ms)');
+  clearTimeout(apiCheckTimer);
+  window.apiCheckTimer=setTimeout(checkApiStatus,API_CHECK_INTERVAL);
+  return cards;
 }
 
 async function fetchCards(name, number){
-  // 1. Traduzione italiano → inglese
+  // 1. Traduzione italiano → inglese (locale, istantanea)
   const enName = itToEn(name);
   const nameToSearch = enName !== name ? enName : name;
+  const cleanName = nameToSearch.replace(/"/g,'');
+  setLed('checking','Ricerca in corso…');
 
-  // 2. Ricerca via Edge Function (cacheata)
+  // 2. GARA IN PARALLELO (non più in fila): lanciamo insieme
+  //    A) proxy hyper-endpoint  B) TCG API diretta  [C) nome+numero se c'è]
+  //    Promise.any prende la PRIMA che torna risultati non vuoti. Una sorgente
+  //    lenta (cold-start) o che fallisce (CORS) perde la gara senza bloccare.
+  function nonEmpty(p){ return p.then(function(arr){
+    if(arr && arr.length) return arr;
+    throw new Error('empty');
+  }); }
+  const racers = [
+    nonEmpty(_fetchRaw(nameToSearch)),
+    nonEmpty(_fetchTCGDirect('name:"'+cleanName+'"')),
+  ];
+  if(number){
+    racers.push(nonEmpty(_fetchTCGDirect('name:"'+cleanName+'" number:'+number)));
+  }
   let results = [];
   try {
-    results = await _fetchRaw(nameToSearch);
+    results = await Promise.any(racers);
   } catch(e) {
-    // Edge Function non disponibile → vai diretto
+    // tutte vuote/fallite → results resta []
   }
 
-  // 3. Se Edge Function non trova o non disponibile → TCG API diretta
-  if(!results.length){
+  // 3. Se ho un numero, raffino: porto in cima i match esatti per numero
+  if(number && results.length){
     try {
-      results = await _fetchTCGDirect('name:"'+nameToSearch.replace(/"/g,'')+'"');
-    } catch(e) {}
-  }
-
-  // 4. Se ho un numero di carta, prova ricerca combinata nome+numero (molto precisa)
-  if(number && (!results.length || results.length > 5)){
-    try {
-      const byNum = await _fetchTCGDirect('name:"'+nameToSearch.replace(/"/g,'')+'" number:'+number);
-      if(byNum.length > 0){
-        // Merge: metti quelli col numero corretto in cima
+      const byNum = await _fetchTCGDirect('name:"'+cleanName+'" number:'+number);
+      if(byNum.length){
         const ids = new Set(byNum.map(c=>c.id));
-        const rest = results.filter(c=>!ids.has(c.id));
-        results = byNum.concat(rest);
+        results = byNum.concat(results.filter(c=>!ids.has(c.id)));
       }
     } catch(e) {}
   }
 
-  // 5. Fuzzy fallback se ancora vuoto
+  // 4. Fuzzy fallback SOLO se ancora vuoto (ultima risorsa, sequenziale)
   if(!results.length){
     setLed('checking','Ricerca avanzata…');
     for(const v of nameVariants(nameToSearch)){
       if(!v||v.toLowerCase()===nameToSearch.toLowerCase()) continue;
-      try{
-        const res = await _fetchRaw(v,1);
-        if(res.length>0){ results=res; break; }
-      }catch(e){}
-      // Prova anche TCG diretta in fuzzy
       try{
         const res2 = await _fetchTCGDirect('name:*'+v.split(' ')[0]+'*');
         if(res2.length>0){ results=res2; break; }
@@ -886,10 +662,8 @@ async function fetchCards(name, number){
     }
   }
 
-  // 6. Se nome italiano fallisce con mappa, prova traduzione AI-assisted
-  //    (solo se nome non trovato e sembra italiano)
-  if(!results.length && enName === name){
-    // Wildcard sul primo token come ultima risorsa
+  // 5. Ultima risorsa: wildcard sul primo token
+  if(!results.length){
     try {
       const firstWord = name.split(' ')[0];
       if(firstWord.length > 3){
@@ -898,7 +672,12 @@ async function fetchCards(name, number){
     } catch(e) {}
   }
 
-  if(results.length) cache[nameToSearch.toLowerCase().trim()] = results;
+  if(results.length){
+    setLed('green','Trovate '+results.length);
+    cache[nameToSearch.toLowerCase().trim()] = results;
+  } else {
+    setLed('red','Nessun risultato');
+  }
   return results;
 }
 
@@ -910,17 +689,12 @@ async function fetchCards(name, number){
 //   rbResolveSetFromInput(inputEl)       → {id,name,unresolved?}|null
 // ══════════════════════════════════════════════════════════════
 window.rbSearchCards = async function(name, number, setId, lang){
+  // (lang ora ignorato: ricerca solo su pokemontcg.io; TCGdex/JP rimosso)
   // lang (opzionale): valore dropdown UI (ITA/ENG/JPN/...). Se e' una lingua
   // presente SOLO su TCGdex (ja/ko/zh/...), bypassiamo pokemontcg.io e cerchiamo
   // direttamente su TCGdex. I set picker usano ID pokemontcg.io che NON mappano
   // sui set TCGdex giapponesi, quindi in questa modalita' il filtro set viene
   // ignorato (ricerca per nome su tutti i set della lingua).
-  var langCode=tcgdexLangCode(lang);
-  if(lang && TCGDEX_ONLY_LANGS[langCode]){
-    try{ return await rbSearchTCGdex(name, number||null, langCode); }
-    catch(e){ console.warn('[rbSearchCards] TCGdex JP search error:', e); return []; }
-  }
-
   // Con setId: TCG API diretta, molto precisa, bypass Edge Function
   if(setId){
     var parts=['set.id:'+setId];
@@ -959,10 +733,8 @@ window.rbSearchCards = async function(name, number, setId, lang){
 /* ── Namespace pulito (API nuova, non-breaking) ───────────────────────────── */
 var RBSearch = (typeof RBSearch !== 'undefined' && RBSearch) || {};
 RBSearch.search         = (typeof window!=='undefined' ? window.rbSearchCards : rbSearchCards);
-RBSearch.searchTCGdex   = rbSearchTCGdex;
 RBSearch.fetchTCGDirect = _fetchTCGDirect;
 RBSearch.itToEn         = itToEn;
-RBSearch.toTCGShape     = tcgdexToTCGShape;
 if (typeof window !== 'undefined') window.RBSearch = RBSearch;
 
 /* ── Cross-script globals ─────────────────────────────────────────────────

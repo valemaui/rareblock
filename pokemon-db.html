@@ -3082,7 +3082,6 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
             <div class="search-bar" style="flex-wrap:wrap;gap:6px">
               <input id="q" type="text" placeholder="Nome carta + numero (es. Charizard 4)" style="flex:1 1 180px;min-width:180px" onkeydown="if(event.key==='Enter')doSearch()"/>
               <div id="q-setpicker" style="flex:1 1 200px;min-width:200px;position:relative"></div>
-              <label for="qJpToggle" title="Cerca carte giapponesi (fonte TCGdex). Ignora il filtro set." style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-muted);cursor:pointer;white-space:nowrap;user-select:none"><input id="qJpToggle" type="checkbox" style="cursor:pointer" onchange="if(document.getElementById('q').value.trim())doSearch()"/>🇯🇵 JP</label>
               <button class="btn btn-primary" onclick="doSearch()">Cerca</button>
             </div>
             <div class="status info" id="st" style="padding:4px 16px"></div>
@@ -4428,14 +4427,7 @@ window.rbCardSearch = {
       try{ opts.beforeSearch(); }catch(e){ console.warn('[rbCardSearch] beforeSearch error:', e); }
     }
 
-    // Toggle lingua opzionale (checkbox): se presente e attivo, forza la ricerca
-    // su TCGdex nella lingua indicata (default JPN). Risolve la visibilita' delle
-    // carte giapponesi, assenti dal database pokemontcg.io.
-    var forcedLang=null;
-    if(opts.jpToggleId){
-      var jpEl=document.getElementById(opts.jpToggleId);
-      if(jpEl && jpEl.checked) forcedLang=(opts.jpLang||'JPN');
-    }
+    var forcedLang=null; // TCGdex/JP rimosso
 
     try{
       var cards = await rbSearchCards(name, number||null, setSel?setSel.id:null, forcedLang);
@@ -4630,7 +4622,6 @@ async function doSearch(){
   await rbCardSearch.run({
     queryInputId: 'q',
     setPickerInputId: 'q-setpicker-input',
-    jpToggleId: 'qJpToggle',
     statusEl: 'st',
     statusBaseClass: 'status',
     noResultsClass: 'warn',
@@ -4669,8 +4660,6 @@ function showQuickMatch(c){
   document.getElementById('qmName').textContent=c.name;
   document.getElementById('qmSet').textContent=(c.set?.name||'')+(c.number?' · #'+c.number:'')+(c.rarity?' · '+c.rarity:'');
   document.getElementById('qmRarity').textContent='';
-  // Carta da TCGdex (giapponese/asiatica) → allinea il dropdown lingua.
-  tcgdexSyncLangSelect(c, 'qLang');
   // Pulisci eventuale banner CM live di una carta precedente
   const oldQFb=document.getElementById('qVerifyFeedback');
   if(oldQFb) oldQFb.remove();
@@ -4754,7 +4743,6 @@ function showMulti(cards){
 function pickCard(c,el){
   document.querySelectorAll('#rg .thumb').forEach(t=>t.classList.remove('sel'));
   el.classList.add('sel');selCard=c;
-  tcgdexSyncLangSelect(c, 'sLang');
   const sf=document.getElementById('selForm');sf.style.display='block';
   const p=calcPrice(c.cardmarket?.prices,'NM','Normal',false);
   const priceStr=p?` · CM price: €${p.price.toFixed(2)}`:'';
@@ -9161,6 +9149,7 @@ dz.addEventListener('drop',e=>{
 
 // ── API STATUS MONITOR ──
 const API_CHECK_INTERVAL = 30000; // check LED ogni 30s
+window.API_CHECK_INTERVAL = API_CHECK_INTERVAL; // letto da _fetchRaw nel modulo (const non condiviso cross-script)
 window.API_CHECK_INTERVAL = API_CHECK_INTERVAL; // letto dal modulo rb-card-search.js
 const API_WARN_MS = 1500;
 const KEEPALIVE_INTERVAL = 4 * 60 * 1000; // keep-alive ogni 4 minuti
