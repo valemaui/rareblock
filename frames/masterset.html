@@ -226,6 +226,10 @@ body{display:flex;flex-direction:column}
         </div>
       </div>
     </div>
+      <div id="msCreateProg" style="display:none;padding:10px 2px 2px">
+        <div id="msCreateProgTxt" style="font-size:11px;color:var(--text-subtle);margin-bottom:6px">Caricamento carte...</div>
+        <div class="ms-progress-bar" style="border-radius:3px;height:5px"><div class="ms-progress-fill" id="msCreateProgFill" style="width:0%"></div></div>
+      </div>
     <div class="ms-modal-foot">
       <button class="btn" onclick="msCloseModal()">Annulla</button>
       <button class="btn btn-primary" id="msCreateBtn" disabled onclick="msCreateMasterset()">Crea Masterset</button>
@@ -983,6 +987,7 @@ window.msOpenModal = function(){
   // reset track conditions
   var tc=document.getElementById('msTrackCond');
   if(tc){ tc.checked=false; document.getElementById('msTrackRow').classList.remove('on'); }
+  var cp=document.getElementById('msCreateProg'); if(cp) cp.style.display='none';
   if(!msSetsAll) msFetchSets();
 };
 window.msCloseModal = function(){ document.getElementById('msModalBg').classList.remove('show'); };
@@ -1134,9 +1139,17 @@ window.msSyncTrackUI = function(){
 window.msCreateMasterset = function(){
   if(!msSetSel||!msVarSel.length){ alert('Seleziona un set e almeno una variante'); return; }
   var btn=document.getElementById('msCreateBtn');
+  var prog=document.getElementById('msCreateProg');
+  var progFill=document.getElementById('msCreateProgFill');
+  var progTxt=document.getElementById('msCreateProgTxt');
+  function setProg(pct,txt){ if(progFill) progFill.style.width=Math.max(0,Math.min(100,pct))+'%'; if(progTxt&&txt!=null) progTxt.textContent=txt; }
+  function endProg(){ if(prog) prog.style.display='none'; btn.disabled=false; btn.textContent='Crea Masterset'; }
   btn.disabled=true; btn.textContent='Caricamento...';
+  if(prog) prog.style.display='block';
+  setProg(8,'Recupero carte da Pokémon TCG...');
   var trackCond = !!(document.getElementById('msTrackCond')&&document.getElementById('msTrackCond').checked);
   msFetchSetCards(msSetSel.id,1,[],function(cards){
+    setProg(96,'Preparazione masterset ('+cards.length+' carte)...');
     cards.sort(function(a,b){
       var na=parseFloat(a.number)||0, nb=parseFloat(b.number)||0;
       if(na!==nb) return na-nb;
@@ -1156,23 +1169,29 @@ window.msCreateMasterset = function(){
       })
     };
     msData.push(ms); msSave(msData);
+    setProg(100,'Fatto');
     msCloseModal(); msActive=id; msRenderList(); msOpen(id);
-    btn.disabled=false; btn.textContent='Crea Masterset';
+    endProg();
   },function(err){
+    endProg();
     alert('Errore caricamento carte: '+err);
-    btn.disabled=false; btn.textContent='Crea Masterset';
+  },function(loaded,total){
+    var pct = total ? Math.round(loaded/total*88)+8 : 30;
+    setProg(pct, 'Caricate '+loaded+(total?(' / '+total):'')+' carte...');
   });
 };
 
-function msFetchSetCards(setId,page,acc,done,fail){
-  fetch(TCG_BASE+'/cards?q=set.id:'+setId+'&page='+page+'&pageSize=250&orderBy=number',{headers:{'X-Api-Key':TCG_KEY}})
-    .then(function(r){return r.json();})
+function msFetchSetCards(setId,page,acc,done,fail,prog){
+  fetch(TCG_BASE+'/cards?q=set.id:'+encodeURIComponent(setId)+'&page='+page+'&pageSize=250&orderBy=number',{headers:{'X-Api-Key':TCG_KEY}})
+    .then(function(r){ if(!r.ok) throw new Error('Pokémon TCG API HTTP '+r.status); return r.json(); })
     .then(function(d){
       var all=acc.concat(d.data||[]);
       var total=d.totalCount||0;
-      if(all.length<total&&page<10) msFetchSetCards(setId,page+1,all,done,fail);
+      if(typeof prog==='function'){ try{ prog(all.length, total); }catch(_){} }
+      if(all.length<total&&page<10) msFetchSetCards(setId,page+1,all,done,fail,prog);
+      else if(!all.length) fail('nessuna carta trovata per il set "'+setId+'" (set.id non valido?)');
       else done(all);
-    }).catch(function(e){fail(e.message);});
+    }).catch(function(e){ fail(e&&e.message?e.message:String(e)); });
 }
 
 })();
