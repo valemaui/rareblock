@@ -4721,21 +4721,34 @@ function itToEn(name){
 // Cerca direttamente via TCG API (fallback quando Edge Function non trova)
 async function _fetchTCGDirect(query, pageSize){
   pageSize = pageSize||30;
+  // NIENTE orderBy nella query (ordinamento lato API = lentissimo su nomi comuni).
+  // Ordiniamo le carte ricevute lato client con _rbSortByReleaseDesc.
   // PRIMARIO: chiamata DIRETTA a api.pokemontcg.io (no cold-start). CORS ok con X-Api-Key.
   try{
     const r = await fetch(
-      TCG_URL+'?q='+encodeURIComponent(query)+'&pageSize='+pageSize+'&orderBy=-set.releaseDate',
+      TCG_URL+'?q='+encodeURIComponent(query)+'&pageSize='+pageSize,
       {headers:{'X-Api-Key':TCG_KEY}}
     );
-    if(r.ok){ const d = await r.json(); return d.data||[]; }
+    if(r.ok){ const d = await r.json(); return _rbSortByReleaseDesc(d.data||[]); }
   }catch(e){ /* diretta bloccata (CORS/rete) → fallback proxy sotto */ }
   // FALLBACK: proxy hyper-endpoint (server-side, aggira CORS; può essere in cold-start).
   const pUrl = SUPA_URL+'/functions/v1/hyper-endpoint?q='+encodeURIComponent(query)
-             +'&pageSize='+pageSize+'&orderBy=-set.releaseDate';
+             +'&pageSize='+pageSize;
   const pr = await fetch(pUrl, {headers:{'Authorization':'Bearer '+(window._rbSession&&window._rbSession.access_token||SUPA_KEY)}});
   if(!pr.ok) throw new Error('TCG API '+pr.status);
   const pd = await pr.json();
-  return pd.data||[];
+  return _rbSortByReleaseDesc(pd.data||[]);
+}
+
+// Ordina le carte per data di uscita del set (più recenti in cima), lato client.
+// Sostituisce orderBy=-set.releaseDate nella query API (che è lentissimo).
+function _rbSortByReleaseDesc(cards){
+  if(!Array.isArray(cards)) return [];
+  return cards.slice().sort(function(a,b){
+    var da=(a && a.set && a.set.releaseDate) ? a.set.releaseDate : '';
+    var db=(b && b.set && b.set.releaseDate) ? b.set.releaseDate : '';
+    return db.localeCompare(da); // desc
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -4986,12 +4999,14 @@ async function _fetchRaw(name,attempt=1){
 
   // PRIMARIO: chiamata DIRETTA a api.pokemontcg.io (no proxy → niente cold-start
   // dell'Edge Function, ricerca istantanea). La TCG API supporta CORS con X-Api-Key.
+  // NIENTE orderBy nella query: ordinare un nome comune ("charizard" = centinaia di
+  // carte) lato API costa 30+ secondi. Prendiamo 30 carte veloci e ordiniamo in JS.
   try{
-    const directUrl=`${TCG_URL}?q=name:"${name.replace(/"/g,'')}"&pageSize=30&orderBy=-set.releaseDate`;
+    const directUrl=`${TCG_URL}?q=name:"${name.replace(/"/g,'')}"&pageSize=30`;
     const dr=await fetch(directUrl,{headers:{'X-Api-Key':TCG_KEY}});
     if(dr.ok){
       const dd=await dr.json();
-      const cards=dd.data||[];
+      const cards=_rbSortByReleaseDesc(dd.data||[]);
       cache[key]=cards;
       console.log('[RB-PERF] _fetchRaw DIRETTA pokemontcg.io: '+(Date.now()-start)+'ms · '+cards.length+' carte ("'+name+'")');
       setLed('green','Online ('+(Date.now()-start)+'ms)');
