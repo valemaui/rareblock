@@ -964,3 +964,14 @@ RBSearch.fetchTCGDirect = _fetchTCGDirect;
 RBSearch.itToEn         = itToEn;
 RBSearch.toTCGShape     = tcgdexToTCGShape;
 if (typeof window !== 'undefined') window.RBSearch = RBSearch;
+
+/* ── Cross-script globals ─────────────────────────────────────────────────
+ * I const top-level NON sono condivisi tra <script> classici diversi (a
+ * differenza di var/function/window.x). Il monolite (pokemon-db.html) legge
+ * `cache` in rbCardSearch.run → va esposto su window come riferimento condiviso
+ * (stessa istanza: le scritture del modulo restano visibili al monolite).
+ * Vedi regola codebase: niente const/let per simboli cross-script. */
+if (typeof window !== 'undefined') {
+  window.cache     = cache;
+  window.IT_EN_MAP = IT_EN_MAP;
+}

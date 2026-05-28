@@ -525,3 +525,18 @@ RBCM.maps = {
   AMBIGUOUS_VERSION_SETS: CM_AMBIGUOUS_VERSION_SETS,
 };
 if (typeof window !== 'undefined') window.RBCM = RBCM;
+
+/* ── Cross-script globals ─────────────────────────────────────────────────
+ * I const top-level NON sono condivisi tra <script> classici diversi. Il
+ * monolite legge CM_SET_SLUG e CM_DIRECT_SETS direttamente → esposti su window
+ * (per riferimento, stessa istanza). Esposte tutte le mappe per i call-site
+ * futuri. Vedi regola codebase: niente const/let per simboli cross-script. */
+if (typeof window !== 'undefined') {
+  window.CM_SET_SLUG               = CM_SET_SLUG;
+  window.CM_SET_ABBREV             = CM_SET_ABBREV;
+  window.CM_SET_NAME_TO_ID         = CM_SET_NAME_TO_ID;
+  window.CM_LANG_ID                = CM_LANG_ID;
+  window.CM_COND_ID                = CM_COND_ID;
+  window.CM_DIRECT_SETS            = CM_DIRECT_SETS;
+  window.CM_AMBIGUOUS_VERSION_SETS = CM_AMBIGUOUS_VERSION_SETS;
+}
