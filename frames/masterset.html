@@ -467,7 +467,15 @@ async function msSupaLoad(){
   }catch(e){ console.warn('msSupaLoad error:',e.message); return null; }
 }
 
-var msData    = msLoad();
+// NB: msData NON viene inizializzato con msLoad() qui al top-level dell'IIFE.
+// Questo <script> è inline: l'attributo `defer` viene IGNORATO sugli inline
+// script, quindi questo codice gira DURANTE il parsing, PRIMA che
+// shared/rareblock-shared.js (external defer) abbia definito getCurrentUserId.
+// Chiamare msLoad() qui lanciava ReferenceError e abortiva l'intero IIFE →
+// window.msInit/msCreateMasterset/msDeleteCurrent mai definite → tab morta.
+// msInit() (bootstrap su DOMContentLoaded, quando shared.js è già caricato)
+// popola msData via msLoad() in entrambi i rami: l'init qui è solo dichiarativo.
+var msData    = [];
 var msActive  = null;
 var msSetSel  = null;
 var msLangSel = 'ITA';
