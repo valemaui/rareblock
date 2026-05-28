@@ -4721,23 +4721,21 @@ function itToEn(name){
 // Cerca direttamente via TCG API (fallback quando Edge Function non trova)
 async function _fetchTCGDirect(query, pageSize){
   pageSize = pageSize||30;
-  // PRIMARIO: proxy hyper-endpoint (evita CORS di api.pokemontcg.io dal browser).
-  // Passiamo la query grezza come ?q=; il proxy inoltra alla TCG API server-side.
+  // PRIMARIO: chiamata DIRETTA a api.pokemontcg.io (no cold-start). CORS ok con X-Api-Key.
   try{
-    const pUrl = SUPA_URL+'/functions/v1/hyper-endpoint?q='+encodeURIComponent(query)
-               +'&pageSize='+pageSize+'&orderBy=-set.releaseDate';
-    const pr = await fetch(pUrl, {headers:{'Authorization':'Bearer '+(window._rbSession&&window._rbSession.access_token||SUPA_KEY)}});
-    if(pr.ok){ const pd = await pr.json(); if(pd && pd.data) return pd.data; }
-  }catch(e){ /* proxy non disponibile/non supporta q → fallback diretto sotto */ }
-  // FALLBACK: chiamata diretta (puo' fallire per CORS su alcuni domini; in tal
-  // caso il chiamante ha gia' i propri catch e degrada).
-  const r = await fetch(
-    TCG_URL+'?q='+encodeURIComponent(query)+'&pageSize='+pageSize+'&orderBy=-set.releaseDate',
-    {headers:{'X-Api-Key':TCG_KEY}}
-  );
-  if(!r.ok) throw new Error('TCG API '+r.status);
-  const d = await r.json();
-  return d.data||[];
+    const r = await fetch(
+      TCG_URL+'?q='+encodeURIComponent(query)+'&pageSize='+pageSize+'&orderBy=-set.releaseDate',
+      {headers:{'X-Api-Key':TCG_KEY}}
+    );
+    if(r.ok){ const d = await r.json(); return d.data||[]; }
+  }catch(e){ /* diretta bloccata (CORS/rete) → fallback proxy sotto */ }
+  // FALLBACK: proxy hyper-endpoint (server-side, aggira CORS; può essere in cold-start).
+  const pUrl = SUPA_URL+'/functions/v1/hyper-endpoint?q='+encodeURIComponent(query)
+             +'&pageSize='+pageSize+'&orderBy=-set.releaseDate';
+  const pr = await fetch(pUrl, {headers:{'Authorization':'Bearer '+(window._rbSession&&window._rbSession.access_token||SUPA_KEY)}});
+  if(!pr.ok) throw new Error('TCG API '+pr.status);
+  const pd = await pr.json();
+  return pd.data||[];
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -4985,6 +4983,25 @@ async function _fetchRaw(name,attempt=1){
   if(cache[key]) return cache[key];
   setLed('checking',attempt===1?'Ricerca in corso…':'Nuovo tentativo…');
   const start=Date.now();
+
+  // PRIMARIO: chiamata DIRETTA a api.pokemontcg.io (no proxy → niente cold-start
+  // dell'Edge Function, ricerca istantanea). La TCG API supporta CORS con X-Api-Key.
+  try{
+    const directUrl=`${TCG_URL}?q=name:"${name.replace(/"/g,'')}"&pageSize=30&orderBy=-set.releaseDate`;
+    const dr=await fetch(directUrl,{headers:{'X-Api-Key':TCG_KEY}});
+    if(dr.ok){
+      const dd=await dr.json();
+      const cards=dd.data||[];
+      cache[key]=cards;
+      setLed('green','Online ('+(Date.now()-start)+'ms)');
+      clearTimeout(apiCheckTimer);
+      apiCheckTimer=setTimeout(checkApiStatus,API_CHECK_INTERVAL);
+      return cards;
+    }
+  }catch(e){ /* diretta bloccata da CORS / rete → fallback proxy sotto */ }
+
+  // FALLBACK: proxy hyper-endpoint (server-side, aggira CORS ma può essere in
+  // cold-start). Usato solo se la diretta fallisce.
   try{
     const proxyUrl=`${SUPA_URL}/functions/v1/hyper-endpoint?name=${encodeURIComponent(name)}`;
     const r=await fetch(proxyUrl,{headers:{'Authorization':'Bearer '+(window._rbSession?.access_token||SUPA_KEY)}});
