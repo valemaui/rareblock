@@ -467,14 +467,11 @@ async function msSupaLoad(){
   }catch(e){ console.warn('msSupaLoad error:',e.message); return null; }
 }
 
-// NB: msData NON viene inizializzato con msLoad() qui al top-level dell'IIFE.
-// Questo <script> è inline: l'attributo `defer` viene IGNORATO sugli inline
-// script, quindi questo codice gira DURANTE il parsing, PRIMA che
-// shared/rareblock-shared.js (external defer) abbia definito getCurrentUserId.
-// Chiamare msLoad() qui lanciava ReferenceError e abortiva l'intero IIFE →
-// window.msInit/msCreateMasterset/msDeleteCurrent mai definite → tab morta.
-// msInit() (bootstrap su DOMContentLoaded, quando shared.js è già caricato)
-// popola msData via msLoad() in entrambi i rami: l'init qui è solo dichiarativo.
+// msData inizializzato vuoto: NON chiamiamo msLoad() qui al top-level dell'IIFE
+// per non dipendere dall'ordine di esecuzione rispetto a shared/rareblock-shared.js
+// (che definisce getCurrentUserId). msInit() — bootstrap su DOMContentLoaded,
+// quando shared.js è certamente caricato — ripopola msData via msLoad() in
+// entrambi i rami, quindi l'init qui è solo dichiarativo.
 var msData    = [];
 var msActive  = null;
 var msSetSel  = null;
@@ -570,6 +567,43 @@ function msPromptCacheReconciliation(localData){
     msRenderList();
     msShowEmpty();
   }
+}
+
+// ── Zoom hover su immagini carta (self-contained nel frame) ──────────────
+// addZoom era chiamata in msRenderTable ma NON definita nel frame: viveva solo
+// nel parent (pokemon-db.html) e dipendeva da zoomEl/zoomImg/positionZoom del
+// documento parent — non portata all'estrazione iframe (25d6350). Risultato:
+// ReferenceError in msRenderTable → msOpen lanciava → impossibile aprire un
+// masterset (quindi né visualizzare le carte né cancellare). Qui una versione
+// autonoma con overlay creato lazy nel documento del frame.
+var _msZoomEl=null, _msZoomImg=null;
+function _msEnsureZoom(){
+  if(_msZoomEl) return;
+  _msZoomEl=document.createElement('div');
+  _msZoomEl.style.cssText='position:fixed;display:none;z-index:99999;width:370px;height:500px;border-radius:12px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.6);border:1px solid var(--border,#2a2a2a);background:var(--bg,#0e0e10);pointer-events:none';
+  _msZoomImg=document.createElement('img');
+  _msZoomImg.style.cssText='width:100%;height:100%;object-fit:contain;display:block';
+  _msZoomEl.appendChild(_msZoomImg);
+  document.body.appendChild(_msZoomEl);
+}
+function _msPositionZoom(e, el){
+  var vw=window.innerWidth, vh=window.innerHeight, zw=370, zh=500;
+  var rect=el.getBoundingClientRect();
+  var x=rect.right+16;
+  if(x+zw>vw-8) x=rect.left-zw-16;
+  if(x<8) x=e.clientX+20;
+  var y=rect.top+(rect.height/2)-(zh/2);
+  y=Math.max(8,Math.min(y,vh-zh-8));
+  _msZoomEl.style.left=x+'px'; _msZoomEl.style.top=y+'px';
+}
+function addZoom(el, lgSrc){
+  _msEnsureZoom();
+  el.addEventListener('mouseenter',function(e){
+    if(!lgSrc||(!lgSrc.startsWith('http')&&!lgSrc.startsWith('data:'))) return;
+    _msZoomImg.src=lgSrc; _msZoomEl.style.display='block'; _msPositionZoom(e,el);
+  });
+  el.addEventListener('mousemove',function(e){ _msPositionZoom(e,el); });
+  el.addEventListener('mouseleave',function(){ _msZoomEl.style.display='none'; });
 }
 
 function msRenderList(filter){
@@ -707,7 +741,7 @@ window.msRenderTable = function(){
     if(card.img){
       var img = document.createElement('img');
       img.className='ms-card-img'; img.src=card.img; img.loading='lazy'; img.title=card.name;
-      if(card.imgLg) addZoom(img,card.imgLg);
+      if(card.imgLg && typeof addZoom==='function') addZoom(img,card.imgLg);
       tdImg.appendChild(img);
     } else {
       tdImg.innerHTML='<div class="ms-card-ph">?</div>';
