@@ -217,7 +217,9 @@ body{display:flex;flex-direction:column}
       </div>
       <div class="rb-pseudo-label">Varianti da tracciare</div>
       <div class="ms-var-chips" id="msVarChips"></div>
-      <div class="rb-pseudo-label" style="font-size:10px">Tracciamento condizioni</div>
+      <div class="rb-pseudo-label" style="font-size:10px;margin-top:10px">Etichetta (opzionale)</div>
+      <input type="text" id="msLabel" maxlength="40" placeholder="es. Reverse, doppione, sealed..." style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:6px;font-size:12px;font-family:inherit"/>
+      <div class="rb-pseudo-label" style="font-size:10px;margin-top:10px">Tracciamento condizioni</div>
       <div class="ms-track-row" id="msTrackRow" onclick="msToggleTrack(event)">
         <input type="checkbox" id="msTrackCond" onclick="event.stopPropagation();msSyncTrackUI()"/>
         <div style="flex:1">
@@ -440,7 +442,11 @@ async function msSupaSave(data){
   var uid=getCurrentUserId();
   if(!uid){ console.warn('[msSupaSave] non autenticato, salto'); throw new Error('non autenticato'); }
   var upsertHdr=Object.assign({},getHDR(),{'Prefer':'resolution=merge-duplicates,return=minimal'});
-  var r=await fetch(SUPA_URL+'/rest/v1/mastersets',{
+  // PostgREST upsert: con UNIQUE (non PK) su user_id serve dirgli ESPLICITAMENTE
+  // la colonna del conflitto con ?on_conflict=user_id. L'header Prefer da solo
+  // NON basta — causa storica del 409 23505 "mastersets_user_unique". Pattern
+  // confermato in frames/radar.html (hunt_push_subscriptions, hunt_channel_config).
+  var r=await fetch(SUPA_URL+'/rest/v1/mastersets?on_conflict=user_id',{
     method:'POST', headers:upsertHdr,
     body:JSON.stringify({user_id:uid, data:JSON.stringify(data), updated_at:new Date().toISOString()})
   });
@@ -619,7 +625,11 @@ function addZoom(el, lgSrc){
 function msRenderList(filter){
   filter = (filter||'').toLowerCase();
   var el = document.getElementById('msList');
-  var items = msData.filter(function(m){ return !filter||m.setName.toLowerCase().indexOf(filter)>=0; });
+  var items = msData.filter(function(m){
+    if(!filter) return true;
+    var hay = (m.setName||'')+' '+(m.label||'');
+    return hay.toLowerCase().indexOf(filter)>=0;
+  });
   if(!items.length){
     el.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text-subtle)">Nessun masterset</div>';
     return;
@@ -632,10 +642,12 @@ function msRenderList(filter){
     var okCol = pct===100 ? 'var(--success)' : 'inherit';
     var div = document.createElement('div');
     div.className = 'ms-item'+(m.id===msActive?' active':'');
+    var labelHtml = m.label ? '<div class="ms-item-meta" style="color:var(--accent);font-size:10px;margin-top:2px"><span>'+esc(m.label)+'</span></div>' : '';
     div.innerHTML =
-      '<div class="ms-item-name">'+m.setName+'</div>'+
-      '<div class="ms-item-meta"><span>'+m.lang+'</span>'+
-      '<span style="color:'+okCol+'">'+owned+'/'+total+' &middot; '+pct+'%</span></div>';
+      '<div class="ms-item-name">'+esc(m.setName)+'</div>'+
+      '<div class="ms-item-meta"><span>'+esc(m.lang)+'</span>'+
+      '<span style="color:'+okCol+'">'+owned+'/'+total+' &middot; '+pct+'%</span></div>'+
+      labelHtml;
     div.addEventListener('click',(function(id){ return function(){ msOpen(id); }; })(m.id));
     el.appendChild(div);
   });
@@ -650,7 +662,11 @@ window.msOpen = function(id){
   document.getElementById('msEmpty').style.display='none';
   var c = document.getElementById('msContent');
   c.style.display='flex';
-  document.getElementById('msTopTitle').textContent = ms.setName+' · '+ms.lang;
+  var topTitleEl = document.getElementById('msTopTitle');
+  topTitleEl.textContent = ms.setName+' · '+ms.lang+(ms.label?(' · '+ms.label):'');
+  topTitleEl.title = 'Click per modificare l\'etichetta';
+  topTitleEl.style.cursor = 'pointer';
+  topTitleEl.onclick = function(){ msEditLabel(ms.id); };
   document.getElementById('msTopMeta').textContent  = ms.setSeries||'';
   // bottone condizioni: stato visivo
   var tcb = document.getElementById('msToggleCondBtn');
@@ -935,12 +951,45 @@ window.msCondStep = function(condId, delta){
   msRenderList(document.getElementById('msListSearch').value);
 };
 
-window.msDeleteCurrent = function(){
+window.msEditLabel = async function(id){
+  var target = id || msActive;
+  if(!target) return;
+  var ms = msData.find(function(m){return m.id===target;});
+  if(!ms) return;
+  var cur = ms.label || '';
+  var v = prompt('Etichetta per "'+ms.setName+'" (max 40 char, vuoto per rimuovere):', cur);
+  if(v===null) return; // annullato
+  var next = String(v).trim().slice(0,40);
+  if(next===cur) return; // nessun cambio
+  var prev = ms.label || '';
+  ms.label = next;
+  try{
+    await msSave(msData);
+    if(msActive===target) msOpen(target); // ridisegna header
+    else msRenderList(document.getElementById('msListSearch').value);
+  }catch(e){
+    ms.label = prev; // rollback
+    try{ localStorage.setItem(_msLsKey(),JSON.stringify(msData)); }catch(_){}
+    alert('Errore salvataggio etichetta: '+e.message);
+  }
+};
+
+window.msDeleteCurrent = async function(){
   if(!msActive) return;
   var ms=msData.find(function(m){return m.id===msActive;});
-  if(!ms||!confirm('Eliminare masterset "'+ms.setName+'"?')) return;
+  if(!ms||!confirm('Eliminare masterset "'+ms.setName+(ms.label?' · '+ms.label:'')+'"?')) return;
+  var prev = msData.slice();
+  var prevActive = msActive;
   msData=msData.filter(function(m){return m.id!==msActive;});
-  msSave(msData); msActive=null; msRenderList(); msShowEmpty();
+  try{
+    await msSave(msData);
+    msActive=null; msRenderList(); msShowEmpty();
+  }catch(e){
+    msData = prev; // rollback in memoria
+    try{ localStorage.setItem(_msLsKey(),JSON.stringify(msData)); }catch(_){}
+    msActive = prevActive;
+    alert('Errore eliminazione cloud: '+e.message+'\nL\'eliminazione è stata annullata.');
+  }
 };
 
 window.msExportCSV = function(){
@@ -993,6 +1042,7 @@ window.msOpenModal = function(){
   // reset track conditions
   var tc=document.getElementById('msTrackCond');
   if(tc){ tc.checked=false; document.getElementById('msTrackRow').classList.remove('on'); }
+  var lbl=document.getElementById('msLabel'); if(lbl) lbl.value='';
   var cp=document.getElementById('msCreateProg'); if(cp) cp.style.display='none';
   if(!msSetsAll) msFetchSets();
 };
@@ -1154,6 +1204,8 @@ window.msCreateMasterset = function(){
   if(prog) prog.style.display='block';
   setProg(8,'Recupero carte da Pokémon TCG...');
   var trackCond = !!(document.getElementById('msTrackCond')&&document.getElementById('msTrackCond').checked);
+  var labelEl   = document.getElementById('msLabel');
+  var labelVal  = labelEl ? labelEl.value.trim().slice(0,40) : '';
   msFetchSetCards(msSetSel.id,1,[],async function(cards){
     setProg(92,'Salvataggio masterset ('+cards.length+' carte)...');
     cards.sort(function(a,b){
@@ -1166,6 +1218,7 @@ window.msCreateMasterset = function(){
       id:id, setId:msSetSel.id, setName:msSetSel.name, setSeries:msSetSel.series||'',
       lang:msLangSel, variants:msVarSel.slice(),
       trackConditions: trackCond,
+      label: labelVal,
       created:new Date().toISOString(),
       cards:cards.map(function(c){
         return {id:c.id,num:c.number||'',name:c.name||'',rarity:c.rarity||'',
