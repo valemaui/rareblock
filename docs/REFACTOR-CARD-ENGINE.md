@@ -16,7 +16,8 @@ threshold PriceCharting). Riscriverla "da zero" regredirebbe mesi di lavoro. "Da
 |---|---|---|---|
 | **URL CardMarket** (puro) | `buildCMDirectUrl`, `buildCMSearchUrl`, `buildCMDirectUrlVariants`, `cmAuthoritativeUrl`, `cmAppendParams`, `buildCardmarketSlug`, `_cmPrimaryVersionFor` + mappe `CM_SET_SLUG/ABBREV/NAME_TO_ID/LANG_ID/COND_ID/DIRECT_SETS/AMBIGUOUS_VERSION_SETS` | nessuno (solo stringhe) | ✅ **estratto** → `shared/rb-cm-url.js` |
 | **Ricerca dati carte** | `rbSearchCards` (entry), `_fetchTCGDirect` (TCG API via proxy `hyper-endpoint`), cluster TCGdex (`rbSearchTCGdex`, `_tcgdexHydrate`, `_tcgdexResolveDexIds`, `_tcgdexCardsByDexIds`, `tcgdexToTCGShape`...), `itToEn`+`IT_EN_MAP`, cache+`nameVariants`/`_fetchRaw`/`fetchCards` | rete (Supabase proxy), `SUPA_URL/KEY`, `TCG_URL/KEY`, `window._rbSession`, `calcPrice`, `document` (1 punto) | ✅ **estratto** → `shared/rb-card-search.js` |
-| **Scraping prezzo CM** | `fetchCmPriceLive`, `verifyPrice`, `_vpServerSideCMScrape` (`smooth-endpoint`), `_vpProcessListings`, `_isFakeCmListings`, `_rbPersistConditionPrices`, registry `_rbRegisterPriceHandler`, conversione valuta `frankfurter.app` | rete, Supabase, sessionStorage, Realtime/tab CM | ⏳ Fase 3 |
+| **Scraping prezzo CM** | `fetchCmPriceLive` (entry, +`_isFakeCmListings` annidata), `_vpServerSideCMScrape` (`smooth-endpoint`) | rete, Supabase; deps: `buildCM*` (rb-cm-url), `smartCMPrice`+`SUPA_*` (monolite) | ✅ **cuore estratto** → `shared/rb-cm-price.js` |
+| **Prezzo CM — UI/Realtime** *(Fase 3b)* | `verifyPrice/verifyPriceAdd/applyAddPrice`, `cmLogger`, `_vpCloseCMTab`, `_saveCmStash`, `replayCmLog`, `_vpProcessListings`, `_logCmAttempts`, `_rbPersistConditionPrices`, registry `_rbRegisterPriceHandler`, conversione `frankfurter` | DOM, sessionStorage, Realtime/tab CM | resta nel monolite |
 | **Matematica prezzo** | `calcBaseNMPrice`, `calcPrice`, `smartCMPrice` | puro | ⏳ Fase 2 (con la ricerca) |
 
 Consumatori (call-site da non rompere): Preventivi (`prevSearch`, `updatePrevPrice`),
@@ -39,10 +40,16 @@ Scan (`scResolveTCG`, `scManualSearch`), Analizza, più i `frames/` (analizza.ht
   Dipendenze runtime ancora dai global del monolite (SUPA/TCG/calcPrice): diventano
   parametri di `RBSearch.init({...})` in Fase 4 per il riuso nei frames/.
 
-- **Fase 3 — Motore prezzo CM** (`shared/rb-cm-price.js`)
-  Estrarre `fetchCmPriceLive`/`verifyPrice` e il registry handler. È il cluster più
-  accoppiato (Realtime, tab CM, persistenza per-condizione): incapsulare il registry e la
-  conversione valuta dietro un'API stabile `RBCMPrice.fetch(card, {cond,lang,...})`.
+- **Fase 3 — Motore prezzo CM (cuore)** ✅ *(fatto)*
+  Estratti `fetchCmPriceLive` (+`_isFakeCmListings` annidata) e `_vpServerSideCMScrape` in
+  `shared/rb-cm-price.js`. API: nomi globali retro-compatibili + namespace `RBCMPrice.*`.
+  Cluster scelto perché DOM-free e isolabile senza rischio; la parte UI/Realtime/tab
+  (verifyPrice, cmLogger, _vpCloseCMTab, persist, registry) resta nel monolite — vedi
+  riga "Prezzo CM — UI/Realtime" sopra. Validato `node --check` (5/5).
+
+- **Fase 3b — Prezzo CM UI/Realtime**
+  Disaccoppiare verifyPrice* e il registry handler dietro un'API stabile, spostare
+  smartCMPrice/persist quando la UI è districata dal Realtime/tab CM.
 
 - **Fase 4 — Consumatori + edge functions**
   Puntare i `frames/` allo stesso modulo (oggi riusano/duplicano). Consolidare
