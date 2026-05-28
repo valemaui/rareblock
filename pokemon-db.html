@@ -4721,23 +4721,21 @@ function itToEn(name){
 // Cerca direttamente via TCG API (fallback quando Edge Function non trova)
 async function _fetchTCGDirect(query, pageSize){
   pageSize = pageSize||30;
-  // NIENTE orderBy nella query (ordinamento lato API = lentissimo su nomi comuni).
-  // Ordiniamo le carte ricevute lato client con _rbSortByReleaseDesc.
-  // PRIMARIO: chiamata DIRETTA a api.pokemontcg.io (no cold-start). CORS ok con X-Api-Key.
+  // La diretta a api.pokemontcg.io è CORS-bloccata dal browser → proxy primario.
+  // NIENTE orderBy (lento lato API); ordiniamo lato client con _rbSortByReleaseDesc.
   try{
-    const r = await fetch(
-      TCG_URL+'?q='+encodeURIComponent(query)+'&pageSize='+pageSize,
-      {headers:{'X-Api-Key':TCG_KEY}}
-    );
-    if(r.ok){ const d = await r.json(); return _rbSortByReleaseDesc(d.data||[]); }
-  }catch(e){ /* diretta bloccata (CORS/rete) → fallback proxy sotto */ }
-  // FALLBACK: proxy hyper-endpoint (server-side, aggira CORS; può essere in cold-start).
-  const pUrl = SUPA_URL+'/functions/v1/hyper-endpoint?q='+encodeURIComponent(query)
-             +'&pageSize='+pageSize;
-  const pr = await fetch(pUrl, {headers:{'Authorization':'Bearer '+(window._rbSession&&window._rbSession.access_token||SUPA_KEY)}});
-  if(!pr.ok) throw new Error('TCG API '+pr.status);
-  const pd = await pr.json();
-  return _rbSortByReleaseDesc(pd.data||[]);
+    const pUrl = SUPA_URL+'/functions/v1/hyper-endpoint?q='+encodeURIComponent(query)
+               +'&pageSize='+pageSize;
+    const pr = await fetch(pUrl, {headers:{'Authorization':'Bearer '+(window._rbSession&&window._rbSession.access_token||SUPA_KEY)}});
+    if(pr.ok){ const pd = await pr.json(); if(pd && pd.data) return _rbSortByReleaseDesc(pd.data); }
+  }catch(e){ /* proxy ko → tento diretta (di solito CORS, ma estrema risorsa) */ }
+  const r = await fetch(
+    TCG_URL+'?q='+encodeURIComponent(query)+'&pageSize='+pageSize,
+    {headers:{'X-Api-Key':TCG_KEY}}
+  );
+  if(!r.ok) throw new Error('TCG API '+r.status);
+  const d = await r.json();
+  return _rbSortByReleaseDesc(d.data||[]);
 }
 
 // Ordina le carte per data di uscita del set (più recenti in cima), lato client.
@@ -4997,29 +4995,11 @@ async function _fetchRaw(name,attempt=1){
   setLed('checking',attempt===1?'Ricerca in corso…':'Nuovo tentativo…');
   const start=Date.now();
 
-  // PRIMARIO: chiamata DIRETTA a api.pokemontcg.io (no proxy → niente cold-start
-  // dell'Edge Function, ricerca istantanea). La TCG API supporta CORS con X-Api-Key.
-  // NIENTE orderBy nella query: ordinare un nome comune ("charizard" = centinaia di
-  // carte) lato API costa 30+ secondi. Prendiamo 30 carte veloci e ordiniamo in JS.
+  // La chiamata diretta a api.pokemontcg.io è BLOCCATA da CORS dal browser
+  // ("Failed to fetch"), per questo esiste il proxy. Andiamo dritti al proxy.
+  // NIENTE orderBy nella query (ordinare lato API su nomi comuni = 30+ secondi):
+  // il proxy ?name= non lo aggiunge, e ordiniamo le 30 carte lato client.
   try{
-    const directUrl=`${TCG_URL}?q=name:"${name.replace(/"/g,'')}"&pageSize=30`;
-    const dr=await fetch(directUrl,{headers:{'X-Api-Key':TCG_KEY}});
-    if(dr.ok){
-      const dd=await dr.json();
-      const cards=_rbSortByReleaseDesc(dd.data||[]);
-      cache[key]=cards;
-      console.log('[RB-PERF] _fetchRaw DIRETTA pokemontcg.io: '+(Date.now()-start)+'ms · '+cards.length+' carte ("'+name+'")');
-      setLed('green','Online ('+(Date.now()-start)+'ms)');
-      clearTimeout(apiCheckTimer);
-      apiCheckTimer=setTimeout(checkApiStatus,API_CHECK_INTERVAL);
-      return cards;
-    }
-  }catch(e){ console.warn('[RB-PERF] _fetchRaw DIRETTA fallita ('+e.message+') dopo '+(Date.now()-start)+'ms → fallback proxy'); }
-
-  // FALLBACK: proxy hyper-endpoint (server-side, aggira CORS ma può essere in
-  // cold-start). Usato solo se la diretta fallisce.
-  try{
-    console.log('[RB-PERF] _fetchRaw FALLBACK proxy hyper-endpoint…');
     const proxyUrl=`${SUPA_URL}/functions/v1/hyper-endpoint?name=${encodeURIComponent(name)}`;
     const r=await fetch(proxyUrl,{headers:{'Authorization':'Bearer '+(window._rbSession?.access_token||SUPA_KEY)}});
     if((r.status===500||r.status===503)&&attempt===1){
@@ -5029,8 +5009,9 @@ async function _fetchRaw(name,attempt=1){
     }
     if(!r.ok) throw new Error('HTTP '+r.status);
     const d=await r.json();
-    const cards=d.data||[];
+    const cards=_rbSortByReleaseDesc(d.data||[]);
     cache[key]=cards;
+    console.log('[RB-PERF] _fetchRaw proxy: '+(Date.now()-start)+'ms · '+cards.length+' carte ("'+name+'")');
     setLed('green','Online ('+(Date.now()-start)+'ms)');
     clearTimeout(apiCheckTimer);
     apiCheckTimer=setTimeout(checkApiStatus,API_CHECK_INTERVAL);
