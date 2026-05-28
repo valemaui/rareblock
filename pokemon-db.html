@@ -4993,16 +4993,18 @@ async function _fetchRaw(name,attempt=1){
       const dd=await dr.json();
       const cards=dd.data||[];
       cache[key]=cards;
+      console.log('[RB-PERF] _fetchRaw DIRETTA pokemontcg.io: '+(Date.now()-start)+'ms · '+cards.length+' carte ("'+name+'")');
       setLed('green','Online ('+(Date.now()-start)+'ms)');
       clearTimeout(apiCheckTimer);
       apiCheckTimer=setTimeout(checkApiStatus,API_CHECK_INTERVAL);
       return cards;
     }
-  }catch(e){ /* diretta bloccata da CORS / rete → fallback proxy sotto */ }
+  }catch(e){ console.warn('[RB-PERF] _fetchRaw DIRETTA fallita ('+e.message+') dopo '+(Date.now()-start)+'ms → fallback proxy'); }
 
   // FALLBACK: proxy hyper-endpoint (server-side, aggira CORS ma può essere in
   // cold-start). Usato solo se la diretta fallisce.
   try{
+    console.log('[RB-PERF] _fetchRaw FALLBACK proxy hyper-endpoint…');
     const proxyUrl=`${SUPA_URL}/functions/v1/hyper-endpoint?name=${encodeURIComponent(name)}`;
     const r=await fetch(proxyUrl,{headers:{'Authorization':'Bearer '+(window._rbSession?.access_token||SUPA_KEY)}});
     if((r.status===500||r.status===503)&&attempt===1){
@@ -8951,6 +8953,8 @@ async function saveEditModal(){
 
 // Ricerca carte nel preventivo
 async function prevSearch(){
+  console.log('[RB-PERF] ⏎ INVIO premuto — avvio ricerca preventivo @ '+new Date().toISOString());
+  window.__rbSearchT0 = Date.now();
   // Wrapper sottile su rbCardSearch.run — stesso engine di doSearch ma
   // dispatcha a showPrevQuickAdd / showPrevResults. Senza fallback manuale
   // (nei preventivi non c'è form manuale: 0 risultati è un errore).
