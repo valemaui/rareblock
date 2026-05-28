@@ -428,22 +428,28 @@ function msLoad(){
   }catch(e){ return[]; }
 }
 function msSave(d){
-  // Salva in localStorage scopata per utente
+  // Salva in localStorage scopata per utente (immediato, offline-safe).
   try{ localStorage.setItem(_msLsKey(),JSON.stringify(d)); }catch(e){}
-  // Salva in Supabase (persistenza cloud + multi-device)
-  msSupaSave(d);
+  // Salva in Supabase (persistenza cloud + multi-device). Ritorna la Promise
+  // così chi crea/modifica può await-arla e mostrare errore se la POST fallisce
+  // invece di farla fallire silenziosa (cause storica di "creato ma sparisce").
+  return msSupaSave(d);
 }
 
 async function msSupaSave(data){
   var uid=getCurrentUserId();
-  if(!uid){ console.warn('[msSupaSave] non autenticato, salto'); return; }
-  try{
-    var upsertHdr=Object.assign({},getHDR(),{'Prefer':'resolution=merge-duplicates,return=minimal'});
-    await fetch(SUPA_URL+'/rest/v1/mastersets',{
-      method:'POST', headers:upsertHdr,
-      body:JSON.stringify({user_id:uid, data:JSON.stringify(data), updated_at:new Date().toISOString()})
-    });
-  }catch(e){ console.warn('msSupaSave error:',e.message); }
+  if(!uid){ console.warn('[msSupaSave] non autenticato, salto'); throw new Error('non autenticato'); }
+  var upsertHdr=Object.assign({},getHDR(),{'Prefer':'resolution=merge-duplicates,return=minimal'});
+  var r=await fetch(SUPA_URL+'/rest/v1/mastersets',{
+    method:'POST', headers:upsertHdr,
+    body:JSON.stringify({user_id:uid, data:JSON.stringify(data), updated_at:new Date().toISOString()})
+  });
+  if(!r.ok){
+    var body=''; try{ body=await r.text(); }catch(_){}
+    var msg='Supabase HTTP '+r.status+(body?(' · '+body.slice(0,200)):'');
+    console.error('[msSupaSave]', msg);
+    throw new Error(msg);
+  }
 }
 
 // Ritorna {found:true,data:[...]} se ci sono dati, {found:false} se l'utente non
@@ -1148,8 +1154,8 @@ window.msCreateMasterset = function(){
   if(prog) prog.style.display='block';
   setProg(8,'Recupero carte da Pokémon TCG...');
   var trackCond = !!(document.getElementById('msTrackCond')&&document.getElementById('msTrackCond').checked);
-  msFetchSetCards(msSetSel.id,1,[],function(cards){
-    setProg(96,'Preparazione masterset ('+cards.length+' carte)...');
+  msFetchSetCards(msSetSel.id,1,[],async function(cards){
+    setProg(92,'Salvataggio masterset ('+cards.length+' carte)...');
     cards.sort(function(a,b){
       var na=parseFloat(a.number)||0, nb=parseFloat(b.number)||0;
       if(na!==nb) return na-nb;
@@ -1168,15 +1174,27 @@ window.msCreateMasterset = function(){
           img:c.images&&c.images.small||'',imgLg:c.images&&c.images.large||'',qty:{}};
       })
     };
-    msData.push(ms); msSave(msData);
-    setProg(100,'Fatto');
-    msCloseModal(); msActive=id; msRenderList(); msOpen(id);
-    endProg();
+    // Push in memoria + localStorage subito (UX immediata), poi AWAIT del cloud.
+    // Se il cloud fallisce, fai rollback in memoria — altrimenti vedi "creato"
+    // ma al refresh sparisce (caso (b) appena segnalato).
+    msData.push(ms);
+    try{
+      await msSave(msData);
+      setProg(100,'Fatto');
+      msCloseModal(); msActive=id; msRenderList(); msOpen(id);
+      endProg();
+    }catch(e){
+      // Rollback: rimuovi dalla memoria e da localStorage
+      msData = msData.filter(function(m){return m.id!==id;});
+      try{ localStorage.setItem(_msLsKey(),JSON.stringify(msData)); }catch(_){}
+      endProg();
+      alert('Errore salvataggio cloud: '+e.message+'\nIl masterset NON è stato creato. Riprova o controlla la connessione.');
+    }
   },function(err){
     endProg();
     alert('Errore caricamento carte: '+err);
   },function(loaded,total){
-    var pct = total ? Math.round(loaded/total*88)+8 : 30;
+    var pct = total ? Math.round(loaded/total*80)+8 : 30;
     setProg(pct, 'Caricate '+loaded+(total?(' / '+total):'')+' carte...');
   });
 };
