@@ -1075,17 +1075,40 @@ function _msDupesWriteKeep(msId,v){
   try{ localStorage.setItem(_msDupesKeepKey(msId), String(v)); }catch(_){}
 }
 // Costruisce la lista delle doppie per il masterset corrente, dato keep.
+// Granulato adattivo:
+//   - trackConditions ON  → riga per (carta, variante, condizione); ogni
+//                           condizione con owned>keep è una riga separata.
+//                           Necessario per gli scambi: una NM e una PL non
+//                           sono equivalenti.
+//   - trackConditions OFF → riga per (carta, variante); condizione implicita
+//                           NM (è il default del mode classico, qtySet scrive
+//                           sempre NM).
 function _msDupesCompute(ms, keep){
   var out = [];
   ms.cards.forEach(function(card){
     ms.variants.forEach(function(v){
-      var owned = qtyTotal(card, v);
-      if(owned > keep){
-        out.push({
-          num: card.num, name: card.name, rarity: card.rarity||'',
-          variant: v, owned: owned, keep: keep, dupes: owned - keep,
-          img: card.img||''
+      if(ms.trackConditions){
+        MS_CONDITIONS.forEach(function(cnd){
+          var owned = qtyForCond(card, v, cnd.id);
+          if(owned > keep){
+            out.push({
+              num:card.num, name:card.name, rarity:card.rarity||'',
+              variant:v, condition:cnd.id,
+              owned:owned, keep:keep, dupes:owned-keep,
+              img:card.img||''
+            });
+          }
         });
+      } else {
+        var owned = qtyTotal(card, v);
+        if(owned > keep){
+          out.push({
+            num:card.num, name:card.name, rarity:card.rarity||'',
+            variant:v, condition:'NM',
+            owned:owned, keep:keep, dupes:owned-keep,
+            img:card.img||''
+          });
+        }
       }
     });
   });
@@ -1140,6 +1163,7 @@ window.msDupesRender = function(){
         '<th style="padding:8px 6px;font-weight:500;color:var(--text-muted);font-size:11px;border-bottom:1px solid var(--border);width:50px">#</th>'+
         '<th style="padding:8px 6px;font-weight:500;color:var(--text-muted);font-size:11px;border-bottom:1px solid var(--border)">Nome</th>'+
         '<th style="padding:8px 6px;font-weight:500;color:var(--text-muted);font-size:11px;border-bottom:1px solid var(--border)">Variante</th>'+
+        '<th style="padding:8px 6px;font-weight:500;color:var(--text-muted);font-size:11px;border-bottom:1px solid var(--border);width:54px">Cond.</th>'+
         '<th style="padding:8px 6px;font-weight:500;color:var(--text-muted);font-size:11px;border-bottom:1px solid var(--border)">Rarità</th>'+
         '<th style="padding:8px 6px;text-align:right;font-weight:500;color:var(--text-muted);font-size:11px;border-bottom:1px solid var(--border);width:50px">Hai</th>'+
         '<th style="padding:8px 6px;text-align:right;font-weight:500;color:var(--text-muted);font-size:11px;border-bottom:1px solid var(--border);width:60px">Tieni</th>'+
@@ -1151,6 +1175,7 @@ window.msDupesRender = function(){
       '<td style="padding:6px;font-family:var(--font-mono,monospace);color:var(--text-subtle)">'+esc(r.num)+'</td>'+
       '<td style="padding:6px">'+esc(r.name)+'</td>'+
       '<td style="padding:6px;color:var(--text-muted)">'+esc(r.variant)+'</td>'+
+      '<td style="padding:6px;font-family:var(--font-mono,monospace);font-size:11px;color:var(--accent)">'+esc(r.condition||'')+'</td>'+
       '<td style="padding:6px;color:var(--text-subtle);font-size:11px">'+esc(r.rarity)+'</td>'+
       '<td style="padding:6px;text-align:right;font-family:var(--font-mono,monospace)">'+r.owned+'</td>'+
       '<td style="padding:6px;text-align:right;font-family:var(--font-mono,monospace);color:var(--text-subtle)">'+r.keep+'</td>'+
@@ -1168,9 +1193,9 @@ window.msDupesExportCSV = function(){
   var list = _msDupesCompute(ms, keep);
   // CSV: virgolette doppie nei nomi escapate raddoppiandole (RFC 4180).
   function csvCell(s){ return '"'+String(s).replace(/"/g,'""')+'"'; }
-  var rows = ['#,Nome,Variante,Rarità,Hai,Tieni,Doppie'];
+  var rows = ['#,Nome,Variante,Condizione,Rarità,Hai,Tieni,Doppie'];
   list.forEach(function(r){
-    rows.push([csvCell(r.num),csvCell(r.name),csvCell(r.variant),csvCell(r.rarity),r.owned,r.keep,r.dupes].join(','));
+    rows.push([csvCell(r.num),csvCell(r.name),csvCell(r.variant),csvCell(r.condition||''),csvCell(r.rarity),r.owned,r.keep,r.dupes].join(','));
   });
   var a = document.createElement('a');
   a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(rows.join('\n'));
@@ -1188,7 +1213,14 @@ window.msDupesCopyText = function(){
   var header = '🔄 Doppie · '+ms.setName+' · '+ms.lang+(ms.label?(' · '+ms.label):'');
   var sub = 'Tengo: '+keep+'/stampa · '+list.length+' stampe · '+totDupes+' doppie totali';
   var lines = list.map(function(r){
-    return '• #'+r.num+' '+r.name+(r.variant&&r.variant!=='NORMAL'?(' ('+r.variant+')'):'')+' ×'+r.dupes;
+    // Compone l'etichetta stampa: "(HOLO · NM)" se trackConditions ON, "(HOLO)"
+    // se la variante non è NORMAL e non c'è condizione esplicita.
+    var tag = '';
+    var hasVar = r.variant && r.variant !== 'NORMAL';
+    if(hasVar && r.condition && ms.trackConditions) tag = ' ('+r.variant+' · '+r.condition+')';
+    else if(hasVar)                                  tag = ' ('+r.variant+')';
+    else if(r.condition && ms.trackConditions)       tag = ' ('+r.condition+')';
+    return '• #'+r.num+' '+r.name+tag+' ×'+r.dupes;
   });
   var txt = header+'\n'+sub+'\n\n'+lines.join('\n');
   var btn = document.getElementById('msDupesCopyBtn');
