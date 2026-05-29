@@ -118,6 +118,11 @@ function buildHeaders(url: string, lang = 'it', referer?: string, opts?: { mobil
 // ═════════════════════════════════════════════════════════════════════
 const SUPABASE_URL_ENV  = Deno.env.get('SUPABASE_URL') || '';
 const SUPABASE_SRV_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+// ScraperAPI: proxy residenziale per superare il Cloudflare Enterprise WAF di
+// CardMarket (i fetch diretti da IP datacenter Supabase vengono bloccati 403).
+// Attivo SOLO se il secret e' presente → nessun cambio di comportamento finche'
+// non configuri SCRAPERAPI_KEY nei Secrets della function.
+const SCRAPERAPI_KEY = Deno.env.get('SCRAPERAPI_KEY') || Deno.env.get('SCRAPER_API_KEY') || Deno.env.get('SCRAPERAPI') || '';
 const CACHE_AVAILABLE   = SUPABASE_URL_ENV.length > 10 && SUPABASE_SRV_ROLE.length > 10;
 
 const CACHE_TTL_SECONDS: Record<string, number> = {
@@ -224,6 +229,44 @@ async function cachePut(url: string, html: string, status: number, via: string):
 //  PROXY_ENABLED=true + SCRAPINGBEE_API_KEY.
 // ═════════════════════════════════════════════════════════════════════
 
+// ─── PROXY FALLBACK · ScraperAPI ──────────────────────────────────────────
+// Instrada la richiesta tramite IP residenziali rotanti + rendering JS, in
+// grado (sui tier premium) di superare il challenge Cloudflare Enterprise di
+// CardMarket. La key vive SOLO nei Secrets server-side. Il costo per chiamata
+// (ultra_premium+render ~ decine di crediti) e' mitigato dalla cache HTML
+// (cache_get/put_external, 12-24h) e dal DB prezzi per-condizione lato app:
+// ogni carta viene scrapata una volta, poi servita dalla cache.
+async function fetchViaScraperAPI(targetUrl: string, lang = 'it'): Promise<{ html: string; ok: boolean; status: number; via: string }> {
+  if (!SCRAPERAPI_KEY) return { html: '', ok: false, status: 0, via: 'proxy_disabled' };
+  const isCm = targetUrl.includes('cardmarket.com');
+  const params = new URLSearchParams({
+    api_key: SCRAPERAPI_KEY,
+    url: targetUrl,
+    render: 'true',          // esegue il JS del challenge Cloudflare
+    ultra_premium: 'true',   // IP residenziali "hard" anti-bot (CF Enterprise)
+  });
+  // CM serve prezzi/valuta in base alla geo dell'IP: forziamo area EU.
+  if (isCm) params.set('country_code', 'eu');
+  const proxyUrl = `https://api.scraperapi.com/?${params.toString()}`;
+  try {
+    // render=true puo' impiegare 10-40s: timeout generoso ma sotto il limite
+    // della edge function.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 55000);
+    const resp = await fetch(proxyUrl, { headers: { 'Accept-Language': lang }, signal: ctrl.signal });
+    clearTimeout(timer);
+    const html = await resp.text();
+    const blocked = html.length < 1000 ||
+      /Just a moment|cf-browser-verification|Attention Required|challenge-platform/i.test(html);
+    if (!resp.ok || blocked) {
+      return { html, ok: false, status: resp.ok ? 403 : resp.status, via: 'proxy_blocked' };
+    }
+    return { html, ok: true, status: 200, via: 'scraperapi' };
+  } catch (_e) {
+    return { html: '', ok: false, status: 0, via: 'proxy_error' };
+  }
+}
+
 async function fetchWithRetry(url: string, maxRetries = 2, referer?: string): Promise<{ html: string; ok: boolean; status: number }> {
   // ── CACHE READ ──
   // Prima di qualsiasi network IO controlla cache. Se hit, ritorna subito:
@@ -280,8 +323,23 @@ async function fetchWithRetry(url: string, maxRetries = 2, referer?: string): Pr
 
       if (tooShort || cfChallenge || ebaySoftBlock) {
         if (attempt === maxRetries) {
-          // Nessun fallback proxy disponibile (ScrapingBee rimosso): ritorna
-          // l'HTML grezzo con ok=false, il client gestisce con input manuale.
+          // Fallback proxy residenziale (ScraperAPI) se configurato: e' l'unico
+          // modo di superare il Cloudflare Enterprise WAF di CardMarket da
+          // server. Senza secret → ritorna blocked e il client usa l'userscript.
+          if (SCRAPERAPI_KEY) {
+            const px = await fetchViaScraperAPI(fetchUrl, lang);
+            if (px.ok) {
+              await cachePut(url, px.html, 200, 'scraperapi').catch(() => {});
+              return { html: px.html, ok: true, status: 200, via: 'scraperapi' } as any;
+            }
+            return {
+              html: px.html || html, ok: false,
+              status: cfChallenge ? 403 : (ebaySoftBlock ? 451 : 403),
+              via: 'proxy_' + px.via,
+            } as any;
+          }
+          // Nessun proxy configurato: ritorna l'HTML grezzo con ok=false, il
+          // client gestisce con input manuale / userscript Tampermonkey.
           return {
             html, ok: false,
             status: cfChallenge ? 403 : (ebaySoftBlock ? 451 : 403),
