@@ -291,8 +291,12 @@ body{display:flex;flex-direction:column}
 (function(){
 'use strict';
 
-var TCG_KEY  = 'ca385a14-d149-4a9f-a275-3bda5b7b1555';
-var TCG_BASE = 'https://api.pokemontcg.io/v2';
+// Le costanti TCG_BASE / TCG_KEY (api.pokemontcg.io) sono state rimosse: tutte
+// le chiamate alla Pokémon TCG API passano ora dal proxy Supabase Edge Function
+// hyper-endpoint, che inietta l'API key server-side. Le chiamate dirette dal
+// browser erano CORS-bloccate (sintomi storici: 'NetworkError' su Firefox,
+// 'Failed to fetch' su Chrome) e causavano set picker vuoto / carte non
+// scaricabili. Vedi msFetchSets e msFetchSetCards più sotto.
 var MS_LS    = 'pkm_mastersets_v2';
 
 var ALL_VARS = [
