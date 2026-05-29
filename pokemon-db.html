@@ -16004,5 +16004,580 @@ window.slabOnCertEdit    = slabOnCertEdit;
 window.slabSetMode       = slabSetMode;
 window.slabVerifyManual  = slabVerifyManual;
 </script>
+
+<!-- ══ RB-PRICE-CACHE · cache multi-livello prezzi + ricerca + Guida Prezzi ══ -->
+<script>
+/* ══════════════════════════════════════════════════════════════════════
+   RB-PRICE-CACHE · rev 2026-05-29
+   Strato cache multi-livello per PREZZI per-condizione e RICERCA carte.
+
+   Obiettivi:
+     • Sfruttare ogni prezzo verificato per popolare un DB riusabile
+       (cm_price_by_condition via RPC cm_get/upsert) → letture istantanee
+       su TUTTE le condizioni.
+     • Cache di ricerca persistente (localStorage) + deduplica richieste
+       concorrenti, fail-safe (in errore = comportamento odierno).
+     • UI "Guida Prezzi" dark-luxury, provenienza/freschezza sempre esplicite.
+
+   VINCOLI RISPETTATI (architettura pokemon-db.html):
+     • NIENTE IIFE.
+     • Solo `var` / `function` a livello globale (accesso cross-script).
+     • `await` solo dentro funzioni `async`.
+     • try/catch su ogni effetto collaterale: la cache NON deve MAI rompere
+       il percorso live. In caso di dubbio, si degrada al live.
+     • Non si tocca il prezzo che entra nei preventivi (resta live/verificato).
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Config ──────────────────────────────────────────────────────────── */
+var RB_PC_TTL_DAYS   = 7;                         // freschezza dato DB (L2)
+var RB_PC_LS_TTL_MS  = 1000 * 60 * 60 * 24 * 7;   // 7gg cache localStorage (L1)
+var RB_PC_TCG_TTL_MS = 1000 * 60 * 60 * 24;       // 24h cache ricerca TCG
+var RB_PC_MEM_MAX    = 500;                        // tetto LRU in-memory
+
+/* Ordine canonico condizioni Cardmarket (Mint→Poor) + rank. */
+var RB_PC_COND_ORDER = ['Mint','Near Mint','Excellent','Good','Light Played','Played','Poor'];
+var RB_PC_COND_RANK  = { 'Mint':1,'Near Mint':2,'Excellent':3,'Good':4,'Light Played':5,'Played':6,'Poor':7 };
+var RB_PC_COND_SHORT = { 'Mint':'M','Near Mint':'NM','Excellent':'EX','Good':'GD','Light Played':'LP','Played':'PL','Poor':'PO' };
+
+/* ── L0: LRU in-memory ───────────────────────────────────────────────── */
+var _rbPcMem = (typeof Map !== 'undefined') ? new Map() : null;
+function _rbPcMemGet(k){
+  try{
+    if(!_rbPcMem || !_rbPcMem.has(k)) return null;
+    var v = _rbPcMem.get(k); _rbPcMem.delete(k); _rbPcMem.set(k, v); // touch
+    return v;
+  }catch(e){ return null; }
+}
+function _rbPcMemSet(k, v){
+  try{
+    if(!_rbPcMem) return;
+    if(_rbPcMem.has(k)) _rbPcMem.delete(k);
+    _rbPcMem.set(k, v);
+    while(_rbPcMem.size > RB_PC_MEM_MAX){ _rbPcMem.delete(_rbPcMem.keys().next().value); }
+  }catch(e){}
+}
+
+/* ── L1: localStorage con TTL ────────────────────────────────────────── */
+function _rbPcLsGet(prefix, k, ttlMs){
+  try{
+    var raw = localStorage.getItem(prefix + k);
+    if(!raw) return null;
+    var o = JSON.parse(raw);
+    if(!o || typeof o.t !== 'number') return null;
+    if(Date.now() - o.t > ttlMs) return null;
+    return o.data;
+  }catch(e){ return null; }
+}
+function _rbPcLsSet(prefix, k, data){
+  try{ localStorage.setItem(prefix + k, JSON.stringify({ t: Date.now(), data: data })); }
+  catch(e){ /* quota/full: ignora, è solo cache */ }
+}
+
+/* ── Chiave carta stabile ────────────────────────────────────────────── */
+/* Riusa _rbBuildCardKey del core (parità garantita col percorso di scrittura).
+   Fallback inline con identica normalizzazione se non disponibile.        */
+function rbPcKey(opts){
+  if(!opts) return null;
+  try{
+    if(typeof _rbBuildCardKey === 'function'){
+      return _rbBuildCardKey({
+        set_id:        opts.setId || opts.set_id || (opts.set && opts.set.id),
+        number:        opts.number || opts.card_number,
+        language:      opts.language,
+        variant:       opts.variant,
+        first_edition: opts.first_edition
+      });
+    }
+  }catch(e){}
+  var setId = ((opts.setId || opts.set_id || (opts.set && opts.set.id)) || '').toString().toLowerCase().trim();
+  var num   = ((opts.number || opts.card_number) || '').toString().toLowerCase().trim();
+  if(!setId || !num) return null;
+  var lang  = ((opts.language) || 'ITA').toString().toUpperCase().trim();
+  var vari  = ((opts.variant)  || 'Normal').toString().trim();
+  var fe    = opts.first_edition ? '1' : '0';
+  return [setId, num, lang, vari, fe].join('|');
+}
+
+/* ── Deduplica richieste concorrenti ─────────────────────────────────── */
+var _rbPcInflight = {};
+function _rbPcDedup(key, factory){
+  if(_rbPcInflight[key]) return _rbPcInflight[key];
+  var p = Promise.resolve().then(factory);
+  p = p.then(function(v){ delete _rbPcInflight[key]; return v; },
+             function(e){ delete _rbPcInflight[key]; throw e; });
+  _rbPcInflight[key] = p;
+  return p;
+}
+
+/* ── Aggregazione listing → condizioni (mirror della logica server) ──── */
+function _rbPcAggListings(listings){
+  var byKey = {}; // condition|isFoil → array prezzi
+  for(var i=0; i<(listings||[]).length; i++){
+    var l = listings[i];
+    if(!l) continue;
+    var price = +l.price;
+    if(!(price > 0)) continue;
+    var cond = l.condition && RB_PC_COND_RANK[l.condition] ? l.condition : null;
+    if(!cond) continue;
+    var foil = !!l.isFoil;
+    var k = cond + '|' + (foil ? '1' : '0');
+    (byKey[k] = byKey[k] || []).push(price);
+  }
+  var out = [];
+  Object.keys(byKey).forEach(function(k){
+    var parts = k.split('|'); var cond = parts[0]; var foil = parts[1] === '1';
+    var arr = byKey[k].slice().sort(function(a,b){ return a-b; });
+    var sum = arr.reduce(function(a,b){ return a+b; }, 0);
+    out.push({
+      condition: cond,
+      condRank:  RB_PC_COND_RANK[cond] || 5,
+      low1: arr[0] != null ? arr[0] : null,
+      low2: arr[1] != null ? arr[1] : null,
+      low3: arr[2] != null ? arr[2] : null,
+      avg:  Math.round((sum / arr.length) * 100) / 100,
+      nListings: arr.length,
+      isFoil: foil
+    });
+  });
+  out.sort(function(a,b){ return (a.condRank - b.condRank) || ((a.isFoil?1:0) - (b.isFoil?1:0)); });
+  return out;
+}
+
+/* ── L2: lettura DB via RPC (cm_get_condition_prices) ────────────────── */
+function _rbPcDbRead(cardKey){
+  return _rbPcDedup('db:' + cardKey, function(){
+    return Promise.resolve().then(function(){
+      if(typeof supa !== 'function') return null;
+      return supa('POST', 'rpc/cm_get_condition_prices',
+                  { p_card_key: cardKey, p_max_age_days: RB_PC_TTL_DAYS })
+        .then(function(res){ return (res && res.found) ? res : null; })
+        .catch(function(err){
+          try{ console.warn('[RB-PC] lettura DB fallita:', err && err.message); }catch(e){}
+          return null;
+        });
+    });
+  });
+}
+
+/* ── Persistenza (riusa _rbPersistConditionPrices del core) ──────────── */
+function _rbPcPersist(opts, listings, cmUrl){
+  try{
+    if(typeof _rbPersistConditionPrices !== 'function') return;
+    var card = {
+      name:          opts.name,
+      set_id:        opts.setId || opts.set_id || (opts.set && opts.set.id),
+      number:        opts.number || opts.card_number,
+      language:      opts.language,
+      variant:       opts.variant,
+      first_edition: opts.first_edition
+    };
+    _rbPersistConditionPrices(card, listings, cmUrl); // fire-and-forget, idempotente
+  }catch(e){}
+}
+
+/* ── Normalizza un risultato in shape unico per la UI ────────────────── */
+function _rbPcNormalize(source, cardKey, opts, payload){
+  // payload può venire da: DB (res), live (fetchCmPriceLive), o cache LS/mem
+  var conditions, fresh = true, ageDays = 0, capturedAt = null, cmUrl = null, ok = true, err = null;
+  if(source === 'db'){
+    conditions = (payload.conditions || []).map(function(c){
+      return { condition:c.condition, condRank:c.condRank, low1:c.low1, low2:c.low2,
+               low3:c.low3, avg:c.avg, nListings:c.nListings, isFoil:c.isFoil };
+    });
+    fresh = !!payload.fresh; ageDays = +payload.age_days || 0; capturedAt = payload.captured_at || null;
+  } else if(source === 'live'){
+    if(!payload || !payload.ok){ ok = false; err = (payload && payload.error) || 'nessun dato live'; conditions = []; }
+    else { conditions = _rbPcAggListings(payload.listings || []); cmUrl = payload.cmUrl || null; }
+    fresh = true; ageDays = 0; capturedAt = new Date().toISOString();
+  } else { // cache locale (già normalizzata)
+    return Object.assign({ source: source, cardKey: cardKey }, payload);
+  }
+  return {
+    ok: ok, error: err, source: source, cardKey: cardKey,
+    cardName: (opts && opts.name) || null,
+    fresh: fresh, ageDays: ageDays, capturedAt: capturedAt, cmUrl: cmUrl,
+    conditions: conditions
+  };
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   API PUBBLICA: rbGetConditionPrices(opts, flags)
+     opts  = { name, setId, number, language, variant, first_edition, condition?, rarity?, setName?, cmUrl? }
+     flags = { force?:bool }  // force = bypassa cache, va diretto al live
+   Ritorna: { ok, source, fresh, ageDays, capturedAt, cardKey, cardName, conditions[], cmUrl, error }
+   Strategia: L0 mem → L1 localStorage → L2 DB(fresh) → L3 live (→ persist + warm).
+   Se il live fallisce ma esiste un dato DB stantio → lo serve con fresh=false
+   (resilienza Cloudflare): meglio "ultimo dato noto" che errore.
+   ══════════════════════════════════════════════════════════════════════ */
+async function rbGetConditionPrices(opts, flags){
+  opts = opts || {}; flags = flags || {};
+  var cardKey = rbPcKey(opts);
+
+  // Senza identità stabile non posso cacheare: vado diretto al live (one-shot).
+  if(!cardKey){
+    var liveNoKey = await _rbPcFetchLive(opts);
+    return _rbPcNormalize('live', null, opts, liveNoKey);
+  }
+
+  if(!flags.force){
+    // L0 — memoria (istantaneo, questa sessione)
+    var mem = _rbPcMemGet('cond:' + cardKey);
+    if(mem) return Object.assign({}, mem, { source: 'memory' });
+
+    // L1 — localStorage (sopravvive al reload)
+    var ls = _rbPcLsGet('rb_pc_', cardKey, RB_PC_LS_TTL_MS);
+    if(ls){ _rbPcMemSet('cond:' + cardKey, ls); return Object.assign({}, ls, { source: 'localStorage' }); }
+
+    // L2 — DB Supabase (cross-device, TTL 7gg)
+    var db = await _rbPcDbRead(cardKey);
+    if(db){
+      var ndb = _rbPcNormalize('db', cardKey, opts, db);
+      if(ndb.fresh){
+        _rbPcMemSet('cond:' + cardKey, ndb);
+        _rbPcLsSet('rb_pc_', cardKey, ndb);
+        return ndb;
+      }
+      // dato presente ma stantio → tieni come fallback, prova live
+      var liveAfterStale = await _rbPcFetchLive(opts);
+      if(liveAfterStale && liveAfterStale.ok){
+        var nLive = _rbPcNormalize('live', cardKey, opts, liveAfterStale);
+        _rbPcPersist(opts, liveAfterStale.listings, liveAfterStale.cmUrl);
+        _rbPcMemSet('cond:' + cardKey, nLive);
+        _rbPcLsSet('rb_pc_', cardKey, nLive);
+        return nLive;
+      }
+      // live KO → servo il dato DB stantio con flag chiaro
+      ndb.fresh = false; ndb.stale = true;
+      return ndb;
+    }
+  }
+
+  // L3 — live CardMarket (lento, ultima risorsa) → popola tutti i livelli
+  var live = await _rbPcFetchLive(opts);
+  var nFinal = _rbPcNormalize('live', cardKey, opts, live);
+  if(nFinal.ok && nFinal.conditions.length){
+    _rbPcPersist(opts, (live && live.listings) || [], (live && live.cmUrl) || null);
+    _rbPcMemSet('cond:' + cardKey, nFinal);
+    _rbPcLsSet('rb_pc_', cardKey, nFinal);
+  } else if(!flags.force){
+    // live KO: ultima spiaggia, prova comunque il DB anche se stantio
+    var dbFb = await _rbPcDbRead(cardKey);
+    if(dbFb){ var nfb = _rbPcNormalize('db', cardKey, opts, dbFb); nfb.fresh = false; nfb.stale = true; return nfb; }
+  }
+  return nFinal;
+}
+
+/* Chiama il fetcher live del core in modo difensivo. */
+function _rbPcFetchLive(opts){
+  return Promise.resolve().then(function(){
+    if(typeof fetchCmPriceLive !== 'function') return { ok:false, error:'fetchCmPriceLive non disponibile', listings:[] };
+    return fetchCmPriceLive(opts);
+  }).catch(function(e){ return { ok:false, error:(e && e.message) || 'errore live', listings:[] }; });
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   HARDENING RICERCA · wrap fail-safe di _fetchRaw
+     • L1 localStorage (TTL 24h) → reload istantanei
+     • deduplica richieste concorrenti sullo stesso nome
+     • qualsiasi errore nel layer cache → si delega all'originale invariato
+   ══════════════════════════════════════════════════════════════════════ */
+function _rbInstallSearchCache(){
+  try{
+    if(typeof _fetchRaw !== 'function' || _fetchRaw.__rbWrapped) return;
+    var _orig = _fetchRaw;
+    var wrapped = async function(name, attempt){
+      try{
+        var key = (name || '').toLowerCase().trim();
+        if(key && (attempt === undefined || attempt === 1)){
+          // memoria del core già gestita dentro _orig; qui aggiungo LS + dedup
+          var hit = _rbPcLsGet('rb_tcg_', key, RB_PC_TCG_TTL_MS);
+          if(hit && Array.isArray(hit)) return hit;
+          return _rbPcDedup('tcg:' + key, function(){
+            return _orig(name, attempt).then(function(cards){
+              try{ if(Array.isArray(cards) && cards.length) _rbPcLsSet('rb_tcg_', key, cards); }catch(e){}
+              return cards;
+            });
+          });
+        }
+      }catch(e){ /* cache KO → fallthrough al comportamento odierno */ }
+      return _orig(name, attempt);
+    };
+    wrapped.__rbWrapped = true;
+    // Riassegna il binding globale (classic script): i call-site risolvono a runtime.
+    _fetchRaw = wrapped;
+    try{ window._fetchRaw = wrapped; }catch(e){}
+    try{ console.log('[RB-PC] search cache installata (LS 24h + dedup)'); }catch(e){}
+  }catch(e){ try{ console.warn('[RB-PC] install search cache fallito:', e && e.message); }catch(_){} }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   UI · Guida Prezzi (modale dark-luxury) + launcher
+   ══════════════════════════════════════════════════════════════════════ */
+function _rbPcInjectStyles(){
+  if(document.getElementById('rbpc-styles')) return;
+  var css = ''
+   + '#rbpc-fab{position:fixed;right:22px;bottom:22px;z-index:99990;display:flex;align-items:center;gap:9px;'
+   + 'padding:12px 18px;border-radius:999px;cursor:pointer;border:1px solid rgba(201,169,97,.45);'
+   + 'background:linear-gradient(135deg,#15130e,#0c0b08);color:#c9a961;font-family:Figtree,system-ui,sans-serif;'
+   + 'font-size:13.5px;font-weight:600;letter-spacing:.02em;box-shadow:0 10px 34px rgba(0,0,0,.55),inset 0 1px 0 rgba(201,169,97,.18);'
+   + 'transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;}'
+   + '#rbpc-fab:hover{transform:translateY(-2px);border-color:rgba(201,169,97,.8);box-shadow:0 16px 44px rgba(0,0,0,.6),0 0 22px rgba(201,169,97,.18);}'
+   + '#rbpc-fab .rbpc-fab-ic{font-family:"JetBrains Mono",monospace;font-size:15px;}'
+   + '.rbpc-ov{position:fixed;inset:0;z-index:99991;background:rgba(4,4,3,.74);backdrop-filter:blur(7px);'
+   + 'display:flex;align-items:center;justify-content:center;padding:20px;animation:rbpcFade .22s ease;}'
+   + '@keyframes rbpcFade{from{opacity:0}to{opacity:1}}'
+   + '@keyframes rbpcRise{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}'
+   + '.rbpc-card{width:min(560px,96vw);max-height:88vh;overflow:auto;border-radius:20px;animation:rbpcRise .26s cubic-bezier(.2,.7,.2,1);'
+   + 'background:linear-gradient(180deg,#121009 0%,#0a0907 100%);border:1px solid rgba(201,169,97,.22);'
+   + 'box-shadow:0 30px 80px rgba(0,0,0,.7),inset 0 1px 0 rgba(201,169,97,.1);color:#ece7db;'
+   + 'font-family:Figtree,system-ui,sans-serif;}'
+   + '.rbpc-hd{padding:20px 22px 14px;border-bottom:1px solid rgba(201,169,97,.14);position:relative;}'
+   + '.rbpc-kicker{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:#8a7a52;}'
+   + '.rbpc-title{font-family:Fraunces,Georgia,serif;font-size:22px;font-weight:600;margin:4px 0 0;color:#f3eede;line-height:1.18;}'
+   + '.rbpc-x{position:absolute;top:16px;right:16px;width:30px;height:30px;border-radius:8px;border:1px solid rgba(201,169,97,.2);'
+   + 'background:transparent;color:#c9a961;cursor:pointer;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;}'
+   + '.rbpc-x:hover{background:rgba(201,169,97,.1);}'
+   + '.rbpc-bd{padding:16px 22px 22px;}'
+   + '.rbpc-srch{display:flex;gap:8px;margin-bottom:14px;}'
+   + '.rbpc-srch input{flex:1;padding:11px 13px;border-radius:11px;border:1px solid rgba(201,169,97,.22);background:#0f0d09;'
+   + 'color:#ece7db;font-family:Figtree,sans-serif;font-size:14px;outline:none;}'
+   + '.rbpc-srch input:focus{border-color:rgba(201,169,97,.6);}'
+   + '.rbpc-srch button{padding:11px 16px;border-radius:11px;border:1px solid rgba(201,169,97,.4);'
+   + 'background:linear-gradient(135deg,#1a1710,#0e0c08);color:#c9a961;font-weight:600;cursor:pointer;font-size:14px;}'
+   + '.rbpc-srch button:hover{border-color:rgba(201,169,97,.85);}'
+   + '.rbpc-results{display:flex;flex-direction:column;gap:6px;margin-bottom:6px;}'
+   + '.rbpc-res{display:flex;gap:11px;align-items:center;padding:8px 10px;border-radius:11px;cursor:pointer;'
+   + 'border:1px solid transparent;transition:border-color .15s,background .15s;}'
+   + '.rbpc-res:hover{background:rgba(201,169,97,.06);border-color:rgba(201,169,97,.22);}'
+   + '.rbpc-res img{width:38px;height:53px;object-fit:cover;border-radius:5px;background:#1a1812;}'
+   + '.rbpc-res .nm{font-size:14px;color:#f0ebdd;font-weight:600;}'
+   + '.rbpc-res .mt{font-size:11.5px;color:#8f815a;font-family:"JetBrains Mono",monospace;}'
+   + '.rbpc-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 14px;}'
+   + '.rbpc-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;font-size:11px;'
+   + 'font-family:"JetBrains Mono",monospace;letter-spacing:.03em;border:1px solid transparent;}'
+   + '.rbpc-pill.fresh{color:#9fe0b0;background:rgba(70,160,100,.12);border-color:rgba(120,200,150,.28);}'
+   + '.rbpc-pill.stale{color:#e6c98a;background:rgba(190,150,70,.12);border-color:rgba(210,170,90,.3);}'
+   + '.rbpc-pill.src{color:#9aa6b8;background:rgba(120,140,170,.1);border-color:rgba(140,160,190,.24);}'
+   + '.rbpc-pill.live{color:#c9a961;background:rgba(201,169,97,.1);border-color:rgba(201,169,97,.3);}'
+   + '.rbpc-ladder{border:1px solid rgba(201,169,97,.14);border-radius:14px;overflow:hidden;}'
+   + '.rbpc-row{display:grid;grid-template-columns:1.4fr 1fr 1fr .7fr;gap:8px;align-items:center;padding:11px 14px;'
+   + 'border-bottom:1px solid rgba(201,169,97,.08);}'
+   + '.rbpc-row:last-child{border-bottom:none;}'
+   + '.rbpc-row.head{background:rgba(201,169,97,.05);}'
+   + '.rbpc-row.head span{font-family:"JetBrains Mono",monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#8a7a52;}'
+   + '.rbpc-cond{display:flex;align-items:center;gap:8px;font-size:13.5px;color:#ece7db;font-weight:600;}'
+   + '.rbpc-cond .bdg{font-family:"JetBrains Mono",monospace;font-size:10px;padding:2px 6px;border-radius:5px;'
+   + 'background:rgba(201,169,97,.12);color:#c9a961;border:1px solid rgba(201,169,97,.22);min-width:24px;text-align:center;}'
+   + '.rbpc-cond .foil{font-size:9.5px;color:#b48fd0;letter-spacing:.06em;}'
+   + '.rbpc-num{font-family:"JetBrains Mono",monospace;font-size:14px;color:#f3eede;text-align:right;}'
+   + '.rbpc-num.dim{color:#7d7250;font-size:12.5px;}'
+   + '.rbpc-n{font-family:"JetBrains Mono",monospace;font-size:11px;color:#7d7250;text-align:right;}'
+   + '.rbpc-empty{padding:26px 10px;text-align:center;color:#8f815a;font-size:13.5px;}'
+   + '.rbpc-foot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:10px;}'
+   + '.rbpc-refresh{padding:9px 15px;border-radius:11px;border:1px solid rgba(201,169,97,.35);background:transparent;'
+   + 'color:#c9a961;font-weight:600;cursor:pointer;font-size:12.5px;font-family:Figtree,sans-serif;}'
+   + '.rbpc-refresh:hover{background:rgba(201,169,97,.1);}'
+   + '.rbpc-refresh:disabled{opacity:.5;cursor:default;}'
+   + '.rbpc-note{font-size:11px;color:#6f6647;font-family:"JetBrains Mono",monospace;}'
+   + '.rbpc-spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(201,169,97,.25);border-top-color:#c9a961;'
+   + 'border-radius:50%;animation:rbpcSpin .7s linear infinite;vertical-align:-2px;}'
+   + '@keyframes rbpcSpin{to{transform:rotate(360deg)}}';
+  var st = document.createElement('style'); st.id = 'rbpc-styles'; st.textContent = css;
+  (document.head || document.documentElement).appendChild(st);
+}
+
+function _rbPcFmt(n){
+  if(n == null || isNaN(n)) return '—';
+  return '€' + (Math.round(n * 100) / 100).toFixed(2);
+}
+function _rbPcAgeLabel(d){
+  if(d == null) return '';
+  if(d < 1)  return 'oggi';
+  if(d < 2)  return 'ieri';
+  return Math.round(d) + 'gg fa';
+}
+
+/* Costruisce la scaletta HTML da un risultato normalizzato. */
+function rbRenderConditionLadder(data){
+  if(!data || !data.ok && (!data.conditions || !data.conditions.length)){
+    var msg = (data && data.error) ? data.error : 'Nessun dato prezzo disponibile per questa carta.';
+    return '<div class="rbpc-empty">' + (typeof esc === 'function' ? esc(msg) : msg) + '</div>';
+  }
+  // Raggruppa per condizione, tenendo foil separato.
+  var rows = (data.conditions || []).slice().sort(function(a,b){
+    return (a.condRank - b.condRank) || ((a.isFoil?1:0) - (b.isFoil?1:0));
+  });
+  var html = '<div class="rbpc-ladder">'
+    + '<div class="rbpc-row head"><span>Condizione</span><span style="text-align:right">Da</span><span style="text-align:right">Media</span><span style="text-align:right">N°</span></div>';
+  if(!rows.length){
+    html += '<div class="rbpc-empty">Dato presente ma senza dettaglio per condizione.</div>';
+  }
+  rows.forEach(function(c){
+    var from = [c.low1, c.low2, c.low3].filter(function(x){ return x != null && !isNaN(x); });
+    var fromV = from.length ? Math.min.apply(null, from) : null;
+    var bdg = RB_PC_COND_SHORT[c.condition] || (c.condition || '').slice(0,2).toUpperCase();
+    html += '<div class="rbpc-row">'
+      + '<div class="rbpc-cond"><span class="bdg">' + bdg + '</span>'
+      +   '<span>' + (c.condition || '') + '</span>'
+      +   (c.isFoil ? '<span class="foil">✦ FOIL</span>' : '')
+      + '</div>'
+      + '<div class="rbpc-num">' + _rbPcFmt(fromV) + '</div>'
+      + '<div class="rbpc-num dim">' + _rbPcFmt(c.avg) + '</div>'
+      + '<div class="rbpc-n">' + (c.nListings || '·') + '</div>'
+      + '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+/* Renderizza i badge di provenienza/freschezza. */
+function _rbPcMetaHtml(data){
+  if(!data) return '';
+  var pills = '';
+  if(data.source === 'live'){
+    pills += '<span class="rbpc-pill live">● LIVE Cardmarket</span>';
+  } else if(data.fresh){
+    pills += '<span class="rbpc-pill fresh">● Aggiornato' + (data.ageDays != null ? ' · ' + _rbPcAgeLabel(data.ageDays) : '') + '</span>';
+  } else {
+    pills += '<span class="rbpc-pill stale">● Storico · ' + (data.ageDays != null ? _rbPcAgeLabel(data.ageDays) : 'cache') + '</span>';
+  }
+  var srcMap = { memory:'memoria', localStorage:'cache locale', db:'database', live:'live' };
+  pills += '<span class="rbpc-pill src">' + (srcMap[data.source] || data.source || '') + '</span>';
+  return '<div class="rbpc-meta">' + pills + '</div>';
+}
+
+/* Stato modale corrente (per refresh). */
+var _rbPcCurrentOpts = null;
+
+/* Carica e dipinge la scaletta dentro la modale. */
+async function _rbPcLoadInto(opts, flags){
+  _rbPcCurrentOpts = opts;
+  var bd = document.getElementById('rbpc-body');
+  if(!bd) return;
+  bd.innerHTML = '<div class="rbpc-empty"><span class="rbpc-spin"></span>&nbsp; '
+    + (flags && flags.force ? 'Aggiorno da Cardmarket…' : 'Carico prezzi…') + '</div>';
+  var data;
+  try{ data = await rbGetConditionPrices(opts, flags || {}); }
+  catch(e){ data = { ok:false, error:(e && e.message) || 'errore', conditions:[] }; }
+  var title = (opts && opts.name) ? opts.name : 'Guida Prezzi';
+  var ttlEl = document.getElementById('rbpc-title'); if(ttlEl) ttlEl.textContent = title;
+  bd.innerHTML = _rbPcMetaHtml(data) + rbRenderConditionLadder(data)
+    + '<div class="rbpc-foot">'
+    + '<button class="rbpc-refresh" id="rbpc-refresh">↻ Aggiorna da Cardmarket</button>'
+    + '<span class="rbpc-note">' + (data.cardKey ? (typeof esc==='function'?esc(data.cardKey):data.cardKey) : 'senza identità stabile') + '</span>'
+    + '</div>';
+  var rb = document.getElementById('rbpc-refresh');
+  if(rb) rb.onclick = function(){ rb.disabled = true; _rbPcLoadInto(opts, { force:true }); };
+}
+
+/* Mini-ricerca dentro la modale → seleziona carta → scaletta. */
+async function _rbPcDoSearch(){
+  var inp = document.getElementById('rbpc-q');
+  var box = document.getElementById('rbpc-results');
+  if(!inp || !box) return;
+  var q = (inp.value || '').trim();
+  if(!q){ return; }
+  box.innerHTML = '<div class="rbpc-empty"><span class="rbpc-spin"></span>&nbsp; Ricerca…</div>';
+  var cards = [];
+  try{ if(typeof rbSearchCards === 'function') cards = await rbSearchCards(q, null, null); }
+  catch(e){ cards = []; }
+  if(!cards || !cards.length){ box.innerHTML = '<div class="rbpc-empty">Nessuna carta trovata.</div>'; return; }
+  var html = '';
+  cards.slice(0, 12).forEach(function(c, i){
+    var img = (c.images && (c.images.small || c.images.large)) || '';
+    var setNm = (c.set && c.set.name) || '';
+    var yr = (c.set && c.set.releaseDate || '').slice(0,4);
+    html += '<div class="rbpc-res" data-i="' + i + '">'
+      + (img ? '<img src="' + img + '" alt="">' : '<div style="width:38px;height:53px;border-radius:5px;background:#1a1812"></div>')
+      + '<div><div class="nm">' + (typeof esc==='function'?esc(c.name||''):(c.name||'')) + '</div>'
+      + '<div class="mt">' + (typeof esc==='function'?esc(setNm):setNm) + (yr?(' · '+yr):'') + (c.number?(' · #'+c.number):'') + '</div></div>'
+      + '</div>';
+  });
+  box.innerHTML = html;
+  Array.prototype.forEach.call(box.querySelectorAll('.rbpc-res'), function(el){
+    el.onclick = function(){
+      var c = cards[+el.getAttribute('data-i')];
+      if(!c) return;
+      box.innerHTML = '';
+      _rbPcLoadInto({
+        name: c.name,
+        setId: c.set && c.set.id,
+        setName: c.set && c.set.name,
+        number: c.number,
+        language: 'ITA',
+        variant: 'Normal',
+        rarity: c.rarity
+      }, {});
+    };
+  });
+}
+
+/* Apre la modale. opts opzionale: se presente, salta la ricerca e mostra la carta. */
+function rbShowConditionPrices(opts){
+  try{
+    _rbPcInjectStyles();
+    var old = document.getElementById('rbpc-ov'); if(old) old.remove();
+    var ov = document.createElement('div'); ov.className = 'rbpc-ov'; ov.id = 'rbpc-ov';
+    var showSearch = !opts || !opts.name || !(opts.setId || opts.set_id);
+    ov.innerHTML =
+      '<div class="rbpc-card" role="dialog" aria-modal="true">'
+      + '<div class="rbpc-hd">'
+      +   '<div class="rbpc-kicker">RareBlock · Guida Prezzi</div>'
+      +   '<h3 class="rbpc-title" id="rbpc-title">' + (opts && opts.name ? (typeof esc==='function'?esc(opts.name):opts.name) : 'Cerca una carta') + '</h3>'
+      +   '<button class="rbpc-x" id="rbpc-x" aria-label="Chiudi">✕</button>'
+      + '</div>'
+      + '<div class="rbpc-bd">'
+      +   (showSearch
+            ? '<div class="rbpc-srch"><input id="rbpc-q" placeholder="Nome carta (es. Charizard)…" autocomplete="off"><button id="rbpc-go">Cerca</button></div>'
+              + '<div class="rbpc-results" id="rbpc-results"></div>'
+            : '')
+      +   '<div id="rbpc-body">' + (showSearch ? '' : '<div class="rbpc-empty"><span class="rbpc-spin"></span>&nbsp; Carico prezzi…</div>') + '</div>'
+      + '</div>'
+      + '</div>';
+    document.body.appendChild(ov);
+
+    function close(){ ov.remove(); document.removeEventListener('keydown', onKey); }
+    function onKey(e){ if(e.key === 'Escape') close(); }
+    document.addEventListener('keydown', onKey);
+    ov.addEventListener('click', function(e){ if(e.target === ov) close(); });
+    var x = document.getElementById('rbpc-x'); if(x) x.onclick = close;
+
+    if(showSearch){
+      var go = document.getElementById('rbpc-go'); var q = document.getElementById('rbpc-q');
+      if(go) go.onclick = _rbPcDoSearch;
+      if(q){ q.addEventListener('keydown', function(e){ if(e.key === 'Enter') _rbPcDoSearch(); }); setTimeout(function(){ try{ q.focus(); }catch(e){} }, 80); }
+    } else {
+      _rbPcLoadInto(opts, {});
+    }
+  }catch(e){ try{ console.warn('[RB-PC] modale errore:', e && e.message); }catch(_){} }
+}
+
+/* Launcher flottante (zero dipendenze dal layout esistente). */
+function _rbPcInstallLauncher(){
+  try{
+    if(document.getElementById('rbpc-fab')) return;
+    _rbPcInjectStyles();
+    var fab = document.createElement('div');
+    fab.id = 'rbpc-fab';
+    fab.innerHTML = '<span class="rbpc-fab-ic">€</span><span>Guida Prezzi</span>';
+    fab.title = 'Prezzi per condizione · cache veloce';
+    fab.onclick = function(){ rbShowConditionPrices(null); };
+    document.body.appendChild(fab);
+  }catch(e){}
+}
+
+/* ── Bootstrap ───────────────────────────────────────────────────────── */
+function _rbPcBoot(){
+  _rbInstallSearchCache();
+  _rbPcInstallLauncher();
+  try{ console.log('[RB-PC] modulo prezzi+cache attivo'); }catch(e){}
+}
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', _rbPcBoot);
+} else {
+  _rbPcBoot();
+}
+
+</script>
 </body>
 </html><!-- v20260424 -->
