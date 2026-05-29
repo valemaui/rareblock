@@ -657,6 +657,16 @@ function msRenderList(filter){
     var hay = (m.setName||'')+' '+(m.label||'');
     return hay.toLowerCase().indexOf(filter)>=0;
   });
+  // Ordine: più recente in cima. I nuovi masterset vengono pushati in coda a
+  // msData; senza questo sort finivano in fondo alla sidebar e l'utente non
+  // li vedeva (sintomo: "non vedo l'ultimo masterset caricato"). Il sort è
+  // sui results filtrati, non muta msData (l'ordine originale di salvataggio
+  // resta intatto per CSV/cloud/etc).
+  items.sort(function(a,b){
+    var ta = a.created ? Date.parse(a.created) : 0;
+    var tb = b.created ? Date.parse(b.created) : 0;
+    return tb - ta; // DESC
+  });
   if(!items.length){
     el.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text-subtle)">Nessun masterset</div>';
     return;
