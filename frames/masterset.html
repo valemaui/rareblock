@@ -201,6 +201,7 @@ body{display:flex;flex-direction:column}
       <input type="text" id="msSetQ" placeholder="Cerca espansione..." style="flex:1;font-size:13px" oninput="msSearchSets(this.value)"/>
       <button class="btn" onclick="msSearchSets(document.getElementById('msSetQ').value)">Cerca</button>
     </div>
+    <div id="msSetInfo" style="font-size:11px;color:var(--text-subtle);margin:4px 0 0;min-height:14px"></div>
     <div class="ms-set-list" id="msSetList">
       <div style="padding:20px;text-align:center;color:var(--text-subtle);font-size:12px">Digita per cercare un espansione</div>
     </div>
@@ -1265,6 +1266,7 @@ window.msOpenModal = function(){
   if(tc){ tc.checked=false; document.getElementById('msTrackRow').classList.remove('on'); }
   var lbl=document.getElementById('msLabel'); if(lbl) lbl.value='';
   var cp=document.getElementById('msCreateProg'); if(cp) cp.style.display='none';
+  var si=document.getElementById('msSetInfo'); if(si){ si.textContent=''; si.style.color='var(--text-subtle)'; }
   if(!msSetsAll) msFetchSets();
 };
 window.msCloseModal = function(){ document.getElementById('msModalBg').classList.remove('show'); };
@@ -1322,33 +1324,49 @@ function msFetchSets(){
     notify();
   }
 
-  // STEP 2: in background, scarica TUTTI i set da API e fa MERGE (set API sovrascrivono static per id)
-  function loadPage(page){
-    fetch(TCG_BASE+'/sets?orderBy=-releaseDate&pageSize='+pageSize+'&page='+page,{headers:{'X-Api-Key':TCG_KEY}})
+  // STEP 2: in background, scarica TUTTI i set da TCG API via proxy. La
+  // chiamata diretta a api.pokemontcg.io è CORS-bloccata dal browser (vedi
+  // commenti in pokemon-db.html _fetchTCGDirect/_fetchRaw e fix gemello su
+  // msFetchSetCards) — quando capita, l'utente NON vede in lista i set
+  // recenti (es. Shrouded Fable / SV6.5) perché SC_SETS_STATIC non li
+  // include e l'API è bloccata. Soluzione: proxy hyper-endpoint, header
+  // minimale (solo Authorization Bearer), retry con backoff per i transient.
+  var token = (window._rbSession && window._rbSession.access_token) || SUPA_KEY;
+  function loadPage(page, retryN){
+    retryN = retryN || 0;
+    var url = SUPA_URL + '/functions/v1/hyper-endpoint?sets=1&orderBy=-releaseDate'
+            + '&pageSize=' + pageSize + '&page=' + page;
+    fetch(url, {headers:{'Authorization':'Bearer '+token}})
       .then(function(r){
-        if(!r.ok) throw new Error('HTTP '+r.status);
+        if(!r.ok) throw new Error('proxy HTTP '+r.status);
         return r.json();
       })
       .then(function(d){
+        if(d && d.error && (!d.data || !d.data.length)) throw new Error('upstream: '+d.error);
         var sets=d.data||[];
         var total=d.totalCount||sets.length;
         if(!sets.length) return;
-        // Merge per id: API vince su static
         var byId={};
         accumulated.forEach(function(s){ byId[s.id]=s; });
         sets.forEach(function(s){ byId[s.id]=s; });
         accumulated=Object.keys(byId).map(function(k){return byId[k];});
         notify();
         if(page*pageSize<total){
-          loadPage(page+1);
+          loadPage(page+1, 0);
         }
       })
       .catch(function(e){
-        console.warn('msFetchSets page '+page+' failed:',e && e.message);
-        // Static già in accumulated, niente panic. Ritento page 1 una volta dopo 5s.
-        if(page===1 && !window._msFetchRetried){
-          window._msFetchRetried=true;
-          setTimeout(function(){ loadPage(1); },5000);
+        console.warn('[msFetchSets] page '+page+' tentativo '+(retryN+1)+' fallito:',e && e.message);
+        if(retryN < 2){
+          setTimeout(function(){ loadPage(page, retryN+1); }, (retryN+1)*1500);
+        } else if(page===1 && !accumulated.length){
+          // Caso peggiore: né statico né API → l'utente non può creare nulla.
+          // Visualizza un banner inline nel modale di creazione.
+          var info = document.getElementById('msSetInfo');
+          if(info){
+            info.style.color='var(--err,#e85d5d)';
+            info.textContent='⚠ Impossibile caricare la lista dei set. Riprova ricaricando la pagina.';
+          }
         }
       });
   }
