@@ -7038,10 +7038,10 @@ async function verifyPriceColEdit(){
       var cs = condShort[l.condition] || l.condition || '?';
       return cs+' <b>\u20ac'+l.price.toFixed(2)+'</b>';
     });
-    log.log('CM listing: '+logParts.join(' \u00b7 '), 'data');
+    if(res.source==='cmapi'){ log.log('CMAPI \u00b7 IT \u20ac'+((res.cmapi&&res.cmapi.lnm_it)!=null?res.cmapi.lnm_it:'?')+' \u00b7 30g \u20ac'+((res.cmapi&&res.cmapi.avg_30d)!=null?res.cmapi.avg_30d:'?')+' \u00b7 7g \u20ac'+((res.cmapi&&res.cmapi.avg_7d)!=null?res.cmapi.avg_7d:'?'), 'data'); } else { log.log('CM listing: '+logParts.join(' \u00b7 '), 'data'); }
     if(res.smart && res.smart.outlierRemoved > 0)
       log.log('<span class="rb-i rb-i-warn"></span> '+res.smart.outlierRemoved+' outlier rimossi', 'warn');
-    log.log('<span class="rb-i rb-i-check"></span> Prezzo smart (mediana top-3): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
+    log.log('<span class="rb-i rb-i-check"></span> Prezzo ('+(res.source==='cmapi'?((res.smart&&res.smart.label)||'CMAPI'):'mediana top-3')+'): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
 
     _saveCmStash('colEdit', {
       title: _stashTitle, headerInfo: _stashHeader,
@@ -8882,10 +8882,10 @@ async function verifyPriceEdit(opts){
         var cs = condShort[l.condition] || l.condition || '?';
         return cs+' <b>\u20ac'+l.price.toFixed(2)+'</b>';
       });
-      log.log('CM listing: '+logParts.join(' \u00b7 '), 'data');
+      if(res.source==='cmapi'){ log.log('CMAPI \u00b7 IT \u20ac'+((res.cmapi&&res.cmapi.lnm_it)!=null?res.cmapi.lnm_it:'?')+' \u00b7 30g \u20ac'+((res.cmapi&&res.cmapi.avg_30d)!=null?res.cmapi.avg_30d:'?')+' \u00b7 7g \u20ac'+((res.cmapi&&res.cmapi.avg_7d)!=null?res.cmapi.avg_7d:'?'), 'data'); } else { log.log('CM listing: '+logParts.join(' \u00b7 '), 'data'); }
       if(res.smart && res.smart.outlierRemoved > 0)
         log.log('<span class="rb-i rb-i-warn"></span> '+res.smart.outlierRemoved+' outlier rimossi', 'warn');
-      log.log('<span class="rb-i rb-i-check"></span> Prezzo smart (mediana top-3): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
+      log.log('<span class="rb-i rb-i-check"></span> Prezzo ('+(res.source==='cmapi'?((res.smart&&res.smart.label)||'CMAPI'):'mediana top-3')+'): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
     }
 
     _saveCmStash('em', {
@@ -10100,7 +10100,7 @@ function replayCmLog(key){
       var cs = condShort[l.condition] || l.condition || '?';
       return cs+' <b>\u20ac'+l.price.toFixed(2)+'</b>';
     });
-    log.log('CM listing: '+logParts.join(' \u00b7 '), 'data');
+    if(res.source==='cmapi'){ log.log('CMAPI \u00b7 IT \u20ac'+((res.cmapi&&res.cmapi.lnm_it)!=null?res.cmapi.lnm_it:'?')+' \u00b7 30g \u20ac'+((res.cmapi&&res.cmapi.avg_30d)!=null?res.cmapi.avg_30d:'?')+' \u00b7 7g \u20ac'+((res.cmapi&&res.cmapi.avg_7d)!=null?res.cmapi.avg_7d:'?'), 'data'); } else { log.log('CM listing: '+logParts.join(' \u00b7 '), 'data'); }
     if(s.smart && s.smart.outlierRemoved > 0)
       log.log('<span class="rb-i rb-i-warn"></span> '+s.smart.outlierRemoved+' outlier rimossi', 'warn');
     if(s.finalPrice != null)
@@ -10150,6 +10150,48 @@ async function fetchCmPriceLive(opts){
 
   // Traccia tutti i tentativi fatti — esposto al caller per logging dettagliato
   var attempts = [];
+
+  // ── FAST-PATH CMAPI (cardmarket-api via edge function, NIENTE Cloudflare) ──
+  // Caso carta ESATTA (setId+number → tcgid, sempre vero nel preventivo): CMAPI
+  // restituisce il prezzo NM verificato via API ufficiale, senza scraping. È la
+  // fonte primaria; lo scrape resta solo come fallback. Gated alle condizioni
+  // NM/Mint perché CMAPI non espone il ladder Mint→Poor: per condizioni inferiori
+  // si prosegue con lo scrape/userscript. Fail-safe totale: su errore/miss →
+  // fallthrough silenzioso al percorso esistente.
+  var _cmaCondNM = /^(nm|near\s*mint|mint|m)$/i.test((cond || '').toString().trim());
+  if(setId && number && _cmaCondNM && typeof SUPA_URL === 'string' && typeof getHDR === 'function'){
+    try{
+      var _tcgid = (setId + '-' + number).toString().toLowerCase();
+      var _cmaCtrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      var _cmaTimer = _cmaCtrl ? setTimeout(function(){ try{ _cmaCtrl.abort(); }catch(e){} }, 15000) : null;
+      var _cmaResp = await fetch(SUPA_URL + '/functions/v1/cmapi-sync', {
+        method:'POST', headers:getHDR(),
+        body:JSON.stringify({ tcgid:_tcgid, name:name, cardNumber:number,
+                              episodeCode:(opts && opts.episodeCode) || undefined, language:lang }),
+        signal: _cmaCtrl ? _cmaCtrl.signal : undefined
+      });
+      if(_cmaTimer) clearTimeout(_cmaTimer);
+      var _cma = await _cmaResp.json().catch(function(){ return null; });
+      if(_cma && _cma.ok && _cma.match && _cma.match.refPrice != null){
+        var _m = _cma.match;
+        var _cmaPrice = Math.round((+_m.refPrice) * 100) / 100;
+        var _basisLbl = _m.refBasis === 'IT' ? 'NM Italia'
+                      : _m.refBasis === '30d' ? 'media 30g'
+                      : _m.refBasis === '7d' ? 'media 7g'
+                      : 'NM globale';
+        attempts.push({ url:'(CMAPI)', kind:'CMAPI', count:1,
+          error:'IT \u20ac'+(_m.lnm_it != null ? _m.lnm_it : '?')
+              + ' \u00b7 30g \u20ac'+(_m.avg_30d != null ? _m.avg_30d : '?')
+              + ' \u00b7 basis='+(_m.refBasis || '?') });
+        return {
+          ok:true, price:_cmaPrice, listings:[],
+          smart:{ price:_cmaPrice, source:'cmapi', basis:_m.refBasis,
+                  avg30:_m.avg_30d, avg7:_m.avg_7d, label:'CMAPI \u00b7 '+_basisLbl },
+          isDirect:isDirect, cmUrl:cmUrl, source:'cmapi', cmapi:_m, attempts:attempts
+        };
+      }
+    }catch(e){ /* fallthrough allo scrape esistente */ }
+  }
 
   // Anti-fake-page guard: mirror dell'euristica server-side. Quando CM non
   // trova la carta a quell'URL (es. /Totodile-NG81 non esiste perch\u00e9 la
@@ -10513,10 +10555,10 @@ async function verifyPriceAdd(prefix, opts){
         var cs = condShort[l.condition] || l.condition || '?';
         return cs+' <b>\u20ac'+l.price.toFixed(2)+'</b>';
       });
-      log.log('CM listing: '+logParts.join(' \u00b7 '), 'data');
+      if(res.source==='cmapi'){ log.log('CMAPI \u00b7 IT \u20ac'+((res.cmapi&&res.cmapi.lnm_it)!=null?res.cmapi.lnm_it:'?')+' \u00b7 30g \u20ac'+((res.cmapi&&res.cmapi.avg_30d)!=null?res.cmapi.avg_30d:'?')+' \u00b7 7g \u20ac'+((res.cmapi&&res.cmapi.avg_7d)!=null?res.cmapi.avg_7d:'?'), 'data'); } else { log.log('CM listing: '+logParts.join(' \u00b7 '), 'data'); }
       if(res.smart && res.smart.outlierRemoved > 0)
         log.log('<span class="rb-i rb-i-warn"></span> '+res.smart.outlierRemoved+' outlier rimossi', 'warn');
-      log.log('<span class="rb-i rb-i-check"></span> Prezzo smart (mediana top-3): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
+      log.log('<span class="rb-i rb-i-check"></span> Prezzo ('+(res.source==='cmapi'?((res.smart&&res.smart.label)||'CMAPI'):'mediana top-3')+'): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
     }
 
     _saveCmStash(prefix, {
@@ -10532,7 +10574,7 @@ async function verifyPriceAdd(prefix, opts){
       const priceEl = document.getElementById('qmPriceVal');
       if(priceEl){ priceEl.textContent = '\u20ac'+bestPrice.toFixed(2); priceEl.style.color='var(--success)'; }
       const factEl = document.getElementById('qmPriceFactor');
-      if(factEl){ factEl.textContent = 'CM live \u00b7 '+cond+' \u00b7 '+lang+' \u00b7 mediana top-3'; }
+      if(factEl){ factEl.textContent = (res.source==='cmapi' ? ((res.smart&&res.smart.label||'CMAPI')+' \u00b7 '+lang) : ('CM live \u00b7 '+cond+' \u00b7 '+lang+' \u00b7 mediana top-3')); }
       const rowEl = document.getElementById('qmPriceRow');
       if(rowEl) rowEl.style.display='flex';
     } else if(prefix==='s'){
