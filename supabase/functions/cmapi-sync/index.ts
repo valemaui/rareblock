@@ -52,6 +52,10 @@ interface SyncInput {
   language?: string;
   limit?: number;
   persist?: boolean;
+  debug?: boolean;
+  variant?: string;     // hint per disambiguare (es. 'shadowless', 'unlimited', '1st')
+  slug?: string;        // disambigua per slug CMAPI esatto
+  cmapiId?: number;     // disambigua per id CMAPI esatto (scelta dal chooser)
 }
 
 async function cmapiGet(path: string, key: string): Promise<{ status: number; body: any }> {
@@ -134,34 +138,11 @@ function mapCard(card: any, language: 'EN' | 'IT' | 'JP') {
       cmLink: card?.links?.cardmarket ?? null,
       tcggoUrl: card?.tcggo_url ?? null,
       cardmarketId: card?.cardmarket_id ?? null,
+      slug: card?.slug ?? null,
     },
   };
 }
 
-// Sceglie il match migliore da una lista, dato cosa sappiamo della carta target.
-function pickBest(list: any[], opts: { tcgid?: string; cardNumber?: string; episodeCode?: string }): any | null {
-  if (!list.length) return null;
-  const wantTcg = (opts.tcgid || '').toLowerCase().trim();
-  const wantNum = opts.cardNumber != null ? String(opts.cardNumber).trim() : '';
-  const wantEp  = (opts.episodeCode || '').toUpperCase().trim();
-
-  // Criterio PRECISO → match esatto o NIENTE. Mai ripiegare su una carta
-  // arbitraria: prezzerebbe il prodotto sbagliato (bug "charizard 4" → primo
-  // Charizard costoso + link Base-Set generico).
-  if (wantTcg) {
-    return list.find((c) => (c?.tcgid || '').toLowerCase().trim() === wantTcg) || null;
-  }
-  if (wantNum && wantEp) {
-    return list.find((c) =>
-      String(c?.card_number ?? '').trim() === wantNum &&
-      String(c?.episode?.code ?? c?.episode_code ?? '').toUpperCase().trim() === wantEp) || null;
-  }
-  if (wantNum) {
-    return list.find((c) => String(c?.card_number ?? '').trim() === wantNum) || null;
-  }
-  // Solo ricerca PURA (senza tcgid/numero): primo risultato e' accettabile.
-  return list[0];
-}
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -214,18 +195,47 @@ Deno.serve(async (req: Request) => {
     const list = asList(body);
     if (!list.length) return json({ ok: false, error: 'Nessun risultato CMAPI', term });
 
+    // DEBUG: dump grezzo dei risultati (campi utili a capire la struttura varianti).
+    if (input.debug) {
+      return json({
+        ok: true, debug: true, term, count: list.length,
+        items: list.slice(0, 20).map((c) => ({
+          id: c?.id ?? null, tcgid: c?.tcgid ?? null,
+          name: c?.name ?? null, name_numbered: c?.name_numbered ?? null,
+          slug: c?.slug ?? null, card_number: c?.card_number ?? null,
+          rarity: c?.rarity ?? null,
+          episode: c?.episode?.code ?? c?.episode_code ?? null,
+          cardmarket_id: c?.cardmarket_id ?? null,
+          cm_link: c?.links?.cardmarket ?? null,
+          lnm: c?.prices?.cardmarket?.lowest_near_mint ?? null,
+          lnm_it: c?.prices?.cardmarket?.lowest_near_mint_IT ?? null,
+          avg30: c?.prices?.cardmarket?.['30d_average'] ?? null,
+        })),
+      });
+    }
+
     // Target singolo (tcgid/number+episode) vs lista.
     const wantsSingle = !!(input.tcgid || (input.cardNumber && input.episodeCode));
     let mapped: any[];
+    let variants: any[] = [];
     if (wantsSingle) {
-      const best = pickBest(list, {
-        tcgid: input.tcgid,
-        cardNumber: input.cardNumber != null ? String(input.cardNumber) : undefined,
-        episodeCode: input.episodeCode,
+      // TUTTE le entry che combaciano con la carta richiesta (stesso tcgid o
+      // stesso numero+episodio). Base Set Charizard puo' avere Shadowless +
+      // Unlimited come prodotti CM distinti con identico tcgid 'base1-4':
+      // NON dobbiamo sceglierne una in silenzio (sort=price_highest darebbe
+      // sempre la Shadowless, piu' cara).
+      const wantTcg = (input.tcgid || '').toLowerCase().trim();
+      const wantNum = input.cardNumber != null ? String(input.cardNumber).trim() : '';
+      const wantEp  = (input.episodeCode || '').toUpperCase().trim();
+      const matches = list.filter((c) => {
+        if (wantTcg) return (c?.tcgid || '').toLowerCase().trim() === wantTcg;
+        if (wantNum && wantEp) return String(c?.card_number ?? '').trim() === wantNum &&
+          String(c?.episode?.code ?? c?.episode_code ?? '').toUpperCase().trim() === wantEp;
+        if (wantNum) return String(c?.card_number ?? '').trim() === wantNum;
+        return false;
       });
-      if (!best) {
-        // Match esatto non trovato nei risultati: NON prezziamo una carta a caso.
-        // Restituiamo i candidati per diagnosi (coverage della ricerca CMAPI).
+
+      if (!matches.length) {
         return json({
           ok: false,
           error: 'CMAPI: nessun match esatto nei risultati della ricerca',
@@ -237,7 +247,40 @@ Deno.serve(async (req: Request) => {
           })),
         });
       }
-      mapped = [mapCard(best, language)];
+
+      // Mappa tutte le varianti (per il chooser lato client).
+      variants = matches.map((c) => {
+        const v = mapCard(c, language).view;
+        v.cmapiId = c?.id ?? null;
+        v.slug = c?.slug ?? null;
+        v.cardmarketId = c?.cardmarket_id ?? null;
+        return v;
+      });
+
+      // Selezione: se il client passa un hint (variant/edition/cmapiId/slug) lo
+      // rispetto; altrimenti, se c'e' ambiguita' (piu' varianti), NON scelgo io
+      // — restituisco ambiguous:true + variants[] e il client mostra il chooser.
+      let chosen: any | null = null;
+      const hint = (input.variant || '').toString().toLowerCase().trim();
+      if (input.cmapiId != null) chosen = matches.find((c) => c?.id === input.cmapiId) || null;
+      else if (input.slug) chosen = matches.find((c) => (c?.slug || '').toLowerCase() === String(input.slug).toLowerCase()) || null;
+      else if (hint) {
+        chosen = matches.find((c) => {
+          const hay = ((c?.name || '') + ' ' + (c?.name_numbered || '') + ' ' + (c?.slug || '')).toLowerCase();
+          return hay.includes(hint);
+        }) || null;
+      }
+      if (!chosen && matches.length === 1) chosen = matches[0];
+
+      if (!chosen) {
+        // Ambiguo: piu' varianti, nessun hint risolutivo → niente prezzo silenzioso.
+        return json({
+          ok: true, ambiguous: true, source: 'cmapi', language, term,
+          single: true, match: null, variants,
+          message: 'Piu\u0027 varianti per questa carta (es. Shadowless/Unlimited): scegliere quale.',
+        });
+      }
+      mapped = [mapCard(chosen, language)];
     } else {
       mapped = list.slice(0, limit).map((c) => mapCard(c, language));
     }
@@ -269,6 +312,7 @@ Deno.serve(async (req: Request) => {
       term,
       single: wantsSingle,
       match: wantsSingle ? mapped[0].view : null,
+      variants: (wantsSingle && variants.length > 1) ? variants : undefined,
       results: wantsSingle ? null : mapped.map((m) => m.view),
       persisted,
       persist_error: persistError,
