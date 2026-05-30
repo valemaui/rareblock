@@ -16228,6 +16228,25 @@ async function rbGetConditionPrices(opts, flags){
     var ls = _rbPcLsGet('rb_pc_', cardKey, RB_PC_LS_TTL_MS);
     if(ls){ _rbPcMemSet('cond:' + cardKey, ls); return Object.assign({}, ls, { source: 'localStorage' }); }
 
+    // L1.5 — CMAPI fast-lane (legittima, niente Cloudflare): prezzo NM IT + trend.
+    // Se il ladder per-condizione e' gia' in DB lo unisco; altrimenti CMAPI da sola
+    // basta per "quanto vale". Cache breve in memoria/LS sotto chiave dedicata.
+    var cm = await _rbPcFetchCmapi(opts);
+    if(cm && cm.ok){
+      var ncm = _rbPcNormalizeCmapi(cardKey, opts, cm.cmapi);
+      // Prova ad arricchire col ladder dal DB (se presente e fresco) senza bloccare.
+      try{
+        var dbLadder = await _rbPcDbRead(cardKey);
+        if(dbLadder && dbLadder.found){
+          var nl = _rbPcNormalize('db', cardKey, opts, dbLadder);
+          ncm.conditions = nl.conditions || [];
+        }
+      }catch(e){}
+      _rbPcMemSet('cond:' + cardKey, ncm);
+      _rbPcLsSet('rb_pc_', cardKey, ncm);
+      return ncm;
+    }
+
     // L2 — DB Supabase (cross-device, TTL 7gg)
     var db = await _rbPcDbRead(cardKey);
     if(db){
@@ -16273,6 +16292,49 @@ function _rbPcFetchLive(opts){
     if(typeof fetchCmPriceLive !== 'function') return { ok:false, error:'fetchCmPriceLive non disponibile', listings:[] };
     return fetchCmPriceLive(opts);
   }).catch(function(e){ return { ok:false, error:(e && e.message) || 'errore live', listings:[] }; });
+}
+
+/* ── Fast-lane CMAPI (cardmarket-api via edge function cmapi-sync) ────────
+   Fonte LEGITTIMA, niente Cloudflare: prezzo NM di riferimento (IT) + trend
+   30d/7d + graded eBay. NON e' il ladder Mint→Poor (quello resta userscript),
+   ma e' il dato veloce e affidabile per "quanto vale". Fail-safe totale:
+   qualunque errore → ritorna {ok:false} e i layer successivi proseguono.   */
+function _rbPcFetchCmapi(opts){
+  return Promise.resolve().then(function(){
+    if(typeof SUPA_URL !== 'string' || typeof getHDR !== 'function') return { ok:false, error:'ambiente supa assente' };
+    var tcgid = null;
+    var sid = opts.setId || opts.set_id || (opts.set && opts.set.id);
+    if(sid && (opts.number || opts.card_number)) tcgid = (sid + '-' + (opts.number || opts.card_number)).toLowerCase();
+    var payload = {
+      tcgid: tcgid || undefined,
+      name: opts.name || undefined,
+      search: opts.name || undefined,
+      cardNumber: (opts.number || opts.card_number) || undefined,
+      episodeCode: opts.episodeCode || undefined,
+      language: (opts.language || 'IT')
+    };
+    var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, 20000) : null;
+    return fetch(SUPA_URL + '/functions/v1/cmapi-sync', {
+      method:'POST', headers:getHDR(), body:JSON.stringify(payload), signal: ctrl ? ctrl.signal : undefined
+    }).then(function(r){ if(timer) clearTimeout(timer); return r.json(); })
+      .then(function(j){
+        if(!j || !j.ok || !j.match) return { ok:false, error:(j && j.error) || 'nessun match CMAPI' };
+        return { ok:true, cmapi:j.match };
+      });
+  }).catch(function(e){ return { ok:false, error:(e && e.message) || 'errore cmapi' }; });
+}
+
+/* Normalizza il match CMAPI nello shape UI (senza ladder per-condizione). */
+function _rbPcNormalizeCmapi(cardKey, opts, m){
+  return {
+    ok: true, source: 'cmapi', cardKey: cardKey,
+    cardName: (opts && opts.name) || m.name || null,
+    fresh: true, ageDays: 0, capturedAt: new Date().toISOString(),
+    cmUrl: null,
+    cmapi: m,                 // blocco ricco: refPrice/refBasis, IT/DE/FR, trend, graded, tcg
+    conditions: []            // CMAPI non fornisce il ladder Mint→Poor
+  };
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -16381,7 +16443,25 @@ function _rbPcInjectStyles(){
    + '.rbpc-note{font-size:11px;color:#6f6647;font-family:"JetBrains Mono",monospace;}'
    + '.rbpc-spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(201,169,97,.25);border-top-color:#c9a961;'
    + 'border-radius:50%;animation:rbpcSpin .7s linear infinite;vertical-align:-2px;}'
-   + '@keyframes rbpcSpin{to{transform:rotate(360deg)}}';
+   + '@keyframes rbpcSpin{to{transform:rotate(360deg)}}'
+   + '.rbpc-ref{border:1px solid rgba(201,169,97,.2);border-radius:14px;padding:14px 16px;margin-bottom:14px;'
+   + 'background:linear-gradient(180deg,rgba(201,169,97,.07),rgba(201,169,97,.02));}'
+   + '.rbpc-ref-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}'
+   + '.rbpc-ref-k{font-family:"JetBrains Mono",monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#8a7a52;}'
+   + '.rbpc-ref-v{font-family:Fraunces,Georgia,serif;font-size:30px;font-weight:600;color:#f3eede;line-height:1.05;margin-top:3px;}'
+   + '.rbpc-trend{font-family:"JetBrains Mono",monospace;font-size:12px;padding:4px 9px;border-radius:999px;white-space:nowrap;}'
+   + '.rbpc-trend em{font-style:normal;opacity:.6;font-size:10px;}'
+   + '.rbpc-trend.up{color:#9fe0b0;background:rgba(70,160,100,.12);border:1px solid rgba(120,200,150,.28);}'
+   + '.rbpc-trend.down{color:#e6a08a;background:rgba(190,90,70,.12);border:1px solid rgba(210,120,90,.28);}'
+   + '.rbpc-mini{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px;}'
+   + '.rbpc-mi{display:flex;flex-direction:column;gap:1px;padding:7px 11px;border-radius:10px;background:rgba(255,255,255,.025);border:1px solid rgba(201,169,97,.1);}'
+   + '.rbpc-mi span{font-family:"JetBrains Mono",monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#8a7a52;}'
+   + '.rbpc-mi b{font-family:"JetBrains Mono",monospace;font-size:14px;color:#ece7db;font-weight:500;}'
+   + '.rbpc-graded{margin-top:13px;padding-top:12px;border-top:1px solid rgba(201,169,97,.1);}'
+   + '.rbpc-graded-h{font-family:"JetBrains Mono",monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#8a7a52;margin-bottom:8px;}'
+   + '.rbpc-graded-w{display:flex;flex-wrap:wrap;gap:6px;}'
+   + '.rbpc-grade{font-family:"JetBrains Mono",monospace;font-size:11px;color:#cdbf9a;padding:4px 9px;border-radius:8px;background:rgba(201,169,97,.08);border:1px solid rgba(201,169,97,.18);}'
+   + '.rbpc-grade b{color:#c9a961;font-weight:600;margin-right:4px;}';
   var st = document.createElement('style'); st.id = 'rbpc-styles'; st.textContent = css;
   (document.head || document.documentElement).appendChild(st);
 }
@@ -16441,9 +16521,66 @@ function _rbPcMetaHtml(data){
   } else {
     pills += '<span class="rbpc-pill stale">● Storico · ' + (data.ageDays != null ? _rbPcAgeLabel(data.ageDays) : 'cache') + '</span>';
   }
-  var srcMap = { memory:'memoria', localStorage:'cache locale', db:'database', live:'live' };
+  var srcMap = { memory:'memoria', localStorage:'cache locale', db:'database', live:'live', cmapi:'cardmarket-api' };
   pills += '<span class="rbpc-pill src">' + (srcMap[data.source] || data.source || '') + '</span>';
   return '<div class="rbpc-meta">' + pills + '</div>';
+}
+
+/* Blocco "prezzo di riferimento" CMAPI: NM IT + trend 30d/7d + graded eBay.
+   Per un utente IT il numero che conta e' IT → media 30d (il lowest globale e'
+   spesso inquinato da listing esteri misprezzati): lo evidenziamo. */
+function _rbPcCmapiHtml(data){
+  var m = data && data.cmapi;
+  if(!m) return '';
+  var basisLabel = { IT:'minimo NM Italia', '30d':'media 30 giorni', '7d':'media 7 giorni', global:'minimo NM globale' };
+  var ref = (m.refPrice != null) ? _rbPcFmt(m.refPrice) : '—';
+  var basis = basisLabel[m.refBasis] || 'riferimento';
+
+  // Trend 30d vs 7d (indicativo direzione mercato recente).
+  var trend = '';
+  if(m.avg_7d != null && m.avg_30d != null && m.avg_30d > 0){
+    var delta = (m.avg_7d - m.avg_30d) / m.avg_30d * 100;
+    var up = delta >= 0;
+    trend = '<span class="rbpc-trend ' + (up?'up':'down') + '">' + (up?'▲':'▼') + ' '
+      + Math.abs(Math.round(delta)) + '% <em>7g vs 30g</em></span>';
+  }
+
+  var rows = '';
+  function rowItem(lbl, v){ return v != null ? '<div class="rbpc-mi"><span>' + lbl + '</span><b>' + _rbPcFmt(v) + '</b></div>' : ''; }
+  rows += rowItem('Italia', m.lnm_it);
+  rows += rowItem('Germania', m.lnm_de);
+  rows += rowItem('Francia', m.lnm_fr);
+  rows += rowItem('Media 30g', m.avg_30d);
+  rows += rowItem('Media 7g', m.avg_7d);
+  if(m.tcg_market != null) rows += rowItem('TCGplayer', m.tcg_market);
+
+  // Graded eBay (PSA/CGC/BGS) → mediane per grade, se presenti.
+  var gradedHtml = '';
+  if(m.graded && typeof m.graded === 'object'){
+    var chips = '';
+    ['psa','bgs','cgc'].forEach(function(house){
+      var h = m.graded[house];
+      if(h && typeof h === 'object'){
+        Object.keys(h).sort(function(a,b){ return (+b)-(+a); }).forEach(function(grade){
+          var cell = h[grade]; var price = cell && (cell.median_price != null ? cell.median_price : cell);
+          if(price != null && !isNaN(+price)){
+            chips += '<span class="rbpc-grade"><b>' + house.toUpperCase() + ' ' + grade + '</b> $' + (Math.round(+price)) + '</span>';
+          }
+        });
+      }
+    });
+    if(chips) gradedHtml = '<div class="rbpc-graded"><div class="rbpc-graded-h">Graded (mediane eBay)</div><div class="rbpc-graded-w">' + chips + '</div></div>';
+  }
+
+  return '<div class="rbpc-ref">'
+    + '<div class="rbpc-ref-top">'
+    +   '<div><div class="rbpc-ref-k">Prezzo di riferimento · ' + basis + '</div>'
+    +   '<div class="rbpc-ref-v">' + ref + '</div></div>'
+    +   (trend ? '<div class="rbpc-ref-trend">' + trend + '</div>' : '')
+    + '</div>'
+    + (rows ? '<div class="rbpc-mini">' + rows + '</div>' : '')
+    + gradedHtml
+    + '</div>';
 }
 
 /* Stato modale corrente (per refresh). */
@@ -16461,7 +16598,7 @@ async function _rbPcLoadInto(opts, flags){
   catch(e){ data = { ok:false, error:(e && e.message) || 'errore', conditions:[] }; }
   var title = (opts && opts.name) ? opts.name : 'Guida Prezzi';
   var ttlEl = document.getElementById('rbpc-title'); if(ttlEl) ttlEl.textContent = title;
-  bd.innerHTML = _rbPcMetaHtml(data) + rbRenderConditionLadder(data)
+  bd.innerHTML = _rbPcMetaHtml(data) + _rbPcCmapiHtml(data) + rbRenderConditionLadder(data)
     + '<div class="rbpc-foot">'
     + '<button class="rbpc-refresh" id="rbpc-refresh">↻ Aggiorna da Cardmarket</button>'
     + '<span class="rbpc-note">' + (data.cardKey ? (typeof esc==='function'?esc(data.cardKey):data.cardKey) : 'senza identità stabile') + '</span>'
