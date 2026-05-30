@@ -129,6 +129,11 @@ function mapCard(card: any, language: 'EN' | 'IT' | 'JP') {
       available: num(cm?.available_items),
       graded,
       tcg_market: row.tcgMarketUsd, tcg_mid: row.tcgMidUsd,
+      // Link CORRETTO al prodotto su CardMarket (redirect ufficiale tcggo→CM):
+      // usato dal client al posto dello slug ricostruito (spesso errato).
+      cmLink: card?.links?.cardmarket ?? null,
+      tcggoUrl: card?.tcggo_url ?? null,
+      cardmarketId: card?.cardmarket_id ?? null,
     },
   };
 }
@@ -137,22 +142,24 @@ function mapCard(card: any, language: 'EN' | 'IT' | 'JP') {
 function pickBest(list: any[], opts: { tcgid?: string; cardNumber?: string; episodeCode?: string }): any | null {
   if (!list.length) return null;
   const wantTcg = (opts.tcgid || '').toLowerCase().trim();
-  if (wantTcg) {
-    const exact = list.find((c) => (c?.tcgid || '').toLowerCase().trim() === wantTcg);
-    if (exact) return exact;
-  }
   const wantNum = opts.cardNumber != null ? String(opts.cardNumber).trim() : '';
   const wantEp  = (opts.episodeCode || '').toUpperCase().trim();
+
+  // Criterio PRECISO → match esatto o NIENTE. Mai ripiegare su una carta
+  // arbitraria: prezzerebbe il prodotto sbagliato (bug "charizard 4" → primo
+  // Charizard costoso + link Base-Set generico).
+  if (wantTcg) {
+    return list.find((c) => (c?.tcgid || '').toLowerCase().trim() === wantTcg) || null;
+  }
   if (wantNum && wantEp) {
-    const byNumEp = list.find((c) =>
+    return list.find((c) =>
       String(c?.card_number ?? '').trim() === wantNum &&
-      String(c?.episode?.code ?? c?.episode_code ?? '').toUpperCase().trim() === wantEp);
-    if (byNumEp) return byNumEp;
+      String(c?.episode?.code ?? c?.episode_code ?? '').toUpperCase().trim() === wantEp) || null;
   }
   if (wantNum) {
-    const byNum = list.find((c) => String(c?.card_number ?? '').trim() === wantNum);
-    if (byNum) return byNum;
+    return list.find((c) => String(c?.card_number ?? '').trim() === wantNum) || null;
   }
+  // Solo ricerca PURA (senza tcgid/numero): primo risultato e' accettabile.
   return list[0];
 }
 
@@ -216,7 +223,21 @@ Deno.serve(async (req: Request) => {
         cardNumber: input.cardNumber != null ? String(input.cardNumber) : undefined,
         episodeCode: input.episodeCode,
       });
-      mapped = best ? [mapCard(best, language)] : [];
+      if (!best) {
+        // Match esatto non trovato nei risultati: NON prezziamo una carta a caso.
+        // Restituiamo i candidati per diagnosi (coverage della ricerca CMAPI).
+        return json({
+          ok: false,
+          error: 'CMAPI: nessun match esatto nei risultati della ricerca',
+          term,
+          wanted: input.tcgid || (String(input.cardNumber) + '/' + (input.episodeCode || '?')),
+          candidates: list.slice(0, 12).map((c) => ({
+            tcgid: c?.tcgid ?? null, name: c?.name ?? null,
+            number: c?.card_number ?? null, episode: c?.episode?.code ?? null,
+          })),
+        });
+      }
+      mapped = [mapCard(best, language)];
     } else {
       mapped = list.slice(0, limit).map((c) => mapCard(c, language));
     }
