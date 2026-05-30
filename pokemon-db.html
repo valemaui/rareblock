@@ -5093,6 +5093,20 @@ async function fetchCards(name, number){
 //   rbResolveSetFromInput(inputEl)       → {id,name,unresolved?}|null
 // ══════════════════════════════════════════════════════════════
 window.rbSearchCards = async function(name, number, setId, lang){
+  // Auto-split "nome + numero" quando il numero non e' passato esplicitamente.
+  // Es. "charizard 4" → name="charizard", number="4". Senza questo, la query
+  // diventa name:"charizard 4" (nome letterale, inesistente) e torna pochissimo.
+  // Riconosce numeri puri (4, 100) e con denominatore (4/102), preservando i
+  // codici alfanumerici dei set moderni (SV49, TG12, CSM2cC004) che NON vanno
+  // splittati dal nome.
+  if(!number && name){
+    var mns = String(name).trim().match(/^(.+?)\s+(\d{1,3}(?:\/\d{1,3})?)$/);
+    if(mns && mns[1] && mns[1].replace(/\s/g,'').length >= 2){
+      name = mns[1].trim();
+      number = mns[2].split('/')[0];   // "4/102" → "4" (la TCG API usa il solo num)
+    }
+  }
+
   // lang (opzionale): valore dropdown UI (ITA/ENG/JPN/...). Se e' una lingua
   // presente SOLO su TCGdex (ja/ko/zh/...), bypassiamo pokemontcg.io e cerchiamo
   // direttamente su TCGdex. I set picker usano ID pokemontcg.io che NON mappano
