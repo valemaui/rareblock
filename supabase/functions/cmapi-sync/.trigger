@@ -1,1 +1,1 @@
-deploy: variant-aware (Shadowless/Unlimited) + debug 2026-05-30T14:23:03Z
+deploy: probe detail per-id 2026-05-30T14:27:51Z

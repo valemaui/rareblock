@@ -56,6 +56,7 @@ interface SyncInput {
   variant?: string;     // hint per disambiguare (es. 'shadowless', 'unlimited', '1st')
   slug?: string;        // disambigua per slug CMAPI esatto
   cmapiId?: number;     // disambigua per id CMAPI esatto (scelta dal chooser)
+  detailId?: number;    // probe: fetch dettaglio per-id (verifica versioni)
 }
 
 async function cmapiGet(path: string, key: string): Promise<{ status: number; body: any }> {
@@ -181,6 +182,31 @@ Deno.serve(async (req: Request) => {
     const language = LANG_MAP[(input.language || 'IT').toUpperCase()] || 'IT';
     const limit = Math.min(Math.max(input.limit ?? 1, 1), 20);
     const persist = input.persist !== false && !!userJwt;   // persiste solo con JWT utente
+
+    // PROBE DETTAGLIO: verifica se CMAPI espone un endpoint per-id con eventuale
+    // breakdown di VERSIONE (Shadowless/Unlimited/1st). Prova alcuni path
+    // plausibili e ritorna grezzo: serve a capire se le varianti sono ottenibili.
+    if (input.detailId != null) {
+      const id = String(input.detailId);
+      const paths = [
+        `/pokemon/cards/${id}`,
+        `/pokemon/card/${id}`,
+        `/pokemon/cards/${id}/versions`,
+        `/pokemon/cards/${id}/prices`,
+      ];
+      const out: any[] = [];
+      for (const p of paths) {
+        try {
+          const r = await cmapiGet(p, CMAPI_KEY);
+          out.push({
+            path: p, status: r.status,
+            keys: (r.body && typeof r.body === 'object') ? Object.keys(r.body).slice(0, 40) : null,
+            sample: typeof r.body === 'string' ? r.body.slice(0, 300) : r.body,
+          });
+        } catch (e) { out.push({ path: p, error: String((e as any)?.message ?? e) }); }
+      }
+      return json({ ok: true, probe: 'detail', detailId: id, results: out });
+    }
 
     // Termine di ricerca: search esplicito, altrimenti il name.
     const term = (input.search || input.name || '').trim();
