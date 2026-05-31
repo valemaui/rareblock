@@ -843,72 +843,101 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 
 /* ── COL ADD PANEL — pannello laterale "Aggiungi carta" ── */
 /* (col-body / col-grid-area / col-status già definiti sopra nella sezione TAB COLLEZIONE) */
-.col-add-panel{width:680px;flex-shrink:0;border-left:1px solid var(--border);display:none;flex-direction:column;overflow:hidden;background:var(--surface)}
-.col-add-panel.open{display:flex}
-.col-add-header{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface)}
+/* ════════════════════════════════════════════════════════════════════
+   AGGIUNGI CARTA — modale ampia centrata (redesign v2)
+   3 zone: HERO carta (sx) · ricerca+strip risultati · form (dx)
+   ════════════════════════════════════════════════════════════════════ */
+.col-add-overlay{position:fixed;inset:0;background:rgba(3,6,12,.72);backdrop-filter:blur(3px);z-index:998;display:none}
+.col-add-overlay.open{display:block;animation:cao-fade .18s ease}
+@keyframes cao-fade{from{opacity:0}to{opacity:1}}
+.col-add-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.98);
+  width:920px;max-width:calc(100vw - 32px);height:min(620px,calc(100vh - 48px));
+  border:1px solid var(--border);border-radius:14px;display:none;flex-direction:column;
+  overflow:hidden;background:var(--bg);box-shadow:0 24px 80px rgba(0,0,0,.6);z-index:999;opacity:0}
+.col-add-panel.open{display:flex;animation:cap-in .2s cubic-bezier(.2,.8,.3,1) forwards}
+@keyframes cap-in{to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+.col-add-header{padding:14px 20px;border-bottom:1px solid var(--surface2);display:flex;
+  align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface)}
+.cah-titles{display:flex;flex-direction:column;gap:1px}
+.cah-title{font-family:var(--font-display,Fraunces,Georgia,serif);font-size:19px;font-weight:400;color:var(--text);letter-spacing:.01em}
+.cah-sub{font-size:11px;color:var(--text-muted)}
 .col-add-header h4{font-size:13px;font-weight:600}
-/* panel mode: stack add-layout vertically, compact results */
-.col-add-panel .add-layout{display:flex;flex-direction:column;flex:1;overflow:hidden}
-.col-add-panel .add-left{border-right:none;border-bottom:1px solid var(--border);max-height:60vh;min-height:260px;overflow-y:auto;flex-shrink:0}
-.col-add-panel .results-grid{grid-template-columns:repeat(3,1fr)}
-.col-add-panel .add-right{flex:1;overflow-y:auto}
 
-/* ═══ AGGIUNGI CARTA — redesign pannello (hero carta + form premium) ═══ */
-.col-add-panel{width:560px}
-/* Focus mode: quando una carta è selezionata, nascondo i risultati (add-left)
-   e do tutta l'altezza al form (add-right) così l'hero è subito visibile,
-   invece di comparire sotto la lista fuori schermo. '↺ Cambia' ripristina. */
+/* Layout 3 colonne */
+.col-add-panel .add-layout{display:grid;grid-template-columns:300px 1fr;flex:1;overflow:hidden}
+/* HERO carta a sinistra (sempre visibile) */
+.add-hero-col{background:linear-gradient(165deg,var(--surface),var(--bg));border-right:1px solid var(--surface2);
+  padding:22px 20px;overflow-y:auto;display:flex;flex-direction:column;align-items:center}
+.add-hero-col-empty{margin:auto;text-align:center;color:var(--text-subtle);font-size:13px;line-height:1.5}
+.ahce-icon{font-size:30px;opacity:.4;margin-bottom:10px}
+.add-hero-col-body{width:100%;display:flex;flex-direction:column;align-items:center}
+.ahc-imgwrap{position:relative;width:100%;max-width:210px}
+.ahc-imgwrap img{width:100%;height:auto;border-radius:12px;display:block;
+  box-shadow:0 16px 44px rgba(0,0,0,.55);background:#000;cursor:zoom-in}
+.ahc-imgwrap .qm-img-ph{width:100%;aspect-ratio:5/7;background:var(--surface2);border:1px solid var(--border);
+  border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--text-subtle);font-size:12px}
+.ahc-grade-badge{position:absolute;top:10px;left:10px;background:var(--gold,#c9a84c);color:#1a1408;
+  font-weight:800;font-size:12px;letter-spacing:.03em;padding:4px 10px;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,.45)}
+.ahc-name{font-family:var(--font-display,Fraunces,Georgia,serif);font-size:20px;color:var(--text);
+  margin-top:16px;text-align:center;line-height:1.15}
+.ahc-meta{font-size:12px;color:var(--text-muted);margin-top:4px;text-align:center;line-height:1.4}
+.ahc-meta .num{font-family:var(--mono);color:var(--text-subtle)}
+.ahc-price-row{margin-top:14px;text-align:center}
+.ahc-price{font-size:27px;font-weight:700;font-family:var(--mono);color:var(--accent);line-height:1}
+.ahc-price-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-subtle);font-family:var(--mono);margin-top:4px}
+.ahc-slab{margin-top:16px;width:100%;display:flex;flex-direction:column;align-items:center}
+.ahc-slab-photos{display:flex;gap:7px;justify-content:center}
+.ahc-slab-photos .ahc-slab-ph{position:relative}
+.ahc-slab-photos img{height:96px;width:auto;max-width:72px;border-radius:6px;border:1px solid var(--border);
+  background:#000;object-fit:contain;cursor:zoom-in;display:block}
+.ahc-slab-photos .lbl{position:absolute;left:3px;bottom:3px;font-size:7px;font-weight:700;letter-spacing:.04em;
+  background:rgba(0,0,0,.75);color:#fff;padding:1px 4px;border-radius:2px}
+.ahc-slab-cap{font-size:9px;color:var(--text-subtle);margin-top:7px;text-transform:uppercase;letter-spacing:.4px}
+
+/* Layout: hero (col 1) + colonna destra (col 2) con ricerca/strip sopra e form sotto */
+.col-add-panel .add-layout{display:grid;grid-template-columns:300px 1fr;grid-template-rows:1fr;flex:1;overflow:hidden}
+.add-hero-col{grid-column:1;grid-row:1}
+/* add-left e add-right condividono la colonna 2, impilate verticalmente */
+.col-add-panel .add-left{grid-column:2;grid-row:1;display:flex;flex-direction:column;overflow:hidden;align-self:start;max-height:100%}
+.col-add-panel .add-right{grid-column:2;grid-row:1;display:flex;flex-direction:column;overflow:hidden}
+/* Quando una carta è scelta (focusform) il form prende tutta la colonna 2 e la
+   ricerca resta in cima ma compatta. Usiamo subgrid logico via ordine: */
+.col-add-panel .add-layout{grid-template-rows:auto 1fr}
+.col-add-panel .add-left{grid-row:1}
+.col-add-panel .add-right{grid-row:2}
+.add-hero-col{grid-row:1/3}
+.col-add-panel .search-bar{padding:14px 18px;border-bottom:1px solid var(--surface2);flex-shrink:0;background:var(--surface)}
+.col-add-panel .add-right>.add-form,.col-add-panel #quickAddForm,.col-add-panel #selAddForm,.col-add-panel #mform{overflow-y:auto;flex:1}
+/* Focusform: carta scelta → nascondi ricerca, form a piena altezza colonna 2 */
 .col-add-panel.focusform .add-left{display:none}
-.col-add-panel.focusform .add-right{flex:1}
-.add-form{padding:0 0 76px 0;border-bottom:none;position:relative}
-/* Hero della carta selezionata: immagine grande + meta + prezzo */
-.add-hero{display:flex;gap:14px;align-items:flex-start;padding:16px;margin:0;
-  background:linear-gradient(135deg,var(--surface2),var(--surface));
-  border-bottom:1px solid var(--border)}
-.add-hero-img{flex:0 0 92px;width:92px}
-.add-hero-img img{width:92px;height:auto;border-radius:8px;display:block;
-  box-shadow:0 6px 18px rgba(0,0,0,.45);cursor:zoom-in;background:#000}
-.add-hero-img .qm-img-ph{width:92px;height:128px;background:var(--surface3,var(--surface2));
-  border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;
-  justify-content:center;font-size:10px;color:var(--text-subtle)}
-.add-hero-info{flex:1;min-width:0;padding-top:2px}
-.add-hero-name{font-size:17px;font-weight:600;line-height:1.2;color:var(--text);
-  font-family:var(--font-display,var(--font))}
-.add-hero-meta{font-size:12px;color:var(--text-muted);margin-top:4px;line-height:1.4}
-.add-hero-num{font-family:var(--mono);background:var(--surface2);border:1px solid var(--border);
-  padding:0 5px;border-radius:3px;font-size:11px;color:var(--text-subtle)}
-.add-hero-rarity{font-size:10px;text-transform:uppercase;letter-spacing:.4px;
-  color:var(--text-subtle);margin-top:3px}
-.add-hero-rarity:empty{display:none}
-.add-hero-price-row{display:flex;align-items:baseline;gap:7px;margin-top:9px}
-.add-hero-price{font-size:21px;font-weight:700;font-family:var(--mono);color:var(--accent);line-height:1}
-.add-hero-price-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-subtle);font-family:var(--mono)}
-.add-hero-grade{display:inline-flex;align-items:center;gap:4px;margin-top:9px;
-  background:var(--gold,#c9a84c);color:#1a1408;font-weight:800;font-size:11px;
-  letter-spacing:.03em;padding:3px 9px;border-radius:20px}
-.add-hero-grade:empty{display:none}
-.add-hero-change{align-self:flex-start;flex-shrink:0;background:none;border:1px solid var(--border);
-  color:var(--text-muted);font-size:10.5px;padding:4px 9px;border-radius:6px;cursor:pointer;
-  font-family:var(--font);transition:all .12s;white-space:nowrap}
-.add-hero-change:hover{border-color:var(--accent);color:var(--accent);background:rgba(201,169,110,.06)}
-/* Label di sezione dentro il form */
-.add-section-label{font-size:10px;text-transform:uppercase;letter-spacing:.6px;font-weight:700;
-  color:var(--text-subtle);padding:14px 16px 0;margin-bottom:-2px}
-.add-form .form-grid{padding:10px 16px 0}
-.add-form .graded-block{margin:12px 16px 0}
-/* Footer azioni sticky in fondo al pannello */
-.add-form .form-actions{position:sticky;bottom:0;margin-top:14px;padding:11px 16px;
-  background:linear-gradient(to top,var(--surface) 70%,transparent);
-  border-top:1px solid var(--border);z-index:3;backdrop-filter:blur(2px)}
-.add-form .form-actions .btn-primary{margin-left:2px}
-/* Stato vuoto del form più curato */
-.add-right .empty-state{padding:48px 24px;text-align:center;color:var(--text-subtle)}
+.col-add-panel.focusform .add-right{grid-row:1/3}
+.col-add-panel.focusform .add-layout{grid-template-rows:1fr}
+
+/* Strip orizzontale risultati */
+.results-strip{display:flex;gap:8px;grid-template-columns:none;overflow-x:auto;padding-bottom:8px;scrollbar-width:thin}
+.results-strip .thumb{flex:0 0 96px;width:96px}
+.results-strip .thumb img{max-height:120px}
+#multiWrap{border-bottom:1px solid var(--surface2);padding-bottom:12px!important}
+
+/* Form compatto, footer sticky */
+.add-form{padding:0 0 70px 0;border-bottom:none;position:relative}
+.add-hero-legacy{display:none!important}
+.add-form .form-grid{padding:14px 18px 0}
+.add-form .graded-block{margin:14px 18px 0}
+.add-form .form-actions{position:sticky;bottom:0;margin-top:14px;padding:12px 18px;
+  background:linear-gradient(to top,var(--surface) 72%,transparent);
+  border-top:1px solid var(--surface2);z-index:3;display:flex;gap:8px;justify-content:flex-end}
+.add-right .empty-state,.add-right #formEmpty{padding:40px 24px;text-align:center;color:var(--text-subtle)}
 .add-right .empty-state .empty-icon{font-size:26px;opacity:.5;margin-bottom:8px}
 
-@media(max-width:600px){
-  .col-add-panel{width:100vw}
-  .add-hero-img{flex-basis:72px;width:72px}
-  .add-hero-img img,.add-hero-img .qm-img-ph{width:72px}
+@media(max-width:760px){
+  .col-add-panel{width:calc(100vw - 16px);height:calc(100vh - 24px)}
+  .col-add-panel .add-layout{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .add-hero-col{flex-direction:row;align-items:center;gap:14px;padding:14px;border-right:none;border-bottom:1px solid var(--surface2)}
+  .add-hero-col-body{flex-direction:row;align-items:center;gap:14px;text-align:left}
+  .ahc-imgwrap{max-width:84px;flex-shrink:0}
+  .ahc-name,.ahc-meta,.ahc-price-row{text-align:left}
+  .ahc-slab{display:none!important}
 }
 
 /* ── IMPORT CSV ── */
@@ -3193,12 +3222,36 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
       </div>
 
       <!-- Pannello aggiungi carta -->
+      <div class="col-add-overlay" id="colAddOverlay" onclick="closeColAdd()"></div>
       <div class="col-add-panel" id="colAddPanel">
         <div class="col-add-header">
-          <span>Aggiungi carta alla collezione</span>
+          <div class="cah-titles">
+            <span class="cah-title">Aggiungi alla collezione</span>
+            <span class="cah-sub">Cerca la carta, definisci la copia e il valore</span>
+          </div>
           <button class="btn-icon" onclick="closeColAdd()"><span class="rb-i rb-i-x"></span></button>
         </div>
         <div class="add-layout" style="flex:1;overflow:hidden">
+          <!-- Colonna HERO: carta protagonista (popolata da renderAddHero) -->
+          <div class="add-hero-col" id="colAddHero">
+            <div class="add-hero-col-empty" id="addHeroEmpty">
+              <div class="ahce-icon"><span class="rb-i rb-i-bolt"></span></div>
+              <div>Cerca una carta<br>per iniziare</div>
+            </div>
+            <div class="add-hero-col-body" id="addHeroBody" style="display:none">
+              <div class="ahc-imgwrap" id="ahcImgWrap"></div>
+              <div class="ahc-name" id="ahcName"></div>
+              <div class="ahc-meta" id="ahcMeta"></div>
+              <div class="ahc-price-row" id="ahcPriceRow" style="display:none">
+                <div class="ahc-price" id="ahcPrice"></div>
+                <div class="ahc-price-lbl" id="ahcPriceLbl">Cardmarket</div>
+              </div>
+              <div class="ahc-slab" id="ahcSlab" style="display:none">
+                <div class="ahc-slab-photos" id="ahcSlabPhotos"></div>
+                <div class="ahc-slab-cap" id="ahcSlabCap">Foto reali slab</div>
+              </div>
+            </div>
+          </div>
           <div class="add-left">
             <div class="search-bar" style="flex-wrap:wrap;gap:6px">
               <input id="q" type="text" placeholder="Nome carta + numero (es. Charizard 4)" style="flex:1 1 180px;min-width:180px" onkeydown="if(event.key==='Enter')doSearch()"/>
@@ -3208,10 +3261,10 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
             </div>
             <div class="status info" id="st" style="padding:4px 16px"></div>
             <div id="addEmpty" class="empty-state"><div class="empty-icon"><span class="rb-i rb-i-bolt"></span></div><div style="font-size:13px">Cerca una carta per aggiungerla</div></div>
-            <!-- Multi results -->
-            <div id="multiWrap" style="display:none;flex-shrink:0;padding:8px 16px 0">
-              <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px" id="multiHeader"></div>
-              <div id="rg" class="results-grid"></div>
+            <!-- Multi results: strip orizzontale -->
+            <div id="multiWrap" style="display:none;flex-shrink:0;padding:10px 16px 0">
+              <div style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);margin-bottom:8px" id="multiHeader"></div>
+              <div id="rg" class="results-grid results-strip"></div>
             </div>
             <div style="flex:1"></div>
           </div>
@@ -3219,7 +3272,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
             <div class="empty-state" id="formEmpty"><div class="empty-icon">←</div><div style="font-size:13px">Seleziona una carta dalla ricerca</div></div>
             <!-- Quick add -->
             <div id="quickAddForm" style="display:none" class="form-card add-form">
-              <div id="quickMatch" class="add-hero" style="display:none">
+              <div id="quickMatch" class="add-hero-legacy" style="display:none" hidden>
                 <div class="add-hero-img" id="qmImgWrap"></div>
                 <div class="add-hero-info">
                   <div class="add-hero-name" id="qmName"></div>
@@ -3233,7 +3286,6 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                 </div>
                 <button class="add-hero-change" type="button" onclick="cancelQuick()" title="Torna ai risultati di ricerca">↺ Cambia</button>
               </div>
-              <div class="add-section-label">Dettagli copia</div>
               <div class="form-grid" style="margin-bottom:10px">
                 <div class="field"><label for="qCond">Condizione</label><select id="qCond" onchange="updateQuickPrice();_scheduleAutoVerify('q')"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select></div>
                 <div class="field"><label for="qLang">Lingua</label><select id="qLang" onchange="_scheduleAutoVerify('q')"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select></div>
@@ -3277,11 +3329,10 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
             </div>
             <!-- Sel add -->
             <div id="selAddForm" style="display:none" class="form-card add-form">
-              <div id="selForm" class="add-hero" style="display:none">
+              <div id="selForm" class="add-hero-legacy" style="display:none" hidden>
                 <div id="selHeader"></div>
                 <button class="add-hero-change" type="button" onclick="backToResults()" title="Torna ai risultati di ricerca">↺ Cambia</button>
               </div>
-              <div class="add-section-label">Dettagli copia</div>
               <div class="form-grid" style="margin-bottom:10px">
                 <div class="field"><label for="sCond">Condizione</label><select id="sCond" onchange="updateSelPrice()"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select></div>
                 <div class="field"><label for="sLang">Lingua</label><select id="sLang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select></div>
@@ -5809,6 +5860,7 @@ async function doSearch(){
 function showQuickMatch(c){
   document.getElementById('quickMatch').style.display='flex';document.getElementById('quickAddForm').style.display='block';document.getElementById('formEmpty').style.display='none';document.getElementById('addEmpty').style.display='none';
   _addEnterFocus();
+  renderAddHero(c);
   const wrap=document.getElementById('qmImgWrap');
   const lgSrc=c.images?.large||c.images?.small||'';
   const smSrc=c.images?.small||'';
@@ -5917,6 +5969,85 @@ function _addExitFocus(){
 window._addEnterFocus=_addEnterFocus;
 window._addExitFocus=_addExitFocus;
 
+// Popola la colonna HERO di sinistra con la carta selezionata.
+// card: oggetto carta (TCG API o TCGdex). opts: { price, slab }
+function renderAddHero(card){
+  var empty=document.getElementById('addHeroEmpty');
+  var body=document.getElementById('addHeroBody');
+  if(!card){
+    if(empty) empty.style.display='';
+    if(body) body.style.display='none';
+    return;
+  }
+  if(empty) empty.style.display='none';
+  if(body) body.style.display='flex';
+  // Immagine
+  var wrap=document.getElementById('ahcImgWrap');
+  var sm=(card.images&&card.images.small)||'';
+  var lg=(card.images&&card.images.large)||sm;
+  if(wrap){
+    wrap.innerHTML=(sm&&sm.indexOf('http')===0)?'<img src="'+sm+'" alt=""/>':'<div class="qm-img-ph">Nessuna immagine</div>';
+    var imgEl=wrap.querySelector('img');
+    if(imgEl && lg && lg.indexOf('http')===0 && typeof addZoom==='function') addZoom(imgEl,lg,true);
+  }
+  // Nome + meta
+  var nm=document.getElementById('ahcName'); if(nm) nm.textContent=card.name||'';
+  var meta=document.getElementById('ahcMeta');
+  if(meta){
+    var parts=[];
+    if(card.set&&card.set.name) parts.push(escapeHtml(card.set.name));
+    if(card.number) parts.push('<span class="num">#'+escapeHtml(card.number)+'</span>');
+    if(card.rarity) parts.push(escapeHtml(card.rarity));
+    meta.innerHTML=parts.join(' · ');
+  }
+  renderAddHeroPrice(card);
+  renderAddHeroSlab(null);
+  renderAddHeroGrade('');
+}
+
+// Aggiorna il prezzo nell'hero (chiamabile da updateQuickPrice/updateSelPrice).
+function renderAddHeroPrice(card){
+  var row=document.getElementById('ahcPriceRow');
+  var val=document.getElementById('ahcPrice');
+  var lbl=document.getElementById('ahcPriceLbl');
+  if(!row||!val||!card) { if(row) row.style.display='none'; return; }
+  var p=null;
+  try{ if(card.cardmarket&&card.cardmarket.prices&&typeof calcPrice==='function') p=calcPrice(card.cardmarket.prices,'NM','Normal',false); }catch(e){}
+  if(p&&!p.notQuoted&&typeof p.price==='number'){
+    val.textContent='€'+p.price.toLocaleString('it-IT',{minimumFractionDigits:0,maximumFractionDigits:0});
+    if(lbl) lbl.textContent='Cardmarket · NM';
+    row.style.display='';
+  } else { row.style.display='none'; }
+}
+
+// Mostra/aggiorna il badge voto sull'immagine hero.
+function renderAddHeroGrade(text){
+  var wrap=document.getElementById('ahcImgWrap');
+  if(!wrap) return;
+  var b=wrap.querySelector('.ahc-grade-badge');
+  if(!text){ if(b) b.remove(); return; }
+  if(!b){ b=document.createElement('div'); b.className='ahc-grade-badge'; wrap.appendChild(b); }
+  b.textContent=text;
+}
+
+// Mostra le foto reali della slab nell'hero (front/back). slab:{front,back}|null
+function renderAddHeroSlab(slab){
+  var box=document.getElementById('ahcSlab');
+  var ph=document.getElementById('ahcSlabPhotos');
+  if(!box||!ph) return;
+  if(!slab||(!slab.front&&!slab.back)){ box.style.display='none'; ph.innerHTML=''; return; }
+  var h='';
+  if(slab.front) h+='<div class="ahc-slab-ph"><img src="'+escapeHtml(slab.front)+'" onclick="scThumbZoom(\''+escapeHtml(slab.front)+'\')"/><span class="lbl">F</span></div>';
+  if(slab.back)  h+='<div class="ahc-slab-ph"><img src="'+escapeHtml(slab.back)+'" onclick="scThumbZoom(\''+escapeHtml(slab.back)+'\')"/><span class="lbl">R</span></div>';
+  ph.innerHTML=h;
+  box.style.display='flex';
+}
+window.renderAddHero=renderAddHero;
+window.renderAddHeroPrice=renderAddHeroPrice;
+window.renderAddHeroGrade=renderAddHeroGrade;
+window.renderAddHeroSlab=renderAddHeroSlab;
+
+
 function pickCard(c,el){
   document.querySelectorAll('#rg .thumb').forEach(t=>t.classList.remove('sel'));
   el.classList.add('sel');selCard=c;
@@ -5942,6 +6073,7 @@ function pickCard(c,el){
   // Reset blocco gradate quando si cambia carta selezionata
   if(typeof gradedClear==='function') gradedClear('sg');
   _addEnterFocus();
+  renderAddHero(c);
   updateSelPrice();
 }
 
@@ -6116,14 +6248,15 @@ async function gradedToggle(p){
 // il form manuale non ha hero). Mostra es. "PSA 10".
 function gradedReflectHero(p){
   var heroId = (p==='qg') ? 'qmHeroGrade' : (p==='sg' ? 'selHeroGrade' : null);
-  if(!heroId) return;
-  var badge = document.getElementById(heroId);
-  if(!badge) return;
   var cb = _gEl(p,'Graded');
-  if(!cb || !cb.checked){ badge.textContent=''; return; }
+  var on = cb && cb.checked;
   var co = (_gEl(p,'Company')||{}).value || '';
   var gr = (_gEl(p,'Grade')||{}).value || '';
-  badge.textContent = (co + (gr ? ' '+gr : '')).trim();
+  var txt = on ? (co + (gr ? ' '+gr : '')).trim() : '';
+  // Badge legacy (resta per compatibilità, nascosto via CSS)
+  if(heroId){ var badge=document.getElementById(heroId); if(badge) badge.textContent=txt; }
+  // Badge sulla colonna hero di sinistra (solo qg/sg, non manuale)
+  if(p==='qg'||p==='sg'){ if(typeof renderAddHeroGrade==='function') renderAddHeroGrade(txt); }
 }
 window.gradedReflectHero = gradedReflectHero;
 
@@ -6182,6 +6315,8 @@ async function gradedVerify(p){
     st.company = co; st.cert = cert;
     st.images = (data && data.images) ? data.images : null;
     st.verified = data;
+    // Riflette le foto reali nella colonna hero di sinistra (qg/sg)
+    if((p==='qg'||p==='sg') && typeof renderAddHeroSlab==='function') renderAddHeroSlab(st.images);
 
     if(!data.supported){
       gradedRender(p, { verdict:'info', msg:'Verifica automatica non disponibile per '+co+' (oggi solo PSA). Il certificato è comunque salvato e collegato alla pagina ufficiale.', data:data });
@@ -6306,6 +6441,10 @@ function gradedClear(p){
   gradedState[p] = {};
   var heroId = (p==='qg') ? 'qmHeroGrade' : (p==='sg' ? 'selHeroGrade' : null);
   if(heroId){ var hb=document.getElementById(heroId); if(hb) hb.textContent=''; }
+  if(p==='qg'||p==='sg'){
+    if(typeof renderAddHeroGrade==='function') renderAddHeroGrade('');
+    if(typeof renderAddHeroSlab==='function') renderAddHeroSlab(null);
+  }
 }
 window.gradedToggle = gradedToggle;
 window.gradedVerify = gradedVerify;
@@ -6317,11 +6456,14 @@ window.gradedRecheckSchema = gradedRecheckSchema;
 // ── TOGGLE PANNELLO AGGIUNGI ──
 function toggleColAdd(){
   const panel=document.getElementById('colAddPanel');
+  const overlay=document.getElementById('colAddOverlay');
   const isOpen=panel.classList.toggle('open');
   const btn=document.getElementById('colAddBtn');
   if(btn)btn.innerHTML=isOpen?'<span class="rb-i rb-i-x"></span> Chiudi':'+ Aggiungi carta';
+  if(overlay) overlay.classList.toggle('open',isOpen);
   if(isOpen){
     _addExitFocus();
+    if(typeof renderAddHero==='function') renderAddHero(null);
     document.getElementById('q').value='';
     document.getElementById('st').textContent='';
     document.getElementById('quickMatch').style.display='none';
@@ -6339,6 +6481,8 @@ function toggleColAdd(){
 function closeColAdd(){
   const panel=document.getElementById('colAddPanel');
   panel.classList.remove('open');
+  const overlay=document.getElementById('colAddOverlay');
+  if(overlay) overlay.classList.remove('open');
   const btn=document.getElementById('colAddBtn');
   if(btn)btn.textContent='+ Aggiungi carta';
 }
