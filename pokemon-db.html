@@ -853,6 +853,59 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .col-add-panel .results-grid{grid-template-columns:repeat(3,1fr)}
 .col-add-panel .add-right{flex:1;overflow-y:auto}
 
+/* ═══ AGGIUNGI CARTA — redesign pannello (hero carta + form premium) ═══ */
+.col-add-panel{width:560px}
+.add-form{padding:0 0 76px 0;border-bottom:none;position:relative}
+/* Hero della carta selezionata: immagine grande + meta + prezzo */
+.add-hero{display:flex;gap:14px;align-items:flex-start;padding:16px;margin:0;
+  background:linear-gradient(135deg,var(--surface2),var(--surface));
+  border-bottom:1px solid var(--border)}
+.add-hero-img{flex:0 0 92px;width:92px}
+.add-hero-img img{width:92px;height:auto;border-radius:8px;display:block;
+  box-shadow:0 6px 18px rgba(0,0,0,.45);cursor:zoom-in;background:#000}
+.add-hero-img .qm-img-ph{width:92px;height:128px;background:var(--surface3,var(--surface2));
+  border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;
+  justify-content:center;font-size:10px;color:var(--text-subtle)}
+.add-hero-info{flex:1;min-width:0;padding-top:2px}
+.add-hero-name{font-size:17px;font-weight:600;line-height:1.2;color:var(--text);
+  font-family:var(--font-display,var(--font))}
+.add-hero-meta{font-size:12px;color:var(--text-muted);margin-top:4px;line-height:1.4}
+.add-hero-num{font-family:var(--mono);background:var(--surface2);border:1px solid var(--border);
+  padding:0 5px;border-radius:3px;font-size:11px;color:var(--text-subtle)}
+.add-hero-rarity{font-size:10px;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--text-subtle);margin-top:3px}
+.add-hero-rarity:empty{display:none}
+.add-hero-price-row{display:flex;align-items:baseline;gap:7px;margin-top:9px}
+.add-hero-price{font-size:21px;font-weight:700;font-family:var(--mono);color:var(--accent);line-height:1}
+.add-hero-price-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-subtle);font-family:var(--mono)}
+.add-hero-grade{display:inline-flex;align-items:center;gap:4px;margin-top:9px;
+  background:var(--gold,#c9a84c);color:#1a1408;font-weight:800;font-size:11px;
+  letter-spacing:.03em;padding:3px 9px;border-radius:20px}
+.add-hero-grade:empty{display:none}
+.add-hero-change{align-self:flex-start;flex-shrink:0;background:none;border:1px solid var(--border);
+  color:var(--text-muted);font-size:10.5px;padding:4px 9px;border-radius:6px;cursor:pointer;
+  font-family:var(--font);transition:all .12s;white-space:nowrap}
+.add-hero-change:hover{border-color:var(--accent);color:var(--accent);background:rgba(201,169,110,.06)}
+/* Label di sezione dentro il form */
+.add-section-label{font-size:10px;text-transform:uppercase;letter-spacing:.6px;font-weight:700;
+  color:var(--text-subtle);padding:14px 16px 0;margin-bottom:-2px}
+.add-form .form-grid{padding:10px 16px 0}
+.add-form .graded-block{margin:12px 16px 0}
+/* Footer azioni sticky in fondo al pannello */
+.add-form .form-actions{position:sticky;bottom:0;margin-top:14px;padding:11px 16px;
+  background:linear-gradient(to top,var(--surface) 70%,transparent);
+  border-top:1px solid var(--border);z-index:3;backdrop-filter:blur(2px)}
+.add-form .form-actions .btn-primary{margin-left:2px}
+/* Stato vuoto del form più curato */
+.add-right .empty-state{padding:48px 24px;text-align:center;color:var(--text-subtle)}
+.add-right .empty-state .empty-icon{font-size:26px;opacity:.5;margin-bottom:8px}
+
+@media(max-width:600px){
+  .col-add-panel{width:100vw}
+  .add-hero-img{flex-basis:72px;width:72px}
+  .add-hero-img img,.add-hero-img .qm-img-ph{width:72px}
+}
+
 /* ── IMPORT CSV ── */
 .imp-layout{overflow-y:auto;padding:24px;max-width:700px}
 .drop-zone{border:2px dashed var(--border);border-radius:var(--r);padding:36px;text-align:center;cursor:pointer;transition:all .15s;margin-bottom:14px}
@@ -3150,39 +3203,32 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
             </div>
             <div class="status info" id="st" style="padding:4px 16px"></div>
             <div id="addEmpty" class="empty-state"><div class="empty-icon"><span class="rb-i rb-i-bolt"></span></div><div style="font-size:13px">Cerca una carta per aggiungerla</div></div>
-            <!-- Quick match -->
-            <div id="quickMatch" style="display:none;padding:8px 16px 0;flex-shrink:0">
-              <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:14px;display:flex;gap:14px;align-items:flex-start">
-                <div id="qmImgWrap" style="flex-shrink:0"></div>
-                <div style="flex:1;min-width:0">
-                  <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
-                    <div style="font-size:15px;font-weight:600" id="qmName"></div>
-                    <div style="font-size:12px;color:var(--text-muted);font-family:var(--mono)" id="qmNumber"></div>
-                  </div>
-                  <div style="font-size:12px;color:var(--text-muted);margin-top:3px" id="qmSet"></div>
-                  <div style="font-size:11px;color:var(--text-subtle);margin-top:2px" id="qmRarity"></div>
-                  <div id="qmPriceRow" style="display:none;margin-top:8px">
-                    <div style="font-size:22px;font-weight:600;font-family:var(--mono);line-height:1" id="qmPriceVal"></div>
-                    <div style="font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:3px">CM price · <span id="qmPriceFactor"></span></div>
-                  </div>
-                </div>
-              </div>
-            </div>
             <!-- Multi results -->
             <div id="multiWrap" style="display:none;flex-shrink:0;padding:8px 16px 0">
               <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px" id="multiHeader"></div>
               <div id="rg" class="results-grid"></div>
-            </div>
-            <!-- Sel header -->
-            <div id="selForm" style="display:none;padding:8px 16px 0;flex-shrink:0">
-              <div id="selHeader" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px;display:flex;gap:10px;align-items:center"></div>
             </div>
             <div style="flex:1"></div>
           </div>
           <div class="add-right">
             <div class="empty-state" id="formEmpty"><div class="empty-icon">←</div><div style="font-size:13px">Seleziona una carta dalla ricerca</div></div>
             <!-- Quick add -->
-            <div id="quickAddForm" style="display:none" class="form-card">
+            <div id="quickAddForm" style="display:none" class="form-card add-form">
+              <div id="quickMatch" class="add-hero" style="display:none">
+                <div class="add-hero-img" id="qmImgWrap"></div>
+                <div class="add-hero-info">
+                  <div class="add-hero-name" id="qmName"></div>
+                  <div class="add-hero-meta"><span id="qmSet"></span> <span class="add-hero-num" id="qmNumber"></span></div>
+                  <div class="add-hero-rarity" id="qmRarity"></div>
+                  <div id="qmPriceRow" class="add-hero-price-row" style="display:none">
+                    <span class="add-hero-price" id="qmPriceVal"></span>
+                    <span class="add-hero-price-lbl">CM · <span id="qmPriceFactor"></span></span>
+                  </div>
+                  <div class="add-hero-grade" id="qmHeroGrade"></div>
+                </div>
+                <button class="add-hero-change" type="button" onclick="cancelQuick()" title="Torna ai risultati di ricerca">↺ Cambia</button>
+              </div>
+              <div class="add-section-label">Dettagli copia</div>
               <div class="form-grid" style="margin-bottom:10px">
                 <div class="field"><label for="qCond">Condizione</label><select id="qCond" onchange="updateQuickPrice();_scheduleAutoVerify('q')"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select></div>
                 <div class="field"><label for="qLang">Lingua</label><select id="qLang" onchange="_scheduleAutoVerify('q')"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select></div>
@@ -3205,7 +3251,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                 <div class="graded-fields" id="qgGradedFields" hidden>
                   <div class="graded-row">
                     <div class="graded-f graded-f-co"><label for="qgCompany">Casa</label><select id="qgCompany" onchange="gradedOnCompanyChange('qg')"><option>PSA</option><option>BGS</option><option>CGC</option><option>SGC</option><option>ACE</option><option>TAG</option><option>Altro</option></select></div>
-                    <div class="graded-f graded-f-gr"><label for="qgGrade">Voto</label><select id="qgGrade"><option>10</option><option>9.5</option><option>9</option><option>8.5</option><option>8</option><option>7.5</option><option>7</option><option>6.5</option><option>6</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1.5</option><option>1</option><option>Authentic</option></select></div>
+                    <div class="graded-f graded-f-gr"><label for="qgGrade">Voto</label><select id="qgGrade" onchange="gradedReflectHero('qg')"><option>10</option><option>9.5</option><option>9</option><option>8.5</option><option>8</option><option>7.5</option><option>7</option><option>6.5</option><option>6</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1.5</option><option>1</option><option>Authentic</option></select></div>
                     <div class="graded-f graded-f-cert"><label for="qgCert">N° cert. (opz.)</label><input id="qgCert" type="text" inputmode="numeric" placeholder="es. 89456123" onkeydown="if(event.key==='Enter'){event.preventDefault();gradedVerify('qg');}"/></div>
                   </div>
                   <div class="graded-actions">
@@ -3225,7 +3271,12 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
               </div>
             </div>
             <!-- Sel add -->
-            <div id="selAddForm" style="display:none" class="form-card">
+            <div id="selAddForm" style="display:none" class="form-card add-form">
+              <div id="selForm" class="add-hero" style="display:none">
+                <div id="selHeader"></div>
+                <button class="add-hero-change" type="button" onclick="backToResults()" title="Torna ai risultati di ricerca">↺ Cambia</button>
+              </div>
+              <div class="add-section-label">Dettagli copia</div>
               <div class="form-grid" style="margin-bottom:10px">
                 <div class="field"><label for="sCond">Condizione</label><select id="sCond" onchange="updateSelPrice()"><option>MINT</option><option selected>NM</option><option>EX</option><option>GD</option><option>LP</option><option>PL</option><option>PO</option><option>INK/ALT</option></select></div>
                 <div class="field"><label for="sLang">Lingua</label><select id="sLang"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select></div>
@@ -3248,7 +3299,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                 <div class="graded-fields" id="sgGradedFields" hidden>
                   <div class="graded-row">
                     <div class="graded-f graded-f-co"><label for="sgCompany">Casa</label><select id="sgCompany" onchange="gradedOnCompanyChange('sg')"><option>PSA</option><option>BGS</option><option>CGC</option><option>SGC</option><option>ACE</option><option>TAG</option><option>Altro</option></select></div>
-                    <div class="graded-f graded-f-gr"><label for="sgGrade">Voto</label><select id="sgGrade"><option>10</option><option>9.5</option><option>9</option><option>8.5</option><option>8</option><option>7.5</option><option>7</option><option>6.5</option><option>6</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1.5</option><option>1</option><option>Authentic</option></select></div>
+                    <div class="graded-f graded-f-gr"><label for="sgGrade">Voto</label><select id="sgGrade" onchange="gradedReflectHero('sg')"><option>10</option><option>9.5</option><option>9</option><option>8.5</option><option>8</option><option>7.5</option><option>7</option><option>6.5</option><option>6</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1.5</option><option>1</option><option>Authentic</option></select></div>
                     <div class="graded-f graded-f-cert"><label for="sgCert">N° cert. (opz.)</label><input id="sgCert" type="text" inputmode="numeric" placeholder="es. 89456123" onkeydown="if(event.key==='Enter'){event.preventDefault();gradedVerify('sg');}"/></div>
                   </div>
                   <div class="graded-actions">
@@ -5748,11 +5799,11 @@ async function doSearch(){
 }
 
 function showQuickMatch(c){
-  document.getElementById('quickMatch').style.display='block';document.getElementById('quickAddForm').style.display='block';document.getElementById('formEmpty').style.display='none';document.getElementById('addEmpty').style.display='none';
+  document.getElementById('quickMatch').style.display='flex';document.getElementById('quickAddForm').style.display='block';document.getElementById('formEmpty').style.display='none';document.getElementById('addEmpty').style.display='none';
   const wrap=document.getElementById('qmImgWrap');
   const lgSrc=c.images?.large||c.images?.small||'';
   const smSrc=c.images?.small||'';
-  wrap.innerHTML=(smSrc&&smSrc.startsWith('http'))?`<img src="${smSrc}" style="width:52px;border-radius:4px;flex-shrink:0"/>`:'<div class="qm-img-ph">No img</div>';
+  wrap.innerHTML=(smSrc&&smSrc.startsWith('http'))?`<img src="${smSrc}"/>`:'<div class="qm-img-ph">No img</div>';
   if(lgSrc&&lgSrc.startsWith('http')){const imgEl=wrap.querySelector('img');if(imgEl)addZoom(imgEl,lgSrc,true);}
   document.getElementById('qmName').textContent=c.name;
   document.getElementById('qmSet').textContent=(c.set?.name||'')+(c.number?' · #'+c.number:'')+(c.rarity?' · '+c.rarity:'');
@@ -5846,21 +5897,39 @@ function pickCard(c,el){
   document.querySelectorAll('#rg .thumb').forEach(t=>t.classList.remove('sel'));
   el.classList.add('sel');selCard=c;
   tcgdexSyncLangSelect(c, 'sLang');
-  const sf=document.getElementById('selForm');sf.style.display='block';
+  const sf=document.getElementById('selForm');sf.style.display='flex';
   // Mostra il form di inserimento (condizione/lingua/ecc.) e nascondi gli stati
   // placeholder/quick — senza questo, cliccare una carta non apriva i campi.
   document.getElementById('formEmpty').style.display='none';
   document.getElementById('quickAddForm').style.display='none';
   document.getElementById('selAddForm').style.display='block';
   const p=calcPrice(c.cardmarket?.prices,'NM','Normal',false);
-  const priceStr=p?` · CM price: €${p.price.toFixed(2)}`:'';
+  const smSrc=c.images?.small||'';
+  const lgSrc=c.images?.large||smSrc;
+  const imgHtml=(smSrc&&smSrc.startsWith('http'))?`<img src="${smSrc}"/>`:'<div class="qm-img-ph">No img</div>';
+  const priceHtml=p?`<div class="add-hero-price-row"><span class="add-hero-price">€${p.price.toFixed(2)}</span><span class="add-hero-price-lbl">CM price</span></div>`:'';
   document.getElementById('selHeader').innerHTML=
-    (c.images?.small?`<img src="${c.images.small}"/>`:'')
-    +`<div><div class="sel-name">${c.name}</div><div class="sel-meta">${c.set?.name||''} · #${c.number||'?'} · ${c.rarity||'?'}${priceStr}</div></div>`;
+    `<div class="add-hero-img">${imgHtml}</div>`
+    +`<div class="add-hero-info"><div class="add-hero-name">${escapeHtml(c.name||'')}</div>`
+    +`<div class="add-hero-meta">${escapeHtml(c.set?.name||'')} <span class="add-hero-num">#${escapeHtml(c.number||'?')}</span></div>`
+    +`<div class="add-hero-rarity">${escapeHtml(c.rarity||'')}</div>${priceHtml}<div class="add-hero-grade" id="selHeroGrade"></div></div>`;
+  const heroImg=document.querySelector('#selHeader .add-hero-img img');
+  if(heroImg && lgSrc && lgSrc.startsWith('http')) addZoom(heroImg,lgSrc,true);
   // Reset blocco gradate quando si cambia carta selezionata
   if(typeof gradedClear==='function') gradedClear('sg');
   updateSelPrice();
 }
+
+// Torna ai risultati di ricerca dal form (multi-risultato).
+function backToResults(){
+  selCard=null;
+  document.getElementById('selForm').style.display='none';
+  document.getElementById('selAddForm').style.display='none';
+  document.getElementById('formEmpty').style.display='flex';
+  document.querySelectorAll('#rg .thumb').forEach(t=>t.classList.remove('sel'));
+  if(typeof gradedClear==='function') gradedClear('sg');
+}
+window.backToResults = backToResults;
 
 function updateSelPrice(){
   if(!selCard)return;
@@ -6007,12 +6076,29 @@ async function gradedToggle(p){
   if(cb.checked){
     if(!gradedState[p]) gradedState[p] = {};
     gradedOnCompanyChange(p);
+    gradedReflectHero(p);
     var s = await checkColGradedSchema(false);
     gradedShowSchemaWarn(p, !s.ready);
   } else {
     gradedShowSchemaWarn(p, false);
+    gradedReflectHero(p);
   }
 }
+
+// Riflette casa+voto correnti nel badge dell'hero della carta (solo qg/sg,
+// il form manuale non ha hero). Mostra es. "PSA 10".
+function gradedReflectHero(p){
+  var heroId = (p==='qg') ? 'qmHeroGrade' : (p==='sg' ? 'selHeroGrade' : null);
+  if(!heroId) return;
+  var badge = document.getElementById(heroId);
+  if(!badge) return;
+  var cb = _gEl(p,'Graded');
+  if(!cb || !cb.checked){ badge.textContent=''; return; }
+  var co = (_gEl(p,'Company')||{}).value || '';
+  var gr = (_gEl(p,'Grade')||{}).value || '';
+  badge.textContent = (co + (gr ? ' '+gr : '')).trim();
+}
+window.gradedReflectHero = gradedReflectHero;
 
 // Cambio casa: aggiorna stato bottone + label (foto solo PSA oggi)
 function gradedOnCompanyChange(p){
@@ -6021,6 +6107,7 @@ function gradedOnCompanyChange(p){
   if(btn){
     btn.textContent = (co === 'PSA') ? 'Verifica & recupera foto' : 'Verifica certificato';
   }
+  gradedReflectHero(p);
 }
 
 // Verifica cert su DB ufficiale + (PSA) recupero foto slab.
@@ -6142,13 +6229,15 @@ function gradedApplyOfficialGrade(p){
   var sel = _gEl(p,'Grade');
   if(!sel) return;
   if(/auth/i.test(st.officialGrade)){
-    for(var i=0;i<sel.options.length;i++){ if(/auth/i.test(sel.options[i].value)){ sel.selectedIndex=i; return; } }
+    for(var i=0;i<sel.options.length;i++){ if(/auth/i.test(sel.options[i].value)){ sel.selectedIndex=i; gradedReflectHero(p); return; } }
+    gradedReflectHero(p);
     return;
   }
   if(m){
     var want = m[1];
-    for(var j=0;j<sel.options.length;j++){ if(sel.options[j].value === want){ sel.selectedIndex=j; return; } }
+    for(var j=0;j<sel.options.length;j++){ if(sel.options[j].value === want){ sel.selectedIndex=j; gradedReflectHero(p); return; } }
   }
+  gradedReflectHero(p);
 }
 
 // Raccoglie il payload gradato per l'insert. Ritorna {} se non gradata o
@@ -6188,6 +6277,8 @@ function gradedClear(p){
   var link = _gEl(p,'GradedCertLink'); if(link) link.hidden = true;
   gradedShowSchemaWarn(p, false);
   gradedState[p] = {};
+  var heroId = (p==='qg') ? 'qmHeroGrade' : (p==='sg' ? 'selHeroGrade' : null);
+  if(heroId){ var hb=document.getElementById(heroId); if(hb) hb.textContent=''; }
 }
 window.gradedToggle = gradedToggle;
 window.gradedVerify = gradedVerify;
