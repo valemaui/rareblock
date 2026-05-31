@@ -69,6 +69,11 @@ interface SlabDetails {
   population: string | null;
 }
 
+interface SlabImages {
+  front: string | null;
+  back: string | null;
+}
+
 interface SlabVerifyResult {
   found: boolean;
   supported: boolean;
@@ -78,6 +83,9 @@ interface SlabVerifyResult {
   details: SlabDetails;
   raw_excerpt: string | null;
   error: string | null;
+  // Foto reali della slab (oggi solo PSA via Public API). null = non richieste
+  // o non disponibili (PSA aggiunge scan solo da ott. 2021 in poi).
+  images?: SlabImages | null;
 }
 
 const emptyDetails = (): SlabDetails => ({
@@ -143,7 +151,7 @@ function extractFieldByLabel(html: string, labels: string[]): string | null {
 //    Spesso bloccato da Cloudflare quando le richieste arrivano da IP
 //    cloud. Mantieni come fallback ma aspettati 403 frequenti.
 //
-async function verifyPSA(cert: string): Promise<SlabVerifyResult> {
+async function verifyPSA(cert: string, withImages = false): Promise<SlabVerifyResult> {
   const out: SlabVerifyResult = {
     found: false, supported: true, grader: 'PSA', cert,
     fraud: false, details: emptyDetails(),
@@ -163,6 +171,12 @@ async function verifyPSA(cert: string): Promise<SlabVerifyResult> {
     // Se l'API ha risposto in modo utile (found o not-found definitivo),
     // ritorniamo direttamente. Solo su errore di rete fallback a scraping.
     if (apiOut.found || apiOut.fraud || apiOut.error === null) {
+      // Foto reali della slab: solo se richieste, cert trovato e token presente.
+      // Costa 1 chiamata API extra (attenzione al limite giornaliero free 100).
+      if (withImages && apiOut.found) {
+        try { apiOut.images = await fetchPSAImages(cert, psaToken); }
+        catch (e) { console.warn('[slab-verify] PSA images fetch error:', e instanceof Error ? e.message : String(e)); }
+      }
       return apiOut;
     }
     // Se errore HTTP (es. token scaduto) logghiamo e proviamo fallback
@@ -172,6 +186,59 @@ async function verifyPSA(cert: string): Promise<SlabVerifyResult> {
 
   // ── Strategia 2: scraping HTML (fallback) ─────────────────────────
   return await verifyPSAViaScraping(cert, out);
+}
+
+// ── PSA: foto reali della slab via Public API ───────────────────────────
+// Endpoint: GET https://api.psacard.com/publicapi/cert/GetImagesByCertNumber/<cert>
+// Risposta: array di { IsFrontImage: boolean, ImageURL: string }.
+// PSA ha iniziato ad archiviare gli scan solo da ottobre 2021: per cert più
+// vecchi l'array è vuoto → ritorniamo { front:null, back:null } senza errore.
+async function fetchPSAImages(cert: string, token: string): Promise<SlabImages> {
+  const result: SlabImages = { front: null, back: null };
+  const url = `https://api.psacard.com/publicapi/cert/GetImagesByCertNumber/${encodeURIComponent(cert)}`;
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 15000);
+  try {
+    const r = await fetch(url, {
+      method: 'GET',
+      signal: ctrl.signal,
+      headers: {
+        'Authorization': 'bearer ' + token,
+        'Accept': 'application/json',
+        'User-Agent': 'RareBlock-SlabVerify/1.0',
+      },
+    });
+    clearTimeout(to);
+    if (!r.ok) {
+      console.warn('[slab-verify] PSA images HTTP', r.status);
+      return result;
+    }
+    const text = await r.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch (_) { return result; }
+
+    // La risposta è tipicamente un array; alcuni wrapper la annidano.
+    const arr: any[] = Array.isArray(data)
+      ? data
+      : (Array.isArray(data?.PSACertImages) ? data.PSACertImages
+        : (Array.isArray(data?.images) ? data.images : []));
+
+    for (const item of arr) {
+      if (!item || typeof item !== 'object') continue;
+      const u = item.ImageURL || item.imageURL || item.ImageUrl || item.imageUrl || item.url;
+      if (!u) continue;
+      const isFront = (item.IsFrontImage ?? item.isFrontImage ?? item.IsFront ?? item.isFront);
+      if (isFront === true || isFront === 'true') result.front = String(u);
+      else if (isFront === false || isFront === 'false') result.back = String(u);
+      else if (!result.front) result.front = String(u); // fallback: prima = fronte
+      else if (!result.back) result.back = String(u);
+    }
+    return result;
+  } catch (e) {
+    clearTimeout(to);
+    console.warn('[slab-verify] PSA images fetch exception:', e instanceof Error ? e.message : String(e));
+    return result;
+  }
 }
 
 // ── PSA via API ufficiale ───────────────────────────────────────────────
@@ -421,12 +488,13 @@ async function handle(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
 
-  let body: { grader?: string; cert?: string };
+  let body: { grader?: string; cert?: string; withImages?: boolean };
   try { body = await req.json(); }
   catch { return json({ error: 'Invalid JSON body' }, 400); }
 
   const grader = String(body?.grader || '').trim().toUpperCase();
   const cert   = String(body?.cert   || '').trim().replace(/\s+/g, '');
+  const withImages = body?.withImages === true;
 
   if (!grader || !cert) return json({ error: 'grader e cert sono richiesti' }, 400);
   if (cert.length > 30) return json({ error: 'cert troppo lungo' }, 400);
@@ -434,7 +502,7 @@ async function handle(req: Request): Promise<Response> {
   let result: SlabVerifyResult;
   switch (grader) {
     case 'PSA':
-      result = await verifyPSA(cert);
+      result = await verifyPSA(cert, withImages);
       break;
     case 'BGS':
     case 'CGC':
