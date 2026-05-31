@@ -5847,11 +5847,18 @@ function pickCard(c,el){
   el.classList.add('sel');selCard=c;
   tcgdexSyncLangSelect(c, 'sLang');
   const sf=document.getElementById('selForm');sf.style.display='block';
+  // Mostra il form di inserimento (condizione/lingua/ecc.) e nascondi gli stati
+  // placeholder/quick — senza questo, cliccare una carta non apriva i campi.
+  document.getElementById('formEmpty').style.display='none';
+  document.getElementById('quickAddForm').style.display='none';
+  document.getElementById('selAddForm').style.display='block';
   const p=calcPrice(c.cardmarket?.prices,'NM','Normal',false);
   const priceStr=p?` · CM price: €${p.price.toFixed(2)}`:'';
   document.getElementById('selHeader').innerHTML=
     (c.images?.small?`<img src="${c.images.small}"/>`:'')
     +`<div><div class="sel-name">${c.name}</div><div class="sel-meta">${c.set?.name||''} · #${c.number||'?'} · ${c.rarity||'?'}${priceStr}</div></div>`;
+  // Reset blocco gradate quando si cambia carta selezionata
+  if(typeof gradedClear==='function') gradedClear('sg');
   updateSelPrice();
 }
 
