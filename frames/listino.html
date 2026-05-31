@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Listino</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../shared/rareblock-shared.css"/>
+<style>
+html,body{height:100%;overflow:hidden}
+body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);font-family:var(--font)}
+
+/* ═══ LISTINO — layout ═══ */
+#lst-root{display:flex;flex-direction:column;height:100%;min-height:0}
+
+/* Toolbar superiore: switch Collezione | Carta */
+.lst-top{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
+.lst-modes{display:flex;gap:2px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:3px}
+.lst-mode{background:transparent;border:0;color:var(--text-muted);padding:6px 16px;border-radius:4px;font-size:13px;cursor:pointer;font-family:var(--font);transition:var(--t-fast);display:inline-flex;align-items:center;gap:7px;font-weight:500}
+.lst-mode:hover{color:var(--text)}
+.lst-mode.active{background:var(--bg);color:var(--text);box-shadow:var(--shadow-sm)}
+.lst-mode .rb-i{width:15px;height:15px}
+.lst-top-spacer{flex:1}
+.lst-snapshot-btn{background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:6px 13px;border-radius:var(--r);font-size:12px;cursor:pointer;font-family:var(--mono);letter-spacing:.02em;transition:var(--t-fast);display:inline-flex;align-items:center;gap:7px}
+.lst-snapshot-btn:hover{border-color:var(--accent);color:var(--text)}
+.lst-snapshot-btn:disabled{opacity:.5;cursor:default}
+
+.lst-body{flex:1;overflow-y:auto;min-height:0}
+.lst-pane{display:none;padding:0}
+.lst-pane.active{display:block}
+
+/* ═══ Card hero (stile screenshot) ═══ */
+.lst-hero{max-width:820px;margin:0 auto;padding:26px 20px 40px}
+.lst-card-head{display:flex;align-items:flex-start;gap:18px;margin-bottom:6px}
+.lst-card-thumb{width:96px;height:auto;border-radius:7px;flex-shrink:0;box-shadow:var(--shadow-md);background:var(--surface2)}
+.lst-card-meta{flex:1;min-width:0}
+.lst-card-name{font-family:var(--serif);font-size:30px;font-weight:600;line-height:1.05;letter-spacing:-.01em;color:var(--text)}
+.lst-card-sub{font-size:13.5px;color:var(--text-muted);margin-top:6px;line-height:1.5}
+.lst-card-sub a{color:var(--accent);text-decoration:none}
+.lst-card-sub a:hover{text-decoration:underline}
+.lst-card-price{text-align:right;flex-shrink:0}
+.lst-price-big{font-family:var(--serif);font-size:30px;font-weight:600;color:var(--text);line-height:1}
+.lst-price-delta{font-size:13px;font-family:var(--mono);margin-top:5px}
+.lst-price-delta.up{color:var(--success)}
+.lst-price-delta.down{color:var(--danger)}
+.lst-price-delta.flat{color:var(--text-muted)}
+
+/* Variante / condizione tabs (RAW per-condizione) */
+.lst-condbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:22px 0 6px}
+.lst-cond-chip{display:inline-flex;align-items:center;gap:7px;background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;transition:var(--t-fast);font-family:var(--mono)}
+.lst-cond-chip:hover{border-color:var(--border-strong);color:var(--text)}
+.lst-cond-chip.active{color:var(--text);font-weight:600}
+.lst-cond-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+
+/* ═══ Chart ═══ */
+.lst-chart-wrap{position:relative;margin-top:14px}
+.lst-chart-legend{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);margin-bottom:8px;font-family:var(--mono)}
+.lst-chart-legend .seg{width:18px;height:3px;border-radius:2px}
+.lst-svg{display:block;width:100%;height:300px;overflow:visible}
+.lst-svg .grid-line{stroke:var(--border);stroke-width:1;stroke-dasharray:3 4;opacity:.55}
+.lst-svg .axis-line{stroke:var(--border-strong);stroke-width:1}
+.lst-svg .price-line{fill:none;stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+.lst-svg .price-area{opacity:.10}
+.lst-svg .hi-label,.lst-svg .lo-label{font-family:var(--mono);font-size:11px;fill:var(--text-muted)}
+.lst-svg .x-label{font-family:var(--mono);font-size:11px;fill:var(--text-muted)}
+.lst-svg .dot{stroke:var(--bg);stroke-width:2}
+.lst-hover-line{stroke:var(--text-muted);stroke-width:1;stroke-dasharray:2 3;opacity:0;transition:opacity .1s}
+.lst-tooltip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r);padding:7px 11px;font-size:12px;box-shadow:var(--shadow-md);opacity:0;transition:opacity .1s;z-index:5;white-space:nowrap}
+.lst-tooltip .tt-date{color:var(--text-muted);font-family:var(--mono);font-size:10.5px;margin-bottom:3px}
+.lst-tooltip .tt-val{color:var(--text);font-family:var(--serif);font-weight:600;font-size:15px}
+
+/* Range selector (1M 3M 6M 12M MAX) */
+.lst-ranges{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:18px}
+.lst-range{min-width:50px;background:transparent;border:1px solid transparent;color:var(--text-muted);padding:7px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--mono);transition:var(--t-fast)}
+.lst-range:hover{color:var(--text)}
+.lst-range.active{background:var(--surface3);color:var(--text);border-color:var(--border)}
+
+/* Stats strip sotto al grafico */
+.lst-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-top:26px}
+.lst-stat{background:var(--surface);padding:14px 16px}
+.lst-stat-lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.1em;font-family:var(--mono);margin-bottom:6px}
+.lst-stat-val{font-size:18px;font-weight:600;font-family:var(--mono);color:var(--text)}
+.lst-stat-val.pos{color:var(--success)}
+.lst-stat-val.neg{color:var(--danger)}
+
+/* Search (card mode) */
+.lst-search{max-width:820px;margin:0 auto;padding:20px}
+.lst-search-row{position:relative}
+.lst-search-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:11px 14px 11px 38px;font-size:14px;font-family:var(--font);outline:none}
+.lst-search-input:focus{border-color:var(--accent)}
+.lst-search-ico{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--text-muted)}
+.lst-results{margin-top:10px;display:flex;flex-direction:column;gap:4px}
+.lst-res{display:flex;align-items:center;gap:11px;padding:8px;border:1px solid transparent;border-radius:var(--r);cursor:pointer;transition:var(--t-fast)}
+.lst-res:hover{background:var(--surface2);border-color:var(--border)}
+.lst-res img{width:36px;height:50px;border-radius:4px;object-fit:cover;background:var(--surface3)}
+.lst-res .nm{font-size:13.5px;color:var(--text);font-weight:500}
+.lst-res .mt{font-size:11.5px;color:var(--text-muted);font-family:var(--mono);margin-top:2px}
+
+/* Empty / loading states */
+.lst-empty{text-align:center;padding:64px 24px;color:var(--text-muted);max-width:560px;margin:0 auto}
+.lst-empty-ico{width:48px;height:48px;margin:0 auto 16px;opacity:.5;color:var(--text-subtle)}
+.lst-empty-title{font-family:var(--serif);font-size:21px;color:var(--text);margin-bottom:8px;font-weight:600}
+.lst-empty-sub{font-size:13.5px;line-height:1.6}
+.lst-empty-sub code{font-family:var(--mono);font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 6px;color:var(--accent)}
+.lst-spin{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:lstspin .7s linear infinite;vertical-align:middle}
+@keyframes lstspin{to{transform:rotate(360deg)}}
+
+/* Collection mode header */
+.lst-coll-head{max-width:820px;margin:0 auto;padding:26px 20px 0;display:flex;align-items:flex-end;justify-content:space-between;gap:20px}
+.lst-coll-title{font-family:var(--serif);font-size:15px;color:var(--text-muted);font-weight:400;letter-spacing:.02em}
+.lst-coll-value{font-family:var(--serif);font-size:38px;font-weight:600;color:var(--text);line-height:1;margin-top:6px}
+.lst-coll-delta{font-size:14px;font-family:var(--mono);margin-top:8px}
+.lst-coll-delta.up{color:var(--success)}
+.lst-coll-delta.down{color:var(--danger)}
+.lst-coll-delta.flat{color:var(--text-muted)}
+.lst-coll-series-toggle{display:flex;gap:2px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:3px}
+.lst-coll-series-toggle button{background:transparent;border:0;color:var(--text-muted);padding:5px 12px;border-radius:4px;font-size:11.5px;cursor:pointer;font-family:var(--mono);transition:var(--t-fast)}
+.lst-coll-series-toggle button.active{background:var(--bg);color:var(--text)}
+
+.lst-disclaimer{max-width:820px;margin:22px auto 0;padding:0 20px}
+.lst-disclaimer-box{background:var(--surface);border:1px solid var(--border);border-left:2px solid var(--gold);border-radius:var(--r);padding:12px 15px;font-size:12px;color:var(--text-muted);line-height:1.6}
+.lst-disclaimer-box b{color:var(--text);font-weight:600}
+</style>
+</head>
+<body>
+<div id="lst-root">
+
+  <!-- Toolbar: Collezione | Carta -->
+  <div class="lst-top">
+    <div class="lst-modes">
+      <button class="lst-mode active" id="lstModeColl" onclick="lstSetMode('coll')">
+        <span class="rb-i rb-i-chart"></span> Valore collezione
+      </button>
+      <button class="lst-mode" id="lstModeCard" onclick="lstSetMode('card')">
+        <span class="rb-i rb-i-card"></span> Listino carta
+      </button>
+    </div>
+    <div class="lst-top-spacer"></div>
+    <button class="lst-snapshot-btn" id="lstSnapBtn" onclick="lstSnapshotNow()" title="Fotografa il valore attuale della collezione nello storico settimanale">
+      <span class="rb-i rb-i-save"></span> Fotografa adesso
+    </button>
+  </div>
+
+  <div class="lst-body">
+
+    <!-- ══ PANE: VALORE COLLEZIONE ══ -->
+    <div class="lst-pane active" id="lstPaneColl">
+      <div id="lstCollContent">
+        <div class="lst-empty"><span class="lst-spin"></span></div>
+      </div>
+    </div>
+
+    <!-- ══ PANE: LISTINO CARTA ══ -->
+    <div class="lst-pane" id="lstPaneCard">
+      <div class="lst-search">
+        <div class="lst-search-row">
+          <svg class="lst-search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input class="lst-search-input" id="lstCardSearch" placeholder="Cerca una carta (es. Charizard Base Set)…" autocomplete="off"/>
+        </div>
+        <div class="lst-results" id="lstCardResults"></div>
+      </div>
+      <div id="lstCardContent"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   RAREBLOCK · LISTINO
+   Due viste:
+    1) Valore collezione nel tempo  → RPC collection_value_series
+    2) Listino carta per-condizione → RPC cm_get_condition_history + live
+   Grafici SVG custom (nessuna lib), coerenti col tema luxury dark.
+   ═══════════════════════════════════════════════════════════════════════ */
+(function(){
+  'use strict';
+
+  // Palette serie per-condizione (rank 1..7)
+  var COND_COLORS = {
+    'Mint':'#3fb950','Near Mint':'#58a6ff','Excellent':'#c9a84c',
+    'Good':'#d29922','Light Played':'#db8b3a','Played':'#f0883e','Poor':'#f85149'
+  };
+  var COND_ABBR = {
+    'Mint':'MT','Near Mint':'NM','Excellent':'EX','Good':'GD',
+    'Light Played':'LP','Played':'PL','Poor':'PO'
+  };
+  var RANGES = [
+    {id:'1M',weeks:5,label:'1M'},{id:'3M',weeks:13,label:'3M'},
+    {id:'6M',weeks:26,label:'6M'},{id:'12M',weeks:52,label:'12M'},
+    {id:'MAX',weeks:520,label:'MAX'}
+  ];
+
+  var state = {
+    mode:'coll',
+    range:'3M',
+    collSeries:null,        // {series:[], live:{}}
+    collMetric:'value',     // 'value' | 'cost' | 'gain'
+    card:null,              // opts della carta selezionata
+    cardHistory:null,       // serie storica per-condizione
+    cardLive:null,          // dato live per-condizione (rbGetConditionPrices)
+    cardCond:'Near Mint'    // condizione selezionata
+  };
+
+  // ── Helpers backend (riusa supa del parent/shared) ─────────────────────
+  function rpc(fn, args){
+    var supa = window.supa || (window.parent && window.parent.supa);
+    if(typeof supa !== 'function') return Promise.reject(new Error('supa non disponibile'));
+    return supa('POST','rpc/'+fn, args||{});
+  }
+  function esc(s){ return (window.esc?window.esc:String)(s==null?'':s); }
+  function fmtEur(n){
+    if(n==null||isNaN(n)) return '—';
+    return '€'+Number(n).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+  function fmtEur0(n){
+    if(n==null||isNaN(n)) return '—';
+    return '€'+Number(n).toLocaleString('it-IT',{minimumFractionDigits:0,maximumFractionDigits:0});
+  }
+  function mondayWeeksAgo(w){ var d=new Date(); d.setUTCDate(d.getUTCDate()-w*7); return d; }
+  function fmtMonth(dateStr){
+    var d=new Date(dateStr); 
+    return d.toLocaleDateString('it-IT',{month:'short'});
+  }
+  function fmtFullDate(dateStr){
+    var d=new Date(dateStr);
+    return d.toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'});
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  //  SVG CHART ENGINE (riusabile per entrambe le viste)
+  //  points: [{x:Date|number, y:number}]  (ordinati per x asc)
+  //  opts: {color, areaFill, weeksWindow}
+  // ════════════════════════════════════════════════════════════════════
+  function buildChart(points, opts){
+    opts = opts||{};
+    var W=820, H=300, padL=8, padR=8, padT=24, padB=30;
+    var innerW=W-padL-padR, innerH=H-padT-padB;
+    var color = opts.color || '#58a6ff';
+
+    if(!points || points.length===0){
+      return '<svg class="lst-svg" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'
+        + '<text x="'+(W/2)+'" y="'+(H/2)+'" text-anchor="middle" class="x-label">Nessun dato storico nel periodo</text></svg>';
+    }
+
+    var xs = points.map(function(p){ return +new Date(p.x); });
+    var ys = points.map(function(p){ return p.y; });
+    var xmin=Math.min.apply(null,xs), xmax=Math.max.apply(null,xs);
+    var ymin=Math.min.apply(null,ys), ymax=Math.max.apply(null,ys);
+    if(xmax===xmin) xmax=xmin+1;
+    // padding verticale 8%
+    var yPad=(ymax-ymin)*0.10 || (ymax*0.05) || 1;
+    var yLo=Math.max(0,ymin-yPad), yHi=ymax+yPad;
+    if(yHi===yLo) yHi=yLo+1;
+
+    function sx(x){ return padL + (x-xmin)/(xmax-xmin)*innerW; }
+    function sy(y){ return padT + (1-(y-yLo)/(yHi-yLo))*innerH; }
+
+    // path linea
+    var d='', area='';
+    points.forEach(function(p,i){
+      var X=sx(+new Date(p.x)).toFixed(1), Y=sy(p.y).toFixed(1);
+      d += (i===0?'M':'L')+X+' '+Y+' ';
+    });
+    area = d + 'L'+sx(xmax).toFixed(1)+' '+sy(yLo).toFixed(1)+' L'+sx(xmin).toFixed(1)+' '+sy(yLo).toFixed(1)+' Z';
+
+    // grid + min/max guide lines (stile screenshot: tratteggiata su hi e lo)
+    var hiY=sy(ymax).toFixed(1), loY=sy(ymin).toFixed(1);
+    var svg='<svg class="lst-svg" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">';
+    svg+='<line class="grid-line" x1="'+padL+'" y1="'+hiY+'" x2="'+(W-padR)+'" y2="'+hiY+'"/>';
+    svg+='<line class="grid-line" x1="'+padL+'" y1="'+loY+'" x2="'+(W-padR)+'" y2="'+loY+'"/>';
+    svg+='<text class="hi-label" x="'+padL+'" y="'+(+hiY-6)+'">'+fmtEur(ymax)+'</text>';
+    svg+='<text class="lo-label" x="'+padL+'" y="'+(+loY+14)+'">'+fmtEur(ymin)+'</text>';
+
+    // area + linea
+    svg+='<path class="price-area" d="'+area+'" fill="'+color+'"/>';
+    svg+='<path class="price-line" d="'+d+'" stroke="'+color+'"/>';
+    // dot finale
+    var last=points[points.length-1];
+    svg+='<circle class="dot" cx="'+sx(+new Date(last.x)).toFixed(1)+'" cy="'+sy(last.y).toFixed(1)+'" r="3.5" fill="'+color+'"/>';
+
+    // x-axis: bottom line + 3 month labels
+    var axisY=H-padB+4;
+    svg+='<line class="axis-line" x1="'+padL+'" y1="'+axisY+'" x2="'+(W-padR)+'" y2="'+axisY+'"/>';
+    var nLab=Math.min(4, points.length);
+    for(var i=0;i<nLab;i++){
+      var idx=Math.round(i*(points.length-1)/(nLab-1||1));
+      var px=sx(+new Date(points[idx].x));
+      var anchor = i===0?'start':(i===nLab-1?'end':'middle');
+      svg+='<text class="x-label" x="'+px.toFixed(1)+'" y="'+(axisY+16)+'" text-anchor="'+anchor+'">'+fmtMonth(points[idx].x)+'</text>';
+    }
+    svg+='</svg>';
+    return svg;
+  }
+
+  // Filtra punti entro la finestra del range corrente
+  function windowPoints(series, weeks){
+    var cutoff=mondayWeeksAgo(weeks);
+    return series.filter(function(p){ return +new Date(p.x) >= +cutoff; });
+  }
+
+  function rangesHtml(){
+    return '<div class="lst-ranges">'+RANGES.map(function(r){
+      return '<button class="lst-range'+(state.range===r.id?' active':'')+'" data-range="'+r.id+'">'+r.label+'</button>';
+    }).join('')+'</div>';
+  }
+  function wireRanges(container, onChange){
+    Array.prototype.forEach.call(container.querySelectorAll('.lst-range'), function(b){
+      b.onclick=function(){ state.range=b.getAttribute('data-range'); onChange(); };
+    });
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  //  VISTA 1 — VALORE COLLEZIONE NEL TEMPO
+  // ════════════════════════════════════════════════════════════════════
+  window.lstLoadCollection = function(){
+    var box=document.getElementById('lstCollContent');
+    box.innerHTML='<div class="lst-empty"><span class="lst-spin"></span></div>';
+    rpc('collection_value_series',{p_weeks:520}).then(function(res){
+      state.collSeries = res || {series:[],live:{}};
+      renderCollection();
+    }).catch(function(e){
+      box.innerHTML='<div class="lst-empty"><div class="lst-empty-title">Errore</div>'
+        +'<div class="lst-empty-sub">'+esc(e.message||'impossibile leggere lo storico')+'</div></div>';
+    });
+  };
+
+  function collMetricValue(row){
+    if(state.collMetric==='cost') return row.total_cost;
+    if(state.collMetric==='gain') return (row.total_value||0)-(row.total_cost||0);
+    return row.total_value;
+  }
+
+  function renderCollection(){
+    var box=document.getElementById('lstCollContent');
+    var data=state.collSeries||{series:[],live:{}};
+    var series=(data.series||[]).slice();
+    var live=data.live||{};
+
+    // Punto "adesso" (live) appeso in coda se non già snapshotato per la settimana
+    var nowWeek = (function(){ var d=new Date(); var day=(d.getUTCDay()+6)%7; d.setUTCDate(d.getUTCDate()-day); return d.toISOString().slice(0,10); })();
+    var hasNow = series.some(function(s){ return s.week===nowWeek; });
+    if(!hasNow && live && live.n_distinct){
+      series.push({week:nowWeek, total_value:live.total_value, total_cost:live.total_cost,
+                   n_cards:live.n_cards, n_valued:live.n_valued, n_distinct:live.n_distinct});
+    }
+
+    // Stato vuoto: nessuna carta valutata
+    if((!live||!live.n_distinct) && series.length===0){
+      box.innerHTML = ''
+      + '<div class="lst-empty">'
+      +   '<svg class="lst-empty-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg>'
+      +   '<div class="lst-empty-title">Il tuo listino prende forma qui</div>'
+      +   '<div class="lst-empty-sub">Aggiungi carte alla collezione e usa <b>Verifica prezzo</b> (o apri il listino di una carta) per popolare i prezzi per-condizione. '
+      +   'Ogni lunedì notte il sistema fotografa il valore totale, costruendo lo storico che vedi in questo grafico.</div>'
+      + '</div>';
+      return;
+    }
+
+    var win=windowPoints(series.map(function(s){ return {x:s.week, y:collMetricValue(s), raw:s}; }),
+                         (RANGES.filter(function(r){return r.id===state.range;})[0]||{weeks:13}).weeks);
+
+    var first=win.length?win[0].y:0, last=win.length?win[win.length-1].y:0;
+    var delta=last-first, deltaPct=first?((delta/first)*100):0;
+    var dcls=delta>0.001?'up':(delta<-0.001?'down':'flat');
+    var arrow=delta>0.001?'▲':(delta<-0.001?'▼':'■');
+
+    var liveValue = collMetricValue(live.n_distinct?live:(series[series.length-1]||{}));
+    var color = state.collMetric==='gain'?(liveValue>=0?'#3fb950':'#f85149'):'#58a6ff';
+
+    var metricLabel = state.collMetric==='cost'?'Costo totale (acquisto)'
+                     : state.collMetric==='gain'?'Plusvalenza latente'
+                     : 'Valore di mercato (Cardmarket)';
+
+    var html=''
+    + '<div class="lst-coll-head">'
+    +   '<div>'
+    +     '<div class="lst-coll-title">'+metricLabel+'</div>'
+    +     '<div class="lst-coll-value">'+fmtEur(liveValue)+'</div>'
+    +     '<div class="lst-coll-delta '+dcls+'">'+arrow+' '+fmtEur(Math.abs(delta))+' ('+(deltaPct>=0?'+':'')+deltaPct.toFixed(2)+'%) · '+state.range+'</div>'
+    +   '</div>'
+    +   '<div class="lst-coll-series-toggle">'
+    +     '<button class="'+(state.collMetric==='value'?'active':'')+'" data-metric="value">Valore</button>'
+    +     '<button class="'+(state.collMetric==='cost'?'active':'')+'" data-metric="cost">Costo</button>'
+    +     '<button class="'+(state.collMetric==='gain'?'active':'')+'" data-metric="gain">Gain</button>'
+    +   '</div>'
+    + '</div>'
+    + '<div style="max-width:820px;margin:0 auto;padding:18px 20px 0">'
+    +   '<div class="lst-chart-wrap">'+buildChart(win,{color:color})+'</div>'
+    +   rangesHtml()
+    + '</div>'
+    + collStatsHtml(live, series)
+    + '<div class="lst-disclaimer"><div class="lst-disclaimer-box">'
+    +   '<b>'+(live.n_valued||0)+'</b> di <b>'+(live.n_cards||0)+'</b> carte hanno un prezzo Cardmarket per-condizione. '
+    +   'Le carte senza prezzo non contribuiscono al valore: aprine il listino per popolarle. '
+    +   'Lo storico cresce di un punto a settimana (snapshot del lunedì).'
+    + '</div></div>';
+
+    box.innerHTML=html;
+
+    wireRanges(box, renderCollection);
+    Array.prototype.forEach.call(box.querySelectorAll('.lst-coll-series-toggle button'), function(b){
+      b.onclick=function(){ state.collMetric=b.getAttribute('data-metric'); renderCollection(); };
+    });
+  }
+
+  function collStatsHtml(live, series){
+    var gain=(live.total_value||0)-(live.total_cost||0);
+    var roi=live.total_cost?((gain/live.total_cost)*100):null;
+    var weeks=series.length;
+    return '<div style="max-width:820px;margin:0 auto;padding:0 20px">'
+    + '<div class="lst-stats">'
+    +   '<div class="lst-stat"><div class="lst-stat-lbl">Valore mercato</div><div class="lst-stat-val">'+fmtEur0(live.total_value)+'</div></div>'
+    +   '<div class="lst-stat"><div class="lst-stat-lbl">Costo</div><div class="lst-stat-val">'+fmtEur0(live.total_cost)+'</div></div>'
+    +   '<div class="lst-stat"><div class="lst-stat-lbl">Plusvalenza</div><div class="lst-stat-val '+(gain>=0?'pos':'neg')+'">'+(gain>=0?'+':'')+fmtEur0(gain)+'</div></div>'
+    +   '<div class="lst-stat"><div class="lst-stat-lbl">ROI</div><div class="lst-stat-val '+(roi==null?'':(roi>=0?'pos':'neg'))+'">'+(roi==null?'—':((roi>=0?'+':'')+roi.toFixed(1)+'%'))+'</div></div>'
+    + '</div></div>';
+  }
+
+  // Snapshot on-demand
+  window.lstSnapshotNow = function(){
+    var btn=document.getElementById('lstSnapBtn');
+    if(!btn) return;
+    btn.disabled=true; var orig=btn.innerHTML;
+    btn.innerHTML='<span class="lst-spin"></span> Fotografo…';
+    rpc('collection_snapshot_me',{}).then(function(){
+      return rpc('collection_value_series',{p_weeks:520});
+    }).then(function(res){
+      state.collSeries=res; 
+      if(state.mode==='coll') renderCollection();
+      btn.innerHTML='✓ Fatto'; setTimeout(function(){ btn.innerHTML=orig; btn.disabled=false; },1400);
+    }).catch(function(e){
+      btn.innerHTML=orig; btn.disabled=false;
+      alert('Snapshot fallito: '+(e.message||e));
+    });
+  };
+
+  // ════════════════════════════════════════════════════════════════════
+  //  VISTA 2 — LISTINO CARTA (per-condizione + storico)
+  // ════════════════════════════════════════════════════════════════════
+  var _searchTimer=null;
+  function wireCardSearch(){
+    var inp=document.getElementById('lstCardSearch');
+    if(!inp) return;
+    inp.oninput=function(){
+      clearTimeout(_searchTimer);
+      var q=inp.value.trim();
+      if(q.length<2){ document.getElementById('lstCardResults').innerHTML=''; return; }
+      _searchTimer=setTimeout(function(){ doCardSearch(q); }, 350);
+    };
+  }
+  function doCardSearch(q){
+    var box=document.getElementById('lstCardResults');
+    box.innerHTML='<div class="lst-empty" style="padding:18px"><span class="lst-spin"></span></div>';
+    var rbSearch = (window.parent && window.parent.rbSearchCards) || window.rbSearchCards;
+    if(typeof rbSearch!=='function'){ box.innerHTML='<div class="lst-empty" style="padding:18px"><div class="lst-empty-sub">Ricerca non disponibile.</div></div>'; return; }
+    Promise.resolve(rbSearch(q,null,null)).then(function(cards){
+      if(!cards||!cards.length){ box.innerHTML='<div class="lst-empty" style="padding:18px"><div class="lst-empty-sub">Nessuna carta trovata.</div></div>'; return; }
+      box.innerHTML=cards.slice(0,10).map(function(c,i){
+        var img=(c.images&&(c.images.small||c.images.large))||'';
+        var setNm=(c.set&&c.set.name)||''; var yr=((c.set&&c.set.releaseDate)||'').slice(0,4);
+        return '<div class="lst-res" data-i="'+i+'">'
+          +(img?'<img src="'+img+'" alt="">':'<div style="width:36px;height:50px;border-radius:4px;background:var(--surface3)"></div>')
+          +'<div><div class="nm">'+esc(c.name||'')+'</div>'
+          +'<div class="mt">'+esc(setNm)+(yr?(' · '+yr):'')+(c.number?(' · #'+c.number):'')+'</div></div></div>';
+      }).join('');
+      Array.prototype.forEach.call(box.querySelectorAll('.lst-res'),function(el){
+        el.onclick=function(){
+          var c=cards[+el.getAttribute('data-i')];
+          box.innerHTML=''; document.getElementById('lstCardSearch').value=c.name||'';
+          selectCard({ name:c.name, setId:c.set&&c.set.id, setName:c.set&&c.set.name,
+                       number:c.number, language:'ITA', variant:'Normal', rarity:c.rarity,
+                       image:(c.images&&(c.images.small||c.images.large))||null });
+        };
+      });
+    }).catch(function(){ box.innerHTML='<div class="lst-empty" style="padding:18px"><div class="lst-empty-sub">Errore ricerca.</div></div>'; });
+  }
+
+  function cardKeyOf(opts){
+    var setId=((opts.setId||opts.set_id||'')+'').toLowerCase().trim();
+    var num=((opts.number||opts.card_number||'')+'').toLowerCase().trim();
+    if(!setId||!num) return null;
+    var lang=((opts.language||'ITA')+'').toUpperCase().trim();
+    var vari=((opts.variant||'Normal')+'').trim();
+    var fe=opts.first_edition?'1':'0';
+    return [setId,num,lang,vari,fe].join('|');
+  }
+
+  function selectCard(opts){
+    state.card=opts; state.cardHistory=null; state.cardLive=null; state.cardCond='Near Mint';
+    var box=document.getElementById('lstCardContent');
+    box.innerHTML='<div class="lst-hero"><div class="lst-empty"><span class="lst-spin"></span> Carico listino…</div></div>';
+
+    var ck=cardKeyOf(opts);
+    var getCond = (window.parent && window.parent.rbGetConditionPrices) || window.rbGetConditionPrices;
+
+    var pLive = (typeof getCond==='function')
+      ? Promise.resolve(getCond(opts,{})).catch(function(){ return null; })
+      : Promise.resolve(null);
+    var pHist = ck ? rpc('cm_get_condition_history',{p_card_key:ck, p_is_foil:null, p_weeks:520}).catch(function(){ return null; })
+                   : Promise.resolve(null);
+
+    Promise.all([pLive,pHist]).then(function(r){
+      state.cardLive=r[0]; state.cardHistory=r[1];
+      // condizione default: la prima disponibile nei dati live (per rank)
+      var conds=availableConds();
+      if(conds.length && conds.indexOf(state.cardCond)<0) state.cardCond=conds[0];
+      renderCard();
+    });
+  }
+
+  function availableConds(){
+    var set={};
+    if(state.cardLive&&state.cardLive.conditions) state.cardLive.conditions.forEach(function(c){ set[c.condition]=1; });
+    if(state.cardHistory&&state.cardHistory.series) state.cardHistory.series.forEach(function(s){ set[s.condition]=1; });
+    var order=['Mint','Near Mint','Excellent','Good','Light Played','Played','Poor'];
+    return order.filter(function(c){ return set[c]; });
+  }
+
+  function liveCondPrice(cond){
+    if(!state.cardLive||!state.cardLive.conditions) return null;
+    var row=state.cardLive.conditions.filter(function(c){ return c.condition===cond; })[0];
+    return row ? (row.low1!=null?row.low1:row.avg) : null;
+  }
+
+  function renderCard(){
+    var box=document.getElementById('lstCardContent');
+    var opts=state.card; if(!opts) return;
+    var conds=availableConds();
+    var ck=cardKeyOf(opts);
+
+    // Serie storica della condizione selezionata
+    var hist=(state.cardHistory&&state.cardHistory.series)||[];
+    var condSeries=hist.filter(function(s){ return s.condition===state.cardCond && !s.isFoil; })
+                       .map(function(s){ return {x:s.week, y:(s.low1!=null?s.low1:s.avg)}; })
+                       .filter(function(p){ return p.y!=null; });
+    var win=windowPoints(condSeries,(RANGES.filter(function(r){return r.id===state.range;})[0]||{weeks:13}).weeks);
+
+    var livePrice=liveCondPrice(state.cardCond);
+    var headlinePrice = livePrice!=null ? livePrice : (win.length?win[win.length-1].y:null);
+
+    // delta sul range
+    var first=win.length?win[0].y:null, last=win.length?win[win.length-1].y:null;
+    var delta=(first!=null&&last!=null)?(last-first):null;
+    var deltaPct=(delta!=null&&first)?((delta/first)*100):null;
+    var dcls=delta==null?'flat':(delta>0.001?'up':(delta<-0.001?'down':'flat'));
+    var arrow=delta==null?'':(delta>0.001?'▲':(delta<-0.001?'▼':'■'));
+
+    var color=COND_COLORS[state.cardCond]||'#58a6ff';
+    var setNm=opts.setName||opts.set_name||'';
+
+    var html='<div class="lst-hero">';
+    // header
+    html+='<div class="lst-card-head">';
+    if(opts.image) html+='<img class="lst-card-thumb" src="'+esc(opts.image)+'" alt="">';
+    html+='<div class="lst-card-meta">'
+      +'<div class="lst-card-name">'+esc(opts.name||'')+'</div>'
+      +'<div class="lst-card-sub">'+esc(setNm)+(opts.number?(' · #'+esc(opts.number)):'')
+      +' · '+esc(opts.language||'ITA')+(opts.rarity?(' · '+esc(opts.rarity)):'')+'</div>'
+      +'</div>';
+    html+='<div class="lst-card-price">'
+      +'<div class="lst-price-big">'+(headlinePrice!=null?fmtEur(headlinePrice):'—')+'</div>'
+      +(delta!=null?('<div class="lst-price-delta '+dcls+'">'+arrow+' '+fmtEur(Math.abs(delta))+(deltaPct!=null?(' ('+(deltaPct>=0?'+':'')+deltaPct.toFixed(2)+'%)'):'')+'</div>'):'')
+      +'</div>';
+    html+='</div>';
+
+    // condition chips
+    if(conds.length){
+      html+='<div class="lst-condbar">';
+      conds.forEach(function(c){
+        html+='<button class="lst-cond-chip'+(c===state.cardCond?' active':'')+'" data-cond="'+esc(c)+'">'
+          +'<span class="lst-cond-dot" style="background:'+(COND_COLORS[c]||'#888')+'"></span>'
+          +(COND_ABBR[c]||c)+'</button>';
+      });
+      html+='</div>';
+    }
+
+    // legend + chart
+    html+='<div class="lst-chart-wrap">';
+    html+='<div class="lst-chart-legend"><span class="seg" style="background:'+color+'"></span> '+esc(state.cardCond)+' · listino Cardmarket (EUR)</div>';
+    if(win.length>=2){
+      html+=buildChart(win,{color:color});
+    } else {
+      // Non c'è ancora storico: mostriamo il dato live come "scaletta" + nota
+      html+=liveLadderHtml(color);
+    }
+    html+='</div>';
+    html+=rangesHtml();
+
+    // stats live per-condizione (min/avg/n listings)
+    html+=cardStatsHtml();
+
+    // disclaimer storico
+    if(win.length<2){
+      html+='<div class="lst-disclaimer"><div class="lst-disclaimer-box">'
+        +'Per questa carta non c\'è ancora <b>storico settimanale</b> sufficiente a tracciare un grafico: '
+        +'è normale all\'inizio. Ogni lunedì notte viene aggiunto un punto. '
+        +'Usa <b>↻ Aggiorna</b> per catturare ora i prezzi correnti da Cardmarket.'
+        +'</div></div>';
+    }
+
+    html+='<div style="text-align:center;margin-top:18px">'
+      +'<button class="lst-snapshot-btn" id="lstCardRefresh"><span class="rb-i rb-i-refresh"></span> Aggiorna da Cardmarket</button>'
+      +'</div>';
+
+    html+='</div>'; // hero
+    box.innerHTML=html;
+
+    // wiring
+    Array.prototype.forEach.call(box.querySelectorAll('.lst-cond-chip'),function(b){
+      b.onclick=function(){ state.cardCond=b.getAttribute('data-cond'); renderCard(); };
+    });
+    wireRanges(box, renderCard);
+    var rb=document.getElementById('lstCardRefresh');
+    if(rb) rb.onclick=function(){
+      rb.disabled=true; rb.innerHTML='<span class="lst-spin"></span> Aggiorno…';
+      var getCond=(window.parent&&window.parent.rbGetConditionPrices)||window.rbGetConditionPrices;
+      Promise.resolve(typeof getCond==='function'?getCond(opts,{force:true}):null).then(function(live){
+        state.cardLive=live||state.cardLive;
+        return ck?rpc('cm_get_condition_history',{p_card_key:ck,p_is_foil:null,p_weeks:520}).catch(function(){return state.cardHistory;}):state.cardHistory;
+      }).then(function(h){ state.cardHistory=h; renderCard(); })
+        .catch(function(){ renderCard(); });
+    };
+  }
+
+  function liveLadderHtml(color){
+    var conds=availableConds();
+    if(!conds.length) return '<svg class="lst-svg" viewBox="0 0 820 300"><text x="410" y="150" text-anchor="middle" class="x-label">Nessun prezzo disponibile — premi Aggiorna</text></svg>';
+    // bar chart orizzontale dei prezzi live per condizione (fallback elegante senza storico)
+    var rows=conds.map(function(c){ return {c:c, p:liveCondPrice(c)}; }).filter(function(r){ return r.p!=null; });
+    if(!rows.length) return '<svg class="lst-svg" viewBox="0 0 820 300"><text x="410" y="150" text-anchor="middle" class="x-label">Nessun prezzo disponibile — premi Aggiorna</text></svg>';
+    var max=Math.max.apply(null,rows.map(function(r){return r.p;}));
+    var W=820,H=300,padL=70,padR=70,top=20,rh=Math.min(40,(H-40)/rows.length),gap=8;
+    var svg='<svg class="lst-svg" viewBox="0 0 '+W+' '+H+'">';
+    rows.forEach(function(r,i){
+      var y=top+i*(rh+gap);
+      var w=(W-padL-padR)*(r.p/max);
+      svg+='<text x="'+(padL-10)+'" y="'+(y+rh/2+4)+'" text-anchor="end" class="x-label" style="fill:'+(COND_COLORS[r.c]||'#888')+';font-weight:600">'+(COND_ABBR[r.c]||r.c)+'</text>';
+      svg+='<rect x="'+padL+'" y="'+y+'" width="'+Math.max(2,w).toFixed(1)+'" height="'+rh+'" rx="3" fill="'+(COND_COLORS[r.c]||'#58a6ff')+'" opacity="0.85"/>';
+      svg+='<text x="'+(padL+w+8).toFixed(1)+'" y="'+(y+rh/2+4)+'" class="x-label" style="fill:var(--text)">'+fmtEur(r.p)+'</text>';
+    });
+    svg+='</svg>';
+    return svg;
+  }
+
+  function cardStatsHtml(){
+    var c=(state.cardLive&&state.cardLive.conditions||[]).filter(function(x){return x.condition===state.cardCond;})[0];
+    if(!c) return '';
+    var captured=state.cardLive&&state.cardLive.capturedAt;
+    return '<div class="lst-stats">'
+    +'<div class="lst-stat"><div class="lst-stat-lbl">1° minimo</div><div class="lst-stat-val">'+fmtEur(c.low1)+'</div></div>'
+    +'<div class="lst-stat"><div class="lst-stat-lbl">2° minimo</div><div class="lst-stat-val">'+fmtEur(c.low2)+'</div></div>'
+    +'<div class="lst-stat"><div class="lst-stat-lbl">Media listing</div><div class="lst-stat-val">'+fmtEur(c.avg)+'</div></div>'
+    +'<div class="lst-stat"><div class="lst-stat-lbl">N. offerte</div><div class="lst-stat-val">'+(c.nListings!=null?c.nListings:'—')+'</div></div>'
+    +'</div>';
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  //  MODE SWITCH + boot
+  // ════════════════════════════════════════════════════════════════════
+  window.lstSetMode=function(m){
+    state.mode=m;
+    document.getElementById('lstModeColl').classList.toggle('active',m==='coll');
+    document.getElementById('lstModeCard').classList.toggle('active',m==='card');
+    document.getElementById('lstPaneColl').classList.toggle('active',m==='coll');
+    document.getElementById('lstPaneCard').classList.toggle('active',m==='card');
+    document.getElementById('lstSnapBtn').style.display = (m==='coll')?'inline-flex':'none';
+    if(m==='coll' && !state.collSeries) window.lstLoadCollection();
+  };
+
+  // Entry point chiamato dal parent quando si apre il tab
+  window.lstLoad=function(){
+    if(state.mode==='coll'){
+      if(!state.collSeries) window.lstLoadCollection();
+    }
+  };
+
+  // Boot
+  document.addEventListener('DOMContentLoaded',function(){
+    wireCardSearch();
+    // Attende che supa sia disponibile (parent same-origin)
+    var tries=0;
+    (function waitSupa(){
+      var supa=window.supa||(window.parent&&window.parent.supa);
+      if(typeof supa==='function'){ window.lstLoad(); }
+      else if(tries++<40){ setTimeout(waitSupa,150); }
+      else { document.getElementById('lstCollContent').innerHTML='<div class="lst-empty"><div class="lst-empty-title">Sessione non pronta</div><div class="lst-empty-sub">Ricarica la pagina.</div></div>'; }
+    })();
+  });
+
+})();
+</script>
+</body>
+</html>

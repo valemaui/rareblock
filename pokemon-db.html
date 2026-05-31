@@ -2668,6 +2668,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
     <button class="nav-btn" data-mode="collector" onclick="showTab('wish')"><span class="rb-i rb-i-star"></span> Wishlist</button>
     <button class="nav-btn" data-mode="collector" onclick="showTab('auth')">Autentica</button>
     <button class="nav-btn" data-mode="collector" onclick="showTab('anl')">Analizza</button>
+    <button class="nav-btn" data-mode="collector" onclick="showTab('lst')"><span class="rb-i rb-i-trend-up"></span> Listino</button>
     <button class="nav-btn" data-mode="collector" onclick="showTab('dash')"><span class="rb-i rb-i-chart"></span> Dashboard</button>
     <!-- ▸ Modalità SELLER — caricamento prodotti & vendita -->
     <button class="nav-btn" data-mode="seller" onclick="showTab('sell')"><span class="rb-i rb-i-tag"></span> Carica prodotto</button>
@@ -4147,6 +4148,12 @@ function showTab(t){
     }
   }catch(e){ console.error('wlLoad:',e); }
   try{ if(t==='sell' && typeof initSell==='function') initSell(); }catch(e){ console.error('initSell:',e); }
+  try{
+    if(t==='lst'){
+      var fl = document.getElementById('lstFrame');
+      if(fl && fl.contentWindow && fl.contentWindow.lstLoad) fl.contentWindow.lstLoad();
+    }
+  }catch(e){ console.error('lstLoad:',e); }
 }
 
 function parseQuery(q){
@@ -13126,6 +13133,17 @@ function scReset(){
 <div class="tab" id="tab-anl" style="display:none;flex-direction:column;overflow:hidden">
   <iframe id="anlFrame" src="frames/analizza.html?v=20260523-poppop"
           title="Analizza"
+          style="flex:1;width:100%;border:0;background:var(--bg);display:block"></iframe>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     TAB LISTINO — storico prezzi per-condizione + valore collezione
+     Sorgente dati: cm_price_by_condition / cm_condition_history (075/078/079)
+     ═══════════════════════════════════════════════════════════ -->
+<div class="tab" id="tab-lst" style="display:none;flex-direction:column;overflow:hidden">
+  <iframe id="lstFrame" src="frames/listino.html?v=20260531-1"
+          title="Listino"
           style="flex:1;width:100%;border:0;background:var(--bg);display:block"></iframe>
 </div>
 
