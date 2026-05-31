@@ -855,6 +855,11 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 
 /* ═══ AGGIUNGI CARTA — redesign pannello (hero carta + form premium) ═══ */
 .col-add-panel{width:560px}
+/* Focus mode: quando una carta è selezionata, nascondo i risultati (add-left)
+   e do tutta l'altezza al form (add-right) così l'hero è subito visibile,
+   invece di comparire sotto la lista fuori schermo. '↺ Cambia' ripristina. */
+.col-add-panel.focusform .add-left{display:none}
+.col-add-panel.focusform .add-right{flex:1}
 .add-form{padding:0 0 76px 0;border-bottom:none;position:relative}
 /* Hero della carta selezionata: immagine grande + meta + prezzo */
 .add-hero{display:flex;gap:14px;align-items:flex-start;padding:16px;margin:0;
@@ -5746,6 +5751,7 @@ window.rbCardSearch = {
 })();
 
 async function cancelQuick(){
+  _addExitFocus();
   document.getElementById('quickMatch').style.display='none';
   document.getElementById('quickAddForm').style.display='none';
   document.getElementById('multiWrap').style.display='none';
@@ -5755,6 +5761,7 @@ async function cancelQuick(){
   quickCard=null;
 }
 function cancelSel(){
+  _addExitFocus();
   document.getElementById('selForm').style.display='none';
   gradedClear("sg");
   document.getElementById('selAddForm').style.display='none';
@@ -5777,6 +5784,7 @@ async function doSearch(){
     singleResultLabel: 'Carta trovata',
     multiResultLabel: 'carte trovate',
     beforeSearch: function(){
+      _addExitFocus();
       document.getElementById('quickMatch').style.display='none';
       document.getElementById('quickAddForm').style.display='none';
       document.getElementById('multiWrap').style.display='none';
@@ -5800,6 +5808,7 @@ async function doSearch(){
 
 function showQuickMatch(c){
   document.getElementById('quickMatch').style.display='flex';document.getElementById('quickAddForm').style.display='block';document.getElementById('formEmpty').style.display='none';document.getElementById('addEmpty').style.display='none';
+  _addEnterFocus();
   const wrap=document.getElementById('qmImgWrap');
   const lgSrc=c.images?.large||c.images?.small||'';
   const smSrc=c.images?.small||'';
@@ -5870,6 +5879,7 @@ async function addQuickCard(){
     document.getElementById('q').value='';
     ['qBuy','qSell','qNotes'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('qQty').value='1';document.getElementById('q1st').checked=false;
+    _addExitFocus();
     gradedClear('qg');
     quickCard=null;
     loadCollection();
@@ -5892,6 +5902,20 @@ function showMulti(cards){
     onPick: function(c, el){ pickCard(c, el); }
   });
 }
+
+// Focus mode: nasconde i risultati e porta il form in primo piano.
+function _addEnterFocus(){
+  var p=document.getElementById('colAddPanel');
+  if(p) p.classList.add('focusform');
+  var r=document.querySelector('#colAddPanel .add-right');
+  if(r) r.scrollTop=0;
+}
+function _addExitFocus(){
+  var p=document.getElementById('colAddPanel');
+  if(p) p.classList.remove('focusform');
+}
+window._addEnterFocus=_addEnterFocus;
+window._addExitFocus=_addExitFocus;
 
 function pickCard(c,el){
   document.querySelectorAll('#rg .thumb').forEach(t=>t.classList.remove('sel'));
@@ -5917,12 +5941,14 @@ function pickCard(c,el){
   if(heroImg && lgSrc && lgSrc.startsWith('http')) addZoom(heroImg,lgSrc,true);
   // Reset blocco gradate quando si cambia carta selezionata
   if(typeof gradedClear==='function') gradedClear('sg');
+  _addEnterFocus();
   updateSelPrice();
 }
 
 // Torna ai risultati di ricerca dal form (multi-risultato).
 function backToResults(){
   selCard=null;
+  _addExitFocus();
   document.getElementById('selForm').style.display='none';
   document.getElementById('selAddForm').style.display='none';
   document.getElementById('formEmpty').style.display='flex';
@@ -5963,6 +5989,7 @@ async function addSelCard(){
     document.getElementById('q').value='';
     ['sBuy','sSell','sNotes'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('sQty').value='1';document.getElementById('s1st').checked=false;
+    _addExitFocus();
     gradedClear('sg');
     selCard=null;
     loadCollection();
@@ -6294,6 +6321,7 @@ function toggleColAdd(){
   const btn=document.getElementById('colAddBtn');
   if(btn)btn.innerHTML=isOpen?'<span class="rb-i rb-i-x"></span> Chiudi':'+ Aggiungi carta';
   if(isOpen){
+    _addExitFocus();
     document.getElementById('q').value='';
     document.getElementById('st').textContent='';
     document.getElementById('quickMatch').style.display='none';
