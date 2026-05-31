@@ -4174,11 +4174,18 @@ function smartCMPrice(listings, targetCond){
   }
   var prices = base.map(function(l){ return l.price; });
   var med = median(prices);
-  var threshold = med * 2.5;
+  var hiThreshold = med * 2.5;
+  // Soglia BASSA: un listing molto sotto il cluster è quasi sempre una copia
+  // danneggiata/spam/misprezzata (es. €7 tra €42-45-59). La mediana è robusta,
+  // quindi 0.4× mediana è una soglia conservativa che coglie gli outlier veri
+  // senza scartare prezzi di mercato legittimi. Applicata solo se ci sono ≥3
+  // listing nel gruppo base (con pochi dati non abbiamo segnale affidabile).
+  var loThreshold = (base.length >= 3) ? med * 0.4 : 0;
 
-  // Filtra outlier (prezzi > 2.5× la mediana)
-  var filtered = base.filter(function(l){ return l.price <= threshold; });
+  // Filtra outlier alti (>2.5× mediana) e bassi (<0.4× mediana)
+  var filtered = base.filter(function(l){ return l.price <= hiThreshold && l.price >= loThreshold; });
   if(!filtered.length) filtered = base; // fallback: nessun outlier rimosso
+  var loRemoved = base.filter(function(l){ return l.price < loThreshold; }).length;
 
   // Prendi le prime 3 (già ordinate per prezzo)
   var top3 = filtered.slice(0, 3);
@@ -4194,6 +4201,7 @@ function smartCMPrice(listings, targetCond){
     targetCond: targetCond,
     usedConds: [...new Set(top3.map(function(l){ return l.condition; }))],
     outlierRemoved: base.length - filtered.length,
+    lowOutlierRemoved: loRemoved,
     method: 'smart-median'
   };
 }
@@ -9964,6 +9972,47 @@ function cmLogger(label){
   window._rbUnregisterPriceHandler = function(idx){ delete _pmHandlers[idx]; };
 })();
 
+// ── Fonte listing via USERSCRIPT ─────────────────────────────────────────────
+// Apre la pagina prodotto CM in una nuova tab; lo userscript Tampermonkey legge
+// i listing reali e li rimanda (postMessage opener + BroadcastChannel). Qui
+// registriamo un handler temporaneo via _rbRegisterPriceHandler, attendiamo i
+// listing con timeout, applichiamo smartCMPrice (outlier-rejection), chiudiamo
+// la tab. Risolve con {ok, finalPrice, listings, smart} o {ok:false}.
+// NB: l'apertura tab richiede un gesto utente recente (popup policy del browser);
+// per questo il chiamante la attiva su click "Verifica", non in background.
+var _rbUsHandlerSeq = 0;
+function _vpFetchViaUserscript(cmUrl, conditionReq, opts){
+  opts = opts || {};
+  var timeoutMs = opts.timeoutMs || 18000;
+  return new Promise(function(resolve){
+    if(typeof window._rbRegisterPriceHandler !== 'function'){ resolve({ ok:false, reason:'bridge assente' }); return; }
+    var tab = null;
+    try{ tab = window.open(cmUrl, '_blank'); }catch(e){ tab = null; }
+    if(!tab){ resolve({ ok:false, reason:'popup bloccato' }); return; }
+
+    var idx = 'us' + (++_rbUsHandlerSeq);
+    var done = false;
+    var timer = setTimeout(function(){ finish(null, 'timeout'); }, timeoutMs);
+
+    function finish(data, reason){
+      if(done) return; done = true;
+      clearTimeout(timer);
+      try{ window._rbUnregisterPriceHandler(idx); }catch(e){}
+      try{ if(typeof _vpCloseCMTab === 'function') _vpCloseCMTab(tab); }catch(e){}
+      if(!data){ resolve({ ok:false, reason: reason || 'no data' }); return; }
+      var listings = data.listings || (data.prices||[]).map(function(p){ return {price:p,condition:'NM',condRank:2}; });
+      if(!listings.length){ resolve({ ok:false, reason:'no listings', status:data.status }); return; }
+      var smart = (typeof smartCMPrice === 'function') ? smartCMPrice(listings, conditionReq) : null;
+      var finalPrice = (smart && smart.price > 0) ? smart.price : listings[0].price;
+      resolve({ ok:true, finalPrice: Math.round(finalPrice*100)/100, listings: listings, smart: smart });
+    }
+
+    window._rbRegisterPriceHandler(idx, function(prices, data, listings){
+      finish({ listings: listings, prices: prices, status: data && data.status }, null);
+    });
+  });
+}
+
 // ── Helper: estrae un prezzo finale dai listings CM + logga le offerte ───────
 // Ritorna {finalPrice, smart} o null se nessun prezzo valido
 function _vpProcessListings(listings, conditionReq, log){
@@ -10285,6 +10334,30 @@ async function fetchCmPriceLive(opts){
   // Cloudflare sulla pagina PRIMARIA (quella con lo slug corretto).
   var sawWrongProduct = false;
   var primaryBlocked = false;
+
+  // ── FONTE LISTING via USERSCRIPT (Tampermonkey su CM, IP residenziale) ──
+  // Per condizioni inferiori a NM e quando vogliamo i listing REALI (outlier
+  // rejection vera, prezzo per-condizione), apriamo la pagina CM in una tab:
+  // lo userscript legge i listing e li rimanda via postMessage/BroadcastChannel.
+  // È l'unica fonte che bypassa Cloudflare (gira sul tuo IP). Best-effort:
+  // se lo userscript non c'è o va in timeout → si prosegue con lo scrape/manuale.
+  // Attivato solo per URL diretti e se richiesto (opts.useUserscript) o cond≠NM.
+  var _wantUserscript = isDirect && (opts.useUserscript === true ||
+      !/^(nm|near\s*mint|mint|m)$/i.test((cond || '').toString().trim()));
+  if(_wantUserscript && typeof _vpFetchViaUserscript === 'function'){
+    try{
+      var _usRes = await _vpFetchViaUserscript(cmUrl, cond, { timeoutMs: (opts.userscriptTimeoutMs || 18000) });
+      if(_usRes && _usRes.ok && _usRes.listings && _usRes.listings.length && !_isFakeCmListings(_usRes.listings)){
+        attempts.push({ url:cmUrl, kind:'USERSCRIPT', count:1,
+          error:_usRes.listings.length + ' listing reali (outlier rimossi: ' + ((_usRes.smart && _usRes.smart.outlierRemoved) || 0) + ')' });
+        return {
+          ok:true, price:_usRes.finalPrice, listings:_usRes.listings,
+          smart:Object.assign({ source:'userscript' }, _usRes.smart || {}),
+          isDirect:isDirect, cmUrl:cmUrl, source:'userscript', attempts:attempts
+        };
+      }
+    }catch(e){ /* userscript assente/timeout → prosegui */ }
+  }
 
   var srv = await _vpServerSideCMScrape(cmUrl);
 
