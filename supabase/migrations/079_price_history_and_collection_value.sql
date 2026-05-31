@@ -26,6 +26,35 @@
 
 
 -- ══════════════════════════════════════════════════════════════════════
+--  0) PREREQUISITO — colonne di 078 su cm_price_by_condition
+--
+--  La 079 dipende da cm_price_by_condition.card_key (introdotta dalla 078).
+--  Se la 078 non è stata applicata, qui la colonna non esiste e tutto fallisce
+--  con "column pc.card_key does not exist". Replichiamo l'ALTER in modo
+--  idempotente così la 079 è auto-sufficiente: gira sia che la 078 sia stata
+--  applicata sia che no, e non rompe nulla se la 078 verrà applicata dopo.
+--  (Se la tabella cm_price_by_condition stessa non esiste, manca la 075:
+--   in quel caso applicare prima 075 e 078.)
+-- ══════════════════════════════════════════════════════════════════════
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables
+                  WHERE table_schema='public' AND table_name='cm_price_by_condition') THEN
+    RAISE EXCEPTION 'Manca public.cm_price_by_condition: applicare prima la migration 075 (e 078).';
+  END IF;
+END $$;
+
+ALTER TABLE public.cm_price_by_condition
+  ADD COLUMN IF NOT EXISTS card_key   TEXT,
+  ADD COLUMN IF NOT EXISTS card_name  TEXT,
+  ADD COLUMN IF NOT EXISTS source     TEXT DEFAULT 'verifyPrice',
+  ADD COLUMN IF NOT EXISTS cm_url     TEXT;
+
+CREATE INDEX IF NOT EXISTS cm_pbc_cardkey_idx
+  ON public.cm_price_by_condition (card_key) WHERE card_key IS NOT NULL;
+
+
+-- ══════════════════════════════════════════════════════════════════════
 --  1) STORICO PER-CONDIZIONE — cm_condition_history
 --
 --  Keyed by card_key (convenzione app: set_id|number|LANG|variant|fe), non
