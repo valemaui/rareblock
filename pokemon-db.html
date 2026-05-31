@@ -55,6 +55,10 @@
 .thumb-extra{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:2px;font-size:10px;line-height:1.2;flex-wrap:wrap}
 .thumb-rarity{color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .thumb-price{color:var(--accent);font-family:var(--mono);font-weight:600;font-size:11px;white-space:nowrap}
+.thumb-price-low{color:#7fbf8f}
+.thumb-price-mid{color:#c9a961}
+.thumb-price-high{color:#e0a96d}
+.thumb-price-premium{color:#e08a8a;text-shadow:0 0 8px rgba(224,138,138,.25)}
 .form-card{padding:16px;border-bottom:1px solid var(--border)}
 .form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
 
@@ -5451,11 +5455,14 @@ window.rbCardSearch = {
       // carte omonime tra set diversi (es. 3× Charizard #6). Silently null
       // se calcPrice non disponibile o dati prezzi assenti.
       var priceLabel = '';
+      var priceTier = '';
       try {
         if(c.cardmarket && c.cardmarket.prices && typeof calcPrice === 'function'){
           var p = calcPrice(c.cardmarket.prices, 'NM', 'Normal', false);
           if(p && !p.notQuoted && typeof p.price === 'number'){
             priceLabel = '€'+p.price.toFixed(2);
+            // Fascia di valore → colore diverso (scan rapido per il collezionista).
+            priceTier = p.price < 10 ? 'low' : p.price < 100 ? 'mid' : p.price < 1000 ? 'high' : 'premium';
           }
         }
       } catch(e){ /* ignora — anteprima best-effort */ }
@@ -5467,7 +5474,7 @@ window.rbCardSearch = {
       // Linea extra: "RARITY · €PRICE" — visibile solo se almeno uno è disponibile
       var extraParts = [];
       if(rarity)     extraParts.push('<span class="'+thumbClass+'-rarity">'+rarity+'</span>');
-      if(priceLabel) extraParts.push('<span class="'+thumbClass+'-price">'+priceLabel+'</span>');
+      if(priceLabel) extraParts.push('<span class="'+thumbClass+'-price '+thumbClass+'-price-'+priceTier+'">'+priceLabel+'</span>');
       var extraHtml = extraParts.length
         ? '<div class="'+thumbClass+'-extra">'+extraParts.join('<span style="color:var(--text-subtle);font-size:9px">·</span>')+'</div>'
         : '';
@@ -9248,10 +9255,12 @@ function _cmPrimaryVersionFor(setId, variant, rarity, name){
     return '';
   }
 
-  // Base Set: V1 = Shadowless (raro), no-V = Unlimited (default)
+  // Base Set: V1 = Unlimited/standard (default, es. Clefairy-V1-BS5 verificato
+  // su CM 2026-05-31). Shadowless e' un prodotto distinto: no-V come tentativo,
+  // ma il set e' ambiguo → buildCMDirectUrlVariants offre il cascade V1/no-V/V2.
   if(setId === 'base1'){
-    if(v === 'shadowless') return 'V1';
-    return '';
+    if(v === 'shadowless') return '';
+    return 'V1';
   }
 
   // ── WotC non-Base (Jungle, Fossil, Team Rocket, Legendary Coll, Gym H&C) ──
@@ -9600,7 +9609,31 @@ function buildCMDirectUrlVariants(name, setId, number, cond, lang, variant, firs
   });
 }
 
-// Cerca su Cardmarket usando la query attuale (nome carta + eventuale set
+// Date un URL CM diretto versionato (.../Name-V1-BS5?...), ritorna le versioni
+// ALTERNATIVE cliccabili (no-V / V2 / V1). Serve come fallback manuale quando il
+// salto atterra sul prodotto sbagliato: l'app non puo' leggere la pagina CM
+// (altro dominio, CORS), quindi offriamo all'utente le altre versioni da provare.
+// Ritorna null se l'URL non e' un prodotto diretto versionato.
+function _rbCmUrlVariants(url){
+  try{
+    if(!url || url.indexOf('/Singles/') < 0 || url.indexOf('searchString=') >= 0) return null;
+    var m = url.match(/(-V1-|-V2-|-)([A-Za-z]{1,5}\d+)(\?|$)/);
+    if(!m) return null;
+    var cur = m[1];                 // '-V1-' | '-V2-' | '-'
+    if(cur === '-') return null;    // prodotto no-V (set non versionato) → niente alternative
+    var tail = m[2];                // es. 'BS5'
+    var labelFor = { '-V1-':'V1', '-V2-':'V2', '-':'base' };
+    var order = ['-V1-', '-', '-V2-'];
+    var out = [];
+    order.forEach(function(v){
+      if(v === cur) return;
+      var alt = url.replace(/(-V1-|-V2-|-)([A-Za-z]{1,5}\d+)(\?|$)/, v + tail + '$3');
+      out.push({ ver: labelFor[v] || v, url: alt });
+    });
+    return out.length ? out : null;
+  }catch(e){ return null; }
+}
+
 // selezionato dal picker). Utile come fallback quando il nostro DB
 // (Pokemon TCG API) non trova nulla perch\u00e9 contiene solo nomi inglesi e
 // l'utente sta cercando con nome italiano/francese/tedesco (es. "Bandana"
@@ -10575,6 +10608,25 @@ async function verifyPriceAdd(prefix, opts){
       log.log('<span class="rb-i rb-i-check"></span> Prezzo ('+(res.source==='cmapi'?((res.smart&&res.smart.label)||'CMAPI'):'mediana top-3')+'): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
     }
 
+    // ── Fallback salto CardMarket (l'app non puo' verificare la pagina CM:
+    // altro dominio/CORS). Due aiuti onesti per l'utente: ──
+    var _rbKeepLog = false;
+    try{
+      if(log && res.cmUrl){
+        if(res.cmUrl.indexOf('searchString=') >= 0){
+          log.log('<span class="rb-i rb-i-warn"></span> Il link CardMarket è una <b>ricerca di set</b>, non il prodotto esatto: verifica la carta sulla pagina.', 'warn');
+          _rbKeepLog = true;
+        }
+        var _alts = _rbCmUrlVariants(res.cmUrl);
+        if(_alts){
+          log.log('Versione diversa? Apri: ' + _alts.map(function(a){
+            return '<a href="'+a.url+'" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline">'+a.ver+'</a>';
+          }).join(' &nbsp;·&nbsp; '), 'data');
+          _rbKeepLog = true;
+        }
+      }
+    }catch(e){}
+
     _saveCmStash(prefix, {
       title: _stashTitle, headerInfo: _stashHeader,
       attempts: res.attempts, listings: listings, smart: res.smart,
@@ -10609,8 +10661,9 @@ async function verifyPriceAdd(prefix, opts){
     }
     showAddVerifyFeedback(prefix, listings, bestPrice, cond, lang);
 
-    // Auto-close overlay dopo successo (solo se log esiste)
-    if(log) setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 2000);
+    // Auto-close overlay dopo successo (solo se log esiste e non ci sono
+    // alternate-versioni/avvisi cliccabili da mostrare).
+    if(log && !_rbKeepLog) setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 2000);
   }catch(e){
     if(log) log.log('Errore: '+(e.message||String(e)), 'err');
     if(btn && silent){
