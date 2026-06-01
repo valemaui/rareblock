@@ -6027,7 +6027,12 @@ function updateQuickPrice(){
 }
 
 async function addQuickCard(){
-  if(!quickCard)return;
+  console.log('[addQuickCard] click · quickCard=', quickCard && quickCard.name);
+  if(!quickCard){
+    var stEl=document.getElementById('st');
+    if(stEl){ stEl.className='status err'; stEl.textContent='Nessuna carta selezionata — riprova a cercarla.'; }
+    return;
+  }
   const btn=document.getElementById('qAddBtn');btn.disabled=true;btn.textContent='...';
   const cond=document.getElementById('qCond').value;
   const variant=document.getElementById('qVar').value;
@@ -6219,7 +6224,12 @@ function updateSelPrice(){
 }
 
 async function addSelCard(){
-  if(!selCard)return;
+  console.log('[addSelCard] click · selCard=', selCard && selCard.name);
+  if(!selCard){
+    var stEl=document.getElementById('st');
+    if(stEl){ stEl.className='status err'; stEl.textContent='Nessuna carta selezionata — riprova a cercarla.'; }
+    return;
+  }
   const btn=document.getElementById('sAddBtn');btn.disabled=true;btn.textContent='...';
   const cond=document.getElementById('sCond').value;
   const variant=document.getElementById('sVar').value;
@@ -6633,6 +6643,7 @@ window.gradedRecheckSchema = gradedRecheckSchema;
 
 // ── TOGGLE PANNELLO AGGIUNGI ──
 function toggleColAdd(){
+  if(typeof _slabCleanupOverlays==='function') _slabCleanupOverlays();
   const panel=document.getElementById('colAddPanel');
   const overlay=document.getElementById('colAddOverlay');
   const isOpen=panel.classList.toggle('open');
@@ -11830,11 +11841,17 @@ async function slabVerifyFlow(prefix, card, house, score, opts){
 }
 window.slabVerifyFlow = slabVerifyFlow;
 
+// Rimuove overlay slab (ask/loading) eventualmente rimasti appesi.
+function _slabCleanupOverlays(){
+  try{ document.querySelectorAll('[data-slab-overlay]').forEach(function(o){ o.remove(); }); }catch(e){}
+}
+window._slabCleanupOverlays=_slabCleanupOverlays;
 // Dialog di conferma metodo. Risolve con 'cm' | 'crossed' | null(annulla).
 function slabAskMethod(house, score){
   return new Promise(function(resolve){
     var ov=document.createElement('div');
     ov.className='slab-ask-overlay';
+    ov.setAttribute('data-slab-overlay','1');
     ov.innerHTML=
       '<div class="slab-ask-box">'+
         '<div class="slab-ask-title">Verifica prezzo · '+escapeHtml(house+' '+score)+'</div>'+
@@ -11865,6 +11882,7 @@ function slabAskMethod(house, score){
 function slabLoadingOverlay(title){
   var ov=document.createElement('div');
   ov.className='slab-load-overlay';
+  ov.setAttribute('data-slab-overlay','1');
   ov.innerHTML=
     '<div class="slab-load-box">'+
       '<div class="slab-load-spin"></div>'+
