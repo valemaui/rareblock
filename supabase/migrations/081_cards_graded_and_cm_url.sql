@@ -33,6 +33,11 @@ CREATE INDEX IF NOT EXISTS idx_cards_graded
   ON cards (user_id)
   WHERE graded = true;
 
+-- IMPORTANTE: forza PostgREST a ricaricare lo schema, altrimenti l'API REST
+-- continua a NON vedere le nuove colonne (cache vecchia) anche se esistono
+-- nel DB — sintomo: "[supa] colonne assenti sul DB → retry senza [cm_url]".
+NOTIFY pgrst, 'reload schema';
+
 -- Verifica rapida (commentata): elenca le colonne presenti dopo la migrazione
 -- SELECT column_name, data_type FROM information_schema.columns
 -- WHERE table_name = 'cards'
