@@ -141,6 +141,23 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);f
     <button class="lst-snapshot-btn" id="lstSnapBtn" onclick="lstSnapshotNow()" title="Fotografa il valore attuale della collezione nello storico settimanale">
       <span class="rb-i rb-i-save"></span> Fotografa adesso
     </button>
+    <button class="lst-snapshot-btn" id="lstSweepBtn" onclick="lstSweepNow()" title="Aggiorna i prezzi di tutte le carte in collezione da Cardmarket (con delay anti-bot)">
+      <span class="rb-i rb-i-refresh"></span> Aggiorna prezzi
+    </button>
+  </div>
+
+  <!-- Progress sweep prezzi -->
+  <div id="lstSweepBar" style="display:none;padding:10px 18px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="lst-spin"></span>
+      <div style="flex:1;min-width:0">
+        <div id="lstSweepLabel" style="font-size:12px;color:var(--text);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Aggiornamento prezzi…</div>
+        <div style="height:4px;background:var(--surface3);border-radius:2px;margin-top:6px;overflow:hidden">
+          <div id="lstSweepFill" style="height:100%;width:0%;background:var(--accent);transition:width .3s"></div>
+        </div>
+      </div>
+      <span id="lstSweepCount" style="font-size:12px;color:var(--text-muted);font-family:var(--mono);flex-shrink:0">0 / 0</span>
+    </div>
   </div>
 
   <div class="lst-body">
@@ -419,6 +436,46 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);f
     + '</div></div>';
   }
 
+  // Sweep prezzi collezione (riusa rbWeeklyPriceSweep del parent)
+  window.lstSweepNow = function(){
+    var sweep = (window.parent && window.parent.rbWeeklyPriceSweep) || window.rbWeeklyPriceSweep;
+    if(typeof sweep !== 'function'){ alert('Funzione di aggiornamento non disponibile.'); return; }
+    var bar=document.getElementById('lstSweepBar');
+    var fill=document.getElementById('lstSweepFill');
+    var label=document.getElementById('lstSweepLabel');
+    var count=document.getElementById('lstSweepCount');
+    var btn=document.getElementById('lstSweepBtn');
+    if(btn) btn.disabled=true;
+    if(bar) bar.style.display='block';
+
+    sweep({
+      onProgress:function(done,total,lbl){
+        if(fill) fill.style.width = (total? (done/total*100):0).toFixed(1)+'%';
+        if(label) label.textContent = lbl || 'Aggiornamento…';
+        if(count) count.textContent = done+' / '+total;
+      }
+    }).then(function(r){
+      if(bar) bar.style.display='none';
+      if(btn) btn.disabled=false;
+      if(r && r.error){ alert('Aggiornamento: '+r.error); return; }
+      // ricarica la serie e ridisegna
+      return rpc('collection_value_series',{p_weeks:520}).then(function(res){
+        state.collSeries=res;
+        if(state.mode==='coll') renderCollection();
+        var msg = 'Aggiornate '+(r.ok||0)+'/'+(r.total||0)+' carte';
+        if(r.skipped) msg += ' · '+r.skipped+' non valutabili (set non mappato)';
+        if(r.failed) msg += ' · '+r.failed+' senza prezzo';
+        // toast leggero via label temporanea
+        if(label){ bar.style.display='block'; label.textContent='✓ '+msg; if(fill)fill.style.width='100%';
+          setTimeout(function(){ bar.style.display='none'; },3500); }
+      });
+    }).catch(function(e){
+      if(bar) bar.style.display='none';
+      if(btn) btn.disabled=false;
+      alert('Aggiornamento fallito: '+(e.message||e));
+    });
+  };
+
   // Snapshot on-demand
   window.lstSnapshotNow = function(){
     var btn=document.getElementById('lstSnapBtn');
@@ -667,6 +724,7 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);f
     document.getElementById('lstPaneColl').classList.toggle('active',m==='coll');
     document.getElementById('lstPaneCard').classList.toggle('active',m==='card');
     document.getElementById('lstSnapBtn').style.display = (m==='coll')?'inline-flex':'none';
+    var sw=document.getElementById('lstSweepBtn'); if(sw) sw.style.display=(m==='coll')?'inline-flex':'none';
     if(m==='coll' && !state.collSeries) window.lstLoadCollection();
   };
 

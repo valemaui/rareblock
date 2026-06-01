@@ -223,6 +223,136 @@ function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// JOB SETTIMANALE — sweep prezzi collezione
+//
+// Una volta a settimana (quando Chrome è aperto), apre RareBlock in una tab,
+// attende che la sessione sia pronta, e invoca window.rbWeeklyPriceSweep()
+// sulla pagina (che ha la sessione autenticata e tutta la logica prezzi).
+// La pagina cicla le carte con delay anti-bot e popola cm_price_by_condition,
+// poi fa lo snapshot del valore collezione.
+//
+// Nota: gli alarm MV3 sopravvivono al riavvio del SW ma NON girano a browser
+// chiuso. È il modello "gira di notte se il browser è acceso" — coerente con
+// l'approccio cookie-utente (serve comunque una sessione Chrome attiva).
+// ═══════════════════════════════════════════════════════════════════════
+const SWEEP_ALARM = 'rb-weekly-price-sweep';
+const SWEEP_PERIOD_MIN = 7 * 24 * 60;        // 7 giorni
+const RAREBLOCK_URL = 'https://www.rareblock.eu/pokemon-db.html';
+const SWEEP_TAB_TIMEOUT_MS = 30 * 60 * 1000; // 30 min max (collezioni grandi + delay)
+const SWEEP_SESSION_WAIT_MS = 20000;         // attesa che la sessione sia pronta
+
+// Crea/riallinea l'alarm all'install e all'avvio del browser
+chrome.runtime.onInstalled.addListener(() => ensureSweepAlarm());
+chrome.runtime.onStartup.addListener(() => ensureSweepAlarm());
+
+async function ensureSweepAlarm() {
+  try {
+    const existing = await chrome.alarms.get(SWEEP_ALARM);
+    if (!existing) {
+      // Prima esecuzione tra ~6h (così non parte subito all'install), poi settimanale
+      chrome.alarms.create(SWEEP_ALARM, {
+        delayInMinutes: 6 * 60,
+        periodInMinutes: SWEEP_PERIOD_MIN,
+      });
+    }
+  } catch (_) {}
+}
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === SWEEP_ALARM) {
+    runWeeklySweep().catch(() => {});
+  }
+});
+
+// Permette di lanciarlo a mano dal popup ({type:'rb-run-sweep-now'})
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (!msg || msg.type !== 'rb-run-sweep-now') return false;
+  runWeeklySweep()
+    .then(r => sendResponse({ ok: true, result: r }))
+    .catch(e => sendResponse({ ok: false, error: String(e?.message || e) }));
+  return true;
+});
+
+async function runWeeklySweep() {
+  const startedAt = Date.now();
+  let tabId = null;
+  try {
+    const tab = await chrome.tabs.create({ url: RAREBLOCK_URL, active: false });
+    tabId = tab.id;
+    await waitForTabComplete(tabId, 60000);
+    await sleep(3000); // lascia bootare l'app + sessione GoTrue
+
+    // Attendi che window.rbWeeklyPriceSweep esista E che ci sia una sessione
+    const ready = await pollPageReady(tabId, SWEEP_SESSION_WAIT_MS);
+    if (!ready) {
+      await logSweep({ ok: false, error: 'pagina/sessione non pronta', duration_ms: Date.now() - startedAt });
+      return { ok: false, error: 'pagina/sessione non pronta' };
+    }
+
+    // Esegui lo sweep SULLA pagina (sessione autenticata). executeScript con
+    // func async: ritorna la Promise risolta come result.
+    const exec = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: async () => {
+        if (typeof window.rbWeeklyPriceSweep !== 'function') return { error: 'rbWeeklyPriceSweep assente' };
+        try {
+          // delay gestiti lato pagina (anti-bot). Nessun onProgress qui (cross-context).
+          return await window.rbWeeklyPriceSweep({ force: true, snapshot: true });
+        } catch (e) {
+          return { error: String((e && e.message) || e) };
+        }
+      },
+    });
+
+    const result = (exec && exec[0] && exec[0].result) || { error: 'nessun risultato' };
+    await logSweep({
+      ok: !result.error,
+      total: result.total, scraped_ok: result.ok, failed: result.failed,
+      skipped: result.skipped, error: result.error || null,
+      duration_ms: Date.now() - startedAt,
+    });
+    return result;
+  } catch (e) {
+    await logSweep({ ok: false, error: String(e?.message || e), duration_ms: Date.now() - startedAt });
+    return { ok: false, error: String(e?.message || e) };
+  } finally {
+    if (tabId != null) chrome.tabs.remove(tabId).catch(() => {});
+  }
+}
+
+// Polla la pagina finché rbWeeklyPriceSweep esiste e c'è una sessione utente
+async function pollPageReady(tabId, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const r = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => {
+          const hasFn = typeof window.rbWeeklyPriceSweep === 'function';
+          let hasSession = false;
+          try {
+            hasSession = (typeof getCurrentUserId === 'function' && !!getCurrentUserId())
+                      || (typeof getHDR === 'function' && !!(getHDR().Authorization));
+          } catch (_) {}
+          return hasFn && hasSession;
+        },
+      });
+      if (r && r[0] && r[0].result === true) return true;
+    } catch (_) {}
+    await sleep(1500);
+  }
+  return false;
+}
+
+async function logSweep(entry) {
+  try {
+    const { sweeps = [] } = await chrome.storage.local.get('sweeps');
+    sweeps.unshift({ ...entry, timestamp: new Date().toISOString() });
+    await chrome.storage.local.set({ sweeps: sweeps.slice(0, 20) });
+  } catch (_) {}
+}
+
 // ─── Storage delle ultime esecuzioni (per popup.html) ─────────────────
 async function logRun(entry) {
   try {

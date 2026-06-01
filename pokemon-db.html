@@ -17274,7 +17274,106 @@ async function rbGetConditionPrices(opts, flags){
   return nFinal;
 }
 
-/* Chiama il fetcher live del core in modo difensivo. */
+/* ═══════════════════════════════════════════════════════════════════════
+   SWEEP SETTIMANALE PREZZI COLLEZIONE
+   Cicla tutte le carte distinte in collezione, forza il refresh prezzi
+   (rbGetConditionPrices force → popola cm_price_by_condition via userscript/
+   CMAPI/live), con delay randomizzato anti-bot. Al termine fa lo snapshot
+   del valore collezione. Pensata per essere chiamata:
+     • a mano dall'utente (pulsante nel Listino), oppure
+     • dall'estensione Hunter via alarm settimanale (window.rbWeeklyPriceSweep)
+
+   opts: { onProgress?(done,total,label), delayMin?, delayMax?, force?, snapshot? }
+   ritorna: { total, ok, failed, skipped, snapshot }
+   ═══════════════════════════════════════════════════════════════════════ */
+var _rbSweepRunning = false;
+async function rbWeeklyPriceSweep(opts){
+  opts = opts || {};
+  if(_rbSweepRunning) return { error:'sweep già in corso' };
+  _rbSweepRunning = true;
+
+  var delayMin = opts.delayMin != null ? opts.delayMin : 3500;   // anti-bot
+  var delayMax = opts.delayMax != null ? opts.delayMax : 8000;
+  var doSnapshot = opts.snapshot !== false;
+  var onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : function(){};
+
+  function rnd(a,b){ return a + Math.floor(Math.random()*(b-a)); }
+  function sleep(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
+
+  // Risolve set_id dal set_name (la collezione non ha set_id) — stessa mappa
+  // usata per la generazione URL CM. Fallback: prova set_id se già presente.
+  function resolveSetId(row){
+    if(row.set_id) return row.set_id;
+    if(typeof CM_SET_NAME_TO_ID === 'object' && row.set_name){
+      var direct = CM_SET_NAME_TO_ID[row.set_name];
+      if(direct) return direct;
+      // match case-insensitive di sicurezza
+      var keys = Object.keys(CM_SET_NAME_TO_ID);
+      for(var i=0;i<keys.length;i++){
+        if(keys[i].toLowerCase() === String(row.set_name).toLowerCase()) return CM_SET_NAME_TO_ID[keys[i]];
+      }
+    }
+    return null;
+  }
+
+  try{
+    // Assicura collezione caricata
+    var rows = Array.isArray(window.colData) ? window.colData : null;
+    if(!rows){
+      if(typeof loadCollection === 'function'){ try{ await loadCollection(); }catch(e){} }
+      rows = Array.isArray(window.colData) ? window.colData : [];
+    }
+
+    // Deduplica per card_key (più copie/condizioni della stessa carta → 1 fetch:
+    // i prezzi per-condizione tornano tutti insieme in un colpo solo)
+    var seen = {};
+    var jobs = [];
+    rows.forEach(function(r){
+      var setId = resolveSetId(r);
+      var num   = r.card_number || r.number;
+      if(!setId || !num) return; // non valutabile (set non mappato / numero assente)
+      var optsCard = {
+        name: r.name, setId: setId, number: num,
+        language: r.language || 'ITA',
+        variant: r.variant || 'Normal',
+        first_edition: !!r.first_edition
+      };
+      var key = (typeof rbPcKey==='function') ? rbPcKey(optsCard) : (setId+'|'+num);
+      if(!key || seen[key]) return;
+      seen[key] = 1;
+      jobs.push(optsCard);
+    });
+
+    var total = jobs.length, ok = 0, failed = 0;
+    var skipped = rows.length - total; // carte non risolvibili (set non mappato ecc.)
+    onProgress(0, total, 'Avvio…');
+
+    for(var i=0;i<jobs.length;i++){
+      var j = jobs[i];
+      try{
+        var res = await rbGetConditionPrices(j, { force: opts.force !== false });
+        if(res && (res.ok || (res.conditions && res.conditions.length) || res.marketPrice!=null)) ok++;
+        else failed++;
+      }catch(e){ failed++; }
+      onProgress(i+1, total, (j.name||'') + ' · ' + j.setId + ' #' + j.number);
+      // delay anti-bot tra una carta e l'altra (tranne l'ultima)
+      if(i < jobs.length-1) await sleep(rnd(delayMin, delayMax));
+    }
+
+    // Snapshot del valore collezione (sessione autenticata → auth.uid ok)
+    var snap = null;
+    if(doSnapshot){
+      try{ snap = await supa('POST','rpc/collection_snapshot_me', {}); }catch(e){ snap = { error: (e&&e.message)||'snapshot fallito' }; }
+    }
+
+    return { total: total, ok: ok, failed: failed, skipped: skipped, snapshot: snap };
+  } finally {
+    _rbSweepRunning = false;
+  }
+}
+window.rbWeeklyPriceSweep = rbWeeklyPriceSweep;
+
+
 function _rbPcFetchLive(opts){
   return Promise.resolve().then(function(){
     if(typeof fetchCmPriceLive !== 'function') return { ok:false, error:'fetchCmPriceLive non disponibile', listings:[] };

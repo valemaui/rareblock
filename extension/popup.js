@@ -42,6 +42,50 @@ document.getElementById('clearBtn').addEventListener('click', function () {
   chrome.storage.local.set({ runs: [] }).then(renderRuns);
 });
 
+// ── Listino settimanale (sweep prezzi) ──
+function renderSweeps() {
+  chrome.storage.local.get(['sweeps']).then(function (res) {
+    var sweeps = res.sweeps || [];
+    var box = document.getElementById('sweeps');
+    if (!box) return;
+    if (!sweeps.length) {
+      box.innerHTML = '<div class="empty">Mai eseguito.</div>';
+      return;
+    }
+    box.innerHTML = sweeps.map(function (s) {
+      var cls = s.error ? 'err' : 'ok';
+      var t = new Date(s.timestamp).toLocaleString();
+      var dur = s.duration_ms ? ' · ' + (s.duration_ms / 1000).toFixed(0) + 's' : '';
+      var info = s.error
+        ? '<span class="run-count">' + (s.error.length > 28 ? s.error.slice(0, 28) + '…' : s.error) + '</span>'
+        : '<span class="run-count">' + (s.scraped_ok || 0) + '/' + (s.total || 0) + '</span>';
+      return '<div class="run ' + cls + '">' +
+        '<div class="run-info"><div class="run-site">Sweep</div>' +
+        '<div class="run-time">' + t + dur + '</div></div>' + info + '</div>';
+    }).join('');
+  });
+}
+
+var sweepBtn = document.getElementById('sweepBtn');
+if (sweepBtn) {
+  sweepBtn.addEventListener('click', function () {
+    sweepBtn.disabled = true;
+    var orig = sweepBtn.textContent;
+    sweepBtn.textContent = '⏳ In corso… (non chiudere Chrome)';
+    chrome.runtime.sendMessage({ type: 'rb-run-sweep-now' }, function (resp) {
+      sweepBtn.disabled = false;
+      sweepBtn.textContent = orig;
+      renderSweeps();
+      if (chrome.runtime.lastError) {
+        alert('Errore: ' + chrome.runtime.lastError.message);
+      } else if (resp && !resp.ok) {
+        alert('Sweep: ' + (resp.error || 'errore'));
+      }
+    });
+  });
+}
+
 renderRuns();
+renderSweeps();
 // Refresh ogni 2s mentre il popup è aperto (potrebbe esserci uno scrape in corso)
-setInterval(renderRuns, 2000);
+setInterval(function () { renderRuns(); renderSweeps(); }, 2000);
