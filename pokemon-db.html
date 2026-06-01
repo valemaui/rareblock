@@ -2281,6 +2281,35 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .graded-schema-warn .gsw-actions{display:flex;gap:8px}
 .graded-schema-warn .gsw-actions .btn{font-size:10.5px;padding:4px 10px}
 
+/* ── Stima prezzo slab: dialog scelta metodo ── */
+.slab-ask-overlay{position:fixed;inset:0;background:rgba(3,6,12,.74);backdrop-filter:blur(3px);z-index:1100;display:flex;align-items:center;justify-content:center;animation:cao-fade .16s ease}
+.slab-ask-box{width:440px;max-width:calc(100vw - 32px);background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:0 24px 70px rgba(0,0,0,.6)}
+.slab-ask-title{font-family:var(--font-display,Fraunces,Georgia,serif);font-size:17px;color:var(--text)}
+.slab-ask-sub{font-size:12px;color:var(--text-muted);margin:6px 0 16px;line-height:1.5}
+.slab-ask-opt{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:13px 14px;margin-bottom:10px;cursor:pointer;transition:border-color .12s,background .12s;font-family:var(--font)}
+.slab-ask-opt:hover{border-color:var(--gold,#c9a84c);background:var(--surface2)}
+.slab-ask-opt .sao-h{font-size:13.5px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:8px}
+.slab-ask-opt .sao-tag{font-size:9px;text-transform:uppercase;letter-spacing:.5px;background:var(--gold,#c9a84c);color:#1a1408;font-weight:800;padding:2px 7px;border-radius:20px}
+.slab-ask-opt .sao-d{font-size:11px;color:var(--text-muted);margin-top:5px;line-height:1.45}
+.slab-ask-cancel{display:block;width:100%;background:none;border:none;color:var(--text-subtle);font-size:12px;padding:8px;cursor:pointer;font-family:var(--font);margin-top:2px}
+.slab-ask-cancel:hover{color:var(--text)}
+
+/* ── Loading overlay con barra ── */
+.slab-load-overlay{position:fixed;inset:0;background:rgba(3,6,12,.74);backdrop-filter:blur(3px);z-index:1100;display:flex;align-items:center;justify-content:center;animation:cao-fade .16s ease}
+.slab-load-box{width:360px;max-width:calc(100vw - 32px);background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:24px;text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.6)}
+.slab-load-spin{width:34px;height:34px;border:3px solid var(--surface2);border-top-color:var(--gold,#c9a84c);border-radius:50%;margin:0 auto 14px;animation:slab-spin .8s linear infinite}
+@keyframes slab-spin{to{transform:rotate(360deg)}}
+.slab-load-title{font-size:14px;font-weight:600;color:var(--text)}
+.slab-load-step{font-size:11.5px;color:var(--text-muted);margin:6px 0 14px;min-height:16px;font-family:var(--mono)}
+.slab-load-bar{height:5px;background:var(--surface2);border-radius:3px;overflow:hidden}
+.slab-load-bar-fill{height:100%;background:linear-gradient(90deg,var(--gold,#c9a84c),#e0c97a);width:8%;transition:width .5s ease;border-radius:3px}
+
+/* ── Risultato stima ── */
+.slab-est-value{font-size:24px;font-weight:700;font-family:var(--mono);color:var(--gold,#c9a84c);margin:8px 0 6px;line-height:1}
+.slab-est-sources{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px}
+.slab-src-chip{font-size:10px;font-family:var(--mono);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:2px 9px;color:var(--text-muted);cursor:help}
+.slab-est-note{font-size:10.5px;color:var(--text-subtle);line-height:1.4}
+
 /* Badge "grade" e thumbnail slab nelle card della collezione */
 .ccard-grade{position:absolute;top:6px;left:6px;z-index:2;font-size:9.5px;font-weight:800;letter-spacing:.03em;background:var(--gold,#c9a84c);color:#1a1408;padding:2px 6px;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 .ccard-imgwrap.is-slab img{object-fit:contain;background:#000}
@@ -4149,7 +4178,7 @@ async function supa(method,path,body){
   // quella colonna dal body e riprova. Così l'app resta funzionante prima
   // dell'ALTER TABLE. Colonne coperte: cm_url + campi carte gradate.
   if(!r.ok && (method==='POST'||method==='PATCH') && body){
-    const OPTIONAL_COLS = ['cm_url','graded','grade_company','grade_value','cert_number','slab_image_front','slab_image_back'];
+    const OPTIONAL_COLS = ['cm_url','graded','grade_company','grade_value','cert_number','slab_image_front','slab_image_back','price_estimate'];
     const errTxt = await r.clone().text().catch(function(){return '';});
     const missing = OPTIONAL_COLS.filter(function(col){
       return new RegExp('\\b'+col+'\\b').test(errTxt) && /(does not exist|schema cache|Could not find)/i.test(errTxt);
@@ -6261,7 +6290,8 @@ var COL_GRADED_MIGRATION =
   '  ADD COLUMN IF NOT EXISTS grade_value text DEFAULT NULL,\n'+
   '  ADD COLUMN IF NOT EXISTS cert_number text DEFAULT NULL,\n'+
   '  ADD COLUMN IF NOT EXISTS slab_image_front text DEFAULT NULL,\n'+
-  '  ADD COLUMN IF NOT EXISTS slab_image_back text DEFAULT NULL;';
+  '  ADD COLUMN IF NOT EXISTS slab_image_back text DEFAULT NULL,\n'+
+  '  ADD COLUMN IF NOT EXISTS price_estimate jsonb DEFAULT NULL;';
 
 function gradedShowSchemaWarn(p, show){
   var w = _gEl(p,'GradedSchemaWarn');
@@ -6493,7 +6523,7 @@ function gradedCollect(p){
   var certEl = _gEl(p,'Cert');
   var cert = certEl ? String(certEl.value||'').trim().replace(/\s+/g,'') : '';
   var imgs = st.images || {};
-  return {
+  var payload = {
     graded: true,
     grade_company: co,
     grade_value: grade || null,
@@ -6501,6 +6531,11 @@ function gradedCollect(p){
     slab_image_front: imgs.front || null,
     slab_image_back: imgs.back || null
   };
+  // Stima prezzo slab (metodo + fonti) se calcolata via tasto Verifica
+  if(st.priceEstimate){
+    payload.price_estimate = JSON.stringify(st.priceEstimate);
+  }
+  return payload;
 }
 
 // Reset completo del blocco gradate (dopo salvataggio o annulla).
@@ -11374,6 +11409,281 @@ async function verifyPrice(idx){
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+//  STIMA PREZZO SLAB (carte gradate) — riusa smooth-endpoint
+//  Due metodi: (A) solo Cardmarket slab, (B) stima incrociata eBay+PC+CM.
+//  Filtra per casa+voto. Il valore raw di una slab è fuorviante, quindi su
+//  carta gradata il tasto € apre un dialog di scelta invece di importare raw.
+// ═══════════════════════════════════════════════════════════════════════
+
+var SLAB_HOUSE_LABEL = { PSA:'PSA', BGS:'BGS', CGC:'CGC', SGC:'SGC', ACE:'ACE', TAG:'TAG' };
+
+function _slabMedian(arr){
+  if(!arr||!arr.length) return null;
+  var s=arr.slice().filter(function(x){return typeof x==='number'&&isFinite(x)&&x>0;}).sort(function(a,b){return a-b;});
+  if(!s.length) return null;
+  var m=Math.floor(s.length/2);
+  return s.length%2 ? s[m] : (s[m-1]+s[m])/2;
+}
+
+function _slabNormScore(v){
+  if(v==null) return null;
+  var s=String(v).trim();
+  if(/auth/i.test(s)) return 'A';
+  var m=s.match(/(\d+(?:\.\d+)?)/);
+  return m ? m[1] : null;
+}
+
+function _slabParseGradingTitle(title){
+  if(!title) return null;
+  var m=String(title).match(/\b(PSA|BGS|BCCG|CGC|SGC|ACE|TAG)\s*\.?\s*(10|[1-9](?:\.5)?)\b/i);
+  if(!m) return null;
+  return { house:m[1].toUpperCase(), score:_slabNormScore(m[2]) };
+}
+
+async function _slabFetchSmooth(body){
+  try{
+    var extFetch = window.rbExtFetch;
+    if(typeof extFetch==='function' && Array.isArray(body.urls) && body.urls.length){
+      var ready = await extFetch.isReady();
+      if(ready){
+        var fetched = await Promise.all(body.urls.map(function(u){ return extFetch(u).catch(function(){return null;}); }));
+        var allOk = fetched.every(function(f){ return f&&f.ok&&f.html&&f.html.length>500; });
+        if(allOk) body = Object.assign({}, body, { provided_html: fetched.map(function(f){return f.html;}) });
+        else body = Object.assign({}, body, { provided_html: fetched.map(function(f){ return (f&&f.ok&&f.html&&f.html.length>500)?f.html:null; }) });
+      }
+    }
+  }catch(e){ console.warn('[slabEstimate] ext fetch err', e&&e.message); }
+  var token = (window._rbSession&&window._rbSession.access_token) || SUPA_KEY;
+  async function call(bearer){
+    return fetch(SUPA_URL+'/functions/v1/smooth-endpoint',{
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+bearer},
+      body:JSON.stringify(body)
+    });
+  }
+  var res = await call(token);
+  if(res.status===401 && token!==SUPA_KEY) res = await call(SUPA_KEY);
+  if(!res.ok){ var t=''; try{t=await res.text();}catch(e){} throw new Error('HTTP '+res.status+(t?' — '+t.substring(0,100):'')); }
+  return await res.json();
+}
+
+async function _slabUsdEur(){
+  try{
+    var cached=sessionStorage.getItem('anl_usd_eur'), t=sessionStorage.getItem('anl_usd_eur_t');
+    if(cached && t && (Date.now()-parseInt(t))<6*3600*1000){ var r=parseFloat(cached); if(r>0.5&&r<2) return r; }
+  }catch(e){}
+  var srcs=['https://api.frankfurter.app/latest?from=USD&to=EUR','https://api.exchangerate-api.com/v4/latest/USD'];
+  for(var i=0;i<srcs.length;i++){
+    try{ var rr=await fetch(srcs[i]); if(!rr.ok)continue; var d=await rr.json(); var rate=(d.rates&&d.rates.EUR); if(rate>0.5&&rate<2){ try{sessionStorage.setItem('anl_usd_eur',String(rate));sessionStorage.setItem('anl_usd_eur_t',String(Date.now()));}catch(e){} return rate; } }catch(e){}
+  }
+  return 0.92;
+}
+
+function _slabToEur(price, sym, rate){
+  if(price==null) return null;
+  if(sym==='$'||sym==='USD') return price*rate;
+  if(sym==='£'||sym==='GBP') return price*1.17*rate;
+  return price;
+}
+
+async function _slabEstimateCM(card, house, score, onProgress){
+  if(onProgress) onProgress('Cardmarket: cerco slab '+house+' '+score+'…');
+  var setId=card.set?card.set.id:null;
+  var setNm=card.set?card.set.name:'';
+  var cmUrl=(typeof buildCMDirectUrl==='function')
+    ? buildCMDirectUrl(card.name,setId,card.number,'NM','ITA','Normal',false,setNm,card.rarity||'')
+    : null;
+  if(!cmUrl||cmUrl==='#') return { ok:false, error:'URL CM non costruibile' };
+  var fetchUrl=cmUrl.replace(/([?&]minCondition=)\d+/, '$11');
+  var data=await _slabFetchSmooth({source:'cardmarket', url:fetchUrl, urls:[fetchUrl]});
+  if(data.error) return { ok:false, error:data.error, cmUrl:cmUrl };
+  var listings=(data.listings||[]).filter(function(l){
+    return l && l.grading && l.grading.house===house && _slabNormScore(l.grading.score)===_slabNormScore(score) && l.price>0;
+  });
+  if(!listings.length) return { ok:false, error:'nessun listing '+house+' '+score+' su CM', cmUrl:cmUrl, raw_count:(data.listings||[]).length };
+  var prices=listings.map(function(l){return l.price;}).sort(function(a,b){return a-b;});
+  var top=prices.slice(0,Math.max(3,Math.ceil(prices.length*0.3)));
+  return { ok:true, median:_slabMedian(top), count:listings.length, all:prices, cmUrl:cmUrl, source:'cardmarket' };
+}
+
+async function _slabEstimateEbay(card, house, score, rate, onProgress){
+  if(onProgress) onProgress('eBay: venduti '+house+' '+score+'…');
+  var num=card.number?' '+card.number:'';
+  var q=(card.name+num+' '+house+' '+score).trim();
+  var url='https://www.ebay.it/sch/i.html?_nkw='+encodeURIComponent(q)+'&LH_Sold=1&LH_Complete=1&_sacat=2611&_sop=13&_ipg=240';
+  var data=await _slabFetchSmooth({source:'ebay_sold', url:url, urls:[url]});
+  if(data.error) return { ok:false, error:data.error, url:url };
+  var eur=[];
+  if(data.items && data.items.length){
+    data.items.forEach(function(it){
+      var g=_slabParseGradingTitle(it.title);
+      if(g && g.house===house && _slabNormScore(g.score)===_slabNormScore(score)){
+        var p=_slabToEur(it.price, it.currency||data.currency, rate);
+        if(p>0) eur.push(p);
+      }
+    });
+  }
+  if(!eur.length && data.prices && data.prices.length){
+    eur=data.prices.map(function(p){return _slabToEur(p,data.currency,rate);}).filter(function(x){return x>0;});
+  }
+  if(!eur.length) return { ok:false, error:'nessun venduto '+house+' '+score, url:url };
+  eur.sort(function(a,b){return a-b;});
+  return { ok:true, median:_slabMedian(eur), count:eur.length, all:eur, url:url, source:'ebay' };
+}
+
+async function _slabEstimatePC(card, house, score, rate, onProgress){
+  if(onProgress) onProgress('PriceCharting: '+house+' '+score+'…');
+  var setNm=card.set?card.set.name:'';
+  var num=card.number||'';
+  var queries=[];
+  function addQ(s){ s=(s||'').trim().replace(/\s+/g,' '); if(s&&queries.indexOf(s)<0)queries.push(s); }
+  if(setNm) addQ(card.name+' '+setNm);
+  if(num) addQ(card.name+' '+num);
+  addQ(card.name);
+  var urls=queries.map(function(q){ return 'https://www.pricecharting.com/search-products?q='+encodeURIComponent(q)+'&type=prices'; });
+  var data=await _slabFetchSmooth({source:'pricecharting', urls:urls, url:urls[0], card_name:(card.name+(num?' '+num:'')).trim(), first_edition:false});
+  if(data.error) return { ok:false, error:data.error };
+  var gfl=data.prices&&data.prices.grades_from_listings;
+  if(!gfl) return { ok:false, error:'nessun dato per grado su PC' };
+  var key=house+'_'+_slabNormScore(score);
+  var entry=gfl[key];
+  if(!entry||!entry.median) return { ok:false, error:'PC non ha '+house+' '+score, pcUrl:data.url };
+  var med=_slabToEur(entry.median, entry.currency_symbol, rate);
+  return { ok:true, median:med, count:entry.count||0, confidence:entry.confidence, pcUrl:data.url, source:'pricecharting' };
+}
+
+async function slabEstimateCrossed(card, house, score, onProgress){
+  var rate=await _slabUsdEur();
+  var results=await Promise.allSettled([
+    _slabEstimateEbay(card, house, score, rate, onProgress),
+    _slabEstimatePC(card, house, score, rate, onProgress),
+    _slabEstimateCM(card, house, score, onProgress)
+  ]);
+  var srcs={ ebay:null, pc:null, cm:null };
+  if(results[0].status==='fulfilled'&&results[0].value.ok) srcs.ebay=results[0].value;
+  if(results[1].status==='fulfilled'&&results[1].value.ok) srcs.pc=results[1].value;
+  if(results[2].status==='fulfilled'&&results[2].value.ok) srcs.cm=results[2].value;
+  var parts=[];
+  if(srcs.ebay) parts.push({v:srcs.ebay.median, w:1.0, label:'eBay', count:srcs.ebay.count});
+  if(srcs.pc)   parts.push({v:srcs.pc.median,   w:0.8, label:'PriceCharting', count:srcs.pc.count});
+  if(srcs.cm)   parts.push({v:srcs.cm.median,   w:0.6, label:'Cardmarket', count:srcs.cm.count});
+  if(!parts.length) return { ok:false, error:'Nessuna fonte ha dati per '+house+' '+score, sources:srcs };
+  var num=0,den=0;
+  parts.forEach(function(p){ num+=p.v*p.w; den+=p.w; });
+  return { ok:true, estimate:num/den, method:'crossed', sources:srcs, parts:parts, house:house, score:score };
+}
+
+async function slabVerifyFlow(prefix, card, house, score){
+  var choice = await slabAskMethod(house, score);
+  if(!choice) return;
+  var sellId = prefix==='q' ? 'qSell' : prefix==='s' ? 'sSell' : 'msell';
+  var loading = slabLoadingOverlay(card.name+' · '+house+' '+score);
+  try{
+    var result;
+    if(choice==='cm'){
+      result=await _slabEstimateCM(card, house, score, loading.step);
+      if(result.ok){ result.estimate=result.median; result.method='cm'; result.parts=[{v:result.median,w:1,label:'Cardmarket',count:result.count}]; }
+    } else {
+      result=await slabEstimateCrossed(card, house, score, loading.step);
+    }
+    loading.close();
+    if(!result.ok){ slabShowResult(prefix, { ok:false, error:result.error }); return; }
+    var sellEl=document.getElementById(sellId);
+    if(sellEl){ sellEl.value=result.estimate.toFixed(2); }
+    if(prefix==='s' && typeof updateSelPrice==='function') updateSelPrice();
+    var p2 = prefix==='q'?'qg':prefix==='s'?'sg':'mg';
+    if(gradedState[p2]){
+      gradedState[p2].priceEstimate = {
+        value:result.estimate, method:result.method, house:house, score:score,
+        sources:result.parts.map(function(x){return {label:x.label, value:x.v, count:x.count, weight:x.w};}),
+        at:new Date().toISOString()
+      };
+    }
+    if(prefix==='q'||prefix==='s'){
+      var pr=document.getElementById('ahcPriceRow'), pv=document.getElementById('ahcPrice'), pl=document.getElementById('ahcPriceLbl');
+      if(pr&&pv){ pv.textContent='€'+result.estimate.toLocaleString('it-IT',{minimumFractionDigits:0,maximumFractionDigits:0}); pr.style.display=''; if(pl) pl.textContent=(choice==='cm'?'CM slab':'Stima '+house+' '+score); }
+    }
+    slabShowResult(prefix, result);
+  }catch(e){
+    loading.close();
+    slabShowResult(prefix, { ok:false, error:(e&&e.message)||String(e) });
+  }
+}
+window.slabVerifyFlow = slabVerifyFlow;
+
+// Dialog di conferma metodo. Risolve con 'cm' | 'crossed' | null(annulla).
+function slabAskMethod(house, score){
+  return new Promise(function(resolve){
+    var ov=document.createElement('div');
+    ov.className='slab-ask-overlay';
+    ov.innerHTML=
+      '<div class="slab-ask-box">'+
+        '<div class="slab-ask-title">Verifica prezzo · '+escapeHtml(house+' '+score)+'</div>'+
+        '<div class="slab-ask-sub">Una slab gradata vale diversamente dalla carta raw. Scegli come stimarne il valore:</div>'+
+        '<button class="slab-ask-opt" data-c="crossed">'+
+          '<div class="sao-h">📊 Stima incrociata <span class="sao-tag">consigliata</span></div>'+
+          '<div class="sao-d">Media ponderata tra venduti eBay, PriceCharting e Cardmarket, filtrati per '+escapeHtml(house+' '+score)+'. Più accurata, ~10-30s.</div>'+
+        '</button>'+
+        '<button class="slab-ask-opt" data-c="cm">'+
+          '<div class="sao-h">🛒 Solo Cardmarket (slab)</div>'+
+          '<div class="sao-d">Cerca le inserzioni '+escapeHtml(house+' '+score)+' su Cardmarket. Più veloce, singola fonte (sono richieste, non vendite).</div>'+
+        '</button>'+
+        '<button class="slab-ask-cancel" data-c="">Annulla</button>'+
+      '</div>';
+    function close(val){ ov.remove(); document.removeEventListener('keydown',onKey); resolve(val); }
+    function onKey(e){ if(e.key==='Escape') close(null); }
+    ov.addEventListener('click',function(e){
+      if(e.target===ov) return close(null);
+      var b=e.target.closest('[data-c]'); if(!b) return;
+      var c=b.getAttribute('data-c'); close(c||null);
+    });
+    document.addEventListener('keydown',onKey);
+    document.body.appendChild(ov);
+  });
+}
+
+// Overlay di caricamento con step testuali. Ritorna { step(msg), close() }.
+function slabLoadingOverlay(title){
+  var ov=document.createElement('div');
+  ov.className='slab-load-overlay';
+  ov.innerHTML=
+    '<div class="slab-load-box">'+
+      '<div class="slab-load-spin"></div>'+
+      '<div class="slab-load-title">'+escapeHtml(title)+'</div>'+
+      '<div class="slab-load-step" id="slabLoadStep">Avvio…</div>'+
+      '<div class="slab-load-bar"><div class="slab-load-bar-fill" id="slabLoadBar"></div></div>'+
+    '</div>';
+  document.body.appendChild(ov);
+  var pct=8, stepEl=ov.querySelector('#slabLoadStep'), barEl=ov.querySelector('#slabLoadBar');
+  barEl.style.width=pct+'%';
+  var tick=setInterval(function(){ pct=Math.min(pct+Math.random()*7, 92); barEl.style.width=pct+'%'; }, 700);
+  return {
+    step:function(msg){ if(stepEl) stepEl.textContent=msg; },
+    close:function(){ clearInterval(tick); barEl.style.width='100%'; setTimeout(function(){ ov.remove(); }, 220); }
+  };
+}
+
+// Mostra il risultato sotto il blocco grading con tooltip dettaglio fonti.
+function slabShowResult(prefix, result){
+  var p2 = prefix==='q'?'qg':prefix==='s'?'sg':'mg';
+  var host=document.getElementById(p2+'GradedResult');
+  if(!host) { if(!result.ok && typeof rbToast==='function') rbToast('Stima fallita: '+result.error); return; }
+  host.hidden=false;
+  if(!result.ok){
+    host.innerHTML='<div class="graded-verdict bad">✗ Stima non riuscita</div><div style="font-size:11.5px;color:var(--text-muted)">'+escapeHtml(result.error||'errore')+'</div>';
+    return;
+  }
+  var methodLbl = result.method==='cm' ? 'Solo Cardmarket' : 'Stima incrociata';
+  var srcChips = (result.parts||[]).map(function(p){
+    return '<span class="slab-src-chip" title="'+escapeHtml(p.label)+': €'+p.v.toFixed(2)+(p.count?(' · '+p.count+' campioni'):'')+' · peso '+p.w+'">'+escapeHtml(p.label)+' €'+Math.round(p.v)+'</span>';
+  }).join('');
+  host.innerHTML=
+    '<div class="graded-verdict ok">✓ '+escapeHtml(methodLbl)+'</div>'+
+    '<div class="slab-est-value">€'+result.estimate.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>'+
+    '<div class="slab-est-sources">'+srcChips+'</div>'+
+    '<div class="slab-est-note">Valore applicato al campo Vendita. Passa sul nome fonte per il dettaglio.</div>';
+}
+
 async function verifyPriceAdd(prefix, opts){
   opts = opts || {};
   // Silent mode (no overlay log popup, no alert): usato dall'auto-verify
@@ -11401,6 +11711,24 @@ async function verifyPriceAdd(prefix, opts){
   if(!name){
     if(!silent) alert('Nessuna carta selezionata');
     return;
+  }
+
+  // ── Carta GRADATA: il prezzo raw è fuorviante. Devia al flusso slab
+  //    (dialog CM-slab / stima incrociata). Solo su click manuale, non auto.
+  if(!silent && card){
+    var gp = prefix==='q' ? 'qg' : prefix==='s' ? 'sg' : null;
+    if(gp){
+      var gradedCb = document.getElementById(gp+'Graded');
+      if(gradedCb && gradedCb.checked){
+        var house = (document.getElementById(gp+'Company')||{}).value || 'PSA';
+        var score = (document.getElementById(gp+'Grade')||{}).value || '';
+        if(SLAB_HOUSE_LABEL[house]){
+          return slabVerifyFlow(prefix, card, house, score);
+        }
+        // Casa senza fonti prezzo affidabili (es. "Altro"): avvisa e prosegui raw
+        if(typeof rbToast==='function') rbToast('Stima slab non disponibile per '+house+': uso prezzo raw CM');
+      }
+    }
   }
 
   const btn = document.getElementById(prefix+'VerifyBtn');
