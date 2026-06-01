@@ -964,15 +964,26 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 /* ── Grading inline: tutto su una riga, si espande senza spingere ── */
 .add-fascia .graded-block.graded-inline{margin:0;border-top:none;padding-top:0}
 .graded-inline .graded-toggle{font-size:12px}
-.graded-fields-inline{display:grid;grid-template-columns:96px 86px 1fr auto;gap:8px;align-items:end;
-  margin-top:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px}
+/* Layout grading a 2 colonne: campi (casa/voto/cert/verifica) a sinistra,
+   foto slab a destra. Evita che le foto spingano giù il footer. */
+.graded-fields-inline{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;
+  margin-top:8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px}
 .graded-fields-inline[hidden]{display:none}
+.gfi-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-content:start}
+.gfi-fields .graded-f-cert{grid-column:1/-1}
+.gfi-fields .graded-f-btn{grid-column:1/-1}
 .graded-fields-inline .graded-f{display:flex;flex-direction:column;gap:3px;min-width:0}
 .graded-fields-inline .graded-f label{font-size:9px;text-transform:uppercase;letter-spacing:.3px;color:var(--text-muted);font-weight:600}
 .graded-fields-inline .graded-f select,.graded-fields-inline .graded-f input{width:100%;background:var(--bg);
   border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px;font-size:12px;box-sizing:border-box}
 .graded-fields-inline .graded-f-cert input{font-family:var(--mono)}
-.graded-fields-inline .graded-verify-btn{font-size:11px;padding:6px 11px;white-space:nowrap;height:31px}
+.graded-fields-inline .graded-verify-btn{font-size:11px;padding:6px 11px;white-space:nowrap;height:31px;width:100%}
+/* Cella foto a destra dei campi */
+.gfi-photos{display:flex;gap:6px;align-items:flex-start}
+.gfi-photos .graded-photo{position:relative}
+.gfi-photos .graded-photo img{height:88px;width:auto;max-width:64px;border-radius:5px;border:1px solid var(--border);background:#000;object-fit:contain;cursor:zoom-in;display:block}
+.gfi-photos .graded-photo-lbl{position:absolute;left:3px;bottom:3px;font-size:7px;font-weight:700;background:rgba(0,0,0,.75);color:#fff;padding:1px 4px;border-radius:2px}
+.gfi-photos-empty{font-size:9px;color:var(--text-subtle);max-width:90px;line-height:1.3}
 .graded-fields-inline .graded-cert-link{grid-column:1/-1;font-size:11px;color:var(--gold,#c9a84c);text-decoration:none}
 .graded-fields-inline .graded-result{grid-column:1/-1}
 .graded-fields-inline .graded-schema-warn{grid-column:1/-1}
@@ -3413,10 +3424,11 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                 <div class="graded-block graded-inline" id="qgGradedBlock">
                   <label class="graded-switch"><input type="checkbox" id="qgGraded" onchange="gradedToggle('qg')"/><span class="gsw-track"><span class="gsw-thumb"></span></span><span class="gsw-lbl"><span class="rb-i rb-i-diamond"></span>Carta gradata</span></label>
                   <div class="graded-fields graded-fields-inline" id="qgGradedFields" hidden>
-                    <div class="graded-f graded-f-co"><label for="qgCompany">Casa</label><select id="qgCompany" onchange="gradedOnCompanyChange('qg')"><option>PSA</option><option>BGS</option><option>CGC</option><option>SGC</option><option>ACE</option><option>TAG</option><option>Altro</option></select></div>
+                    <div class="gfi-fields"><div class="graded-f graded-f-co"><label for="qgCompany">Casa</label><select id="qgCompany" onchange="gradedOnCompanyChange('qg')"><option>PSA</option><option>BGS</option><option>CGC</option><option>SGC</option><option>ACE</option><option>TAG</option><option>Altro</option></select></div>
                     <div class="graded-f graded-f-gr"><label for="qgGrade">Voto</label><select id="qgGrade" onchange="gradedOnGradeChange('qg')"><option value="" selected>Voto…</option><option>10</option><option>9.5</option><option>9</option><option>8.5</option><option>8</option><option>7.5</option><option>7</option><option>6.5</option><option>6</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1.5</option><option>1</option><option>Authentic</option></select></div>
                     <div class="graded-f graded-f-cert"><label for="qgCert">N° cert. (opz.)</label><input id="qgCert" type="text" inputmode="numeric" placeholder="es. 89456123" onkeydown="if(event.key==='Enter'){event.preventDefault();gradedVerify('qg');}"/></div>
                     <div class="graded-f graded-f-btn"><label>&nbsp;</label><button type="button" class="btn graded-verify-btn" id="qgGradedVerifyBtn" onclick="gradedVerify('qg')">Verifica &amp; foto</button></div>
+                    </div><div class="gfi-photos" id="qgGfiPhotos"></div>
                     <a class="graded-cert-link" id="qgGradedCertLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Pagina ufficiale ↗</a>
                     <div class="graded-result" id="qgGradedResult" hidden></div>
                     <div class="graded-schema-warn" id="qgGradedSchemaWarn" hidden></div>
@@ -3462,10 +3474,11 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                 <div class="graded-block graded-inline" id="sgGradedBlock">
                   <label class="graded-switch"><input type="checkbox" id="sgGraded" onchange="gradedToggle('sg')"/><span class="gsw-track"><span class="gsw-thumb"></span></span><span class="gsw-lbl"><span class="rb-i rb-i-diamond"></span>Carta gradata</span></label>
                   <div class="graded-fields graded-fields-inline" id="sgGradedFields" hidden>
-                    <div class="graded-f graded-f-co"><label for="sgCompany">Casa</label><select id="sgCompany" onchange="gradedOnCompanyChange('sg')"><option>PSA</option><option>BGS</option><option>CGC</option><option>SGC</option><option>ACE</option><option>TAG</option><option>Altro</option></select></div>
+                    <div class="gfi-fields"><div class="graded-f graded-f-co"><label for="sgCompany">Casa</label><select id="sgCompany" onchange="gradedOnCompanyChange('sg')"><option>PSA</option><option>BGS</option><option>CGC</option><option>SGC</option><option>ACE</option><option>TAG</option><option>Altro</option></select></div>
                     <div class="graded-f graded-f-gr"><label for="sgGrade">Voto</label><select id="sgGrade" onchange="gradedOnGradeChange('sg')"><option value="" selected>Voto…</option><option>10</option><option>9.5</option><option>9</option><option>8.5</option><option>8</option><option>7.5</option><option>7</option><option>6.5</option><option>6</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1.5</option><option>1</option><option>Authentic</option></select></div>
                     <div class="graded-f graded-f-cert"><label for="sgCert">N° cert. (opz.)</label><input id="sgCert" type="text" inputmode="numeric" placeholder="es. 89456123" onkeydown="if(event.key==='Enter'){event.preventDefault();gradedVerify('sg');}"/></div>
                     <div class="graded-f graded-f-btn"><label>&nbsp;</label><button type="button" class="btn graded-verify-btn" id="sgGradedVerifyBtn" onclick="gradedVerify('sg')">Verifica &amp; foto</button></div>
+                    </div><div class="gfi-photos" id="sgGfiPhotos"></div>
                     <a class="graded-cert-link" id="sgGradedCertLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Pagina ufficiale ↗</a>
                     <div class="graded-result" id="sgGradedResult" hidden></div>
                     <div class="graded-schema-warn" id="sgGradedSchemaWarn" hidden></div>
@@ -3506,12 +3519,13 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                 <label class="graded-switch"><input type="checkbox" id="mgGraded" onchange="gradedToggle('mg')"/><span class="gsw-track"><span class="gsw-thumb"></span></span><span class="gsw-lbl"><span class="rb-i rb-i-diamond"></span>Carta gradata</span></label>
                 <div class="graded-fields" id="mgGradedFields" hidden>
                   <div class="graded-row">
-                    <div class="graded-f graded-f-co"><label for="mgCompany">Casa</label><select id="mgCompany" onchange="gradedOnCompanyChange('mg')"><option>PSA</option><option>BGS</option><option>CGC</option><option>SGC</option><option>ACE</option><option>TAG</option><option>Altro</option></select></div>
+                    <div class="gfi-fields"><div class="graded-f graded-f-co"><label for="mgCompany">Casa</label><select id="mgCompany" onchange="gradedOnCompanyChange('mg')"><option>PSA</option><option>BGS</option><option>CGC</option><option>SGC</option><option>ACE</option><option>TAG</option><option>Altro</option></select></div>
                     <div class="graded-f graded-f-gr"><label for="mgGrade">Voto</label><select id="mgGrade"><option>10</option><option>9.5</option><option>9</option><option>8.5</option><option>8</option><option>7.5</option><option>7</option><option>6.5</option><option>6</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1.5</option><option>1</option><option>Authentic</option></select></div>
                     <div class="graded-f graded-f-cert"><label for="mgCert">N° cert. (opz.)</label><input id="mgCert" type="text" inputmode="numeric" placeholder="es. 89456123" onkeydown="if(event.key==='Enter'){event.preventDefault();gradedVerify('mg');}"/></div>
                   </div>
                   <div class="graded-actions">
                     <button type="button" class="btn graded-verify-btn" id="mgGradedVerifyBtn" onclick="gradedVerify('mg')">Verifica &amp; recupera foto</button>
+                    </div><div class="gfi-photos" id="mgGfiPhotos"></div>
                     <a class="graded-cert-link" id="mgGradedCertLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Pagina ufficiale ↗</a>
                   </div>
                   <div class="graded-result" id="mgGradedResult" hidden></div>
@@ -6499,14 +6513,20 @@ function gradedRender(p, o){
   var html = '<div class="graded-verdict '+(o.verdict==='pending'?'info':badgeCls)+'">'+escapeHtml(badgeTxt)+'</div>';
   html += '<div style="font-size:11.5px;color:var(--text-muted);line-height:1.45">'+escapeHtml(o.msg||'')+'</div>';
 
-  // Foto reali slab (PSA)
-  if(imgs && (imgs.front || imgs.back)){
-    html += '<div class="graded-photos" style="margin-top:9px">';
-    if(imgs.front) html += '<div class="graded-photo"><img src="'+escapeHtml(imgs.front)+'" alt="Fronte slab" onclick="scThumbZoom(\''+escapeHtml(imgs.front)+'\')"/><span class="graded-photo-lbl">FRONTE</span></div>';
-    if(imgs.back)  html += '<div class="graded-photo"><img src="'+escapeHtml(imgs.back)+'" alt="Retro slab" onclick="scThumbZoom(\''+escapeHtml(imgs.back)+'\')"/><span class="graded-photo-lbl">RETRO</span></div>';
-    html += '</div>';
-  } else if(o.verdict==='ok' && (o.data && o.data.grader==='PSA')){
-    html += '<div class="graded-meta-line" style="opacity:.8">Nessuna foto archiviata per questo certificato (PSA conserva gli scan solo dai grading di fine 2021 in poi).</div>';
+  // Foto reali slab → vanno nella cella .gfi-photos (a destra dei campi),
+  // NON nel result sotto, così non spingono giù il footer.
+  var photosEl = document.getElementById(p+'GfiPhotos');
+  if(photosEl){
+    if(imgs && (imgs.front || imgs.back)){
+      var ph='';
+      if(imgs.front) ph += '<div class="graded-photo"><img src="'+escapeHtml(imgs.front)+'" alt="Fronte slab" onclick="scThumbZoom(\''+escapeHtml(imgs.front)+'\')"/><span class="graded-photo-lbl">F</span></div>';
+      if(imgs.back)  ph += '<div class="graded-photo"><img src="'+escapeHtml(imgs.back)+'" alt="Retro slab" onclick="scThumbZoom(\''+escapeHtml(imgs.back)+'\')"/><span class="graded-photo-lbl">R</span></div>';
+      photosEl.innerHTML = ph;
+    } else if(o.verdict==='ok' && (o.data && o.data.grader==='PSA')){
+      photosEl.innerHTML = '<div class="gfi-photos-empty">Nessuna foto archiviata (PSA: scan solo dal 2021)</div>';
+    } else {
+      photosEl.innerHTML = '';
+    }
   }
 
   // Meta ufficiali + apply grade
@@ -6590,6 +6610,7 @@ function gradedClear(p){
   var grade = _gEl(p,'Grade'); if(grade) grade.selectedIndex = 0;
   var co = _gEl(p,'Company'); if(co) co.selectedIndex = 0;
   var res = _gEl(p,'GradedResult'); if(res){ res.hidden = true; res.innerHTML=''; }
+  var gph = document.getElementById(p+'GfiPhotos'); if(gph) gph.innerHTML='';
   var link = _gEl(p,'GradedCertLink'); if(link) link.hidden = true;
   gradedShowSchemaWarn(p, false);
   gradedState[p] = {};
