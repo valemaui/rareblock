@@ -2309,6 +2309,8 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .slab-est-sources{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px}
 .slab-src-chip{font-size:10px;font-family:var(--mono);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:2px 9px;color:var(--text-muted);cursor:help}
 .slab-est-note{font-size:10.5px;color:var(--text-subtle);line-height:1.4}
+.slab-est-approx{font-size:11px;color:var(--warning,#d29922);background:rgba(210,153,34,.1);border-radius:5px;padding:5px 8px;margin-bottom:7px;line-height:1.4}
+.slab-src-chip.approx{border-color:var(--warning,#d29922);color:var(--warning,#d29922)}
 
 /* Badge "grade" e thumbnail slab nelle card della collezione */
 .ccard-grade{position:absolute;top:6px;left:6px;z-index:2;font-size:9.5px;font-weight:800;letter-spacing:.03em;background:var(--gold,#c9a84c);color:#1a1408;padding:2px 6px;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.4)}
@@ -11436,9 +11438,11 @@ function _slabNormScore(v){
 
 function _slabParseGradingTitle(title){
   if(!title) return null;
-  var m=String(title).match(/\b(PSA|BGS|BCCG|CGC|SGC|ACE|TAG)\s*\.?\s*(10|[1-9](?:\.5)?)\b/i);
+  var m=String(title).match(/\b(PSA|BGS|BECKETT|BCCG|CGC|SGC|HGA|GMA|TAG|ARS|ACE)\s*(?:[A-Za-z]{0,8})?\s*[-:.\s]?\s*(10(?:\.0)?|[1-9](?:\.5)?)\b/i);
   if(!m) return null;
-  return { house:m[1].toUpperCase(), score:_slabNormScore(m[2]) };
+  var house=m[1].toUpperCase();
+  if(house==='BECKETT') house='BGS';
+  return { house:house, score:_slabNormScore(m[2]) };
 }
 
 async function _slabFetchSmooth(body){
@@ -11486,6 +11490,17 @@ function _slabToEur(price, sym, rate){
   return price;
 }
 
+// Estrae il grading da un listing CM: prima il campo strutturato, poi il
+// commento libero ("PSA 8", "Bgs 9", "PSA-8", "CGC9.5"…). Ritorna {house,score}|null.
+function _slabListingGrading(l){
+  if(l && l.grading && l.grading.house){
+    return { house:String(l.grading.house).toUpperCase(), score:_slabNormScore(l.grading.score) };
+  }
+  // Fallback: rileggi dal commento testuale del venditore
+  var txt = (l && (l.comment || l.raw)) || '';
+  return _slabParseGradingTitle(txt); // gestisce PSA/BGS/CGC/SGC/ACE/TAG + 1-10/.5
+}
+
 async function _slabEstimateCM(card, house, score, onProgress){
   if(onProgress) onProgress('Cardmarket: cerco slab '+house+' '+score+'…');
   var setId=card.set?card.set.id:null;
@@ -11497,13 +11512,76 @@ async function _slabEstimateCM(card, house, score, onProgress){
   var fetchUrl=cmUrl.replace(/([?&]minCondition=)\d+/, '$11');
   var data=await _slabFetchSmooth({source:'cardmarket', url:fetchUrl, urls:[fetchUrl]});
   if(data.error) return { ok:false, error:data.error, cmUrl:cmUrl };
-  var listings=(data.listings||[]).filter(function(l){
-    return l && l.grading && l.grading.house===house && _slabNormScore(l.grading.score)===_slabNormScore(score) && l.price>0;
+
+  var all=(data.listings||[]);
+  var wantScore=_slabNormScore(score);
+
+  // 1) Indicizza tutti i listing gradati (qualsiasi casa/voto), via campo o commento
+  var graded=[];
+  all.forEach(function(l){
+    if(!l || !(l.price>0)) return;
+    var g=_slabListingGrading(l);
+    if(g && g.house) graded.push({ house:g.house, score:g.score, price:l.price });
   });
-  if(!listings.length) return { ok:false, error:'nessun listing '+house+' '+score+' su CM', cmUrl:cmUrl, raw_count:(data.listings||[]).length };
-  var prices=listings.map(function(l){return l.price;}).sort(function(a,b){return a-b;});
-  var top=prices.slice(0,Math.max(3,Math.ceil(prices.length*0.3)));
-  return { ok:true, median:_slabMedian(top), count:listings.length, all:prices, cmUrl:cmUrl, source:'cardmarket' };
+
+  // 2) Match esatto casa+voto
+  var exact=graded.filter(function(g){ return g.house===house && g.score===wantScore; });
+  if(exact.length){
+    var pe=exact.map(function(g){return g.price;}).sort(function(a,b){return a-b;});
+    var topE=pe.slice(0,Math.max(3,Math.ceil(pe.length*0.3)));
+    return { ok:true, median:_slabMedian(topE), count:exact.length, all:pe, cmUrl:cmUrl, source:'cardmarket', match:'exact' };
+  }
+
+  // 3) Fallback intelligente: nessun match esatto. Cerca alternative vicine
+  //    e segnalale (stessa casa altri voti → poi altre case stesso voto →
+  //    voti adiacenti ±1 di qualsiasi casa).
+  if(!graded.length){
+    return { ok:false, error:'nessuna carta gradata trovata su CM (trovati '+all.length+' listing raw)', cmUrl:cmUrl, raw_count:all.length };
+  }
+  var alt = _slabPickNearest(graded, house, wantScore);
+  if(alt){
+    var pa=alt.matches.map(function(g){return g.price;}).sort(function(a,b){return a-b;});
+    var topA=pa.slice(0,Math.max(3,Math.ceil(pa.length*0.3)));
+    return {
+      ok:true, median:_slabMedian(topA), count:alt.matches.length, all:pa, cmUrl:cmUrl,
+      source:'cardmarket', match:'approx', approx_label:alt.label,
+      approx_note:'Nessun '+house+' '+score+' su CM. Stima da '+alt.label+' (gradazione più vicina disponibile).'
+    };
+  }
+  return { ok:false, error:'nessun '+house+' '+score+' né gradazioni vicine su CM', cmUrl:cmUrl, raw_count:all.length };
+}
+
+// Sceglie il gruppo gradato "più vicino" al target con priorità:
+//  1. stessa casa, voto adiacente (|Δ|≤1, preferendo il più alto)
+//  2. altra casa, stesso voto
+//  3. qualsiasi casa, voto adiacente ±1
+// Ritorna { matches:[{house,score,price}], label } oppure null.
+function _slabPickNearest(graded, house, wantScore){
+  var ws=parseFloat(wantScore);
+  function num(s){ var n=parseFloat(s); return isFinite(n)?n:null; }
+  // Raggruppa per house+score
+  var groups={};
+  graded.forEach(function(g){
+    var k=g.house+' '+g.score;
+    (groups[k]=groups[k]||{house:g.house,score:g.score,items:[]}).items.push(g);
+  });
+  var keys=Object.keys(groups);
+  // 1. stessa casa, |Δscore|≤1
+  var sameCo=keys.map(function(k){return groups[k];})
+    .filter(function(grp){ return grp.house===house && num(grp.score)!=null && Math.abs(num(grp.score)-ws)<=1; })
+    .sort(function(a,b){ var da=Math.abs(num(a.score)-ws),db=Math.abs(num(b.score)-ws); if(da!==db)return da-db; return num(b.score)-num(a.score); });
+  if(sameCo.length) return { matches:sameCo[0].items, label:sameCo[0].house+' '+sameCo[0].score };
+  // 2. altra casa, stesso voto
+  var sameScore=keys.map(function(k){return groups[k];})
+    .filter(function(grp){ return grp.score===wantScore; })
+    .sort(function(a,b){ return b.items.length-a.items.length; });
+  if(sameScore.length) return { matches:sameScore[0].items, label:sameScore[0].house+' '+sameScore[0].score };
+  // 3. qualsiasi casa, |Δ|≤1
+  var anyNear=keys.map(function(k){return groups[k];})
+    .filter(function(grp){ return num(grp.score)!=null && Math.abs(num(grp.score)-ws)<=1; })
+    .sort(function(a,b){ var da=Math.abs(num(a.score)-ws),db=Math.abs(num(b.score)-ws); if(da!==db)return da-db; return b.items.length-a.items.length; });
+  if(anyNear.length) return { matches:anyNear[0].items, label:anyNear[0].house+' '+anyNear[0].score };
+  return null;
 }
 
 async function _slabEstimateEbay(card, house, score, rate, onProgress){
@@ -11564,13 +11642,19 @@ async function slabEstimateCrossed(card, house, score, onProgress){
   if(results[1].status==='fulfilled'&&results[1].value.ok) srcs.pc=results[1].value;
   if(results[2].status==='fulfilled'&&results[2].value.ok) srcs.cm=results[2].value;
   var parts=[];
-  if(srcs.ebay) parts.push({v:srcs.ebay.median, w:1.0, label:'eBay', count:srcs.ebay.count});
-  if(srcs.pc)   parts.push({v:srcs.pc.median,   w:0.8, label:'PriceCharting', count:srcs.pc.count});
-  if(srcs.cm)   parts.push({v:srcs.cm.median,   w:0.6, label:'Cardmarket', count:srcs.cm.count});
+  if(srcs.ebay) parts.push({v:srcs.ebay.median, w:1.0, label:'eBay', count:srcs.ebay.count, approx_label:srcs.ebay.approx_label||null});
+  if(srcs.pc)   parts.push({v:srcs.pc.median,   w:0.8, label:'PriceCharting', count:srcs.pc.count, approx_label:srcs.pc.approx_label||null});
+  if(srcs.cm)   parts.push({v:srcs.cm.median,   w:0.6, label:'Cardmarket', count:srcs.cm.count, approx_label:srcs.cm.approx_label||null});
   if(!parts.length) return { ok:false, error:'Nessuna fonte ha dati per '+house+' '+score, sources:srcs };
   var num=0,den=0;
   parts.forEach(function(p){ num+=p.v*p.w; den+=p.w; });
-  return { ok:true, estimate:num/den, method:'crossed', sources:srcs, parts:parts, house:house, score:score };
+  // Se TUTTE le fonti disponibili sono approssimate, segnalalo a livello globale
+  var anyApprox=parts.filter(function(p){return p.approx_label;});
+  var approxAny=null;
+  if(anyApprox.length && anyApprox.length===parts.length){
+    approxAny='Nessuna fonte aveva '+house+' '+score+' esatto: stima da gradazioni vicine.';
+  }
+  return { ok:true, estimate:num/den, method:'crossed', sources:srcs, parts:parts, house:house, score:score, approx_any:approxAny };
 }
 
 async function slabVerifyFlow(prefix, card, house, score){
@@ -11674,12 +11758,23 @@ function slabShowResult(prefix, result){
     return;
   }
   var methodLbl = result.method==='cm' ? 'Solo Cardmarket' : 'Stima incrociata';
+  // Nota approssimazione: quando si è usata una gradazione vicina (fallback smart)
+  var approxNote='';
+  if(result.method==='cm' && result.match==='approx' && result.approx_note){
+    approxNote='<div class="slab-est-approx">≈ '+escapeHtml(result.approx_note)+'</div>';
+    methodLbl+=' · '+escapeHtml(result.approx_label);
+  }
+  if(result.approx_any){
+    approxNote+='<div class="slab-est-approx">≈ '+escapeHtml(result.approx_any)+'</div>';
+  }
   var srcChips = (result.parts||[]).map(function(p){
-    return '<span class="slab-src-chip" title="'+escapeHtml(p.label)+': €'+p.v.toFixed(2)+(p.count?(' · '+p.count+' campioni'):'')+' · peso '+p.w+'">'+escapeHtml(p.label)+' €'+Math.round(p.v)+'</span>';
+    var lbl=p.label+(p.approx_label?(' ('+p.approx_label+')'):'');
+    return '<span class="slab-src-chip'+(p.approx_label?' approx':'')+'" title="'+escapeHtml(p.label)+': €'+p.v.toFixed(2)+(p.count?(' · '+p.count+' campioni'):'')+' · peso '+p.w+(p.approx_label?(' · gradazione vicina: '+p.approx_label):'')+'">'+escapeHtml(lbl)+' €'+Math.round(p.v)+'</span>';
   }).join('');
   host.innerHTML=
     '<div class="graded-verdict ok">✓ '+escapeHtml(methodLbl)+'</div>'+
     '<div class="slab-est-value">€'+result.estimate.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>'+
+    approxNote+
     '<div class="slab-est-sources">'+srcChips+'</div>'+
     '<div class="slab-est-note">Valore applicato al campo Vendita. Passa sul nome fonte per il dettaglio.</div>';
 }
