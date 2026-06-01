@@ -877,10 +877,12 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .ahc-imgwrap .qm-img-ph{width:100%;aspect-ratio:5/7;background:var(--surface2);border:1px solid var(--border);
   border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--text-subtle);font-size:12px}
 .ahc-grade-badge{position:absolute;top:10px;left:10px;background:var(--gold,#c9a84c);color:#1a1408;
-  font-weight:800;font-size:12px;letter-spacing:.03em;padding:4px 10px;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,.45);z-index:2}
-.ahc-imgwrap.is-slab{padding:10px 10px 26px;background:linear-gradient(160deg,rgba(201,168,76,.14),rgba(201,168,76,.04));border:1px solid var(--gold,#c9a84c);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.5),inset 0 0 0 1px rgba(255,255,255,.04)}
-.ahc-imgwrap.is-slab img{border-radius:5px;box-shadow:0 3px 10px rgba(0,0,0,.5)}
-.ahc-imgwrap.is-slab::after{content:"GRADED";position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:8px;font-weight:800;letter-spacing:3px;color:var(--gold,#c9a84c);opacity:.8;font-family:var(--mono)}
+  font-weight:800;font-size:12px;letter-spacing:.03em;padding:4px 10px;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,.45);z-index:3}
+/* Cornice slab: overlay assoluto, NON sposta il layout (spazio sempre previsto) */
+.ahc-imgwrap{margin:7px}
+.ahc-imgwrap::before{content:"";position:absolute;inset:-7px;border-radius:13px;border:1px solid transparent;pointer-events:none;transition:border-color .2s,background .2s,box-shadow .2s;z-index:1}
+.ahc-imgwrap.is-slab::before{border-color:var(--gold,#c9a84c);background:linear-gradient(160deg,rgba(201,168,76,.12),rgba(201,168,76,.03));box-shadow:0 8px 26px rgba(0,0,0,.4)}
+.ahc-imgwrap img{position:relative;z-index:2}
 .ahc-name{font-family:var(--font-display,Fraunces,Georgia,serif);font-size:20px;color:var(--text);
   margin-top:16px;text-align:center;line-height:1.15}
 .ahc-meta{font-size:12px;color:var(--text-muted);margin-top:4px;text-align:center;line-height:1.4}
@@ -910,7 +912,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .col-add-panel .add-right{grid-row:2}
 .add-hero-col{grid-row:1/3}
 .col-add-panel .search-bar{padding:14px 18px;border-bottom:1px solid var(--surface2);flex-shrink:0;background:var(--surface)}
-.col-add-panel .add-right>.add-form,.col-add-panel #quickAddForm,.col-add-panel #selAddForm,.col-add-panel #mform{overflow-y:auto;flex:1}
+.col-add-panel .add-right>.add-form,.col-add-panel #quickAddForm,.col-add-panel #selAddForm,.col-add-panel #mform{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 /* Focusform: carta scelta → nascondi ricerca, form a piena altezza colonna 2 */
 .col-add-panel.focusform .add-left{display:none}
 .col-add-panel.focusform .add-right{grid-row:1/3}
@@ -974,11 +976,6 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .graded-fields-inline .graded-result{grid-column:1/-1}
 .graded-fields-inline .graded-schema-warn{grid-column:1/-1}
 
-/* Footer sticky in fondo */
-.add-form .form-actions{margin-top:auto;padding:12px 18px;background:var(--surface);
-  border-top:1px solid var(--surface2);display:flex;gap:8px;justify-content:flex-end;align-items:center;flex-shrink:0}
-.add-form .form-actions .btn-primary{margin-left:2px}
-
 /* Strip orizzontale risultati */
 .results-strip{display:flex;gap:8px;grid-template-columns:none;overflow-x:auto;padding-bottom:8px;scrollbar-width:thin}
 .results-strip .thumb{flex:0 0 96px;width:96px}
@@ -986,13 +983,10 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 #multiWrap{border-bottom:1px solid var(--surface2);padding-bottom:12px!important}
 
 /* Form compatto, footer sticky */
-.add-form{padding:0 0 70px 0;border-bottom:none;position:relative}
 .add-hero-legacy{display:none!important}
-.add-form .form-grid{padding:14px 18px 0}
-.add-form .graded-block{margin:14px 18px 0}
-.add-form .form-actions{position:sticky;bottom:0;margin-top:14px;padding:12px 18px;
-  background:linear-gradient(to top,var(--surface) 72%,transparent);
-  border-top:1px solid var(--surface2);z-index:3;display:flex;gap:8px;justify-content:flex-end}
+.add-form-scroll{flex:1;min-height:0;overflow-y:auto}
+.add-form .form-actions{flex-shrink:0;padding:11px 18px;background:var(--surface);border-top:1px solid var(--surface2);display:flex;gap:8px;justify-content:flex-end;align-items:center}
+.add-form .form-actions .btn-primary{margin-left:2px}
 .add-right .empty-state,.add-right #formEmpty{padding:40px 24px;text-align:center;color:var(--text-subtle)}
 .add-right .empty-state .empty-icon{font-size:26px;opacity:.5;margin-bottom:8px}
 
@@ -2247,9 +2241,17 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
    Riusato in quick/sel/manual add form (prefissi qg/sg/mg).
    ═══════════════════════════════════════════════════════════════════════ */
 .graded-block{margin:4px 0 12px;border-top:1px dashed var(--border);padding-top:10px}
-.graded-toggle{display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;font-size:12.5px;font-weight:600;color:var(--text)}
-.graded-toggle input{width:14px;height:14px;cursor:pointer;accent-color:var(--gold,#c9a84c)}
-.graded-toggle .rb-i{width:14px;height:14px;color:var(--gold,#c9a84c)}
+/* Toggle switch "Carta gradata" (sostituisce il checkbox) */
+.graded-switch{display:inline-flex;align-items:center;gap:9px;cursor:pointer;user-select:none}
+.graded-switch input{position:absolute;opacity:0;width:0;height:0}
+.graded-switch .gsw-track{position:relative;width:38px;height:21px;background:var(--surface3,var(--surface2));border:1px solid var(--border);border-radius:20px;transition:background .18s,border-color .18s;flex-shrink:0}
+.graded-switch .gsw-thumb{position:absolute;top:2px;left:2px;width:15px;height:15px;background:var(--text-subtle);border-radius:50%;transition:transform .18s,background .18s}
+.graded-switch input:checked + .gsw-track{background:rgba(201,168,76,.25);border-color:var(--gold,#c9a84c)}
+.graded-switch input:checked + .gsw-track .gsw-thumb{transform:translateX(17px);background:var(--gold,#c9a84c)}
+.graded-switch input:focus-visible + .gsw-track{box-shadow:0 0 0 2px rgba(201,168,76,.4)}
+.graded-switch .gsw-lbl{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--text)}
+.graded-switch .gsw-lbl .rb-i{width:14px;height:14px;color:var(--gold,#c9a84c)}
+.graded-switch input:checked ~ .gsw-lbl{color:var(--gold,#c9a84c)}
 .graded-fields{margin-top:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:11px}
 .graded-fields[hidden]{display:none}
 .graded-row{display:flex;gap:8px;flex-wrap:wrap}
@@ -3385,6 +3387,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                 </div>
                 <button class="add-hero-change" type="button" onclick="cancelQuick()" title="Torna ai risultati di ricerca">↺ Cambia</button>
               </div>
+              <div class="add-form-scroll">
               <div class="add-fascia">
                 <div class="add-fascia-lbl"><span>Identità della copia</span><span class="afl-line"></span></div>
                 <div class="fascia-grid fascia-grid-id">
@@ -3407,7 +3410,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
               <div class="add-fascia">
                 <div class="add-fascia-lbl"><span>Grading</span><span class="afl-line"></span></div>
                 <div class="graded-block graded-inline" id="qgGradedBlock">
-                  <label class="graded-toggle"><input type="checkbox" id="qgGraded" onchange="gradedToggle('qg')"/><span class="rb-i rb-i-diamond"></span><span>Carta gradata (slab)</span></label>
+                  <label class="graded-switch"><input type="checkbox" id="qgGraded" onchange="gradedToggle('qg')"/><span class="gsw-track"><span class="gsw-thumb"></span></span><span class="gsw-lbl"><span class="rb-i rb-i-diamond"></span>Carta gradata</span></label>
                   <div class="graded-fields graded-fields-inline" id="qgGradedFields" hidden>
                     <div class="graded-f graded-f-co"><label for="qgCompany">Casa</label><select id="qgCompany" onchange="gradedOnCompanyChange('qg')"><option>PSA</option><option>BGS</option><option>CGC</option><option>SGC</option><option>ACE</option><option>TAG</option><option>Altro</option></select></div>
                     <div class="graded-f graded-f-gr"><label for="qgGrade">Voto</label><select id="qgGrade" onchange="gradedOnGradeChange('qg')"><option value="" selected>Voto…</option><option>10</option><option>9.5</option><option>9</option><option>8.5</option><option>8</option><option>7.5</option><option>7</option><option>6.5</option><option>6</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1.5</option><option>1</option><option>Authentic</option></select></div>
@@ -3418,6 +3421,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                     <div class="graded-schema-warn" id="qgGradedSchemaWarn" hidden></div>
                   </div>
                 </div>
+              </div>
               </div>
               <div class="form-actions">
                 <button class="btn" onclick="cancelQuick()">Annulla</button>
@@ -3432,6 +3436,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                 <div id="selHeader"></div>
                 <button class="add-hero-change" type="button" onclick="backToResults()" title="Torna ai risultati di ricerca">↺ Cambia</button>
               </div>
+              <div class="add-form-scroll">
               <div class="add-fascia">
                 <div class="add-fascia-lbl"><span>Identità della copia</span><span class="afl-line"></span></div>
                 <div class="fascia-grid fascia-grid-id">
@@ -3454,7 +3459,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
               <div class="add-fascia">
                 <div class="add-fascia-lbl"><span>Grading</span><span class="afl-line"></span></div>
                 <div class="graded-block graded-inline" id="sgGradedBlock">
-                  <label class="graded-toggle"><input type="checkbox" id="sgGraded" onchange="gradedToggle('sg')"/><span class="rb-i rb-i-diamond"></span><span>Carta gradata (slab)</span></label>
+                  <label class="graded-switch"><input type="checkbox" id="sgGraded" onchange="gradedToggle('sg')"/><span class="gsw-track"><span class="gsw-thumb"></span></span><span class="gsw-lbl"><span class="rb-i rb-i-diamond"></span>Carta gradata</span></label>
                   <div class="graded-fields graded-fields-inline" id="sgGradedFields" hidden>
                     <div class="graded-f graded-f-co"><label for="sgCompany">Casa</label><select id="sgCompany" onchange="gradedOnCompanyChange('sg')"><option>PSA</option><option>BGS</option><option>CGC</option><option>SGC</option><option>ACE</option><option>TAG</option><option>Altro</option></select></div>
                     <div class="graded-f graded-f-gr"><label for="sgGrade">Voto</label><select id="sgGrade" onchange="gradedOnGradeChange('sg')"><option value="" selected>Voto…</option><option>10</option><option>9.5</option><option>9</option><option>8.5</option><option>8</option><option>7.5</option><option>7</option><option>6.5</option><option>6</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1.5</option><option>1</option><option>Authentic</option></select></div>
@@ -3465,6 +3470,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                     <div class="graded-schema-warn" id="sgGradedSchemaWarn" hidden></div>
                   </div>
                 </div>
+              </div>
               </div>
               <div class="form-actions">
                 <button class="btn" onclick="cancelSel()">Annulla</button>
@@ -3496,7 +3502,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
               </div>
               <div class="check-row" style="margin-bottom:10px"><input type="checkbox" id="m1st"/><span>Prima edizione</span></div>
               <div class="graded-block" id="mgGradedBlock">
-                <label class="graded-toggle"><input type="checkbox" id="mgGraded" onchange="gradedToggle('mg')"/><span class="rb-i rb-i-diamond"></span><span>Carta gradata (slab)</span></label>
+                <label class="graded-switch"><input type="checkbox" id="mgGraded" onchange="gradedToggle('mg')"/><span class="gsw-track"><span class="gsw-thumb"></span></span><span class="gsw-lbl"><span class="rb-i rb-i-diamond"></span>Carta gradata</span></label>
                 <div class="graded-fields" id="mgGradedFields" hidden>
                   <div class="graded-row">
                     <div class="graded-f graded-f-co"><label for="mgCompany">Casa</label><select id="mgCompany" onchange="gradedOnCompanyChange('mg')"><option>PSA</option><option>BGS</option><option>CGC</option><option>SGC</option><option>ACE</option><option>TAG</option><option>Altro</option></select></div>
@@ -11587,20 +11593,22 @@ function _slabListingGrading(l){
 
 async function _slabEstimateCM(card, house, score, onProgress){
   if(onProgress) onProgress('Cardmarket: cerco slab '+house+' '+score+'…');
-  var setId=card.set?card.set.id:null;
-  var setNm=card.set?card.set.name:'';
-  var cmUrl=(typeof buildCMDirectUrl==='function')
-    ? buildCMDirectUrl(card.name,setId,card.number,'NM','ITA','Normal',false,setNm,card.rarity||'')
-    : null;
-  if(!cmUrl||cmUrl==='#') return { ok:false, error:'URL CM non costruibile' };
-  var fetchUrl=cmUrl.replace(/([?&]minCondition=)\d+/, '$11');
-  var data=await _slabFetchSmooth({source:'cardmarket', url:fetchUrl, urls:[fetchUrl]});
-  if(data.error) return { ok:false, error:data.error, cmUrl:cmUrl };
-
-  var all=(data.listings||[]);
+  // Riusa fetchCmPriceLive: gestisce CMAPI/userscript/variant fallback e
+  // restituisce gli STESSI listing che il tasto € raw trova con successo.
+  var res;
+  try{
+    res = await fetchCmPriceLive({
+      name: card.name, setId: (card.set?card.set.id:null), number: card.number,
+      condition: 'MINT', language: 'ITA', variant: 'Normal', first_edition: false,
+      setName: (card.set?card.set.name:''), rarity: card.rarity||'',
+      cmUrl: (typeof cmAuthoritativeUrl==='function') ? cmAuthoritativeUrl(card) : null
+    });
+  }catch(e){ return { ok:false, error:(e&&e.message)||'errore CM' }; }
+  var cmUrl = (res && res.cmUrl) || null;
+  var all = (res && res.listings) || [];
   var wantScore=_slabNormScore(score);
 
-  // 1) Indicizza tutti i listing gradati (qualsiasi casa/voto), via campo o commento
+  // Indicizza i listing gradati (via campo grading O commento libero)
   var graded=[];
   all.forEach(function(l){
     if(!l || !(l.price>0)) return;
@@ -11608,18 +11616,17 @@ async function _slabEstimateCM(card, house, score, onProgress){
     if(g && g.house) graded.push({ house:g.house, score:g.score, price:l.price });
   });
 
-  // ── Diagnostica console: cosa è realmente arrivato dall'endpoint ──
+  // Diagnostica console
   try{
     console.group('%c[slabEstimate CM] '+card.name+' · cerco '+house+' '+wantScore, 'color:#c9a84c;font-weight:bold');
+    console.log('URL:', cmUrl, '· source:', res&&res.source);
     console.log('listing totali:', all.length, '· gradati rilevati:', graded.length);
-    console.log('con campo grading:', all.filter(function(l){return l&&l.grading;}).length, '· con commento:', all.filter(function(l){return l&&l.comment;}).length);
+    if(all.length){ console.table(all.slice(0,15).map(function(l){return {price:l.price, condition:l.condition, comment:(l.comment||l.raw||'').substring(0,45), grading:l.grading?(l.grading.house+' '+l.grading.score):''};})); }
     if(graded.length) console.table(graded);
-    var noG=all.filter(function(l){return l && !_slabListingGrading(l) && (l.comment||l.raw);}).slice(0,6).map(function(l){return {price:l.price, comment:(l.comment||l.raw||'').substring(0,50)};});
-    if(noG.length){ console.log('listing con commento ma senza grading rilevato:'); console.table(noG); }
     console.groupEnd();
   }catch(e){}
 
-  // 2) Match esatto casa+voto
+  // Match esatto casa+voto
   var exact=graded.filter(function(g){ return g.house===house && g.score===wantScore; });
   if(exact.length){
     var pe=exact.map(function(g){return g.price;}).sort(function(a,b){return a-b;});
@@ -11627,22 +11634,21 @@ async function _slabEstimateCM(card, house, score, onProgress){
     return { ok:true, median:_slabMedian(topE), count:exact.length, all:pe, cmUrl:cmUrl, source:'cardmarket', match:'exact' };
   }
 
-  // 3) Fallback intelligente + attualizzazione del prezzo proxy
+  // Fallback intelligente + attualizzazione
   if(!graded.length){
-    return { ok:false, error:'nessuna carta gradata trovata su CM (trovati '+all.length+' listing raw)', cmUrl:cmUrl, raw_count:all.length };
+    return { ok:false, error:'nessuna carta gradata su CM ('+all.length+' listing raw)', cmUrl:cmUrl, raw_count:all.length };
   }
   var alt = _slabPickNearest(graded, house, wantScore);
   if(alt){
     var pa=alt.matches.map(function(g){return g.price;}).sort(function(a,b){return a-b;});
     var topA=pa.slice(0,Math.max(3,Math.ceil(pa.length*0.3)));
     var proxyMedian=_slabMedian(topA);
-    // Attualizza il valore proxy verso il target (es. BGS 9 → PSA 8)
     var adj=_slabAdjustProxy({ house:alt.matches[0].house, score:alt.matches[0].score, price:proxyMedian }, house, wantScore);
     return {
       ok:true, median:adj.value, count:alt.matches.length, all:pa, cmUrl:cmUrl,
       source:'cardmarket', match:'approx', approx_label:alt.label,
-      proxy_raw:proxyMedian, adj_note:adj.note,
-      approx_note:'Nessun '+house+' '+score+' su CM. Stima da '+alt.label+' (€'+Math.round(proxyMedian)+(adj.note?', '+adj.note:'')+').'
+      proxy_raw:proxyMedian, adj_dir:(adj.factor<1?'ribasso':'rialzo'),
+      approx_note:'Nessun '+house+' '+score+' su CM. Stima al '+(adj.factor<1?'ribasso':'rialzo')+' da '+alt.label+'.'
     };
   }
   return { ok:false, error:'nessun '+house+' '+score+' né gradazioni vicine su CM', cmUrl:cmUrl, raw_count:all.length };
@@ -11860,26 +11866,22 @@ function slabShowResult(prefix, result){
     host.innerHTML='<div class="graded-verdict bad">✗ Stima non riuscita</div><div style="font-size:11.5px;color:var(--text-muted)">'+escapeHtml(result.error||'errore')+'</div>';
     return;
   }
-  var methodLbl = result.method==='cm' ? 'Solo Cardmarket' : 'Stima incrociata';
-  // Nota approssimazione: quando si è usata una gradazione vicina (fallback smart)
+  var methodLbl = result.method==='cm' ? 'Cardmarket' : 'Stima incrociata';
   var approxNote='';
-  if(result.method==='cm' && result.match==='approx' && result.approx_note){
+  if(result.match==='approx' && result.approx_note){
     approxNote='<div class="slab-est-approx">≈ '+escapeHtml(result.approx_note)+'</div>';
-    methodLbl+=' · '+escapeHtml(result.approx_label);
-  }
-  if(result.approx_any){
-    approxNote+='<div class="slab-est-approx">≈ '+escapeHtml(result.approx_any)+'</div>';
+  } else if(result.approx_any){
+    approxNote='<div class="slab-est-approx">≈ '+escapeHtml(result.approx_any)+'</div>';
   }
   var srcChips = (result.parts||[]).map(function(p){
-    var lbl=p.label+(p.approx_label?(' ('+p.approx_label+')'):'');
-    return '<span class="slab-src-chip'+(p.approx_label?' approx':'')+'" title="'+escapeHtml(p.label)+': €'+p.v.toFixed(2)+(p.count?(' · '+p.count+' campioni'):'')+' · peso '+p.w+(p.approx_label?(' · gradazione vicina: '+p.approx_label):'')+'">'+escapeHtml(lbl)+' €'+Math.round(p.v)+'</span>';
+    var lbl=p.label+(p.approx_label?(' '+p.approx_label):'');
+    return '<span class="slab-src-chip'+(p.approx_label?' approx':'')+'" title="'+escapeHtml(p.label)+': €'+p.v.toFixed(2)+(p.count?(' · '+p.count+' campioni'):'')+(p.approx_label?(' · proxy '+p.approx_label):'')+'">'+escapeHtml(lbl)+' €'+Math.round(p.v)+'</span>';
   }).join('');
   host.innerHTML=
-    '<div class="graded-verdict ok">✓ '+escapeHtml(methodLbl)+'</div>'+
-    '<div class="slab-est-value">€'+result.estimate.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>'+
+    '<div class="slab-est-head"><span class="graded-verdict ok">✓ '+escapeHtml(methodLbl)+'</span>'+
+    '<span class="slab-est-value">€'+result.estimate.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})+'</span></div>'+
     approxNote+
-    '<div class="slab-est-sources">'+srcChips+'</div>'+
-    '<div class="slab-est-note">Valore applicato al campo Vendita. Passa sul nome fonte per il dettaglio.</div>';
+    '<div class="slab-est-sources">'+srcChips+'</div>';
 }
 
 async function verifyPriceAdd(prefix, opts){
