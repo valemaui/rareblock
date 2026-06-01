@@ -301,6 +301,17 @@
   box-shadow:0 8px 22px rgba(0,0,0,.45),0 0 0 1px var(--accent-border);
 }
 .ccard.is-manual{border-color:rgba(210,153,34,.35)}
+/* Carta GRADATA: sfondo dorato evidente che salta all'occhio + bordo oro */
+.ccard.is-graded{
+  border-color:var(--gold,#c9a84c);
+  background:linear-gradient(160deg,rgba(201,168,76,.22),rgba(201,168,76,.06) 55%,var(--surface));
+  box-shadow:inset 0 0 0 1px rgba(201,168,76,.25);
+}
+.ccard.is-graded:hover{
+  border-color:var(--gold,#c9a84c);
+  box-shadow:0 8px 22px rgba(0,0,0,.45),0 0 0 1px var(--gold,#c9a84c),inset 0 0 0 1px rgba(201,168,76,.3);
+}
+.ccard.is-graded .ccard-imgwrap{background:transparent}
 .ccard.is-manual::before{
   content:'MAN';position:absolute;top:6px;left:6px;z-index:3;
   background:var(--warning);color:var(--bg);
@@ -2330,6 +2341,28 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .slab-est-sources{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:5px}
 .slab-src-chip{font-size:10px;font-family:var(--mono);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:2px 9px;color:var(--text-muted);cursor:help}
 .slab-est-note{font-size:10px;color:var(--text-subtle);line-height:1.35}
+
+/* ── Conferma inserimento "celebrativa" ── */
+.added-overlay{position:fixed;inset:0;z-index:1200;display:flex;align-items:center;justify-content:center;
+  background:rgba(3,6,12,.78);backdrop-filter:blur(4px);animation:added-fade .2s ease;cursor:pointer}
+.added-overlay.out{animation:added-fadeout .25s ease forwards}
+@keyframes added-fade{from{opacity:0}to{opacity:1}}
+@keyframes added-fadeout{to{opacity:0}}
+.added-card{display:flex;flex-direction:column;align-items:center;animation:added-pop .35s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes added-pop{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
+.added-imgwrap{position:relative;width:190px}
+.added-imgwrap img{width:100%;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.6);display:block}
+.added-imgwrap .added-img-ph{width:190px;height:265px;border-radius:12px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:60px}
+.added-imgwrap.is-slab{padding:8px;background:linear-gradient(160deg,rgba(201,168,76,.18),rgba(201,168,76,.04));border:1px solid var(--gold,#c9a84c);border-radius:14px}
+.added-grade-badge{position:absolute;top:14px;left:14px;background:var(--gold,#c9a84c);color:#1a1408;font-weight:800;font-size:12px;padding:4px 10px;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,.45)}
+.added-check{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);width:52px;height:52px;background:var(--bg);border-radius:50%;box-shadow:0 4px 16px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center}
+.added-check svg{width:42px;height:42px}
+.added-check .ac-circle{fill:none;stroke:var(--success,#3fb950);stroke-width:3;opacity:.35}
+.added-check .ac-tick{fill:none;stroke:var(--success,#3fb950);stroke-width:4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:48;stroke-dashoffset:48;animation:added-tick .4s .25s ease forwards}
+@keyframes added-tick{to{stroke-dashoffset:0}}
+.added-banner{margin-top:26px;font-family:var(--font-display,Fraunces,Georgia,serif);font-size:20px;color:var(--success,#3fb950);font-weight:500}
+.added-name{margin-top:6px;font-size:15px;color:var(--text);font-weight:600;max-width:240px;text-align:center}
+.added-sub{margin-top:3px;font-size:12px;color:var(--text-muted);font-family:var(--mono)}
 .slab-est-approx{font-size:10.5px;color:var(--warning,#d29922);background:rgba(210,153,34,.1);border-radius:5px;padding:5px 8px;margin-bottom:6px;line-height:1.35}
 .slab-src-chip.approx{border-color:var(--warning,#d29922);color:var(--warning,#d29922)}
 .graded-fields-inline{margin-top:8px;padding:9px}
@@ -3274,6 +3307,16 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
             <button class="col-tristate-btn on" data-val=""    type="button" onclick="colSetMan('')">Tutte</button>
             <button class="col-tristate-btn"    data-val="tcg"  type="button" onclick="colSetMan('tcg')">Solo TCG</button>
             <button class="col-tristate-btn"    data-val="man"  type="button" onclick="colSetMan('man')">Solo manuali</button>
+          </div>
+        </div>
+
+        <!-- Grading: tutte / solo raw / solo gradate -->
+        <div class="col-filter-grp">
+          <div class="col-filter-label">Grading</div>
+          <div class="col-tristate" id="colFilterGraded">
+            <button class="col-tristate-btn on" data-val=""       type="button" onclick="colSetGraded('')">Tutte</button>
+            <button class="col-tristate-btn"    data-val="raw"    type="button" onclick="colSetGraded('raw')">Solo raw</button>
+            <button class="col-tristate-btn"    data-val="graded" type="button" onclick="colSetGraded('graded')">Solo gradate</button>
           </div>
         </div>
 
@@ -6050,6 +6093,7 @@ async function addQuickCard(){
     };
     Object.assign(_payload, gradedCollect('qg'));
     await supa('POST','cards',_payload);
+    showAddedToCollection(quickCard, { graded:_payload.graded, gradeCompany:_payload.grade_company, gradeValue:_payload.grade_value, cond:cond, first1st:first1st });
     document.getElementById('st').className='status ok';
     document.getElementById('st').innerHTML='<span class="rb-i rb-i-check"></span> "'+quickCard.name+'"'+(first1st?' (1ª ed.)':'')+' aggiunta!';
     document.getElementById('quickMatch').style.display='none';document.getElementById('quickAddForm').style.display='none';
@@ -6247,6 +6291,7 @@ async function addSelCard(){
     };
     Object.assign(_payload, gradedCollect('sg'));
     await supa('POST','cards',_payload);
+    showAddedToCollection(selCard, { graded:_payload.graded, gradeCompany:_payload.grade_company, gradeValue:_payload.grade_value, cond:cond, first1st:first1st });
     document.getElementById('st').className='status ok';
     document.getElementById('st').innerHTML='<span class="rb-i rb-i-check"></span> "'+selCard.name+'"'+(first1st?' (1ª ed.)':'')+' aggiunta!';
     document.getElementById('multiWrap').style.display='none';
@@ -6289,6 +6334,7 @@ async function addManualCard(){
     };
     Object.assign(_payload, gradedCollect('mg'));
     await supa('POST','cards',_payload);
+    showAddedToCollection({ name:name, image_url:document.getElementById('mimg').value.trim() }, { graded:_payload.graded, gradeCompany:_payload.grade_company, gradeValue:_payload.grade_value, cond:document.getElementById('mcond').value });
     document.getElementById('st').className='status ok';document.getElementById('st').innerHTML='<span class="rb-i rb-i-check"></span> "'+name+'" aggiunta manualmente!';
     cancelManual();gradedClear('mg');document.getElementById('q').value='';
     loadCollection();
@@ -6708,6 +6754,7 @@ window.colState = {
   vars: [],          // multi-select varianti
   firstEd: '',       // '' | 'yes' | 'no'
   manFilter: '',     // '' | 'tcg' | 'man'
+  gradedFilter: '',  // '' (tutte) | 'raw' | 'graded'
   priceMin: '',
   priceMax: '',
   cmMin: '',
@@ -6810,6 +6857,15 @@ function colSetMan(val){
   colRender();
 }
 
+function colSetGraded(val){
+  colState.gradedFilter = val;
+  document.querySelectorAll('#colFilterGraded .col-tristate-btn').forEach(function(b){
+    b.classList.toggle('on', b.dataset.val===val);
+  });
+  colRender();
+}
+window.colSetGraded = colSetGraded;
+
 function colClearFilter(grp){
   if(grp==='sets'){ colState.sets=[]; }
   else if(grp==='langs'){ colState.langs=[]; }
@@ -6834,12 +6890,12 @@ function colClearAllFilters(){
   colState.search=''; const s=document.getElementById('searchCol'); if(s){s.value='';document.getElementById('colSearchWrap')?.classList.remove('has-value');}
   colState.sets=[]; colState.langs=[]; colState.vars=[];
   colState.conds=[]; colState.condMin=''; colState.condMax=''; colState.condMode='single';
-  colState.firstEd=''; colState.manFilter='';
+  colState.firstEd=''; colState.manFilter=''; colState.gradedFilter='';
   colState.priceMin=''; colState.priceMax=''; colState.cmMin=''; colState.cmMax='';
   ['colPriceMin','colPriceMax','colCmMin','colCmMax','colCondMin','colCondMax'].forEach(function(id){
     const el=document.getElementById(id); if(el) el.value='';
   });
-  colSet1st(''); colSetMan(''); colSetCondMode('single');
+  colSet1st(''); colSetMan(''); colSetGraded(''); colSetCondMode('single');
   colRender();
 }
 
@@ -6992,6 +7048,10 @@ function colApplyFilters(cards){
     // Tipo carta (TCG vs manuale)
     if(mf==='tcg' && c.is_manual) return false;
     if(mf==='man' && !c.is_manual) return false;
+    // Raw vs Gradate
+    var gf = colState.gradedFilter;
+    if(gf==='graded' && !c.graded) return false;
+    if(gf==='raw'    &&  c.graded) return false;
     // Range prezzi
     const sp = parseFloat(c.sell_price)||0;
     if(pMin!=null && sp < pMin) return false;
@@ -7660,7 +7720,7 @@ function colRenderGrid(cards){
       ? '<span class="ccard-grade">'+escapeHtml((c.grade_company||'')+(c.grade_value?(' '+c.grade_value):''))+'</span>'
       : '';
     return ''+
-      '<div class="ccard'+(isMan?' is-manual':'')+'" onclick="openColEditModal(\''+c.id+'\')" title="'+escapeHtml(c.name||'')+'">'+
+      '<div class="ccard'+(isMan?' is-manual':'')+(isGraded?' is-graded':'')+'" onclick="openColEditModal(\''+c.id+'\')" title="'+escapeHtml(c.name||'')+'">'+
         '<div class="ccard-imgwrap'+(slabFront?' is-slab':'')+'">'+img+gradeBadge+
           '<div class="ccard-overlays">'+
             '<div class="ccard-overlay-row">'+
@@ -13666,6 +13726,38 @@ function scRenderCondGrid(){
   });
   scUpdateCondTotal();
 }
+
+// Conferma di inserimento "celebrativa": overlay con la foto della carta
+// e un badge "Aggiunta in collezione!". Auto-dismiss dopo ~1.8s.
+function showAddedToCollection(card, opts){
+  opts = opts || {};
+  try{
+    var img = (card && (card.images?.large || card.images?.small)) || (card && card.image_url) || '';
+    var name = (card && card.name) || 'Carta';
+    var sub = [];
+    if(opts.graded){ sub.push((opts.gradeCompany||'')+(opts.gradeValue?(' '+opts.gradeValue):'')); }
+    if(opts.cond && !opts.graded) sub.push(opts.cond);
+    if(opts.first1st) sub.push('1ª ed.');
+    var subTxt = sub.filter(Boolean).join(' · ');
+    var ov = document.createElement('div');
+    ov.className = 'added-overlay';
+    ov.innerHTML =
+      '<div class="added-card">'+
+        '<div class="added-imgwrap'+(opts.graded?' is-slab':'')+'">'+
+          (img ? '<img src="'+escapeHtml(img)+'" alt=""/>' : '<div class="added-img-ph">🃏</div>')+
+          (opts.graded ? '<div class="added-grade-badge">'+escapeHtml((opts.gradeCompany||'')+' '+(opts.gradeValue||''))+'</div>' : '')+
+          '<div class="added-check"><svg viewBox="0 0 52 52"><circle class="ac-circle" cx="26" cy="26" r="24"/><path class="ac-tick" d="M14 27l8 8 16-16"/></svg></div>'+
+        '</div>'+
+        '<div class="added-banner">Aggiunta in collezione!</div>'+
+        '<div class="added-name">'+escapeHtml(name)+'</div>'+
+        (subTxt ? '<div class="added-sub">'+escapeHtml(subTxt)+'</div>' : '')+
+      '</div>';
+    ov.addEventListener('click', function(){ ov.classList.add('out'); setTimeout(function(){ ov.remove(); }, 200); });
+    document.body.appendChild(ov);
+    setTimeout(function(){ if(ov.parentNode){ ov.classList.add('out'); setTimeout(function(){ ov.remove(); }, 250); } }, 1800);
+  }catch(e){ /* fail-safe: niente conferma visuale */ }
+}
+window.showAddedToCollection = showAddedToCollection;
 
 function scThumbZoom(src){
   if(!src) return;
