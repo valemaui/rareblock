@@ -40,7 +40,25 @@
 //   (oppure: push su main → CI/CD lo fa via .github/workflows/deploy-supabase.yml)
 // =============================================================================
 
-import { CORS, json, preflight } from '../_shared/http.ts';
+// NB: le definizioni HTTP sono INLINE (non importate da ../_shared/http.ts)
+// perché il deploy Supabase NON risolve gli import relativi a _shared: con
+// l'import la function crasha al boot → "CORS fail, status null" lato client.
+const CORS: Record<string, string> = {
+  'Access-Control-Allow-Origin':  '*',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey, Prefer, Range, stripe-signature, x-supabase-api-version',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Max-Age':       '86400',
+};
+function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8', ...extra },
+  });
+}
+function preflight(req: Request): Response | null {
+  if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
+  return null;
+}
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 // TCG_KEY non è realmente segreta: è già hardcodata in pokemon-db.html lato
