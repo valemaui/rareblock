@@ -879,10 +879,10 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
   border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--text-subtle);font-size:12px}
 .ahc-grade-badge{position:absolute;top:10px;left:10px;background:var(--gold,#c9a84c);color:#1a1408;
   font-weight:800;font-size:12px;letter-spacing:.03em;padding:4px 10px;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,.45);z-index:3}
-/* Cornice slab: overlay assoluto, NON sposta il layout (spazio sempre previsto) */
-.ahc-imgwrap{margin:7px}
-.ahc-imgwrap::before{content:"";position:absolute;inset:-7px;border-radius:13px;border:1px solid transparent;pointer-events:none;transition:border-color .2s,background .2s,box-shadow .2s;z-index:1}
-.ahc-imgwrap.is-slab::before{border-color:var(--gold,#c9a84c);background:linear-gradient(160deg,rgba(201,168,76,.12),rgba(201,168,76,.03));box-shadow:0 8px 26px rgba(0,0,0,.4)}
+/* Cornice slab: bordo dorato discreto attorno all'immagine, non la copre */
+.ahc-imgwrap{margin:5px}
+.ahc-imgwrap::before{content:"";position:absolute;inset:-5px;border-radius:11px;border:1.5px solid transparent;pointer-events:none;transition:border-color .2s;z-index:1}
+.ahc-imgwrap.is-slab::before{border-color:rgba(201,168,76,.55)}
 .ahc-imgwrap img{position:relative;z-index:2}
 .ahc-name{font-family:var(--font-display,Fraunces,Georgia,serif);font-size:18px;color:var(--text);
   margin-top:13px;text-align:center;line-height:1.15}
@@ -6158,15 +6158,12 @@ function renderAddHeroGrade(text){
 
 // Mostra le foto reali della slab nell'hero (front/back). slab:{front,back}|null
 function renderAddHeroSlab(slab){
+  // Le foto della slab vivono SOLO nel blocco grading a destra (gfi-photos).
+  // Qui teniamo sempre nascosto il box per evitare il doppione a sinistra.
   var box=document.getElementById('ahcSlab');
   var ph=document.getElementById('ahcSlabPhotos');
-  if(!box||!ph) return;
-  if(!slab||(!slab.front&&!slab.back)){ box.style.display='none'; ph.innerHTML=''; return; }
-  var h='';
-  if(slab.front) h+='<div class="ahc-slab-ph"><img src="'+escapeHtml(slab.front)+'" onclick="scThumbZoom(\''+escapeHtml(slab.front)+'\')"/><span class="lbl">F</span></div>';
-  if(slab.back)  h+='<div class="ahc-slab-ph"><img src="'+escapeHtml(slab.back)+'" onclick="scThumbZoom(\''+escapeHtml(slab.back)+'\')"/><span class="lbl">R</span></div>';
-  ph.innerHTML=h;
-  box.style.display='flex';
+  if(box) box.style.display='none';
+  if(ph) ph.innerHTML='';
 }
 window.renderAddHero=renderAddHero;
 window.renderAddHeroPrice=renderAddHeroPrice;
@@ -6478,8 +6475,8 @@ async function gradedVerify(p){
     st.company = co; st.cert = cert;
     st.images = (data && data.images) ? data.images : null;
     st.verified = data;
-    // Riflette le foto reali nella colonna hero di sinistra (qg/sg)
-    if((p==='qg'||p==='sg') && typeof renderAddHeroSlab==='function') renderAddHeroSlab(st.images);
+    // Le foto vanno SOLO nel blocco grading a destra (gradedRender → gfi-photos),
+    // non anche nell'hero di sinistra: evita il doppione.
 
     if(!data.supported){
       gradedRender(p, { verdict:'info', msg:'Verifica automatica non disponibile per '+co+' (oggi solo PSA). Il certificato è comunque salvato e collegato alla pagina ufficiale.', data:data });
