@@ -11595,22 +11595,25 @@ function _slabListingGrading(l){
 
 async function _slabEstimateCM(card, house, score, onProgress){
   if(onProgress) onProgress('Cardmarket: cerco slab '+house+' '+score+'…');
-  // Riusa fetchCmPriceLive: gestisce CMAPI/userscript/variant fallback e
-  // restituisce gli STESSI listing che il tasto € raw trova con successo.
-  var res;
-  try{
-    // Le slab gradate (PSA 8/9/10, BGS...) su CM sono spesso catalogate come
-    // NEAR MINT o altre condizioni, NON Mint. Per non escluderle usiamo la
-    // condizione minima più permissiva (PO → minCondition=7 = tutte).
-    res = await fetchCmPriceLive({
-      name: card.name, setId: (card.set?card.set.id:null), number: card.number,
-      condition: 'PO', language: 'ITA', variant: 'Normal', first_edition: false,
-      setName: (card.set?card.set.name:''), rarity: card.rarity||'',
-      cmUrl: (typeof cmAuthoritativeUrl==='function') ? cmAuthoritativeUrl(card) : null
-    });
-  }catch(e){ return { ok:false, error:(e&&e.message)||'errore CM' }; }
-  var cmUrl = (res && res.cmUrl) || null;
-  var all = (res && res.listings) || [];
+  // Background diretto via smooth-endpoint (niente tab/userscript). Costruiamo
+  // l'URL con minCondition=7 (PO = tutte le condizioni) perché le slab gradate
+  // su CM sono spesso catalogate NM/EX, non Mint: con minCondition basso le
+  // perderemmo. Pre-fetch via extension Hunter se disponibile (resta in bg).
+  var setId=card.set?card.set.id:null;
+  var setNm=card.set?card.set.name:'';
+  var cmUrl=(typeof cmAuthoritativeUrl==='function' && cmAuthoritativeUrl(card))
+    || (typeof buildCMDirectUrl==='function'
+        ? buildCMDirectUrl(card.name,setId,card.number,'PO','ITA','Normal',false,setNm,card.rarity||'')
+        : null);
+  if(!cmUrl||cmUrl==='#') return { ok:false, error:'URL CM non costruibile' };
+  // Forza minCondition=7 (tutte) sull'URL, qualunque sia la sua origine
+  if(/[?&]minCondition=/.test(cmUrl)) cmUrl=cmUrl.replace(/([?&]minCondition=)\d+/, '$17');
+  else cmUrl += (cmUrl.indexOf('?')>=0?'&':'?')+'minCondition=7';
+  var data;
+  try{ data=await _slabFetchSmooth({source:'cardmarket', url:cmUrl, urls:[cmUrl]}); }
+  catch(e){ return { ok:false, error:(e&&e.message)||'errore CM', cmUrl:cmUrl }; }
+  if(data && data.error) return { ok:false, error:data.error, cmUrl:cmUrl };
+  var all = (data && data.listings) || [];
   var wantScore=_slabNormScore(score);
 
   // Indicizza i listing gradati (via campo grading O commento libero)
@@ -11624,7 +11627,7 @@ async function _slabEstimateCM(card, house, score, onProgress){
   // Diagnostica console
   try{
     console.group('%c[slabEstimate CM] '+card.name+' · cerco '+house+' '+wantScore, 'color:#c9a84c;font-weight:bold');
-    console.log('URL:', cmUrl, '· source:', res&&res.source);
+    console.log('URL:', cmUrl, '· source:', data&&data.source);
     console.log('listing totali:', all.length, '· gradati rilevati:', graded.length);
     if(all.length){ console.table(all.slice(0,15).map(function(l){return {price:l.price, condition:l.condition, comment:(l.comment||l.raw||'').substring(0,45), grading:l.grading?(l.grading.house+' '+l.grading.score):''};})); }
     if(graded.length) console.table(graded);

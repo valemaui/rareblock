@@ -33,9 +33,10 @@ interface Listing { price: number; condition: string; condRank: number; seller?:
 // FIX: i listing gradati sono rari e analiticamente critici → li teniamo
 // SEMPRE tutti, poi riempiamo fino a `max` con i raw più economici. L'output
 // resta ordinato per prezzo crescente (invariato per il resto della pipeline).
-function capCMListings(listings: Listing[], max = 40): Listing[] {
+function capCMListings(listings: Listing[], max = 60): Listing[] {
   const byPrice = (a: Listing, b: Listing) => a.price - b.price;
   if (listings.length <= max) return listings.slice().sort(byPrice);
+  // Le gradate non si scartano MAI (sono il dato di valore per le slab).
   const graded = listings.filter(l => l.grading);
   const raw = listings.filter(l => !l.grading).sort(byPrice);
   const room = Math.max(0, max - graded.length);
@@ -916,7 +917,7 @@ function extractCMListings(html: string): Listing[] {
     if (hasPhoto) listing.has_photo = true;
     listings.push(listing);
 
-    if (listings.length >= 40) break; // safety cap
+    if (listings.length >= 120) break; // safety cap (gradate costose stanno in fondo)
   }
   if (listings.length > 0) return capCMListings(listings);
 
