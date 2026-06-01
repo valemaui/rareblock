@@ -793,22 +793,32 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
 }
 
 function extractCMListings(html: string): Listing[] {
-  const nd = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
-  if (nd) {
+  // Estrazione JSON (__NEXT_DATA__). PROBLEMA NOTO: il JSON CM spesso contiene
+  // i prezzi ma NON i commenti del venditore (dove sta il grading "PSA 8").
+  // Quindi se il JSON produce listing SENZA alcun grading, NON ci fidiamo
+  // ciecamente: proviamo anche il parsing HTML row-based (che legge i commenti)
+  // e teniamo il risultato che porta più informazione di grading.
+  let jsonListings: Listing[] = [];
+  const ndJson = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  if (ndJson) {
     try {
-      const obj = JSON.parse(nd[1]);
-      const extracted = extractFromNextData(obj);
-      if (extracted.length > 0) return extracted;
+      const extracted = extractFromNextData(JSON.parse(ndJson[1]));
+      if (extracted.length > 0) jsonListings = extracted;
     } catch { /* */ }
   }
-  const wnd = html.match(/window\.__NEXT_DATA__\s*=\s*(\{[\s\S]*?\});?\s*(?:<\/script>|window\.)/);
-  if (wnd) {
-    try {
-      const obj = JSON.parse(wnd[1]);
-      const extracted = extractFromNextData(obj);
-      if (extracted.length > 0) return extracted;
-    } catch { /* */ }
+  if (jsonListings.length === 0) {
+    const wnd = html.match(/window\.__NEXT_DATA__\s*=\s*(\{[\s\S]*?\});?\s*(?:<\/script>|window\.)/);
+    if (wnd) {
+      try {
+        const extracted = extractFromNextData(JSON.parse(wnd[1]));
+        if (extracted.length > 0) jsonListings = extracted;
+      } catch { /* */ }
+    }
   }
+  // Se il JSON ha portato listing CON grading, è affidabile: usalo direttamente.
+  if (jsonListings.length > 0 && jsonListings.some(l => l.grading)) return jsonListings;
+
+  // Altrimenti procediamo col row-based parsing (legge i commenti dall'HTML).
   const listings: Listing[] = [];
 
   // ─── PHASE 1: row-based extraction ──
@@ -836,7 +846,17 @@ function extractCMListings(html: string): Listing[] {
       listings.push(listing);
     }
   }
-  if (listings.length > 0) return capCMListings(listings);
+  if (listings.length > 0) {
+    // Confronto row-based vs JSON: tieni quello con PIÙ grading (il PSA 8 spesso
+    // sta solo nei commenti HTML, assente dal JSON). A parità, preferisci il
+    // più ricco di listing.
+    const rowGrading = listings.filter(l => l.grading).length;
+    const jsonGrading = jsonListings.filter(l => l.grading).length;
+    if (jsonGrading > rowGrading) return jsonListings;
+    if (rowGrading > 0 || listings.length >= jsonListings.length) return capCMListings(listings);
+    return jsonListings.length > 0 ? jsonListings : capCMListings(listings);
+  }
+  if (jsonListings.length > 0) return jsonListings;
 
   // ─── PHASE 2: PRICE-ANCHORED extraction ──
   // Fallback strutturalmente agnostico: se PHASE 1 non trova nulla (CM ha

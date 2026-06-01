@@ -1,1 +1,1 @@
-redeploy: ScraperAPI proxy fallback per Cloudflare CM 2026-05-29T22:02:22Z
+redeploy smooth-endpoint: CM grading merge 2026-06-01T13:27:26Z
