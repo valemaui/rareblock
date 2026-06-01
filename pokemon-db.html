@@ -11599,9 +11599,12 @@ async function _slabEstimateCM(card, house, score, onProgress){
   // restituisce gli STESSI listing che il tasto € raw trova con successo.
   var res;
   try{
+    // Le slab gradate (PSA 8/9/10, BGS...) su CM sono spesso catalogate come
+    // NEAR MINT o altre condizioni, NON Mint. Per non escluderle usiamo la
+    // condizione minima più permissiva (PO → minCondition=7 = tutte).
     res = await fetchCmPriceLive({
       name: card.name, setId: (card.set?card.set.id:null), number: card.number,
-      condition: 'MINT', language: 'ITA', variant: 'Normal', first_edition: false,
+      condition: 'PO', language: 'ITA', variant: 'Normal', first_edition: false,
       setName: (card.set?card.set.name:''), rarity: card.rarity||'',
       cmUrl: (typeof cmAuthoritativeUrl==='function') ? cmAuthoritativeUrl(card) : null
     });
