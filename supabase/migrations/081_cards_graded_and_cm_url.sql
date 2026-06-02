@@ -26,7 +26,9 @@ ALTER TABLE cards
   ADD COLUMN IF NOT EXISTS slab_image_front   text    DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS slab_image_back    text    DEFAULT NULL,
   -- Stima prezzo slab calcolata (metodo + fonti + data), serializzata in JSON
-  ADD COLUMN IF NOT EXISTS price_estimate     jsonb   DEFAULT NULL;
+  ADD COLUMN IF NOT EXISTS price_estimate     jsonb   DEFAULT NULL,
+  -- Fonte di acquisto (opzionale): testo libero o auto-compilato da preventivo
+  ADD COLUMN IF NOT EXISTS acquisition_source text    DEFAULT NULL;
 
 -- Indice parziale per filtrare velocemente le carte gradate in collezione
 CREATE INDEX IF NOT EXISTS idx_cards_graded
