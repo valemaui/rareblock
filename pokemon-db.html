@@ -8032,12 +8032,13 @@ function openColEditModal(id){
   else { img.style.display='none'; ph.style.display='flex'; }
   if(thumbWrap) thumbWrap.classList.toggle('is-slab', isGraded);
 
-  // Testata slab ricostruita graficamente (PSA/BGS/CGC) sopra l'artwork.
-  colEmRenderSlabTab(c, isGraded);
-
-  // Rimuovi eventuale vecchio badge voto residuo
+  // Badge voto pulito sull'immagine (come da mockup approvato).
+  var tab=document.getElementById('colEmSlabTab'); if(tab) tab.style.display='none';
   let hb = thumbWrap ? thumbWrap.querySelector('.colem-head-grade') : null;
-  if(hb) hb.remove();
+  if(isGraded){
+    if(!hb && thumbWrap){ hb=document.createElement('div'); hb.className='colem-head-grade'; thumbWrap.appendChild(hb); }
+    if(hb) hb.textContent = (c.grade_company||'')+(c.grade_value?(' '+c.grade_value):'');
+  } else if(hb){ hb.remove(); }
 
   document.getElementById('colEmName').textContent = c.name || '(senza nome)';
   document.getElementById('colEmMeta').textContent = (c.set_name||'—') + (c.card_number?(' · #'+c.card_number):'') + (c.rarity?(' · '+c.rarity):'') + (c.language?(' · '+c.language):'');
