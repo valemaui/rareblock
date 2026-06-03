@@ -262,7 +262,7 @@ function escapeHtml(s){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
   });
 }
-var ALL_VARS = ['Normal','Holo','Reverse Holo','Cosmo Holo','Pokeball Holo','Masterball Holo','Stamped'];
+var ALL_VARS = ['Normal','Holo','Reverse Holo','Cosmo Holo','Pokeball Holo','Masterball Holo','1ª Edizione','Shadowless','Stamped'];
 function qtyTotal(card, v){
   if(!card||!card.qty) return 0;
   var q=card.qty[v];
@@ -302,7 +302,7 @@ function cardApplicableVariants(card, ms){
   var supertype=(card.supertype||'').toLowerCase();
   var subtypes=Array.isArray(card.subtypes)?card.subtypes.map(function(s){return (s||'').toLowerCase();}):[];
   var reverseTypes={'Reverse Holo':1,'Pokeball Holo':1,'Masterball Holo':1};
-  var universalTypes={'Stamped':1};
+  var universalTypes={'Stamped':1,'1ª Edizione':1,'Shadowless':1};
   var isBasicEnergy=supertype==='energy'&&subtypes.indexOf('basic')>=0;
   var isHoloRarity=!isBasicEnergy&&(
     /\bholo\b/.test(rarity) ||
@@ -524,7 +524,7 @@ function msvRenderGrid(cards){
     vis.forEach(function(v){
       if(applic.indexOf(v)<0 && qtyTotal(card,v)===0) return;
       var has=qtyTotal(card,v)>0;
-      var short=v.replace('Reverse Holo','REV').replace('Cosmo Holo','COS').replace('Pokeball Holo','PB').replace('Masterball Holo','MB').replace('Holo','HOLO').replace('Normal','NORM').replace('Stamped','STMP');
+      var short=v.replace('1ª Edizione','1ED').replace('Shadowless','SHL').replace('Reverse Holo','REV').replace('Cosmo Holo','COS').replace('Pokeball Holo','PB').replace('Masterball Holo','MB').replace('Holo','HOLO').replace('Normal','NORM').replace('Stamped','STMP');
       pills+='<span class="ms-vpill '+(has?'has':'miss')+'">'+escapeHtml(short)+(has?(' '+qtyTotal(card,v)):'')+'</span>';
     });
     if(pills) inner+='<div class="ms-card-vars">'+pills+'</div>';
