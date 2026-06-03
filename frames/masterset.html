@@ -216,6 +216,7 @@ body{display:flex;flex-direction:column}
 .ms-load-pos{font-family:var(--mono);font-size:11px;color:var(--text-muted)}
 .ms-load-tier{font-size:9px;font-family:var(--mono);font-weight:700;letter-spacing:.5px;color:var(--accent);border:1px solid rgba(201,169,110,.4);background:rgba(201,169,110,.08);padding:2px 8px;border-radius:10px}
 .ms-load-right{padding:18px 20px;display:flex;flex-direction:column;gap:6px;overflow:auto;min-width:0}
+.ms-load-msname{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--accent);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ms-load-name{font-size:17px;font-weight:600}
 .ms-load-meta{font-size:11px;color:var(--text-muted);font-family:var(--mono);margin-bottom:6px}
 .ms-load-vars{display:flex;flex-direction:column;gap:8px;margin-top:4px}
@@ -470,6 +471,7 @@ body{display:flex;flex-direction:column}
       <div class="ms-load-tier" id="msLoadTier" style="display:none"></div>
     </div>
     <div class="ms-load-right">
+      <div class="ms-load-msname" id="msLoadMsName"></div>
       <div class="ms-load-name" id="msLoadName">—</div>
       <div class="ms-load-meta" id="msLoadMeta">—</div>
       <div class="ms-load-vars" id="msLoadVars"></div>
@@ -2165,6 +2167,8 @@ function msLoadRender(){
   if(msCardTier(card,ms)==='special'){ tierEl.style.display='inline-block'; tierEl.textContent='FUORISERIE'; }
   else tierEl.style.display='none';
   document.getElementById('msLoadName').textContent=card.name||'—';
+  var msNameEl=document.getElementById('msLoadMsName');
+  if(msNameEl){ msNameEl.textContent=(ms.label?ms.label:ms.setName)+' · '+ms.lang; }
   document.getElementById('msLoadMeta').textContent='#'+(card.num||'')+' · '+(card.rarity||'?')+' · '+ms.setName+' · '+ms.lang;
   document.getElementById('msLoadPrev').disabled=(_msLoadIdx<=0);
   document.getElementById('msLoadNext').disabled=(_msLoadIdx>=_msLoadList.length-1);
