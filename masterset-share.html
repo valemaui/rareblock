@@ -189,10 +189,11 @@ table.pc-list tr.ms-owned td{background:rgba(63,185,80,.04)}
       <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       <input type="text" id="pcSearch" placeholder="Cerca per nome o numero…" autocomplete="off" oninput="msvOnSearch()"/>
     </div>
-    <select class="pc-sort" id="pcOwned" onchange="msvOnOwnedChange()">
+    <select class="pc-sort" id="pcOwned" onchange="msvOnOwnedChange()" title="Possedute = ne ha almeno una · Mancanti uniche = non posseduta in nessuna variante · Varianti incomplete = posseduta ma manca almeno una variante">
       <option value="">Tutte le carte</option>
-      <option value="missing">Solo mancanti</option>
-      <option value="owned">Solo possedute</option>
+      <option value="owned">Possedute</option>
+      <option value="missing" id="pcOwnedMissing">Mancanti uniche</option>
+      <option value="vmissing" id="pcOwnedVmissing">Varianti incomplete</option>
     </select>
     <div class="pc-view-toggle" role="tablist" aria-label="Vista">
       <button class="pc-view-btn active" id="pcViewGridBtn" type="button" onclick="msvSetView('grid')">
@@ -322,6 +323,11 @@ function cardApplicableVariants(card, ms){
 }
 
 // ─── filtraggio carte (mirror di msFilteredCards) ───
+function msvHasMissingVariant(card, ms){
+  var applic=cardApplicableVariants(card,ms);
+  var vis=msVisibleVariants(ms);
+  return vis.some(function(v){ return applic.indexOf(v)>=0 && qtyTotal(card,v)===0; });
+}
 function msvFilteredCards(){
   var ms=V.ms; if(!ms) return [];
   var fName=V.search.toLowerCase();
@@ -335,10 +341,14 @@ function msvFilteredCards(){
       if(!relevant) return false;
       var own=msVarOwned(c,V.fVar);
       if(V.fOwned==='owned' && !own) return false;
-      if(V.fOwned==='missing' && own) return false;
+      if((V.fOwned==='missing'||V.fOwned==='vmissing') && own) return false;
     } else {
       if(V.fOwned==='owned' && !qtyAnyOwned(c)) return false;
       if(V.fOwned==='missing' && qtyAnyOwned(c)) return false;
+      if(V.fOwned==='vmissing'){
+        if(!qtyAnyOwned(c)) return false;
+        if(!msvHasMissingVariant(c,ms)) return false;
+      }
     }
     return true;
   });
@@ -392,6 +402,7 @@ async function msvLoad(){
     // sync UI controls
     document.getElementById('pcSearch').value=V.search;
     document.getElementById('pcOwned').value=V.fOwned;
+    msvSyncOwnedLabels();
     msvSyncViewButtons();
 
     msvRenderHeader();
@@ -432,9 +443,8 @@ function msvRenderStats(){
   var all=ms.cards||[];
   var owned=all.filter(function(c){return qtyAnyOwned(c);}).length;
   var pct=all.length?Math.round(owned/all.length*100):0;
-  var missVisible=msvFilteredCards().filter(function(c){
-    return V.fVar ? !msVarOwned(c,V.fVar) : !qtyAnyOwned(c);
-  }).length;
+  var uniqueMissing=all.filter(function(c){return !qtyAnyOwned(c);}).length;
+  var missingVariants=msvMissingRows().length;
   var html='';
   html+='<div class="pc-stat-cell"><div class="pc-stat-val">'+owned+'/'+all.length+'</div><div class="pc-stat-lbl">Carte possedute</div></div>';
   html+='<div class="pc-stat-cell"><div class="pc-stat-val gold">'+pct+'%</div><div class="pc-stat-lbl">Completamento</div><div class="pc-prog"><div class="pc-prog-fill" style="width:'+pct+'%"></div></div></div>';
@@ -446,7 +456,8 @@ function msvRenderStats(){
     html+='<div class="pc-stat-cell"><div class="pc-stat-val">'+baseOwn+'/'+base.length+'</div><div class="pc-stat-lbl">Base</div></div>';
     html+='<div class="pc-stat-cell"><div class="pc-stat-val gold">'+specOwn+'/'+spec.length+'</div><div class="pc-stat-lbl">Fuoriserie</div></div>';
   }
-  html+='<div class="pc-stat-cell"><div class="pc-stat-val miss">'+missVisible+'</div><div class="pc-stat-lbl">Mancanti nel filtro</div></div>';
+  html+='<div class="pc-stat-cell" title="Carte non possedute in nessuna variante"><div class="pc-stat-val miss">'+uniqueMissing+'</div><div class="pc-stat-lbl">Mancanti uniche</div></div>';
+  html+='<div class="pc-stat-cell" title="Coppie carta+variante ancora mancanti (filtri attivi)"><div class="pc-stat-val miss">'+missingVariants+'</div><div class="pc-stat-lbl">Varianti mancanti</div></div>';
   document.getElementById('pcStats').innerHTML=html;
 }
 
@@ -564,7 +575,21 @@ function msvSyncViewButtons(){
 }
 function msvOnSearch(){ V.search=(document.getElementById('pcSearch').value||'').trim(); msvRender(); }
 function msvOnOwnedChange(){ V.fOwned=document.getElementById('pcOwned').value||''; msvRender(); }
-function msvSetVar(v){ V.fVar=v; msvBuildChips(); msvRender(); }
+function msvSyncOwnedLabels(){
+  var optMiss=document.getElementById('pcOwnedMissing');
+  var optVmiss=document.getElementById('pcOwnedVmissing');
+  var sel=document.getElementById('pcOwned');
+  if(!optMiss||!optVmiss) return;
+  if(V.fVar){
+    optMiss.textContent='Manca '+V.fVar;
+    optVmiss.style.display='none';
+    if(V.fOwned==='vmissing'){ V.fOwned='missing'; if(sel) sel.value='missing'; }
+  } else {
+    optMiss.textContent='Mancanti uniche';
+    optVmiss.style.display='';
+  }
+}
+function msvSetVar(v){ V.fVar=v; msvSyncOwnedLabels(); msvBuildChips(); msvRender(); }
 function msvSetTier(t){ V.fTier=t; msvBuildChips(); msvRender(); }
 
 // ─── export mancolista (CSV) per l'utente esterno ───

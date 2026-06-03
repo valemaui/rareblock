@@ -213,6 +213,21 @@ body{display:flex;flex-direction:column}
 .ms-load-var.has{border-color:rgba(63,185,80,.4);background:rgba(63,185,80,.05)}
 .ms-load-var .vn{flex:1;font-size:12.5px;font-weight:500}
 .ms-load-var .vcond{font-size:9px;font-family:var(--mono);color:var(--text-subtle)}
+/* layout verticale per condizione: + grande sopra, valore, − piccolo sotto */
+.ms-cond-grid{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.ms-cond-cell{display:flex;flex-direction:column;align-items:center;gap:3px;border:1px solid var(--border);border-radius:9px;padding:6px 5px 5px;width:48px;background:var(--surface)}
+.ms-cond-cell:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px rgba(201,169,97,.28)}
+.ms-cond-cell .cl{font-size:9px;font-family:var(--mono);color:var(--text-subtle);letter-spacing:.4px;font-weight:600}
+.ms-cond-plus{width:36px;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--accent);font-size:21px;font-weight:600;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s,border-color .1s;flex-shrink:0}
+.ms-cond-plus:hover{background:var(--surface3);border-color:var(--accent)}
+.ms-cond-plus:focus-visible{outline:none;border-color:var(--accent)}
+.ms-cond-val{font-family:var(--mono);font-size:15px;font-weight:600;color:var(--text-subtle);line-height:1.1}
+.ms-cond-val.on{color:var(--accent)}
+.ms-cond-minus{width:26px;height:18px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-subtle);font-size:13px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:color .1s,border-color .1s;flex-shrink:0}
+.ms-cond-minus:hover{color:var(--danger);border-color:rgba(248,81,73,.5)}
+.ms-cond-minus:disabled{opacity:.3;cursor:default}
+.ms-step:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px rgba(201,169,97,.28)}
+.ms-step button:focus-visible{outline:none}
 .ms-load-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 20px;border-top:1px solid var(--border);grid-column:1/-1;flex-shrink:0}
 .ms-load-foot .hint{font-size:10.5px;color:var(--text-subtle);font-family:var(--mono)}
 .ms-load-prog{height:3px;background:var(--surface3);grid-column:1/-1}
@@ -298,10 +313,11 @@ body{display:flex;flex-direction:column}
           </div>
           <input type="text" placeholder="Cerca carta..." id="msCardSearch" oninput="msRenderTable()" style="max-width:160px;font-size:12px"/>
           <select id="msFilterRar" onchange="msRenderTable()" style="max-width:130px;font-size:12px"><option value="">Tutte le rarita</option></select>
-          <select id="msFilterOwned" onchange="msRenderTable()" style="max-width:130px;font-size:12px">
+          <select id="msFilterOwned" onchange="msRenderTable()" style="max-width:150px;font-size:12px" title="Possedute = ne hai almeno una · Mancanti uniche = non la possiedi in nessuna variante · Varianti incomplete = la possiedi ma ti manca almeno una variante">
             <option value="">Tutte</option>
             <option value="owned">Possedute</option>
-            <option value="missing">Mancanti</option>
+            <option value="missing" id="msFOwnedMissing">Mancanti uniche</option>
+            <option value="vmissing" id="msFOwnedVmissing">Varianti incomplete</option>
           </select>
           <div class="ms-fchip-sep"></div>
           <div class="ms-fchip-group" id="msVarFilterChips" title="Filtra per variante (combina con Possedute/Mancanti per es. 'reverse mancanti')"></div>
@@ -449,7 +465,7 @@ body{display:flex;flex-direction:column}
     </div>
     <div class="ms-load-prog"><div class="ms-load-prog-fill" id="msLoadProgFill" style="width:0%"></div></div>
     <div class="ms-load-foot">
-      <span class="hint">Usa ← → per scorrere · + / − per la quantità</span>
+      <span class="hint">+ / − quantità (tasto a fuoco) · Spazio carta successiva · ← → scorri · Esc chiudi</span>
       <button class="btn" onclick="msLoadClose()">Chiudi</button>
     </div>
   </div>
@@ -997,6 +1013,21 @@ function msSetupFilters(ms){
   // sync view toggle buttons
   var lb=document.getElementById('msViewListBtn'), gb=document.getElementById('msViewGridBtn');
   if(lb&&gb){ lb.classList.toggle('on',msView==='list'); gb.classList.toggle('on',msView==='grid'); }
+  // etichette dinamiche del filtro possedute/mancanti in base alla variante attiva
+  var optMiss=document.getElementById('msFOwnedMissing');
+  var optVmiss=document.getElementById('msFOwnedVmissing');
+  var selOwned=document.getElementById('msFilterOwned');
+  if(optMiss&&optVmiss){
+    if(msVarFilter){
+      // con variante attiva i due concetti coincidono → "manca <variante>"
+      optMiss.textContent='Manca '+msVarFilter;
+      optVmiss.style.display='none';
+      if(selOwned&&selOwned.value==='vmissing') selOwned.value='missing';
+    } else {
+      optMiss.textContent='Mancanti uniche';
+      optVmiss.style.display='';
+    }
+  }
 }
 window.msVarFilterSet=function(v){ msVarFilter=v; var ms=msData.find(function(m){return m.id===msActive;}); if(ms) msSetupFilters(ms); msRenderTable(); };
 window.msTierFilterSet=function(t){ msTierFilter=t; var ms=msData.find(function(m){return m.id===msActive;}); if(ms) msSetupFilters(ms); msRenderTable(); };
@@ -1050,6 +1081,11 @@ function msShowEmpty(){
 
 // Filtro condiviso lista+griglia. Quando una variante è selezionata,
 // "possedute/mancanti" sono riferite a QUELLA variante (per es. "reverse mancanti").
+function msHasMissingVariant(card, ms){
+  var applic=cardApplicableVariants(card, ms);
+  var vis=msVisibleVariants(ms);
+  return vis.some(function(v){ return applic.indexOf(v)>=0 && qtyTotal(card,v)===0; });
+}
 function msFilteredCards(ms){
   var fName  = (document.getElementById('msCardSearch').value||'').toLowerCase();
   var fRar   = document.getElementById('msFilterRar').value;
@@ -1059,16 +1095,23 @@ function msFilteredCards(ms){
     if(fRar  && c.rarity!==fRar) return false;
     if(msTierFilter && msCardTier(c,ms)!==msTierFilter) return false;
     if(msVarFilter){
-      // solo carte a cui la variante è applicabile (o già posseduta in quella variante)
+      // con una variante selezionata, "mancante"/"variante incompleta" coincidono:
+      // si riferiscono alla SOLA variante scelta (es. "reverse mancanti").
       var applic = cardApplicableVariants(c, ms);
       var relevant = applic.indexOf(msVarFilter)>=0 || qtyTotal(c,msVarFilter)>0;
       if(!relevant) return false;
       var own = msVarOwned(c, msVarFilter);
       if(fOwned==='owned'   && !own) return false;
-      if(fOwned==='missing' &&  own) return false;
+      if((fOwned==='missing'||fOwned==='vmissing') && own) return false;
     } else {
-      if(fOwned==='owned'   && !qtyAnyOwned(c)) return false;
-      if(fOwned==='missing' &&  qtyAnyOwned(c)) return false;
+      if(fOwned==='owned'    && !qtyAnyOwned(c)) return false;
+      // Mancanti uniche: non possiedi la carta in NESSUNA variante.
+      if(fOwned==='missing'  &&  qtyAnyOwned(c)) return false;
+      // Varianti incomplete: la possiedi, ma ti manca almeno una variante applicabile.
+      if(fOwned==='vmissing'){
+        if(!qtyAnyOwned(c)) return false;
+        if(!msHasMissingVariant(c, ms)) return false;
+      }
     }
     return true;
   });
@@ -1958,7 +2001,7 @@ window.msGearToggleVar=async function(v){
 };
 
 /* ══════════════ #1 — CARICAMENTO SEQUENZIALE (foto grande + frecce) ══════════ */
-var _msLoadList=[], _msLoadIdx=0;
+var _msLoadList=[], _msLoadIdx=0, _msLoadFocus=null;
 window.msLoadOpen=function(startCardId){
   var ms=msData.find(function(m){return m.id===msActive;});
   if(!ms) return;
@@ -2010,52 +2053,97 @@ function msLoadRender(){
   if(!list.length){ wrap.innerHTML='<div style="font-size:12px;color:var(--text-subtle)">Nessuna variante applicabile.</div>'; return; }
   list.forEach(function(v){
     var tot=qtyTotal(card,v);
+    var slug=_msVSlug(v);
     var row=document.createElement('div');
+    row.id='msvr_'+slug;
     row.className='ms-load-var'+(tot>0?' has':'');
     if(ms.trackConditions){
-      var condHtml='';
+      row.style.alignItems='flex-start';
+      // celle verticali per condizione: etichetta · + grande · valore · − piccolo
+      var cells='';
       MS_CONDITIONS.forEach(function(cn){
         var n=qtyForCond(card,v,cn.id);
-        condHtml+='<div class="ms-step" style="margin:0" title="'+cn.label+'">'+
-          '<button data-cond="'+cn.id+'" data-d="-1">&#8722;</button>'+
-          '<div class="ms-step-v'+(n>0?' on':'')+'" style="width:24px">'+n+'</div>'+
-          '<button data-cond="'+cn.id+'" data-d="1">&#43;</button></div>';
+        cells+='<div class="ms-cond-cell" title="'+esc(cn.label)+'">'+
+          '<div class="cl">'+cn.id+'</div>'+
+          '<button type="button" class="ms-cond-plus" data-v="'+esc(v)+'" data-cond="'+cn.id+'" data-d="1" aria-label="Aggiungi '+cn.id+'">&#43;</button>'+
+          '<div class="ms-cond-val'+(n>0?' on':'')+'" id="msvv_'+slug+'_'+cn.id+'">'+n+'</div>'+
+          '<button type="button" class="ms-cond-minus" data-v="'+esc(v)+'" data-cond="'+cn.id+'" data-d="-1"'+(n>0?'':' disabled')+' aria-label="Togli '+cn.id+'">&#8722;</button>'+
+          '</div>';
       });
-      row.innerHTML='<div style="flex:1"><div class="vn">'+esc(v)+' <span style="color:var(--text-subtle);font-weight:400">('+tot+')</span></div>'+
-        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">'+
-        MS_CONDITIONS.map(function(cn){return '<span class="vcond">'+cn.id+'</span>';}).join('')+'</div>'+
-        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:2px">'+condHtml+'</div></div>';
-      row.querySelectorAll('button').forEach(function(b){
-        b.addEventListener('click',(function(vv,cond,d){return function(){ msLoadStep(card.id,vv,cond,d); };})(v,b.getAttribute('data-cond'),parseInt(b.getAttribute('data-d'))));
-      });
+      row.innerHTML='<div style="flex:1;min-width:0"><div class="vn">'+esc(v)+
+        ' <span style="color:var(--text-subtle);font-weight:400" id="msvt_'+slug+'">('+tot+')</span></div>'+
+        '<div class="ms-cond-grid">'+cells+'</div></div>';
     } else {
       row.innerHTML='<div class="vn">'+esc(v)+'</div>'+
         '<div class="ms-step" style="margin:0;width:96px">'+
-          '<button data-d="-1" style="width:30px;height:30px;font-size:17px">&#8722;</button>'+
-          '<div class="ms-step-v'+(tot>0?' on':'')+'" style="width:36px;line-height:30px;font-size:14px">'+tot+'</div>'+
-          '<button data-d="1" style="width:30px;height:30px;font-size:17px">&#43;</button>'+
+          '<button type="button" data-v="'+esc(v)+'" data-cond="NM" data-d="-1" style="width:30px;height:30px;font-size:17px"'+(tot>0?'':' disabled')+'>&#8722;</button>'+
+          '<div class="ms-step-v'+(tot>0?' on':'')+'" id="msvv_'+slug+'_NM" style="width:36px;line-height:30px;font-size:14px">'+tot+'</div>'+
+          '<button type="button" data-v="'+esc(v)+'" data-cond="NM" data-d="1" style="width:30px;height:30px;font-size:17px">&#43;</button>'+
         '</div>';
-      row.querySelectorAll('button').forEach(function(b){
-        b.addEventListener('click',(function(vv,d){return function(){ msLoadStep(card.id,vv,'NM',d); };})(v,parseInt(b.getAttribute('data-d'))));
-      });
     }
+    row.querySelectorAll('button[data-v]').forEach(function(b){
+      b.addEventListener('click',function(){ msLoadStep(card.id,b.getAttribute('data-v'),b.getAttribute('data-cond')||'NM',parseInt(b.getAttribute('data-d'),10)); });
+    });
     wrap.appendChild(row);
   });
+  // focus iniziale sul primo "+": abilita subito i tasti +/− da tastiera
+  var firstPlus=wrap.querySelector('button[data-d="1"]');
+  if(firstPlus){
+    _msLoadFocus={v:firstPlus.getAttribute('data-v'),cond:firstPlus.getAttribute('data-cond')||'NM'};
+    try{ firstPlus.focus({preventScroll:true}); }catch(_e){ firstPlus.focus(); }
+  } else _msLoadFocus=null;
 }
+function _msVSlug(v){ return String(v).replace(/[^A-Za-z0-9]/g,''); }
+// Aggiorna in-place le quantità del modal di caricamento (preserva il focus,
+// indispensabile per la digitazione rapida con i tasti +/−).
 window.msLoadStep=function(cardId,v,cond,delta){
   var ms=msData.find(function(m){return m.id===msActive;});
   if(!ms) return;
   var card=ms.cards.find(function(c){return c.id===cardId;});
   if(!card) return;
-  var cur=qtyForCond(card,v,cond||'NM');
+  cond=cond||'NM';
+  var cur=qtyForCond(card,v,cond);
   if(typeof (card.qty&&card.qty[v])==='number') cur=card.qty[v]||0;
-  qtySet(card,v,cond||'NM',Math.max(0,cur+delta));
+  qtySet(card,v,cond,Math.max(0,cur+delta));
   msSave(msData);
-  msLoadRender();
+  // aggiornamento in-place (niente full re-render → focus preservato)
+  var slug=_msVSlug(v);
+  var newVal=qtyForCond(card,v,cond);
+  var valEl=document.getElementById('msvv_'+slug+'_'+cond);
+  if(valEl){ valEl.textContent=newVal; valEl.classList.toggle('on',newVal>0); }
+  var tot=qtyTotal(card,v);
+  var totEl=document.getElementById('msvt_'+slug);
+  if(totEl) totEl.textContent='('+tot+')';
+  var rowEl=document.getElementById('msvr_'+slug);
+  if(rowEl) rowEl.classList.toggle('has',tot>0);
+  // abilita/disabilita il "−" della cella aggiornata in base al valore
+  var minusBtn=null;
+  if(rowEl){
+    var btns=rowEl.querySelectorAll('button[data-cond="'+cond+'"][data-d="-1"]');
+    if(btns&&btns.length) minusBtn=btns[0];
+  }
+  if(minusBtn) minusBtn.disabled=(newVal<=0);
   msUpdateStats(ms);
-  msRenderList(document.getElementById('msListSearch').value);
+  var ls=document.getElementById('msListSearch');
+  msRenderList(ls?ls.value:'');
 };
-// tastiera nel modal di caricamento: ← → scorri, Esc chiudi
+// Applica +/− al controllo correntemente a fuoco
+function msLoadStepFocused(delta){
+  if(!_msLoadFocus) return;
+  var card=_msLoadList[_msLoadIdx];
+  if(!card) return;
+  msLoadStep(card.id,_msLoadFocus.v,_msLoadFocus.cond||'NM',delta);
+}
+// Traccia il controllo a fuoco (per Tab + tasti +/−)
+(function(){
+  var w=document.getElementById('msLoadVars');
+  if(!w) return;
+  w.addEventListener('focusin',function(e){
+    var b=e.target&&e.target.closest&&e.target.closest('button[data-v]');
+    if(b) _msLoadFocus={v:b.getAttribute('data-v'),cond:b.getAttribute('data-cond')||'NM'};
+  });
+})();
+// Tastiera nel modal: ← → scorri carte · Spazio carta successiva · +/− quantità · Esc chiudi
 document.addEventListener('keydown',function(e){
   var bg=document.getElementById('msLoadBg');
   if(!bg||!bg.classList.contains('show')) return;
@@ -2063,6 +2151,9 @@ document.addEventListener('keydown',function(e){
   if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return;
   if(e.key==='ArrowLeft'){ e.preventDefault(); msLoadNav(-1); }
   else if(e.key==='ArrowRight'){ e.preventDefault(); msLoadNav(1); }
+  else if(e.key===' '||e.key==='Spacebar'||e.key==='Space'){ e.preventDefault(); msLoadNav(1); }
+  else if(e.key==='+'||e.key==='='){ e.preventDefault(); msLoadStepFocused(1); }
+  else if(e.key==='-'||e.key==='_'){ e.preventDefault(); msLoadStepFocused(-1); }
   else if(e.key==='Escape'){ e.preventDefault(); msLoadClose(); }
 });
 
@@ -2180,7 +2271,10 @@ function msShareRender(){
   // riassunto filtro attuale
   var f=msShareCurrentFilter();
   var fdesc=[];
-  if(f.owned==='missing') fdesc.push('solo mancanti'); else if(f.owned==='owned') fdesc.push('solo possedute'); else fdesc.push('tutte');
+  if(f.owned==='missing') fdesc.push(f.variant?('manca '+f.variant):'mancanti uniche');
+  else if(f.owned==='vmissing') fdesc.push('varianti incomplete');
+  else if(f.owned==='owned') fdesc.push('solo possedute');
+  else fdesc.push('tutte');
   if(f.variant) fdesc.push('variante: '+f.variant);
   if(f.tier) fdesc.push(f.tier==='special'?'fuoriserie':'base');
   if(f.rarity) fdesc.push('rarità: '+f.rarity);
