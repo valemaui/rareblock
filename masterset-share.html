@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="robots" content="noindex,nofollow"/>
+<title>Mancolista · RareBlock</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Montserrat:wght@200;300&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,400&family=Figtree:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#0d1117; --surface:#161b22; --surface2:#21262d; --surface3:#2d333b;
+  --border:#30363d; --border-strong:#3d444d; --border-focus:#58a6ff;
+  --text:#e6edf3; --text-muted:#7d8590; --text-subtle:#484f58;
+  --accent:#c9a961; --accent-hover:#d8bb74;
+  --accent-soft:rgba(201,169,97,.12); --accent-softer:rgba(201,169,97,.06);
+  --accent-border:rgba(201,169,97,.32);
+  --gold:#c9a84c; --gold-deep:#a8862e;
+  --danger:#f85149; --success:#3fb950; --warning:#d29922;
+  --font:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+  --serif:"Fraunces","Playfair Display",Georgia,serif;
+  --display:"Montserrat",system-ui,sans-serif;
+  --r:6px; --r-lg:8px;
+}
+
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--text);
+  font-family:var(--font);font-size:14px;line-height:1.45;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ── SHELL / HEADER ──────────────────────────────────────────── */
+.pc-shell{display:flex;flex-direction:column;min-height:100vh}
+.pc-header{background:var(--surface);border-bottom:1px solid var(--border);padding:18px 28px 14px;flex-shrink:0}
+.pc-header-inner{max-width:1400px;margin:0 auto;display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap}
+.pc-brand{display:flex;align-items:center;gap:14px;padding-top:4px;text-decoration:none !important;color:var(--text)}
+.pc-brand:hover{text-decoration:none !important}
+.pc-brand-word{font-family:"Montserrat",var(--display),system-ui,sans-serif;font-size:18px;font-weight:300;letter-spacing:.18em;color:var(--text);text-transform:uppercase;line-height:1}
+.pc-brand-gold{color:var(--gold);font-weight:400}
+.pc-divider{width:1px;height:30px;background:var(--border)}
+.pc-title-wrap{flex:1;min-width:0}
+.pc-title{font-family:var(--serif);font-weight:300;font-size:24px;color:var(--text);line-height:1.15}
+.pc-subtitle{font-family:var(--mono);font-size:11px;color:var(--text-muted);margin-top:4px;letter-spacing:.04em}
+.pc-share-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text-subtle);font-family:var(--mono);margin-top:6px}
+.pc-share-meta-item{display:inline-flex;align-items:center;gap:4px}
+.pc-cta-btn{background:var(--accent-soft);border:1px solid var(--accent-border);color:var(--accent);padding:8px 14px;border-radius:var(--r);font-size:12px;font-family:var(--font);font-weight:500;text-decoration:none;display:inline-flex;align-items:center;gap:6px;transition:all .12s}
+.pc-cta-btn:hover{background:var(--accent-softer);border-color:var(--accent);text-decoration:none}
+
+/* ── STATS BAR ───────────────────────────────────────────────── */
+.pc-stats{display:flex;border-bottom:1px solid var(--border);background:var(--surface);overflow-x:auto;flex-shrink:0}
+.pc-stat-cell{padding:12px 22px;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:2px;flex-shrink:0}
+.pc-stat-val{font-size:18px;font-weight:600;font-family:var(--mono);color:var(--text);white-space:nowrap}
+.pc-stat-val.gold{color:var(--accent)}
+.pc-stat-val.miss{color:var(--danger)}
+.pc-stat-lbl{font-size:9.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.pc-prog{height:5px;background:var(--surface3);border-radius:3px;overflow:hidden;margin-top:5px;min-width:120px}
+.pc-prog-fill{height:100%;background:linear-gradient(90deg,var(--gold-deep),var(--gold));border-radius:3px;transition:width .3s}
+
+/* ── TOOLBAR ─────────────────────────────────────────────────── */
+.pc-toolbar{padding:12px 28px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pc-search{position:relative;flex:1 1 200px;max-width:300px;min-width:160px}
+.pc-search input{width:100%;padding:7px 12px 7px 32px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px}
+.pc-search input:focus{outline:none;border-color:var(--border-focus)}
+.pc-search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--text-subtle);pointer-events:none;stroke:currentColor;fill:none;stroke-width:2}
+.pc-view-toggle{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:2px;gap:2px}
+.pc-view-btn{background:transparent;border:none;color:var(--text-muted);padding:5px 10px;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono);transition:all .12s}
+.pc-view-btn.active{background:var(--surface3);color:var(--accent)}
+.pc-view-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.6}
+.pc-sort{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:var(--r);font-size:12px;cursor:pointer}
+.pc-sort:focus{outline:none;border-color:var(--border-focus)}
+.pc-toolbar-spacer{flex:1}
+.pc-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 12px;border-radius:var(--r);font-size:12px;cursor:pointer;font-family:var(--font);display:inline-flex;align-items:center;gap:6px;transition:all .12s}
+.pc-btn:hover{border-color:var(--accent-border);color:var(--accent)}
+
+/* ── FILTER CHIPS (varianti / tier) ──────────────────────────── */
+.pc-fbar{padding:9px 28px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.pc-fchip-group{display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center}
+.pc-fchip-sep{width:1px;height:20px;background:var(--border);margin:0 4px}
+.pc-fchip{background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);padding:4px 10px;border-radius:999px;font-size:11px;font-family:var(--mono);cursor:pointer;transition:all .12s;white-space:nowrap}
+.pc-fchip:hover{border-color:var(--accent-border);color:var(--text)}
+.pc-fchip.active{background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent);font-weight:600}
+.pc-fchip-lbl{font-size:10px;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.4px;margin-right:2px}
+
+/* ── BODY + GALLERY (mirror masterset frame 1:1) ─────────────── */
+.pc-body{flex:1;overflow:auto;padding:0;background:var(--bg)}
+.pc-content{max-width:1400px;margin:0 auto;padding:18px 28px 32px}
+.ms-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;align-content:start}
+.ms-card{position:relative;border:1px solid var(--border);border-radius:8px;background:var(--surface);overflow:hidden;display:flex;flex-direction:column;transition:border-color .12s,transform .12s,box-shadow .12s}
+.ms-card:hover{border-color:rgba(201,169,110,.45);transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.ms-card-thumb{position:relative;aspect-ratio:.715;background:var(--surface2);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.ms-card-thumb img{width:100%;height:100%;object-fit:contain;display:block}
+.ms-card-thumb .ph{font-size:24px;color:var(--text-subtle)}
+.ms-card.missing .ms-card-thumb img{filter:grayscale(1) brightness(.55) contrast(.9);opacity:.5}
+.ms-card.missing{border-style:dashed;border-color:var(--border)}
+.ms-card-badge{position:absolute;top:5px;right:5px;font-size:9px;font-family:var(--mono);font-weight:700;padding:2px 6px;border-radius:10px;letter-spacing:.4px;z-index:2}
+.ms-card-badge.owned{background:rgba(63,185,80,.92);color:#06210c}
+.ms-card-badge.missing{background:rgba(0,0,0,.6);color:var(--text-muted);border:1px solid var(--border)}
+.ms-card-tier{position:absolute;top:5px;left:5px;font-size:8px;font-family:var(--mono);font-weight:700;padding:2px 5px;border-radius:9px;letter-spacing:.4px;z-index:2;background:rgba(0,0,0,.55);color:var(--accent);border:1px solid rgba(201,169,110,.4)}
+.ms-card-info{padding:6px 7px 7px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.ms-card-num{font-family:var(--mono);font-size:9px;color:var(--text-subtle)}
+.ms-card-name{font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ms-card-vars{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px}
+.ms-vpill{font-size:8px;font-family:var(--mono);padding:1px 4px;border-radius:6px;border:1px solid var(--border);color:var(--text-subtle);line-height:1.3}
+.ms-vpill.has{border-color:rgba(63,185,80,.5);color:var(--success);background:rgba(63,185,80,.08)}
+.ms-vpill.miss{border-color:rgba(248,81,73,.35);color:var(--danger);background:rgba(248,81,73,.06)}
+
+/* List view */
+.pc-list-wrap{overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg)}
+table.pc-list{width:100%;border-collapse:collapse;font-size:12px}
+table.pc-list th{position:sticky;top:0;background:var(--surface2);color:var(--text-muted);font-weight:600;text-align:left;padding:9px 12px;border-bottom:1px solid var(--border);white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+table.pc-list th.vc{text-align:center}
+table.pc-list td{padding:7px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+table.pc-list tr:last-child td{border-bottom:none}
+table.pc-list tr.ms-owned td{background:rgba(63,185,80,.04)}
+.pc-li-img{width:34px;height:47px;object-fit:contain;border-radius:3px;display:block}
+.pc-li-ph{width:34px;height:47px;background:var(--surface2);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--text-subtle)}
+.pc-li-num{font-family:var(--mono);color:var(--text-subtle)}
+.pc-li-vc{text-align:center;font-family:var(--mono)}
+.pc-li-vc .yes{color:var(--success);font-weight:700}
+.pc-li-vc .no{color:var(--text-subtle)}
+.pc-li-na{color:var(--text-subtle);opacity:.4}
+
+/* ── STATE / FOOTER ──────────────────────────────────────────── */
+.pc-state{padding:80px 28px;text-align:center;display:flex;flex-direction:column;gap:14px;align-items:center;justify-content:center;color:var(--text-muted)}
+.pc-state-icon{font-size:48px;opacity:.4}
+.pc-state-title{font-family:var(--serif);font-weight:300;font-size:22px;color:var(--text)}
+.pc-state-msg{font-size:13px;color:var(--text-subtle);max-width:480px;line-height:1.55}
+.pc-footer{background:var(--surface);border-top:1px solid var(--border);padding:24px 28px;flex-shrink:0;text-align:center}
+.pc-footer-inner{max-width:1400px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:6px}
+.pc-footer-poweredby{font-family:var(--mono);font-size:9.5px;color:var(--text-subtle);letter-spacing:.16em;text-transform:uppercase;margin-bottom:2px}
+.pc-footer-brand{font-family:"Montserrat",var(--display),system-ui,sans-serif;font-size:17px;font-weight:300;letter-spacing:.18em;color:var(--text);text-transform:uppercase;line-height:1}
+.pc-footer-brand-gold{color:var(--gold);font-weight:400}
+.pc-footer-sub{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-muted);font-family:var(--mono);margin-top:1px}
+.pc-footer-link{color:var(--text-subtle);font-size:11.5px;font-family:var(--mono);text-decoration:none;margin-top:4px;letter-spacing:.04em}
+.pc-footer-link:hover{color:var(--accent);text-decoration:none}
+
+@media(max-width:780px){
+  .pc-header{padding:14px 16px 12px}
+  .pc-header-inner{gap:10px}
+  .pc-brand-word{font-size:15px;letter-spacing:.14em}
+  .pc-divider{display:none}
+  .pc-title{font-size:19px}
+  .pc-toolbar{padding:10px 14px}
+  .pc-fbar{padding:8px 14px}
+  .pc-search{flex:1 1 100%;max-width:none;order:-1}
+  .pc-stats{padding:0}
+  .pc-stat-cell{padding:9px 14px}
+  .pc-stat-val{font-size:15px}
+  .pc-content{padding:14px}
+  .ms-grid{grid-template-columns:repeat(auto-fill,minmax(124px,1fr));gap:9px}
+  .pc-footer{padding:18px 16px}
+}
+</style>
+</head>
+<body>
+
+<div class="pc-shell">
+
+  <!-- HEADER -->
+  <header class="pc-header">
+    <div class="pc-header-inner">
+      <a class="pc-brand" href="https://www.rareblock.eu" target="_blank" rel="noopener">
+        <span class="pc-brand-word">Rare<span class="pc-brand-gold">Block</span></span>
+      </a>
+      <div class="pc-divider"></div>
+      <div class="pc-title-wrap">
+        <div class="pc-title" id="pcTitle">Caricamento mancolista…</div>
+        <div class="pc-subtitle" id="pcSubtitle">Vista pubblica · sola lettura</div>
+        <div class="pc-share-meta" id="pcShareMeta"></div>
+      </div>
+      <a class="pc-cta-btn" href="https://www.rareblock.eu" target="_blank" rel="noopener">Scopri RareBlock</a>
+    </div>
+  </header>
+
+  <!-- STATS -->
+  <div class="pc-stats" id="pcStats" style="display:none"></div>
+
+  <!-- TOOLBAR -->
+  <div class="pc-toolbar" id="pcToolbar" style="display:none">
+    <div class="pc-search">
+      <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input type="text" id="pcSearch" placeholder="Cerca per nome o numero…" autocomplete="off" oninput="msvOnSearch()"/>
+    </div>
+    <select class="pc-sort" id="pcOwned" onchange="msvOnOwnedChange()">
+      <option value="">Tutte le carte</option>
+      <option value="missing">Solo mancanti</option>
+      <option value="owned">Solo possedute</option>
+    </select>
+    <div class="pc-view-toggle" role="tablist" aria-label="Vista">
+      <button class="pc-view-btn active" id="pcViewGridBtn" type="button" onclick="msvSetView('grid')">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Griglia
+      </button>
+      <button class="pc-view-btn" id="pcViewListBtn" type="button" onclick="msvSetView('list')">
+        <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        Elenco
+      </button>
+    </div>
+    <div class="pc-toolbar-spacer"></div>
+    <button class="pc-btn" id="pcExportBtn" type="button" onclick="msvExportMissing()" title="Scarica la lista delle carte mancanti in CSV">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Esporta mancolista
+    </button>
+    <span style="font-size:11px;color:var(--text-subtle);font-family:var(--mono)" id="pcResultCount"></span>
+  </div>
+
+  <!-- FILTER CHIPS (varianti + tier) -->
+  <div class="pc-fbar" id="pcFbar" style="display:none"></div>
+
+  <!-- BODY -->
+  <div class="pc-body">
+    <div class="pc-content">
+      <div id="pcStateHost"></div>
+      <div class="ms-grid"      id="pcGrid"     style="display:none"></div>
+      <div class="pc-list-wrap" id="pcListWrap" style="display:none">
+        <table class="pc-list" id="pcList"><thead><tr id="pcListHead"></tr></thead><tbody id="pcListBody"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="pc-footer">
+    <div class="pc-footer-inner">
+      <div class="pc-footer-poweredby">Powered by</div>
+      <div class="pc-footer-brand">Rare<span class="pc-footer-brand-gold">Block</span></div>
+      <div class="pc-footer-sub">Collector &amp; Investor Club</div>
+      <a class="pc-footer-link" href="https://www.rareblock.eu" target="_blank" rel="noopener">www.rareblock.eu</a>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+// ═════════════════════════════════════════════════════════════════════
+//  RareBlock — Masterset Public Viewer (sola lettura, senza login)
+//  Consuma l'RPC `get_public_masterset(p_token)` su Supabase. Nessun dato
+//  privilegiato è esposto: usiamo SOLO la anon key (stessa di collection.html).
+//  Il token è una capability opaca; modificarne i caratteri non consente di
+//  vedere altro né di accedere ad aree riservate (la RPC ritorna {ok:false}).
+// ═════════════════════════════════════════════════════════════════════
+const SUPA_URL = 'https://rbjaaeyjeeqfpbzyavag.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiamFhZXlqZWVxZnBienlhdmFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NDUxMzUsImV4cCI6MjA4OTQyMTEzNX0.NyIKfc4cR93WrCERoT1FURWGo--vHD7Bbs3fS8OaE6E';
+
+// ─── stato vista ───
+var V = {
+  ms:null, meta:null,
+  view:'grid', fOwned:'', fVar:'', fTier:'', fRarity:'', search:''
+};
+
+// ─── helpers dati (copia ridotta del frame masterset) ───
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+var ALL_VARS = ['Normal','Holo','Reverse Holo','Cosmo Holo','Pokeball Holo','Masterball Holo','Stamped'];
+function qtyTotal(card, v){
+  if(!card||!card.qty) return 0;
+  var q=card.qty[v];
+  if(q==null) return 0;
+  if(typeof q==='number') return q;
+  var s=0; for(var k in q) s+=(q[k]||0);
+  return s;
+}
+function qtyAnyOwned(card){
+  if(!card||!card.qty) return false;
+  for(var v in card.qty) if(qtyTotal(card,v)>0) return true;
+  return false;
+}
+function msVarOwned(card, v){ return qtyTotal(card, v) > 0; }
+var MS_SPECIAL_RAR = /\b(secret|hyper|rainbow|illustration|special illustration|gold|shiny|radiant|amazing|ace spec|character rare|trainer gallery|gallery|alt|alternate|full art|ultra|prism)\b/;
+function msCardTier(card, ms){
+  var rar=(card.rarity||'').toLowerCase();
+  if(MS_SPECIAL_RAR.test(rar)) return 'special';
+  var pt=ms&&(ms.printedTotal||0);
+  if(pt>0){
+    var n=parseInt((card.num||'').replace(/[^0-9].*$/,''),10);
+    if(n>0&&n>pt) return 'special';
+  }
+  return 'base';
+}
+function msSetHasSpecial(ms){
+  return (ms.cards||[]).some(function(c){ return msCardTier(c,ms)==='special'; });
+}
+function msVisibleVariants(ms){
+  var hidden=(ms&&ms.hiddenVars)||[];
+  return (ms.variants||[]).filter(function(v){ return hidden.indexOf(v)<0; });
+}
+function cardApplicableVariants(card, ms){
+  var available=(ms&&ms.variants)?ms.variants:[];
+  if(!available.length) return [];
+  var rarity=(card.rarity||'').toLowerCase().trim();
+  var supertype=(card.supertype||'').toLowerCase();
+  var subtypes=Array.isArray(card.subtypes)?card.subtypes.map(function(s){return (s||'').toLowerCase();}):[];
+  var reverseTypes={'Reverse Holo':1,'Pokeball Holo':1,'Masterball Holo':1};
+  var universalTypes={'Stamped':1};
+  var isBasicEnergy=supertype==='energy'&&subtypes.indexOf('basic')>=0;
+  var isHoloRarity=!isBasicEnergy&&(
+    /\bholo\b/.test(rarity) ||
+    /\b(ultra|secret|illustration|hyper|rainbow|amazing|radiant|shining|crystal|legend|break|prime|prism|double|shiny)\b/.test(rarity) ||
+    /trainer gallery|ace spec/.test(rarity)
+  );
+  var isPromo=!isBasicEnergy&&!isHoloRarity&&/\bpromo\b/.test(rarity);
+  var filtered;
+  if(isHoloRarity){
+    filtered=available.filter(function(v){ return v==='Holo'||v==='Cosmo Holo'||universalTypes[v]; });
+  } else if(isPromo){
+    filtered=available.slice();
+  } else {
+    filtered=available.filter(function(v){ return v==='Normal'||reverseTypes[v]||universalTypes[v]; });
+  }
+  if(!filtered.length) return available.slice();
+  return filtered;
+}
+
+// ─── filtraggio carte (mirror di msFilteredCards) ───
+function msvFilteredCards(){
+  var ms=V.ms; if(!ms) return [];
+  var fName=V.search.toLowerCase();
+  return (ms.cards||[]).filter(function(c){
+    if(fName && (c.name||'').toLowerCase().indexOf(fName)<0 && (c.num||'').indexOf(fName)<0) return false;
+    if(V.fRarity && c.rarity!==V.fRarity) return false;
+    if(V.fTier && msCardTier(c,ms)!==V.fTier) return false;
+    if(V.fVar){
+      var applic=cardApplicableVariants(c,ms);
+      var relevant=applic.indexOf(V.fVar)>=0 || qtyTotal(c,V.fVar)>0;
+      if(!relevant) return false;
+      var own=msVarOwned(c,V.fVar);
+      if(V.fOwned==='owned' && !own) return false;
+      if(V.fOwned==='missing' && own) return false;
+    } else {
+      if(V.fOwned==='owned' && !qtyAnyOwned(c)) return false;
+      if(V.fOwned==='missing' && qtyAnyOwned(c)) return false;
+    }
+    return true;
+  });
+}
+
+// ─── token dalla URL ───
+function getTokenFromURL(){
+  var sp=new URLSearchParams(window.location.search);
+  return (sp.get('t')||sp.get('token')||'').trim();
+}
+function setState(html){
+  document.getElementById('pcStateHost').innerHTML=html;
+  document.getElementById('pcGrid').style.display='none';
+  document.getElementById('pcListWrap').style.display='none';
+}
+
+async function msvLoad(){
+  var token=getTokenFromURL();
+  if(!token){
+    setState('<div class="pc-state"><div class="pc-state-icon">🔒</div><div class="pc-state-title">Link non valido</div><div class="pc-state-msg">Manca il parametro di condivisione. Richiedi al proprietario un link nel formato <code>masterset-share.html?t=…</code>.</div><a class="pc-cta-btn" href="https://www.rareblock.eu">Vai a RareBlock</a></div>');
+    document.getElementById('pcTitle').textContent='Link non valido';
+    document.getElementById('pcSubtitle').textContent='';
+    return;
+  }
+  setState('<div class="pc-state"><div class="pc-state-icon">⌛</div><div class="pc-state-title" style="font-size:16px">Carico la mancolista…</div></div>');
+  try{
+    var r=await fetch(SUPA_URL+'/rest/v1/rpc/get_public_masterset',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY},
+      body:JSON.stringify({p_token:token})
+    });
+    if(!r.ok){ var t=await r.text(); throw new Error('HTTP '+r.status+': '+t); }
+    var res=await r.json();
+    if(!res || res.ok!==true || !res.masterset){
+      setState('<div class="pc-state"><div class="pc-state-icon">📭</div><div class="pc-state-title">Mancolista non disponibile</div><div class="pc-state-msg">Il link potrebbe essere scaduto, disattivato o non più valido. Richiedi al proprietario un link aggiornato.</div><a class="pc-cta-btn" href="https://www.rareblock.eu">Scopri RareBlock</a></div>');
+      document.getElementById('pcTitle').textContent='Mancolista non disponibile';
+      document.getElementById('pcSubtitle').textContent='';
+      return;
+    }
+    V.ms=res.masterset;
+    if(!Array.isArray(V.ms.cards)) V.ms.cards=[];
+    V.meta={title:res.title,owner_name:res.owner_name,view_count:res.view_count,created_at:res.created_at};
+    // applica il filtro salvato nello share come stato iniziale
+    var f=res.filter||{};
+    V.fOwned=f.owned||'';
+    V.fVar=f.variant||'';
+    V.fTier=f.tier||'';
+    V.fRarity=f.rarity||'';
+    V.search=f.search||'';
+    V.view=(f.view==='list')?'list':'grid';
+    // sync UI controls
+    document.getElementById('pcSearch').value=V.search;
+    document.getElementById('pcOwned').value=V.fOwned;
+    msvSyncViewButtons();
+
+    msvRenderHeader();
+    msvBuildChips();
+    document.getElementById('pcStats').style.display='flex';
+    document.getElementById('pcToolbar').style.display='flex';
+    document.getElementById('pcFbar').style.display='flex';
+    msvRender();
+
+    // best-effort: incrementa view counter
+    fetch(SUPA_URL+'/rest/v1/rpc/incr_masterset_share_view',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY},
+      body:JSON.stringify({p_token:token})
+    }).catch(function(){});
+  }catch(e){
+    setState('<div class="pc-state"><div class="pc-state-icon">⚠️</div><div class="pc-state-title">Errore di caricamento</div><div class="pc-state-msg" style="color:var(--danger)">'+escapeHtml(e.message||'sconosciuto')+'</div><a class="pc-cta-btn" href="https://www.rareblock.eu">Vai a RareBlock</a></div>');
+    document.getElementById('pcTitle').textContent='Errore di caricamento';
+    document.getElementById('pcSubtitle').textContent='';
+  }
+}
+
+function msvRenderHeader(){
+  var ms=V.ms, m=V.meta||{};
+  document.getElementById('pcTitle').textContent=m.title||('Mancolista '+(ms.setName||''));
+  var sub=[ms.setName, ms.lang].filter(Boolean).join(' · ');
+  document.getElementById('pcSubtitle').textContent=sub+' · Vista pubblica · sola lettura';
+  var meta=[];
+  if(m.owner_name) meta.push('<span class="pc-share-meta-item">👤 '+escapeHtml(m.owner_name)+'</span>');
+  if(ms.location) meta.push('<span class="pc-share-meta-item">📍 '+escapeHtml(ms.location)+'</span>');
+  if(ms.setSeries) meta.push('<span class="pc-share-meta-item">'+escapeHtml(ms.setSeries)+'</span>');
+  document.getElementById('pcShareMeta').innerHTML=meta.join('');
+  document.title=(m.title||('Mancolista '+(ms.setName||'')))+' · RareBlock';
+}
+
+function msvRenderStats(){
+  var ms=V.ms;
+  var all=ms.cards||[];
+  var owned=all.filter(function(c){return qtyAnyOwned(c);}).length;
+  var pct=all.length?Math.round(owned/all.length*100):0;
+  var missVisible=msvFilteredCards().filter(function(c){
+    return V.fVar ? !msVarOwned(c,V.fVar) : !qtyAnyOwned(c);
+  }).length;
+  var html='';
+  html+='<div class="pc-stat-cell"><div class="pc-stat-val">'+owned+'/'+all.length+'</div><div class="pc-stat-lbl">Carte possedute</div></div>';
+  html+='<div class="pc-stat-cell"><div class="pc-stat-val gold">'+pct+'%</div><div class="pc-stat-lbl">Completamento</div><div class="pc-prog"><div class="pc-prog-fill" style="width:'+pct+'%"></div></div></div>';
+  if(msSetHasSpecial(ms)){
+    var base=all.filter(function(c){return msCardTier(c,ms)==='base';});
+    var spec=all.filter(function(c){return msCardTier(c,ms)==='special';});
+    var baseOwn=base.filter(function(c){return qtyAnyOwned(c);}).length;
+    var specOwn=spec.filter(function(c){return qtyAnyOwned(c);}).length;
+    html+='<div class="pc-stat-cell"><div class="pc-stat-val">'+baseOwn+'/'+base.length+'</div><div class="pc-stat-lbl">Base</div></div>';
+    html+='<div class="pc-stat-cell"><div class="pc-stat-val gold">'+specOwn+'/'+spec.length+'</div><div class="pc-stat-lbl">Fuoriserie</div></div>';
+  }
+  html+='<div class="pc-stat-cell"><div class="pc-stat-val miss">'+missVisible+'</div><div class="pc-stat-lbl">Mancanti nel filtro</div></div>';
+  document.getElementById('pcStats').innerHTML=html;
+}
+
+// chip varianti (solo varianti visibili del set) + tier (se presente)
+function msvBuildChips(){
+  var ms=V.ms;
+  var vis=msVisibleVariants(ms);
+  var html='';
+  html+='<span class="pc-fchip-lbl">Variante</span><div class="pc-fchip-group">';
+  html+='<button class="pc-fchip'+(V.fVar===''?' active':'')+'" type="button" onclick="msvSetVar(\'\')">Tutte</button>';
+  vis.forEach(function(v){
+    html+='<button class="pc-fchip'+(V.fVar===v?' active':'')+'" type="button" onclick="msvSetVar(\''+escapeHtml(v).replace(/'/g,"\\'")+'\')">'+escapeHtml(v)+'</button>';
+  });
+  html+='</div>';
+  if(msSetHasSpecial(ms)){
+    html+='<span class="pc-fchip-sep"></span><span class="pc-fchip-lbl">Tipo</span><div class="pc-fchip-group">';
+    html+='<button class="pc-fchip'+(V.fTier===''?' active':'')+'" type="button" onclick="msvSetTier(\'\')">Tutte</button>';
+    html+='<button class="pc-fchip'+(V.fTier==='base'?' active':'')+'" type="button" onclick="msvSetTier(\'base\')">Base</button>';
+    html+='<button class="pc-fchip'+(V.fTier==='special'?' active':'')+'" type="button" onclick="msvSetTier(\'special\')">Fuoriserie</button>';
+    html+='</div>';
+  }
+  document.getElementById('pcFbar').innerHTML=html;
+}
+
+// ─── render dispatch ───
+function msvRender(){
+  var cards=msvFilteredCards();
+  msvRenderStats();
+  document.getElementById('pcResultCount').textContent=cards.length+' carte';
+  var grid=document.getElementById('pcGrid');
+  var listWrap=document.getElementById('pcListWrap');
+  document.getElementById('pcStateHost').innerHTML='';
+  if(V.view==='list'){
+    grid.style.display='none'; listWrap.style.display='block';
+    msvRenderList(cards);
+  } else {
+    grid.style.display='grid'; listWrap.style.display='none';
+    msvRenderGrid(cards);
+  }
+}
+
+function msvRenderGrid(cards){
+  var ms=V.ms;
+  var grid=document.getElementById('pcGrid');
+  grid.innerHTML='';
+  if(!cards.length){ grid.innerHTML='<div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--text-subtle);font-size:13px">Nessuna carta corrisponde ai filtri</div>'; return; }
+  var vis=msVisibleVariants(ms);
+  var frag=document.createDocumentFragment();
+  cards.forEach(function(card){
+    var applic=cardApplicableVariants(card,ms);
+    var owned=V.fVar?msVarOwned(card,V.fVar):qtyAnyOwned(card);
+    var tier=msCardTier(card,ms);
+    var tile=document.createElement('div');
+    tile.className='ms-card'+(owned?'':' missing');
+    var inner='<div class="ms-card-thumb">';
+    inner+='<span class="ms-card-badge '+(owned?'owned':'missing')+'">'+(owned?'OK':'MANCA')+'</span>';
+    if(tier==='special') inner+='<span class="ms-card-tier">FUORISERIE</span>';
+    if(card.img) inner+='<img src="'+escapeHtml(card.img)+'" loading="lazy" alt="">';
+    else inner+='<div class="ph">?</div>';
+    inner+='</div><div class="ms-card-info">';
+    inner+='<div class="ms-card-num">#'+escapeHtml(card.num||'')+'</div>';
+    inner+='<div class="ms-card-name" title="'+escapeHtml(card.name||'')+'">'+escapeHtml(card.name||'')+'</div>';
+    var pills='';
+    vis.forEach(function(v){
+      if(applic.indexOf(v)<0 && qtyTotal(card,v)===0) return;
+      var has=qtyTotal(card,v)>0;
+      var short=v.replace('Reverse Holo','REV').replace('Cosmo Holo','COS').replace('Pokeball Holo','PB').replace('Masterball Holo','MB').replace('Holo','HOLO').replace('Normal','NORM').replace('Stamped','STMP');
+      pills+='<span class="ms-vpill '+(has?'has':'miss')+'">'+escapeHtml(short)+(has?(' '+qtyTotal(card,v)):'')+'</span>';
+    });
+    if(pills) inner+='<div class="ms-card-vars">'+pills+'</div>';
+    inner+='</div>';
+    tile.innerHTML=inner;
+    frag.appendChild(tile);
+  });
+  grid.appendChild(frag);
+}
+
+function msvRenderList(cards){
+  var ms=V.ms;
+  var vis=msVisibleVariants(ms);
+  document.getElementById('pcListHead').innerHTML=
+    '<th></th><th>#</th><th>Nome</th><th>Rarità</th>'+
+    vis.map(function(v){return '<th class="vc">'+escapeHtml(v)+'</th>';}).join('');
+  var tb=document.getElementById('pcListBody');
+  tb.innerHTML='';
+  if(!cards.length){ tb.innerHTML='<tr><td colspan="'+(4+vis.length)+'" style="text-align:center;padding:36px;color:var(--text-subtle)">Nessuna carta corrisponde ai filtri</td></tr>'; return; }
+  var frag=document.createDocumentFragment();
+  cards.forEach(function(card){
+    var applic=cardApplicableVariants(card,ms);
+    var applicMap={}; applic.forEach(function(v){applicMap[v]=1;});
+    var hasAny=qtyAnyOwned(card);
+    var tr=document.createElement('tr');
+    if(hasAny) tr.className='ms-owned';
+    var cells='<td>'+(card.img?'<img class="pc-li-img" src="'+escapeHtml(card.img)+'" loading="lazy" alt="">':'<div class="pc-li-ph">?</div>')+'</td>';
+    cells+='<td class="pc-li-num">'+escapeHtml(card.num||'')+'</td>';
+    cells+='<td>'+escapeHtml(card.name||'')+'</td>';
+    cells+='<td style="color:var(--text-muted);font-size:11px">'+escapeHtml(card.rarity||'')+'</td>';
+    vis.forEach(function(v){
+      if(!applicMap[v] && qtyTotal(card,v)===0){ cells+='<td class="pc-li-vc pc-li-na">—</td>'; return; }
+      var n=qtyTotal(card,v);
+      cells+='<td class="pc-li-vc">'+(n>0?('<span class="yes">'+n+'</span>'):'<span class="no">·</span>')+'</td>';
+    });
+    tr.innerHTML=cells;
+    frag.appendChild(tr);
+  });
+  tb.appendChild(frag);
+}
+
+// ─── interazioni (read-only navigation) ───
+function msvSetView(v){ V.view=(v==='list')?'list':'grid'; msvSyncViewButtons(); msvRender(); }
+function msvSyncViewButtons(){
+  var g=document.getElementById('pcViewGridBtn'), l=document.getElementById('pcViewListBtn');
+  if(V.view==='list'){ g.classList.remove('active'); l.classList.add('active'); }
+  else { l.classList.remove('active'); g.classList.add('active'); }
+}
+function msvOnSearch(){ V.search=(document.getElementById('pcSearch').value||'').trim(); msvRender(); }
+function msvOnOwnedChange(){ V.fOwned=document.getElementById('pcOwned').value||''; msvRender(); }
+function msvSetVar(v){ V.fVar=v; msvBuildChips(); msvRender(); }
+function msvSetTier(t){ V.fTier=t; msvBuildChips(); msvRender(); }
+
+// ─── export mancolista (CSV) per l'utente esterno ───
+function msvMissingRows(){
+  var ms=V.ms;
+  var vis=msVisibleVariants(ms);
+  var fName=V.search.toLowerCase();
+  var out=[];
+  (ms.cards||[]).forEach(function(c){
+    if(fName && (c.name||'').toLowerCase().indexOf(fName)<0 && (c.num||'').indexOf(fName)<0) return;
+    if(V.fRarity && c.rarity!==V.fRarity) return;
+    if(V.fTier && msCardTier(c,ms)!==V.fTier) return;
+    var applic=cardApplicableVariants(c,ms);
+    var vars=V.fVar?[V.fVar]:vis.filter(function(v){return applic.indexOf(v)>=0;});
+    vars.forEach(function(v){
+      if(applic.indexOf(v)<0 && qtyTotal(c,v)===0 && !V.fVar) return;
+      if(qtyTotal(c,v)===0) out.push({card:c,variant:v});
+    });
+  });
+  return out;
+}
+function msvExportMissing(){
+  var ms=V.ms; if(!ms) return;
+  var rows=msvMissingRows();
+  if(!rows.length){ alert('Nessuna carta mancante con i filtri attivi 🎉'); return; }
+  var lines=['#,Nome,Rarita,Variante,Tipo'];
+  rows.forEach(function(r){
+    lines.push([r.card.num,'"'+(r.card.name||'').replace(/"/g,'""')+'"','"'+(r.card.rarity||'')+'"','"'+r.variant+'"',(msCardTier(r.card,ms)==='special'?'Fuoriserie':'Base')].join(','));
+  });
+  var a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(lines.join('\n'));
+  a.download='mancolista_'+(ms.setName||'set').replace(/\s+/g,'_')+'_'+(ms.lang||'')+'.csv';
+  a.click();
+}
+
+document.addEventListener('DOMContentLoaded', msvLoad);
+</script>
+</body>
+</html>
