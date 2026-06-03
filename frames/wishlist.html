@@ -9,22 +9,24 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="../shared/rareblock-shared.css"/>
 <style>
-/* ═══ WISHLIST — refactor: backed by hunt_targets, mirrors Analizza picker ═══ */
+/* === WISHLIST -- refactor 2026-06 ====================================
+   Caricamento carta: riusa l'engine del parent (window.parent.rbCardSearch)
+   come Collezione e Preventivi (DRY). Campi specifici wishlist: priorita',
+   soglia alert, prezzo max, monitoraggio. Niente campi collezione
+   (condizione/quantita'/acquisto/vendita).
+   ==================================================================== */
 html,body{height:100%;overflow:hidden}
 body{display:flex;flex-direction:column}
 
-/* Stats banner */
 .wl-stats{display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)}
 .wl-stat{flex:1;padding:10px 12px;text-align:center;border-right:1px solid var(--border)}
 .wl-stat:last-child{border-right:none}
 .wl-stat-val{font-size:16px;font-weight:600;font-family:var(--mono);letter-spacing:-.01em}
 .wl-stat-lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
 
-/* Layout split */
 .wl-layout{display:flex;flex:1;overflow:hidden;min-height:0}
 
-/* Sidebar (add form) */
-.wl-sidebar{width:320px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);overflow-y:auto;display:flex;flex-direction:column}
+.wl-sidebar{width:340px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);overflow-y:auto;display:flex;flex-direction:column}
 .wl-sidebar-block{padding:14px;border-bottom:1px solid var(--border)}
 .wl-sidebar-block:last-child{border-bottom:none}
 .wl-sidebar-block h3{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.14em;margin:0 0 12px 0;font-family:var(--mono);display:flex;align-items:center;gap:8px}
@@ -38,7 +40,40 @@ body{display:flex;flex-direction:column}
 .wl-field-set{position:relative}
 .wl-field-set #wlSetPicker input{height:30px;font-size:12.5px;padding:6px 8px}
 
-/* Segmented Raw/Graded toggle (cloned from analizza) */
+.wl-search-row{display:flex;gap:6px;align-items:flex-end;margin-bottom:8px}
+.wl-search-row .wl-field{flex:1;margin-bottom:0}
+.wl-search-row .btn{height:30px;padding:0 12px;font-size:11.5px;white-space:nowrap;flex-shrink:0}
+.wl-jp{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted);cursor:pointer;font-family:var(--font);margin-bottom:8px;user-select:none}
+.wl-jp input{width:auto;height:auto}
+
+.wl-results{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px;scrollbar-width:thin}
+.wl-results:empty{display:none}
+.wl-thumb{flex:0 0 92px;width:92px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:6px;cursor:pointer;transition:.12s;text-align:center}
+.wl-thumb:hover{border-color:var(--accent)}
+.wl-thumb.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.wl-thumb img{width:100%;height:auto;max-height:116px;object-fit:contain;border-radius:3px;display:block}
+.wl-thumb-ph{width:100%;height:116px;display:flex;align-items:center;justify-content:center;color:var(--text-subtle);font-size:10px;background:var(--surface)}
+.wl-thumb-name{font-size:10.5px;font-weight:600;color:var(--text);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wl-thumb-set{font-size:9px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wl-thumb-num{font-size:9px;font-family:var(--mono);color:var(--text-subtle)}
+.wl-thumb-extra{font-size:9px;margin-top:2px;display:flex;gap:3px;justify-content:center;flex-wrap:wrap}
+.wl-thumb-rarity{color:var(--text-muted)}
+.wl-thumb-price{font-family:var(--mono);font-weight:600}
+.wl-thumb-price-low{color:var(--text-muted)}
+.wl-thumb-price-mid{color:var(--text)}
+.wl-thumb-price-high{color:var(--accent)}
+.wl-thumb-price-premium{color:var(--accent);font-weight:700}
+
+.wl-picked{display:none;gap:10px;align-items:center;padding:10px;background:var(--surface2);border:1px solid rgba(201,169,110,.3);border-radius:var(--r);margin-bottom:10px}
+.wl-picked.show{display:flex}
+.wl-picked-img{width:44px;height:60px;object-fit:cover;border-radius:3px;background:var(--surface);flex-shrink:0;border:1px solid var(--border)}
+.wl-picked-body{flex:1;min-width:0}
+.wl-picked-name{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wl-picked-meta{font-size:10.5px;font-family:var(--mono);color:var(--text-muted);margin-top:2px}
+.wl-picked-price{font-size:11.5px;font-family:var(--mono);color:var(--accent);font-weight:600;margin-top:3px}
+.wl-picked-change{background:transparent;border:1px solid var(--border);color:var(--text-muted);font-size:10px;padding:4px 8px;border-radius:var(--r);cursor:pointer;flex-shrink:0;font-family:var(--mono)}
+.wl-picked-change:hover{border-color:var(--accent);color:var(--text)}
+
 .wl-seg{display:inline-flex;gap:0;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;background:var(--surface2);width:100%}
 .wl-seg-btn{flex:1;background:transparent;border:none;color:var(--text-muted);padding:6px 10px;font-size:11.5px;cursor:pointer;font-family:var(--font);letter-spacing:.02em;transition:.12s}
 .wl-seg-btn:hover{color:var(--text)}
@@ -48,32 +83,15 @@ body{display:flex;flex-direction:column}
 .wl-checkbox-row label{display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-family:var(--font);text-transform:none;letter-spacing:0;font-size:11.5px;color:var(--text);margin:0}
 .wl-checkbox-row input{width:auto;height:auto}
 
-.wl-cm-lookup{display:flex;gap:6px;align-items:flex-end}
-.wl-cm-lookup .wl-field{flex:1;margin-bottom:0}
-.wl-cm-lookup .btn{height:30px;padding:0 10px;font-size:11px;white-space:nowrap}
-
-.wl-lookup-results{margin-top:6px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);max-height:280px;overflow-y:auto}
-.wl-lookup-header{padding:6px 10px;font-size:10.5px;font-family:var(--mono);color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,.15)}
-.wl-lookup-header .wl-lookup-close{cursor:pointer;color:var(--text-muted);font-size:14px;line-height:1;padding:2px 6px;border-radius:3px;transition:.15s}
-.wl-lookup-header .wl-lookup-close:hover{background:var(--surface);color:var(--text)}
-.wl-cand{display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;transition:.12s;font-size:12px}
-.wl-cand:last-child{border-bottom:none}
-.wl-cand:hover{background:rgba(184,151,96,.06);padding-left:14px}
-.wl-cand-img{width:32px;height:44px;object-fit:cover;border-radius:3px;background:var(--surface);flex-shrink:0;border:1px solid var(--border)}
-.wl-cand-body{flex:1;min-width:0}
-.wl-cand-name{font-weight:600;color:var(--text);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.wl-cand-meta{font-size:10.5px;font-family:var(--mono);color:var(--text-muted);margin-top:2px;letter-spacing:.03em}
-.wl-cand-price{font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:600;text-align:right;white-space:nowrap;padding-left:6px}
-.wl-cand-price-empty{color:var(--text-muted);font-weight:400}
-
 .wl-status{font-size:11.5px;font-family:var(--mono);padding:6px 0;min-height:20px;letter-spacing:.02em}
 .wl-status.ok{color:var(--success)}
 .wl-status.err{color:var(--danger)}
 .wl-status.info{color:var(--text-muted)}
+.wl-status.warn{color:var(--warning)}
 
 .wl-add-btn{width:100%;margin-top:6px}
+.wl-hint{font-size:10px;color:var(--text-subtle);font-style:italic;line-height:1.4;margin-top:4px}
 
-/* Main panel */
 .wl-main{flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0}
 .wl-toolbar{padding:10px 14px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .wl-toolbar input[type=text]{flex:1;min-width:140px;max-width:260px;height:30px;font-size:12.5px;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);outline:none}
@@ -86,14 +104,14 @@ body{display:flex;flex-direction:column}
 .wl-empty-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
 .wl-empty-sub{font-size:12px;line-height:1.5}
 
-/* Wishlist row card */
 .wl-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;display:flex;gap:14px;align-items:flex-start;transition:border-color .12s,background .12s;position:relative}
 .wl-row:hover{border-color:var(--text-subtle)}
 .wl-row.paused{opacity:.6}
+.wl-row.snoozed{opacity:.7}
 .wl-row.has-hot-deal{border-left:3px solid var(--danger);background:rgba(213,86,86,.025)}
 .wl-row.has-good-deal{border-left:3px solid var(--warning)}
 
-.wl-row-prio{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px;padding-top:2px;min-width:24px}
+.wl-row-prio{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px;padding-top:2px;min-width:26px;cursor:pointer}
 .wl-row-prio-dot{width:10px;height:10px;border-radius:50%;background:var(--text-subtle);transition:.12s}
 .wl-row-prio-dot.p5{background:var(--accent);box-shadow:0 0 6px rgba(201,169,110,.45)}
 .wl-row-prio-dot.p4{background:var(--accent);opacity:.85}
@@ -119,12 +137,19 @@ body{display:flex;flex-direction:column}
 .wl-row-prices .good{color:var(--success)}
 .wl-row-prices .bad{color:var(--danger)}
 
-.wl-row-deals{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-family:var(--mono);color:var(--text-muted)}
+.wl-row-deals{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-family:var(--mono);color:var(--text-muted);flex-wrap:wrap}
 .wl-row-deals.has{color:var(--text)}
 .wl-row-deals .deal-score{padding:1px 6px;border-radius:3px;font-weight:600}
 .wl-row-deals .deal-score.hot{background:rgba(213,86,86,.18);color:var(--danger)}
 .wl-row-deals .deal-score.good{background:rgba(184,151,96,.18);color:var(--warning)}
 .wl-row-deals .deal-score.mid{background:rgba(125,133,144,.14);color:var(--text)}
+
+.wl-row-mon{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:10.5px;font-family:var(--mono);color:var(--text-muted);margin-top:3px}
+.wl-row-mon label{display:inline-flex;align-items:center;gap:5px}
+.wl-row-mon .wl-mini-input{width:48px;height:22px;font-size:11px;padding:2px 5px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;color:var(--text);outline:none;font-family:var(--mono)}
+.wl-row-mon .wl-mini-input:focus{border-color:var(--accent)}
+.wl-row-mon select.wl-mini-input{width:auto;padding-right:4px}
+.wl-snooze-badge{color:var(--warning)}
 
 .wl-row-notes{font-size:11.5px;color:var(--text-muted);font-style:italic;line-height:1.4;margin-top:2px;white-space:pre-wrap;word-break:break-word}
 
@@ -133,16 +158,17 @@ body{display:flex;flex-direction:column}
 .wl-row-actions .icon-btn{background:transparent;border:1px solid var(--border);color:var(--text-muted);width:28px;height:28px;border-radius:var(--r);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:.12s}
 .wl-row-actions .icon-btn:hover{border-color:var(--accent);color:var(--text)}
 .wl-row-actions .icon-btn.danger:hover{border-color:var(--danger);color:var(--danger)}
+.wl-row-actions .icon-btn.active{border-color:var(--warning);color:var(--warning)}
 
 .wl-status-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-family:var(--mono);padding:2px 8px;border-radius:10px;letter-spacing:.04em;text-transform:uppercase}
 .wl-status-badge.active{background:rgba(122,154,110,.14);color:var(--success);border:1px solid rgba(122,154,110,.3)}
 .wl-status-badge.paused{background:rgba(125,133,144,.1);color:var(--text-muted);border:1px solid var(--border)}
+.wl-status-badge.snoozed{background:rgba(184,151,96,.1);color:var(--warning);border:1px solid rgba(184,151,96,.25)}
 .wl-status-badge.legacy{background:rgba(184,151,96,.1);color:var(--warning);border:1px solid rgba(184,151,96,.25)}
 
-/* Responsive */
 @media (max-width: 880px){
   .wl-layout{flex-direction:column}
-  .wl-sidebar{width:auto;max-height:48vh;border-right:none;border-bottom:1px solid var(--border)}
+  .wl-sidebar{width:auto;max-height:52vh;border-right:none;border-bottom:1px solid var(--border)}
   .wl-row{flex-wrap:wrap}
   .wl-row-actions{margin-left:0;max-width:none;width:100%;justify-content:flex-start;padding-top:6px;border-top:1px solid var(--border);margin-top:4px}
 }
@@ -150,43 +176,56 @@ body{display:flex;flex-direction:column}
 </head>
 <body>
 
-<!-- Stats banner -->
 <div class="wl-stats" id="wlStats">
-  <div class="wl-stat"><div class="wl-stat-val" id="wlStTotal">—</div><div class="wl-stat-lbl">Carte in lista</div></div>
-  <div class="wl-stat"><div class="wl-stat-val" id="wlStActive" style="color:var(--success)">—</div><div class="wl-stat-lbl"><span class="rb-dot rb-dot-on"></span> Attive ora</div></div>
-  <div class="wl-stat"><div class="wl-stat-val" id="wlStOpps">—</div><div class="wl-stat-lbl">Opportunità totali</div></div>
-  <div class="wl-stat"><div class="wl-stat-val" id="wlStTopScore" style="color:var(--accent)">—</div><div class="wl-stat-lbl">Top deal score</div></div>
+  <div class="wl-stat"><div class="wl-stat-val" id="wlStTotal">&mdash;</div><div class="wl-stat-lbl">Carte in lista</div></div>
+  <div class="wl-stat"><div class="wl-stat-val" id="wlStActive" style="color:var(--success)">&mdash;</div><div class="wl-stat-lbl"><span class="rb-dot rb-dot-on"></span> Attive ora</div></div>
+  <div class="wl-stat"><div class="wl-stat-val" id="wlStOpps">&mdash;</div><div class="wl-stat-lbl">Opportunita' totali</div></div>
+  <div class="wl-stat"><div class="wl-stat-val" id="wlStTopScore" style="color:var(--accent)">&mdash;</div><div class="wl-stat-lbl">Top deal score</div></div>
 </div>
 
 <div class="wl-layout">
 
-  <!-- ═══ Sidebar: form aggiungi ═══ -->
   <aside class="wl-sidebar">
 
-    <!-- Block 1: identità carta -->
     <div class="wl-sidebar-block">
-      <h3>Aggiungi alla wishlist</h3>
+      <h3>Cerca carta da monitorare</h3>
 
-      <div class="wl-field">
-        <label for="wlName">Carta *</label>
-        <input type="text" id="wlName" placeholder="es. Charizard" autocomplete="off"
-               onkeydown="if(event.key==='Enter')document.getElementById('wlNumber').focus()"/>
+      <div class="wl-search-row">
+        <div class="wl-field">
+          <label for="wlName">Nome (+ numero)</label>
+          <input type="text" id="wlName" placeholder="es. Charizard 4" autocomplete="off"
+                 onkeydown="if(event.key==='Enter')wlSearch()"/>
+        </div>
+        <button type="button" class="btn btn-primary" onclick="wlSearch()">Cerca</button>
       </div>
 
       <div class="wl-field wl-field-set">
-        <div class="wl-pseudo-label">Set</div>
+        <div class="wl-pseudo-label">Set (opzionale)</div>
         <div id="wlSetPicker" style="position:relative"></div>
       </div>
 
-      <div class="wl-field">
-        <label for="wlNumber">Numero (opz.)</label>
-        <input type="text" id="wlNumber" placeholder="es. 4/102" autocomplete="off"/>
+      <label class="wl-jp" for="wlJp" title="Cerca carte giapponesi (fonte TCGdex). Ignora il filtro set.">
+        <input type="checkbox" id="wlJp"/> &#127471;&#127477; Cerca anche carte giapponesi
+      </label>
+
+      <div id="wlResults" class="wl-results"></div>
+
+      <div id="wlPicked" class="wl-picked">
+        <img id="wlPickedImg" class="wl-picked-img" alt=""/>
+        <div class="wl-picked-body">
+          <div class="wl-picked-name" id="wlPickedName">&mdash;</div>
+          <div class="wl-picked-meta" id="wlPickedMeta">&mdash;</div>
+          <div class="wl-picked-price" id="wlPickedPrice"></div>
+        </div>
+        <button type="button" class="wl-picked-change" onclick="wlClearPicked()">&#8634; Cambia</button>
       </div>
+
+      <div id="wlStatus" class="wl-status"></div>
+      <div class="wl-hint">Cerca come in collezione, poi scegli la stampa giusta. Oppure compila i campi sotto e aggiungi manualmente.</div>
     </div>
 
-    <!-- Block 2: modalità (Raw/Gradata) + attributi -->
     <div class="wl-sidebar-block">
-      <h3>Modalità ricerca</h3>
+      <h3>Cosa cercare</h3>
 
       <div class="wl-field">
         <div class="wl-seg" role="tablist">
@@ -219,21 +258,19 @@ body{display:flex;flex-direction:column}
         </div>
       </div>
 
-      <!-- RAW-only fields -->
       <div id="wlRawFields">
         <div class="wl-checkbox-row">
-          <label><input type="checkbox" id="wlFirstEd"/> 1ª edizione</label>
+          <label><input type="checkbox" id="wlFirstEd"/> 1&ordf; edizione</label>
           <label><input type="checkbox" id="wlShadowless"/> Shadowless</label>
         </div>
       </div>
 
-      <!-- GRADED-only fields -->
       <div id="wlGradedFields" style="display:none">
         <div class="wl-field-row">
           <div class="wl-field">
             <label for="wlHouse">Casa</label>
             <select id="wlHouse">
-              <option value="">— qualsiasi —</option>
+              <option value="">&mdash; qualsiasi &mdash;</option>
               <option value="PSA" selected>PSA</option>
               <option value="BGS">BGS</option>
               <option value="CGC">CGC</option>
@@ -244,7 +281,7 @@ body{display:flex;flex-direction:column}
           <div class="wl-field">
             <label for="wlMinGrade">Grado min.</label>
             <select id="wlMinGrade">
-              <option value="">— qualsiasi —</option>
+              <option value="">&mdash; qualsiasi &mdash;</option>
               <option value="10">10</option>
               <option value="9.5">9.5</option>
               <option value="9" selected>9</option>
@@ -257,46 +294,40 @@ body{display:flex;flex-direction:column}
       </div>
     </div>
 
-    <!-- Block 3: prezzi + soglie -->
     <div class="wl-sidebar-block">
-      <h3>Budget &amp; soglie</h3>
+      <h3>Budget &amp; monitoraggio</h3>
 
-      <div class="wl-cm-lookup">
+      <div class="wl-field-row">
         <div class="wl-field">
-          <label for="wlRefCm">Ref CM €</label>
+          <label for="wlRefCm">Ref CM &euro;</label>
           <input type="number" id="wlRefCm" step="0.01" placeholder="0.00"/>
         </div>
-        <button type="button" class="btn" onclick="wlAutoLookup()" title="Cerca prezzo CM da TCG API">
-          <span class="rb-i rb-i-refresh"></span>
-        </button>
-      </div>
-      <div id="wlLookupResults" class="wl-lookup-results" style="display:none"></div>
-
-      <div class="wl-field">
-        <label for="wlMaxPrice">Prezzo max €</label>
-        <input type="number" id="wlMaxPrice" step="0.01" placeholder="0.00"/>
+        <div class="wl-field">
+          <label for="wlMaxPrice">Prezzo max &euro;</label>
+          <input type="number" id="wlMaxPrice" step="0.01" placeholder="0.00"/>
+        </div>
       </div>
 
       <div class="wl-field-row">
         <div class="wl-field">
-          <label for="wlPriority">Priorità</label>
+          <label for="wlPriority">Priorita'</label>
           <select id="wlPriority">
-            <option value="5">★★★★★ Top</option>
-            <option value="4">★★★★ Alta</option>
-            <option value="3" selected>★★★ Media</option>
-            <option value="2">★★ Bassa</option>
-            <option value="1">★ Quando capita</option>
+            <option value="5">&#9733;&#9733;&#9733;&#9733;&#9733; Top</option>
+            <option value="4">&#9733;&#9733;&#9733;&#9733; Alta</option>
+            <option value="3" selected>&#9733;&#9733;&#9733; Media</option>
+            <option value="2">&#9733;&#9733; Bassa</option>
+            <option value="1">&#9733; Quando capita</option>
           </select>
         </div>
         <div class="wl-field">
-          <label for="wlThreshold">Alert ≥</label>
-          <input type="number" id="wlThreshold" min="0" max="100" step="5" value="70" title="Soglia deal_score per alert"/>
+          <label for="wlThreshold">Alert &ge;</label>
+          <input type="number" id="wlThreshold" min="0" max="100" step="5" value="70" title="Soglia deal_score per far scattare l'alert"/>
         </div>
       </div>
 
       <div class="wl-field">
         <label for="wlNotes">Note</label>
-        <input type="text" id="wlNotes" placeholder="es. Per la collezione, urgente…"/>
+        <input type="text" id="wlNotes" placeholder="es. Per la collezione, urgente..."/>
       </div>
 
       <div class="wl-checkbox-row">
@@ -304,36 +335,34 @@ body{display:flex;flex-direction:column}
       </div>
     </div>
 
-    <!-- Block 4: action -->
     <div class="wl-sidebar-block">
       <button class="btn btn-primary wl-add-btn" onclick="wlAdd()">
         <span class="rb-i rb-i-star"></span> Aggiungi alla wishlist
       </button>
-      <div id="wlStatus" class="wl-status"></div>
     </div>
 
   </aside>
 
-  <!-- ═══ Main: lista wishlist ═══ -->
   <main class="wl-main">
 
     <div class="wl-toolbar">
-      <input type="text" id="wlFilter" placeholder="Cerca per nome, set…" oninput="wlRender()"/>
+      <input type="text" id="wlFilter" placeholder="Cerca per nome, set..." oninput="wlRender()"/>
       <select id="wlFilterStatus" onchange="wlRender()">
         <option value="">Tutti gli stati</option>
         <option value="active">Solo attivi</option>
         <option value="paused">In pausa</option>
-        <option value="has_deals">Con opportunità</option>
+        <option value="snoozed">In snooze</option>
+        <option value="has_deals">Con opportunita'</option>
         <option value="legacy">Da migrare (legacy)</option>
       </select>
       <select id="wlSort" onchange="wlRender()">
-        <option value="priority">Priorità ↓</option>
-        <option value="recent">Più recenti</option>
+        <option value="priority">Priorita' &darr;</option>
+        <option value="recent">Piu' recenti</option>
         <option value="deal">Miglior deal score</option>
-        <option value="opps">Più opportunità</option>
-        <option value="name">Nome A→Z</option>
-        <option value="price_low">Ref CM ↑</option>
-        <option value="price_high">Ref CM ↓</option>
+        <option value="opps">Piu' opportunita'</option>
+        <option value="name">Nome A&rarr;Z</option>
+        <option value="price_low">Ref CM &uarr;</option>
+        <option value="price_high">Ref CM &darr;</option>
       </select>
       <div class="wl-toolbar-sep"></div>
       <button class="btn" onclick="wlRefreshAllPrices()" title="Aggiorna ref_price_cm via TCG API per tutte le carte">
@@ -347,9 +376,9 @@ body{display:flex;flex-direction:column}
     <div class="wl-list" id="wlList">
       <div class="wl-empty" id="wlEmpty">
         <div class="wl-empty-icon"><span class="rb-i rb-i-star"></span></div>
-        <div class="wl-empty-title">La tua wishlist è vuota</div>
+        <div class="wl-empty-title">La tua wishlist e' vuota</div>
         <div class="wl-empty-sub">
-          Aggiungi le carte che vuoi monitorare nel tempo.<br/>
+          Cerca le carte che vuoi monitorare nel tempo.<br/>
           Una volta attivate, il Radar le cerca su eBay, Vinted, Subito e Catawiki<br/>
           e ti avvisa quando arrivano offerte sotto soglia o aste in scadenza.
         </div>
@@ -362,49 +391,39 @@ body{display:flex;flex-direction:column}
 
 <script src="../shared/rareblock-shared.js" defer></script>
 <script defer>
-/* ═══════════════════════════════════════════════════════════════════════════
-   WISHLIST · refactor 2026-05
-   ─────────────────────────────────────────────────────────────────────────
-   Backing storage: hunt_targets (con colonne nuove notes/wishlist_priority/source
-   aggiunte dal migration 069). La vecchia tabella `wishlist` resta in DB ma
-   non è più letta da questo frame — le righe legacy sono migrate a hunt_targets
-   con source='wishlist_legacy' e is_active=false (vedi 069 SQL).
+/* =========================================================================
+   WISHLIST LOGIC - refactor 2026-06
+   -------------------------------------------------------------------------
+   Storage: hunt_targets (colonne wishlist da migrazione 069 + 084).
+   Caricamento carta: window.parent.rbCardSearch (engine collezione, DRY).
+   Monitoraggio: cron hunt-monitor + hunt-ingest (matching server-side) +
+   controlli per-carta in lista (pausa, priorita', sensibilita' alert, snooze).
+   ========================================================================= */
 
-   Funzionalità:
-   - Selettore set via rbMountSetPicker (parent → cross-frame come Analizza)
-   - Toggle Raw/Gradata con campi condizionali
-   - Lista carte con stato, priorità, ref_price_cm, conteggio opportunità live
-   - Sort multi-criterio (priorità/recenti/deal/opps/nome/prezzo)
-   - Bottone "Apri portali" che apre 4 tab (eBay/Vinted/Subito/Catawiki)
-   - Bottone "→ Radar" che porta al feed live filtrato sul target
-   - Auto-lookup ref_price_cm via TCG API
-   - Soft polling 60s dei listings per aggiornare deal counts senza F5
-
-   I cronjob (hunt-monitor, 5min) e gli alert (push/email/telegram via
-   hunt-monitor edge function) sono già configurati a livello di hunt_targets:
-   non c'è bisogno di logica aggiuntiva, ogni target attivo viene scansionato
-   dal radar e gli alert scattano automaticamente.
-   ═════════════════════════════════════════════════════════════════════════ */
-
-var _wlTargets  = [];   // array hunt_targets dell'utente
-var _wlListings = [];   // array hunt_listings (per conteggio opportunità)
-var _wlMode     = 'raw';
+var _wlTargets  = [];     // hunt_targets dell'utente
+var _wlListings = [];     // hunt_listings (conteggio opportunita')
+var _wlMode     = 'raw';  // 'raw' | 'graded'
+var _wlPicked   = null;   // carta selezionata dalla ricerca (oggetto TCG/TCGdex)
 var _wlPollId   = null;
+var _wlHasSnooze = true;  // diventa false se lo schema non ha snooze_until (084)
 
-// ── Helper: status messaggio in sidebar ─────────────────────────────────
+/* -- Bridge verso il parent (engine condiviso) -------------------------- */
+function wlParent(){
+  return (window.parent && window.parent !== window) ? window.parent : window;
+}
+
+/* -- Status sidebar ----------------------------------------------------- */
 function wlSt(msg, kind){
   var el = document.getElementById('wlStatus');
   if(!el) return;
   el.textContent = msg || '';
   el.className = 'wl-status ' + (kind || 'info');
   if(kind === 'ok' || kind === 'err'){
-    setTimeout(function(){
-      if(el.textContent === msg) el.textContent = '';
-    }, 4500);
+    setTimeout(function(){ if(el.textContent === msg) el.textContent = ''; }, 4500);
   }
 }
 
-// ── Mode toggle Raw/Gradata ─────────────────────────────────────────────
+/* -- Toggle Raw/Gradata ------------------------------------------------- */
 function wlSetMode(mode){
   _wlMode = mode;
   document.getElementById('wlSegRaw').classList.toggle('active', mode === 'raw');
@@ -414,253 +433,196 @@ function wlSetMode(mode){
 }
 window.wlSetMode = wlSetMode;
 
-// ── Lookup prezzo CM via TCG API ────────────────────────────────────────
-// 3-tier fallback (pattern Scan, vedi pokemon-db.html ~L9300):
-//   T1: name:"X" + number:N (+ set.id se selezionato)
-//   T2: name:"X"
-//   T3: name:*FirstWord* (wildcard, recupera typo/parziali)
-// orderBy=-set.releaseDate per privilegiare la stampa più recente.
-// ── Lookup TCG API → mostra lista candidati ─────────────────────────────
-// PRINCIPIO: NIENTE auto-popolamento implicito. Lookup ritorna fino a 30
-// candidati; l'utente clicca quello giusto. Questo evita errori silenziosi
-// (es. il sistema indovina la stampa più recente quando l'utente voleva
-// quella vintage). Per set vintage / numero piccolo gli ordinamenti vengono
-// regolati per privilegiare la stampa più vecchia.
-//
-// Se c'è UN solo candidato → riempi tutto in automatico (no friction).
-// Se ≥2 candidati → mostra lista in #wlLookupResults, attesa di click.
-
-// Stato per il pick
-var _wlLookupCands = [];
-
-async function wlAutoLookup(){
-  var name = (document.getElementById('wlName').value || '').trim();
-  var num  = (document.getElementById('wlNumber').value || '').trim();
-  if(!name){ wlSt('Inserisci il nome carta prima del lookup', 'err'); return; }
-
-  // Chiudi eventuale lista precedente
-  var resEl = document.getElementById('wlLookupResults');
-  if(resEl){ resEl.style.display = 'none'; resEl.innerHTML = ''; }
-  wlSt('Cerco su TCG API…', 'info');
-
-  var safeName = name.replace(/"/g,'');
-  var numClean = num ? num.split('/')[0] : null;
-  var setSel = wlResolveSet();
-  var setFilter = (setSel && setSel.id) ? ' set.id:' + setSel.id : '';
-
-  // Quando l'utente NON ha selezionato un set ma ha specificato un numero
-  // piccolo (≤30 ⇒ probabile vintage), ordiniamo dalla più vecchia.
-  // Altrimenti dalla più recente.
-  var sortAsc = (!setFilter && numClean && parseInt(numClean,10) > 0 && parseInt(numClean,10) <= 30);
-  var orderBy = sortAsc ? '%2Bset.releaseDate' : '-set.releaseDate'; // %2B = '+'
-
-  async function tcg(q){
-    try{
-      var r = await fetch(
-        window.TCG_URL + '?q=' + encodeURIComponent(q) +
-        '&pageSize=30&orderBy=' + orderBy,
-        { headers: { 'X-Api-Key': window.TCG_KEY } }
-      );
-      if(!r.ok) return [];
-      var j = await r.json();
-      return j.data || [];
-    }catch(_){ return []; }
+/* =========================================================================
+   RICERCA CARTA - riusa l'engine del parent (come Collezione/Preventivi)
+   ------------------------------------------------------------------------
+   Chiamiamo window.parent.rbCardSearch.run({doc:document,...}): grazie a
+   opts.doc l'engine risolve gli input nel documento del FRAME, ma esegue
+   parseQuery / rbSearchCards / calcPrice nel contesto del parent (dove
+   vivono cache, set statici, ecc.). renderResultsGrid riceve il container
+   del frame e crea i nodi nel documento giusto (ownerDocument).
+   ========================================================================= */
+async function wlSearch(){
+  var p = wlParent();
+  if(!p.rbCardSearch || typeof p.rbCardSearch.run !== 'function'){
+    wlSt('Engine di ricerca non disponibile (parent non pronto)', 'err');
+    return;
   }
+  // Pulisci selezione precedente: nuova ricerca = nuovo contesto
+  wlClearPicked(true);
 
-  try{
-    var hits = [];
-    var tier = '';
-
-    // Tier 1: nome + numero (+ set se selezionato)
-    if(numClean){
-      hits = await tcg('name:"' + safeName + '" number:' + numClean + setFilter);
-      if(hits.length) tier = 'T1 (nome+num' + (setFilter ? '+set' : '') + ')';
+  await p.rbCardSearch.run({
+    doc:             document,                 // <- risolve gli input nel frame
+    queryInputId:    'wlName',
+    setPickerInputId:'wlSetPicker-input',
+    jpToggleId:      'wlJp',
+    statusEl:        'wlStatus',
+    statusBaseClass: 'wl-status',
+    noResultsClass:  'warn',
+    noResultsSuffix: ' - puoi aggiungerla manualmente compilando i campi.',
+    singleResultLabel: 'Trovata',
+    multiResultLabel:  'stampe',
+    beforeSearch: function(){
+      var r = document.getElementById('wlResults');
+      if(r) r.innerHTML = '';
+    },
+    onSingleResult: function(card){
+      wlPickCard(card);
+    },
+    onMultipleResults: function(cards){
+      wlRenderResults(cards);
+    },
+    onNoResults: function(name, number){
+      // Nessun match: lascia il nome digitato, l'utente puo' aggiungere a mano
+      _wlPicked = null;
     }
-    // Tier 2: nome esatto (+ set se selezionato), SENZA numero
-    if(!hits.length){
-      hits = await tcg('name:"' + safeName + '"' + setFilter);
-      if(hits.length) tier = 'T2 (nome' + (setFilter ? '+set' : '') + ')';
-    }
-    // Tier 3: wildcard sulla prima parola — solo se NESSUN set selezionato
-    if(!hits.length && !setFilter){
-      var firstWord = safeName.split(/\s+/)[0];
-      if(firstWord && firstWord.length >= 3){
-        hits = await tcg('name:*' + firstWord + '*');
-        if(hits.length) tier = 'T3 (wildcard *' + firstWord + '*)';
-      }
-    }
+  });
+}
+window.wlSearch = wlSearch;
 
-    // Probe diagnostico se set selezionato ma nessun match
-    if(!hits.length && setFilter){
-      var probe = await tcg('name:"' + safeName + '"');
-      if(probe.length){
-        var setsFound = Array.from(new Set(probe.map(function(x){
-          return x.set && x.set.name;
-        }).filter(Boolean))).slice(0, 4).join(', ');
-        wlSt(
-          '⚠ "' + name + '" NON esiste in ' + setSel.name +
-          '. Esiste invece in: ' + setsFound +
-          (probe.length > 4 ? ' (e altri)' : '') +
-          '. Modifica il set selezionato.',
-          'err'
-        );
-        return;
-      }
-      wlSt('Nessuna "' + name + '" su TCG API (né in ' + setSel.name + ', né altrove)', 'err');
-      return;
-    }
-
-    if(!hits.length){
-      wlSt('Nessun match su TCG API per "' + name + '"', 'err');
-      return;
-    }
-
-    _wlLookupCands = hits.slice(0, 30);
-
-    // CASO 1: match unico → popola direttamente (no friction)
-    if(_wlLookupCands.length === 1){
-      wlApplyCandidate(0);
-      var c1 = _wlLookupCands[0];
-      var p1 = c1.cardmarket && c1.cardmarket.prices;
-      var ref1 = p1 ? (p1.trendPrice || p1.avg30 || p1.averageSellPrice || 0) : 0;
-      wlSt(
-        (ref1 ? ('Ref CM €' + ref1.toFixed(2)) : 'Trovata (no CM price)') +
-        ' · ' + (c1.set && c1.set.name || '?') + ' · #' + (c1.number || '?') + ' · ' + tier,
-        'ok'
-      );
-      return;
-    }
-
-    // CASO 2: ≥2 match → mostra lista candidati cliccabili
-    wlRenderCandidates(tier, sortAsc);
-    wlSt(_wlLookupCands.length + ' stampe trovate · ' + tier +
-      ' · clicca quella giusta sotto ↓',
-      'info');
-  }catch(e){
-    wlSt('Errore lookup: ' + (e.message || e), 'err');
+/* Render strip candidati (delega al renderer condiviso del parent) */
+function wlRenderResults(cards){
+  var p = wlParent();
+  var rg = document.getElementById('wlResults');
+  if(!rg) return;
+  if(p.rbCardSearch && typeof p.rbCardSearch.renderResultsGrid === 'function'){
+    p.rbCardSearch.renderResultsGrid({
+      containerEl: rg,
+      cards:       cards,
+      thumbClass:  'wl-thumb',
+      noZoom:      true,             // niente overlay zoom cross-frame
+      onPick: function(c){ wlPickCard(c); }
+    });
+  } else {
+    // Fallback minimale se il renderer del parent non c'e'
+    rg.innerHTML = '';
+    cards.forEach(function(c){
+      var d = document.createElement('div');
+      d.className = 'wl-thumb';
+      var img = (c.images && c.images.small) || '';
+      d.innerHTML = (img ? '<img src="'+esc(img)+'" loading="lazy"/>' : '<div class="wl-thumb-ph">No img</div>')
+        + '<div class="wl-thumb-name">'+esc(c.name||'?')+'</div>'
+        + '<div class="wl-thumb-set">'+esc((c.set&&c.set.name)||'')+'</div>'
+        + '<div class="wl-thumb-num">#'+esc(String(c.number||'?'))+'</div>';
+      d.onclick = function(){ wlPickCard(c); };
+      rg.appendChild(d);
+    });
   }
 }
-window.wlAutoLookup = wlAutoLookup;
 
-// Render lista candidati nel #wlLookupResults
-function wlRenderCandidates(tier, sortAsc){
-  var el = document.getElementById('wlLookupResults');
-  if(!el) return;
-  var rows = _wlLookupCands.map(function(c, i){
-    var p = c.cardmarket && c.cardmarket.prices;
-    var ref = p ? (p.trendPrice || p.avg30 || p.averageSellPrice || 0) : 0;
-    var year = (c.set && c.set.releaseDate) ? c.set.releaseDate.slice(0,4) : '';
-    var setName = (c.set && c.set.name) || '?';
-    var num = c.number || '?';
-    var total = c.set && c.set.printedTotal ? '/' + c.set.printedTotal : '';
-    var img = (c.images && c.images.small) || '';
-    var priceHtml = ref
-      ? '<div class="wl-cand-price">€' + ref.toFixed(2) + '</div>'
-      : '<div class="wl-cand-price wl-cand-price-empty">—</div>';
-    return '' +
-      '<div class="wl-cand" onclick="wlApplyCandidate(' + i + ');document.getElementById(\'wlLookupResults\').style.display=\'none\'">' +
-        (img ? '<img class="wl-cand-img" src="'+esc(img)+'" loading="lazy" alt=""/>' : '<div class="wl-cand-img"></div>') +
-        '<div class="wl-cand-body">' +
-          '<div class="wl-cand-name">' + esc(c.name || '?') + '</div>' +
-          '<div class="wl-cand-meta">' + esc(setName) + (year ? ' · ' + year : '') + ' · #' + esc(String(num)) + esc(total) + '</div>' +
-        '</div>' +
-        priceHtml +
-      '</div>';
-  }).join('');
-  el.innerHTML =
-    '<div class="wl-lookup-header">' +
-      '<span>' + _wlLookupCands.length + ' stampe · ' + esc(tier) +
-        (sortAsc ? ' · ordine: vecchie → nuove' : ' · ordine: nuove → vecchie') +
-      '</span>' +
-      '<span class="wl-lookup-close" onclick="document.getElementById(\'wlLookupResults\').style.display=\'none\'">×</span>' +
-    '</div>' +
-    rows;
-  el.style.display = 'block';
+/* Estrae il ref price CM da una carta TCG (trend > avg30 > avgSell) */
+function wlRefFromCard(c){
+  var pr = c && c.cardmarket && c.cardmarket.prices;
+  if(!pr) return 0;
+  return pr.trendPrice || pr.avg30 || pr.averageSellPrice || 0;
 }
-window.wlRenderCandidates = wlRenderCandidates;
 
-// Applica un candidato ai campi del form
-function wlApplyCandidate(idx){
-  var c = _wlLookupCands[idx];
+/* Seleziona una carta: popola hero + ref price + set picker + nome/numero */
+function wlPickCard(c){
   if(!c) return;
+  _wlPicked = c;
 
-  // 1. Nome (forma canonica dall'API)
+  // Nome + numero nel campo ricerca (forma canonica)
   if(c.name) document.getElementById('wlName').value = c.name;
 
-  // 2. Numero (con printedTotal)
-  if(c.number){
-    var total = c.set && c.set.printedTotal ? '/' + c.set.printedTotal : '';
-    document.getElementById('wlNumber').value = c.number + total;
+  // Hero compatta
+  var box = document.getElementById('wlPicked');
+  var img = (c.images && c.images.small) || '';
+  document.getElementById('wlPickedImg').src = img || '';
+  document.getElementById('wlPickedImg').style.visibility = img ? 'visible' : 'hidden';
+  document.getElementById('wlPickedName').textContent = c.name || '?';
+  var total = (c.set && c.set.printedTotal) ? '/' + c.set.printedTotal : '';
+  var year  = (c.set && c.set.releaseDate) ? ' \u00b7 ' + c.set.releaseDate.slice(0,4) : '';
+  document.getElementById('wlPickedMeta').textContent =
+    ((c.set && c.set.name) || '?') + year + ' \u00b7 #' + (c.number || '?') + total;
+  var ref = wlRefFromCard(c);
+  document.getElementById('wlPickedPrice').textContent = ref ? ('Ref CM \u20ac' + ref.toFixed(2)) : 'Nessun prezzo CM';
+  box.classList.add('show');
+
+  // Ref CM nel form (se vuoto o l'utente non l'ha toccato)
+  if(ref){
+    var refEl = document.getElementById('wlRefCm');
+    if(!refEl.value || !refEl._wlUserEdited) refEl.value = ref.toFixed(2);
   }
 
-  // 3. Set picker
+  // Set picker (selezione esplicita sul set della carta)
   if(c.set && c.set.id){
-    var picker = document.getElementById('wlSetPicker-input');
-    if(picker){
-      try {
-        var p2 = (window.parent && window.parent !== window) ? window.parent : window;
-        if(Array.isArray(p2.msSetsAll)){
-          var hit = p2.msSetsAll.find(function(s){ return s.id === c.set.id; });
+    var pickerInp = document.getElementById('wlSetPicker-input');
+    if(pickerInp){
+      try{
+        var p = wlParent();
+        if(Array.isArray(p.msSetsAll)){
+          var hit = p.msSetsAll.find(function(s){ return s.id === c.set.id; });
           if(hit){
-            picker._rbSelectedSet = hit;
-            picker.value = p2.auSetLabel ? p2.auSetLabel(hit) : hit.name;
+            pickerInp._rbSelectedSet = hit;
+            pickerInp.value = (typeof p.auSetLabel === 'function') ? p.auSetLabel(hit) : hit.name;
             var clr = document.getElementById('wlSetPicker-input-clear');
             if(clr) clr.style.display = 'block';
           }
         }
-      } catch(_){}
+      }catch(_){}
     }
   }
 
-  // 4. Ref CM €
-  var p = c.cardmarket && c.cardmarket.prices;
-  var ref = p ? (p.trendPrice || p.avg30 || p.averageSellPrice || 0) : 0;
-  if(ref) document.getElementById('wlRefCm').value = ref.toFixed(2);
-
-  // Status di conferma
-  wlSt(
-    'Selezionato: ' + (c.name || '?') + ' · ' + (c.set && c.set.name || '?') +
-    ' · #' + (c.number || '?') +
-    (ref ? (' · €' + ref.toFixed(2)) : ' · no CM price'),
-    'ok'
-  );
+  // Evidenzia la thumb scelta (gia' gestito dal renderer, ma confermiamo lo stato)
+  wlSt('Selezionata: ' + (c.name || '?') + (ref ? (' \u00b7 \u20ac' + ref.toFixed(2)) : ''), 'ok');
 }
-window.wlApplyCandidate = wlApplyCandidate;
+window.wlPickCard = wlPickCard;
 
-// ── Risolvi set picker (cross-frame helper dal parent) ──────────────────
+/* Annulla selezione carta */
+function wlClearPicked(silent){
+  _wlPicked = null;
+  var box = document.getElementById('wlPicked');
+  if(box) box.classList.remove('show');
+  if(!silent){
+    var r = document.getElementById('wlResults');
+    if(r) r.innerHTML = '';
+  }
+}
+window.wlClearPicked = wlClearPicked;
+
+/* Risolvi set dal picker (cross-frame helper del parent) */
 function wlResolveSet(){
   var inp = document.getElementById('wlSetPicker-input');
   if(!inp) return null;
-  var p = (window.parent && window.parent !== window) ? window.parent : window;
-  if(typeof p.rbResolveSetFromInput === 'function'){
-    return p.rbResolveSetFromInput(inp);
-  }
+  var p = wlParent();
+  if(typeof p.rbResolveSetFromInput === 'function') return p.rbResolveSetFromInput(inp);
   if(inp._rbSelectedSet) return { id: inp._rbSelectedSet.id, name: inp._rbSelectedSet.name };
   var raw = (inp.value || '').trim();
   return raw ? { id: null, name: raw, unresolved: true } : null;
 }
 
-// ── Aggiungi carta alla wishlist (insert in hunt_targets) ───────────────
+/* =========================================================================
+   AGGIUNGI ALLA WISHLIST (insert hunt_targets)
+   ========================================================================= */
 async function wlAdd(){
   var name = (document.getElementById('wlName').value || '').trim();
-  if(!name){ wlSt('Nome carta obbligatorio', 'err'); return; }
+  // Se c'e' una carta selezionata usa il suo nome canonico
+  if(_wlPicked && _wlPicked.name) name = _wlPicked.name;
+  if(!name){ wlSt('Cerca una carta o inserisci almeno il nome', 'err'); return; }
 
   var uid = getCurrentUserId();
   if(!uid){ wlSt('Devi essere autenticato', 'err'); return; }
 
   var setSel = wlResolveSet();
-  var num = (document.getElementById('wlNumber').value || '').trim();
+  // Numero: dal picked card o parse dal campo nome
+  var num = null;
+  if(_wlPicked && _wlPicked.number){
+    var pt = (_wlPicked.set && _wlPicked.set.printedTotal) ? '/' + _wlPicked.set.printedTotal : '';
+    num = _wlPicked.number + pt;
+  }
 
   var data = {
     user_id:           uid,
     card_name:         name,
     card_number:       num || null,
-    set_id:            (setSel && setSel.id) || null,
-    set_name:          (setSel && setSel.name) || null,
+    set_id:            (_wlPicked && _wlPicked.set && _wlPicked.set.id) || (setSel && setSel.id) || null,
+    set_name:          (_wlPicked && _wlPicked.set && _wlPicked.set.name) || (setSel && setSel.name) || null,
+    tcg_id:            (_wlPicked && _wlPicked.id) || null,
     language:          document.getElementById('wlLang').value || 'ANY',
     variant:           document.getElementById('wlVariant').value || 'Normal',
     max_price:         parseFloat(document.getElementById('wlMaxPrice').value) || null,
-    ref_price_cm:      parseFloat(document.getElementById('wlRefCm').value) || null,
+    ref_price_cm:      parseFloat(document.getElementById('wlRefCm').value) || wlRefFromCard(_wlPicked) || null,
     deal_threshold:    parseInt(document.getElementById('wlThreshold').value, 10) || 70,
     wishlist_priority: parseInt(document.getElementById('wlPriority').value, 10) || 3,
     notes:             (document.getElementById('wlNotes').value || '').trim() || null,
@@ -671,33 +633,32 @@ async function wlAdd(){
   };
 
   if(_wlMode === 'graded'){
-    data.grading_house  = document.getElementById('wlHouse').value || null;
-    data.min_grade      = parseFloat(document.getElementById('wlMinGrade').value) || null;
-    data.first_edition  = false;
-    data.shadowless     = false;
+    data.grading_house = document.getElementById('wlHouse').value || null;
+    data.min_grade     = parseFloat(document.getElementById('wlMinGrade').value) || null;
+    data.first_edition = false;
+    data.shadowless    = false;
   } else {
-    data.grading_house  = null;
-    data.min_grade      = null;
-    data.first_edition  = document.getElementById('wlFirstEd').checked;
-    data.shadowless     = document.getElementById('wlShadowless').checked;
+    data.grading_house = null;
+    data.min_grade     = null;
+    data.first_edition = document.getElementById('wlFirstEd').checked;
+    data.shadowless    = document.getElementById('wlShadowless').checked;
   }
 
   try{
-    wlSt('Aggiungo…', 'info');
+    wlSt('Aggiungo...', 'info');
     var rows = await supa('POST', 'hunt_targets', data);
     var inserted = Array.isArray(rows) ? rows[0] : rows;
     if(inserted) _wlTargets.unshift(inserted);
-    wlSt('Aggiunta! ' + (data.is_active ? '· scan attivo' : '· in pausa'), 'ok');
+    wlSt('Aggiunta! ' + (data.is_active ? '\u00b7 scan attivo' : '\u00b7 in pausa'), 'ok');
 
-    // Reset form (lascio modalità e lingua intatte per inserimenti seriali)
+    // Reset campi (mantengo modalita'/lingua/variante per inserimenti seriali)
     document.getElementById('wlName').value     = '';
-    document.getElementById('wlNumber').value   = '';
     document.getElementById('wlMaxPrice').value = '';
     document.getElementById('wlRefCm').value    = '';
+    document.getElementById('wlRefCm')._wlUserEdited = false;
     document.getElementById('wlNotes').value    = '';
-    document.getElementById('wlFirstEd').checked   = false;
+    document.getElementById('wlFirstEd').checked    = false;
     document.getElementById('wlShadowless').checked = false;
-    // Reset set picker
     var setInp = document.getElementById('wlSetPicker-input');
     if(setInp){
       setInp._rbSelectedSet = null;
@@ -705,15 +666,14 @@ async function wlAdd(){
       var clr = document.getElementById('wlSetPicker-input-clear');
       if(clr) clr.style.display = 'none';
     }
+    wlClearPicked();
     document.getElementById('wlName').focus();
 
     wlRender();
   }catch(e){
-    var msg = e && e.message || String(e);
-    // Schema resilience: se hunt_targets non ha ancora le nuove colonne,
-    // segnalo chiaramente. (Il migration 069 va eseguito in produzione.)
+    var msg = (e && e.message) || String(e);
     if(msg.indexOf('notes') > -1 || msg.indexOf('wishlist_priority') > -1 || msg.indexOf('source') > -1){
-      wlSt('Schema obsoleto: esegui migration 069 prima di usare la nuova wishlist', 'err');
+      wlSt('Schema obsoleto: esegui migration 069 prima di usare la wishlist', 'err');
     } else {
       wlSt('Errore: ' + msg, 'err');
     }
@@ -721,24 +681,105 @@ async function wlAdd(){
 }
 window.wlAdd = wlAdd;
 
-// ── Toggle attivo/pausa ─────────────────────────────────────────────────
+/* =========================================================================
+   AZIONI PER-CARTA (monitoraggio)
+   ========================================================================= */
 async function wlToggleActive(id){
   var t = _wlTargets.find(function(x){ return x.id === id; });
   if(!t) return;
   try{
     var newVal = !t.is_active;
-    await supa('PATCH', 'hunt_targets?id=eq.' + id, { is_active: newVal, updated_at: new Date().toISOString() });
+    var patch = { is_active: newVal, updated_at: new Date().toISOString() };
+    // Riattivare annulla anche lo snooze
+    if(newVal && _wlHasSnooze) patch.snooze_until = null;
+    await supa('PATCH', 'hunt_targets?id=eq.' + id, patch);
     t.is_active = newVal;
+    if(newVal) t.snooze_until = null;
     wlRender();
   }catch(e){ alert('Errore: ' + e.message); }
 }
 window.wlToggleActive = wlToggleActive;
 
-// ── Elimina carta dalla wishlist ────────────────────────────────────────
+/* Cambia priorita' al volo (click sul badge priorita': cicla 5->4->3->2->1->5) */
+async function wlCyclePriority(id){
+  var t = _wlTargets.find(function(x){ return x.id === id; });
+  if(!t) return;
+  var cur = parseInt(t.wishlist_priority, 10) || 3;
+  var next = cur > 1 ? cur - 1 : 5;
+  try{
+    await supa('PATCH', 'hunt_targets?id=eq.' + id, { wishlist_priority: next, updated_at: new Date().toISOString() });
+    t.wishlist_priority = next;
+    wlRender();
+  }catch(e){ alert('Errore: ' + e.message); }
+}
+window.wlCyclePriority = wlCyclePriority;
+
+/* Aggiorna soglia alert (deal_threshold) inline */
+async function wlSetThreshold(id, val){
+  var t = _wlTargets.find(function(x){ return x.id === id; });
+  if(!t) return;
+  var n = parseInt(val, 10);
+  if(isNaN(n)) return;
+  n = Math.max(0, Math.min(100, n));
+  try{
+    await supa('PATCH', 'hunt_targets?id=eq.' + id, { deal_threshold: n, updated_at: new Date().toISOString() });
+    t.deal_threshold = n;
+  }catch(e){ alert('Errore: ' + e.message); }
+}
+window.wlSetThreshold = wlSetThreshold;
+
+/* Snooze: metti in pausa fino a una data (giorni). 0 = annulla snooze. */
+async function wlSnooze(id, days){
+  if(!_wlHasSnooze){
+    // Fallback senza colonna snooze: usa semplice pausa
+    return wlToggleActive(id);
+  }
+  var t = _wlTargets.find(function(x){ return x.id === id; });
+  if(!t) return;
+  var until = null;
+  if(days && days > 0){
+    until = new Date(Date.now() + days * 86400000).toISOString();
+  }
+  try{
+    await supa('PATCH', 'hunt_targets?id=eq.' + id, { snooze_until: until, updated_at: new Date().toISOString() });
+    t.snooze_until = until;
+    wlRender();
+  }catch(e){
+    var msg = (e && e.message) || '';
+    if(msg.indexOf('snooze_until') > -1){
+      _wlHasSnooze = false;
+      wlSt('Snooze non disponibile: esegui migration 084', 'warn');
+    } else {
+      alert('Errore: ' + msg);
+    }
+  }
+}
+window.wlSnooze = wlSnooze;
+
+/* Snooze rapido via prompt (giorni) */
+function wlSnoozePrompt(id){
+  var t = _wlTargets.find(function(x){ return x.id === id; });
+  if(!t) return;
+  if(wlIsSnoozed(t)){
+    wlSnooze(id, 0);   // gia' in snooze -> annulla
+    return;
+  }
+  var v = prompt('Snooze per quanti giorni? (es. 7). Lascia vuoto per annullare.', '7');
+  if(v === null) return;
+  var d = parseInt(v, 10);
+  if(isNaN(d) || d <= 0){ wlSnooze(id, 0); return; }
+  wlSnooze(id, d);
+}
+window.wlSnoozePrompt = wlSnoozePrompt;
+
+function wlIsSnoozed(t){
+  return _wlHasSnooze && t.snooze_until && (new Date(t.snooze_until).getTime() > Date.now());
+}
+
 async function wlDelete(id){
   var t = _wlTargets.find(function(x){ return x.id === id; });
   if(!t) return;
-  if(!confirm('Eliminare "' + t.card_name + '" dalla wishlist?\nGli alert e le opportunità collegate verranno rimossi.')) return;
+  if(!confirm('Eliminare "' + t.card_name + '" dalla wishlist?\nGli alert e le opportunita\' collegate verranno rimossi.')) return;
   try{
     await supa('DELETE', 'hunt_targets?id=eq.' + id);
     _wlTargets = _wlTargets.filter(function(x){ return x.id !== id; });
@@ -748,44 +789,41 @@ async function wlDelete(id){
 }
 window.wlDelete = wlDelete;
 
-// ── Apri portali (4 tab) ────────────────────────────────────────────────
+/* Apri portali (4 tab) */
 function wlOpenPortals(id){
   var t = _wlTargets.find(function(x){ return x.id === id; });
   if(!t) return;
-  if(!window.HUNT_URL_BUILDERS){ alert('URL builders non caricati'); return; }
-  var urls = window.HUNT_URL_BUILDERS.wishlist_4(t);
-  // Attiva il target se è in pausa (utente sta scansionando = vuole vedere risultati)
+  var builders = window.HUNT_URL_BUILDERS || (wlParent().HUNT_URL_BUILDERS);
+  if(!builders || typeof builders.wishlist_4 !== 'function'){ alert('URL builders non caricati'); return; }
+  var urls = builders.wishlist_4(t);
   if(!t.is_active){
     supa('PATCH', 'hunt_targets?id=eq.' + id, { is_active: true, updated_at: new Date().toISOString() })
-      .then(function(){ t.is_active = true; wlRender(); })
-      .catch(function(){});
+      .then(function(){ t.is_active = true; wlRender(); }).catch(function(){});
   }
   Object.keys(urls).forEach(function(k){ window.open(urls[k], '_blank'); });
 }
 window.wlOpenPortals = wlOpenPortals;
 
-// ── → Radar (cross-frame nav) ───────────────────────────────────────────
-function wlGoToRadar(id){
-  // Naviga al tab hunter — il radar legge gli stessi hunt_targets e li mostra
-  // tutti. Non serve passare target_id: l'utente vede subito il feed live.
+/* -> Radar */
+function wlGoToRadar(){
   if(typeof rbNav === 'function') rbNav('hunt');
   else if(window.parent && window.parent.showTab) window.parent.showTab('hunt');
 }
 window.wlGoToRadar = wlGoToRadar;
-window.wlGoRadar = function(){ wlGoToRadar(null); };
+window.wlGoRadar = function(){ wlGoToRadar(); };
 
-// ── Aggiorna ref_price_cm di tutta la wishlist via TCG API ──────────────
+/* =========================================================================
+   AGGIORNA PREZZI (ref_price_cm) via TCG API
+   ========================================================================= */
 async function wlRefreshAllPrices(){
   if(!_wlTargets.length){ wlSt('Wishlist vuota', 'err'); return; }
-  wlSt('Aggiornamento prezzi in corso…', 'info');
+  wlSt('Aggiornamento prezzi in corso...', 'info');
   var updated = 0, failed = 0;
 
   async function tcgFetch(q){
     try{
-      var r = await fetch(
-        window.TCG_URL + '?q=' + encodeURIComponent(q) + '&pageSize=1&orderBy=-set.releaseDate',
-        { headers: { 'X-Api-Key': window.TCG_KEY } }
-      );
+      var r = await fetch(window.TCG_URL + '?q=' + encodeURIComponent(q) + '&pageSize=1&orderBy=-set.releaseDate',
+        { headers: { 'X-Api-Key': window.TCG_KEY } });
       if(!r.ok) return null;
       var j = await r.json();
       return (j.data || [])[0] || null;
@@ -797,36 +835,25 @@ async function wlRefreshAllPrices(){
     var safeName = (t.card_name || '').replace(/"/g,'');
     if(!safeName){ failed++; continue; }
     try{
-      // T1: tutti i filtri (più specifico)
       var q1 = 'name:"' + safeName + '"';
       if(t.card_number) q1 += ' number:' + String(t.card_number).split('/')[0];
       if(t.set_id)      q1 += ' set.id:' + t.set_id;
       var c = await tcgFetch(q1);
-
-      // T2: senza set (alcuni target potrebbero avere set_id stale)
       if(!c && t.set_id){
         var q2 = 'name:"' + safeName + '"';
         if(t.card_number) q2 += ' number:' + String(t.card_number).split('/')[0];
         c = await tcgFetch(q2);
       }
-      // T3: solo nome esatto
-      if(!c){
-        c = await tcgFetch('name:"' + safeName + '"');
-      }
+      if(!c) c = await tcgFetch('name:"' + safeName + '"');
 
       if(c){
-        var p = c.cardmarket && c.cardmarket.prices;
-        var price = p ? (p.trendPrice || p.avg30 || p.averageSellPrice || 0) : 0;
+        var price = wlRefFromCard(c);
         if(price > 0){
           await supa('PATCH', 'hunt_targets?id=eq.' + t.id, { ref_price_cm: price, updated_at: new Date().toISOString() });
           t.ref_price_cm = price;
           updated++;
-        } else {
-          failed++; // trovata ma senza prezzo CM
-        }
-      } else {
-        failed++;
-      }
+        } else { failed++; }
+      } else { failed++; }
     }catch(e){ failed++; }
   }
   wlSt('Aggiornati ' + updated + ' prezzi' + (failed ? ' (' + failed + ' non trovati)' : ''), updated ? 'ok' : 'err');
@@ -834,57 +861,47 @@ async function wlRefreshAllPrices(){
 }
 window.wlRefreshAllPrices = wlRefreshAllPrices;
 
-// ── Carica targets + listings ───────────────────────────────────────────
+/* =========================================================================
+   CARICAMENTO DATI
+   ========================================================================= */
 async function wlLoad(){
   var uid = getCurrentUserId();
-  if(!uid){
-    wlSt('Non autenticato', 'err');
-    return;
-  }
+  if(!uid){ wlSt('Non autenticato', 'err'); return; }
+
   try{
-    // 1. Tutti i target dell'utente
     _wlTargets = (await supa('GET', 'hunt_targets?user_id=eq.' + uid + '&order=wishlist_priority.desc.nullslast,created_at.desc&limit=500')) || [];
+    // Rileva supporto snooze_until (migrazione 084)
+    _wlHasSnooze = _wlTargets.some(function(t){ return Object.prototype.hasOwnProperty.call(t, 'snooze_until'); }) || _wlTargets.length === 0;
   }catch(e){
-    // Schema resilience: fallback senza order su wishlist_priority se manca
-    var msg = e && e.message || '';
+    var msg = (e && e.message) || '';
     if(msg.indexOf('wishlist_priority') > -1 || msg.indexOf('column') > -1){
-      console.warn('[wishlist] migration 069 non eseguita, fallback sort');
       try{
         _wlTargets = (await supa('GET', 'hunt_targets?user_id=eq.' + uid + '&order=created_at.desc&limit=500')) || [];
-        wlSt('Schema non aggiornato: alcune funzionalità limitate (priorità, note)', 'err');
-      }catch(e2){
-        console.error('[wishlist] load failed:', e2);
-        _wlTargets = [];
-      }
-    } else {
-      console.warn('[wishlist] load targets failed:', msg);
-      _wlTargets = [];
-    }
+        wlSt('Schema non aggiornato: priorita/note limitate', 'warn');
+      }catch(e2){ _wlTargets = []; }
+    } else { _wlTargets = []; }
   }
 
   try{
-    // 2. Listings live (per contare opportunità per target)
-    //    Filtro: solo new/seen/watched, ultimi 30 giorni
     var since = new Date(Date.now() - 30 * 86400000).toISOString();
     _wlListings = (await supa('GET',
       'hunt_listings?user_id=eq.' + uid +
       '&status=in.(new,seen,watched)' +
       '&first_seen_at=gte.' + since +
-      '&select=id,target_id,deal_score,price,auction_ends_at,listing_type' +
+      '&select=id,target_id,deal_score,price,auction_ends_at,listing_type,deal_reasons' +
       '&order=deal_score.desc.nullslast&limit=2000'
     )) || [];
-  }catch(e){
-    console.warn('[wishlist] load listings failed:', e.message);
-    _wlListings = [];
-  }
+  }catch(e){ _wlListings = []; }
 
   wlRender();
 }
 window.wlLoad = wlLoad;
 
-// ── Render lista ────────────────────────────────────────────────────────
+/* =========================================================================
+   RENDER LISTA
+   ========================================================================= */
 function wlRender(){
-  // Aggrego listings per target_id
+  // Aggrega listings per target
   var byTarget = {};
   _wlListings.forEach(function(l){
     if(!l.target_id) return;
@@ -897,17 +914,16 @@ function wlRender(){
     }
   });
 
-  // Stats banner
-  var total   = _wlTargets.length;
-  var active  = _wlTargets.filter(function(t){ return t.is_active; }).length;
-  var opps    = _wlListings.length;
+  // Stats
+  var total    = _wlTargets.length;
+  var active   = _wlTargets.filter(function(t){ return t.is_active && !wlIsSnoozed(t); }).length;
+  var opps     = _wlListings.length;
   var topScore = _wlListings.reduce(function(m, l){ return (l.deal_score != null && l.deal_score > m) ? l.deal_score : m; }, 0);
   document.getElementById('wlStTotal').textContent    = total;
   document.getElementById('wlStActive').textContent   = active;
   document.getElementById('wlStOpps').textContent     = opps;
-  document.getElementById('wlStTopScore').textContent = topScore || '—';
+  document.getElementById('wlStTopScore').textContent = topScore || '\u2014';
 
-  // Filtri
   var q       = (document.getElementById('wlFilter').value || '').toLowerCase();
   var statusF = document.getElementById('wlFilterStatus').value || '';
   var sortF   = document.getElementById('wlSort').value || 'priority';
@@ -917,18 +933,18 @@ function wlRender(){
       var hay = (t.card_name + ' ' + (t.set_name || '') + ' ' + (t.card_number || '') + ' ' + (t.notes || '')).toLowerCase();
       if(hay.indexOf(q) === -1) return false;
     }
-    if(statusF === 'active' && !t.is_active) return false;
-    if(statusF === 'paused' && t.is_active) return false;
-    if(statusF === 'has_deals' && !(byTarget[t.id] && byTarget[t.id].count > 0)) return false;
-    if(statusF === 'legacy' && t.source !== 'wishlist_legacy') return false;
+    var snoozed = wlIsSnoozed(t);
+    if(statusF === 'active'   && (!t.is_active || snoozed)) return false;
+    if(statusF === 'paused'   && t.is_active) return false;
+    if(statusF === 'snoozed'  && !snoozed) return false;
+    if(statusF === 'has_deals'&& !(byTarget[t.id] && byTarget[t.id].count > 0)) return false;
+    if(statusF === 'legacy'   && t.source !== 'wishlist_legacy') return false;
     return true;
   });
 
-  // Sort
   rows.sort(function(a, b){
     switch(sortF){
-      case 'recent':
-        return (new Date(b.created_at) - new Date(a.created_at));
+      case 'recent': return (new Date(b.created_at) - new Date(a.created_at));
       case 'deal':
         var bd = (byTarget[b.id] && byTarget[b.id].best) || -1;
         var ad = (byTarget[a.id] && byTarget[a.id].best) || -1;
@@ -937,12 +953,9 @@ function wlRender(){
         var bo = (byTarget[b.id] && byTarget[b.id].count) || 0;
         var ao = (byTarget[a.id] && byTarget[a.id].count) || 0;
         return bo - ao;
-      case 'name':
-        return (a.card_name || '').localeCompare(b.card_name || '');
-      case 'price_low':
-        return (a.ref_price_cm || Infinity) - (b.ref_price_cm || Infinity);
-      case 'price_high':
-        return (b.ref_price_cm || -1) - (a.ref_price_cm || -1);
+      case 'name':       return (a.card_name || '').localeCompare(b.card_name || '');
+      case 'price_low':  return (a.ref_price_cm || Infinity) - (b.ref_price_cm || Infinity);
+      case 'price_high': return (b.ref_price_cm || -1) - (a.ref_price_cm || -1);
       case 'priority':
       default:
         var dp = (b.wishlist_priority || 0) - (a.wishlist_priority || 0);
@@ -953,120 +966,128 @@ function wlRender(){
 
   var list  = document.getElementById('wlList');
   var empty = document.getElementById('wlEmpty');
-  if(!rows.length){
-    empty.style.display = '';
-    Array.prototype.slice.call(list.querySelectorAll('.wl-row')).forEach(function(n){ n.remove(); });
-    return;
-  }
+  Array.prototype.slice.call(list.querySelectorAll('.wl-row')).forEach(function(n){ n.remove(); });
+  if(!rows.length){ empty.style.display = ''; return; }
   empty.style.display = 'none';
 
-  // Rimuovi righe vecchie
-  Array.prototype.slice.call(list.querySelectorAll('.wl-row')).forEach(function(n){ n.remove(); });
-
-  rows.forEach(function(t){
-    var info = byTarget[t.id] || { count:0, best:null, hot24h:0 };
-    var isPaused = !t.is_active;
-    var isLegacy = t.source === 'wishlist_legacy';
-    var dealClass = '';
-    if(info.best != null){
-      if(info.best >= 85) dealClass = 'has-hot-deal';
-      else if(info.best >= 70) dealClass = 'has-good-deal';
-    }
-
-    var attrs = [];
-    if(t.card_number) attrs.push('<span class="wl-row-tag">#' + esc(t.card_number) + '</span>');
-    if(t.grading_house){
-      attrs.push('<span class="wl-row-tag mode-graded">' + esc(t.grading_house) + (t.min_grade ? ' ≥' + esc(t.min_grade) : '') + '</span>');
-    } else {
-      attrs.push('<span class="wl-row-tag mode-raw">Raw</span>');
-    }
-    if(t.language && t.language !== 'ANY') attrs.push('<span class="wl-row-tag lang">' + esc(t.language) + '</span>');
-    if(t.variant && t.variant !== 'Normal') attrs.push('<span class="wl-row-tag">' + esc(t.variant) + '</span>');
-    if(t.first_edition) attrs.push('<span class="wl-row-tag">1ª ed</span>');
-    if(t.shadowless)    attrs.push('<span class="wl-row-tag">Shadowless</span>');
-
-    var prices = [];
-    if(t.max_price > 0){
-      prices.push('Max <span class="val">€' + Number(t.max_price).toFixed(2) + '</span>');
-    }
-    if(t.ref_price_cm > 0){
-      var deltaStr = '';
-      if(t.max_price > 0){
-        var delta = t.ref_price_cm - t.max_price;
-        var deltaCls = delta <= 0 ? 'good' : 'bad';
-        deltaStr = ' <span class="' + deltaCls + '">(' + (delta >= 0 ? '+' : '') + delta.toFixed(2) + '€)</span>';
-      }
-      prices.push('Mkt <span class="val">€' + Number(t.ref_price_cm).toFixed(2) + '</span>' + deltaStr);
-    }
-
-    var dealHtml = '';
-    if(info.count > 0){
-      var scoreCls = info.best >= 85 ? 'hot' : (info.best >= 70 ? 'good' : 'mid');
-      dealHtml = '<div class="wl-row-deals has">'
-        + '<span class="rb-i rb-i-radar"></span>'
-        + info.count + ' opp.'
-        + (info.best != null ? ' · top <span class="deal-score ' + scoreCls + '">' + info.best + '</span>' : '')
-        + (info.hot24h ? ' · <span style="color:var(--warning)">' + info.hot24h + ' aste &lt;24h</span>' : '')
-        + '</div>';
-    } else if(t.is_active){
-      dealHtml = '<div class="wl-row-deals"><span class="rb-dot rb-dot-on"></span> in scan · 0 inserzioni</div>';
-    } else {
-      dealHtml = '<div class="wl-row-deals"><span class="rb-dot rb-dot-off"></span> in pausa</div>';
-    }
-
-    var statusBadge = isLegacy
-      ? '<span class="wl-status-badge legacy" title="Migrata da wishlist legacy"><span class="rb-dot rb-dot-warn"></span> Legacy</span>'
-      : (t.is_active
-          ? '<span class="wl-status-badge active"><span class="rb-dot rb-dot-on"></span> Attivo</span>'
-          : '<span class="wl-status-badge paused"><span class="rb-dot rb-dot-off"></span> Pausa</span>');
-
-    var prio = parseInt(t.wishlist_priority, 10) || 3;
-    var prioCls = 'p' + Math.max(1, Math.min(5, prio));
-
-    var row = document.createElement('div');
-    row.className = 'wl-row' + (isPaused ? ' paused' : '') + ' ' + dealClass;
-    row.setAttribute('data-target-id', t.id);
-    row.innerHTML =
-      '<div class="wl-row-prio" title="Priorità ' + prio + '/5">'
-        + '<div class="wl-row-prio-dot ' + prioCls + '"></div>'
-        + '<div class="wl-row-prio-num">P' + prio + '</div>'
-      + '</div>'
-      + '<div class="wl-row-main">'
-        + '<div class="wl-row-head">'
-          + '<span class="wl-row-name">' + esc(t.card_name) + '</span>'
-          + (t.set_name ? '<span class="wl-row-set">' + esc(t.set_name) + '</span>' : '')
-          + statusBadge
-        + '</div>'
-        + (attrs.length ? '<div class="wl-row-attrs">' + attrs.join('') + '</div>' : '')
-        + (prices.length ? '<div class="wl-row-prices">' + prices.join(' · ') + '</div>' : '')
-        + dealHtml
-        + (t.notes ? '<div class="wl-row-notes">' + esc(t.notes) + '</div>' : '')
-      + '</div>'
-      + '<div class="wl-row-actions">'
-        + '<button class="btn btn-primary" onclick="wlOpenPortals(\'' + t.id + '\')" title="Apri eBay, Vinted, Subito, Catawiki in 4 tab">'
-          + '<span class="rb-i rb-i-search"></span> Cerca'
-        + '</button>'
-        + '<button class="icon-btn" onclick="wlToggleActive(\'' + t.id + '\')" title="' + (t.is_active ? 'Metti in pausa' : 'Attiva scan') + '">'
-          + (t.is_active ? '<span class="rb-i rb-i-pause"></span>' : '<span class="rb-i rb-i-play"></span>')
-        + '</button>'
-        + '<button class="icon-btn" onclick="wlGoToRadar(\'' + t.id + '\')" title="Apri nel Radar">'
-          + '<span class="rb-i rb-i-radar"></span>'
-        + '</button>'
-        + '<button class="icon-btn danger" onclick="wlDelete(\'' + t.id + '\')" title="Elimina">'
-          + '<span class="rb-i rb-i-trash"></span>'
-        + '</button>'
-      + '</div>';
-
-    list.appendChild(row);
-  });
+  rows.forEach(function(t){ list.appendChild(wlBuildRow(t, byTarget[t.id] || { count:0, best:null, hot24h:0 })); });
 }
 window.wlRender = wlRender;
 
-// ── Soft polling listings (refresh deal counts senza F5) ────────────────
+/* Costruisce una riga della lista */
+function wlBuildRow(t, info){
+  var snoozed  = wlIsSnoozed(t);
+  var isPaused = !t.is_active;
+  var isLegacy = t.source === 'wishlist_legacy';
+
+  var dealClass = '';
+  if(info.best != null){
+    if(info.best >= 85) dealClass = 'has-hot-deal';
+    else if(info.best >= 70) dealClass = 'has-good-deal';
+  }
+
+  var attrs = [];
+  if(t.card_number) attrs.push('<span class="wl-row-tag">#' + esc(t.card_number) + '</span>');
+  if(t.grading_house){
+    attrs.push('<span class="wl-row-tag mode-graded">' + esc(t.grading_house) + (t.min_grade ? ' \u2265' + esc(t.min_grade) : '') + '</span>');
+  } else {
+    attrs.push('<span class="wl-row-tag mode-raw">Raw</span>');
+  }
+  if(t.language && t.language !== 'ANY') attrs.push('<span class="wl-row-tag lang">' + esc(t.language) + '</span>');
+  if(t.variant && t.variant !== 'Normal') attrs.push('<span class="wl-row-tag">' + esc(t.variant) + '</span>');
+  if(t.first_edition) attrs.push('<span class="wl-row-tag">1\u00aa ed</span>');
+  if(t.shadowless)    attrs.push('<span class="wl-row-tag">Shadowless</span>');
+
+  var prices = [];
+  if(t.max_price > 0) prices.push('Max <span class="val">\u20ac' + Number(t.max_price).toFixed(2) + '</span>');
+  if(t.ref_price_cm > 0){
+    var deltaStr = '';
+    if(t.max_price > 0){
+      var delta = t.ref_price_cm - t.max_price;
+      var deltaCls = delta <= 0 ? 'good' : 'bad';
+      deltaStr = ' <span class="' + deltaCls + '">(' + (delta >= 0 ? '+' : '') + delta.toFixed(2) + '\u20ac)</span>';
+    }
+    prices.push('Mkt <span class="val">\u20ac' + Number(t.ref_price_cm).toFixed(2) + '</span>' + deltaStr);
+  }
+
+  var dealHtml = '';
+  if(info.count > 0){
+    var scoreCls = info.best >= 85 ? 'hot' : (info.best >= 70 ? 'good' : 'mid');
+    dealHtml = '<div class="wl-row-deals has"><span class="rb-i rb-i-radar"></span> '
+      + info.count + ' opp.'
+      + (info.best != null ? ' \u00b7 top <span class="deal-score ' + scoreCls + '">' + info.best + '</span>' : '')
+      + (info.hot24h ? ' \u00b7 <span style="color:var(--warning)">' + info.hot24h + ' aste &lt;24h</span>' : '')
+      + '</div>';
+  } else if(snoozed){
+    var dleft = Math.ceil((new Date(t.snooze_until).getTime() - Date.now()) / 86400000);
+    dealHtml = '<div class="wl-row-deals"><span class="rb-dot rb-dot-warn"></span> <span class="wl-snooze-badge">in snooze (' + dleft + 'g)</span></div>';
+  } else if(t.is_active){
+    dealHtml = '<div class="wl-row-deals"><span class="rb-dot rb-dot-on"></span> in scan \u00b7 0 inserzioni</div>';
+  } else {
+    dealHtml = '<div class="wl-row-deals"><span class="rb-dot rb-dot-off"></span> in pausa</div>';
+  }
+
+  // Controlli monitoraggio per-carta (sensibilita' alert + snooze rapido)
+  var monHtml =
+    '<div class="wl-row-mon">'
+      + '<label title="Soglia deal_score per l\'alert">Alert \u2265 '
+        + '<input type="number" class="wl-mini-input" min="0" max="100" step="5" value="' + (parseInt(t.deal_threshold,10) || 70) + '" '
+        + 'onchange="wlSetThreshold(\'' + t.id + '\', this.value)"/></label>'
+    + '</div>';
+
+  var statusBadge = isLegacy
+    ? '<span class="wl-status-badge legacy"><span class="rb-dot rb-dot-warn"></span> Legacy</span>'
+    : (snoozed
+        ? '<span class="wl-status-badge snoozed"><span class="rb-dot rb-dot-warn"></span> Snooze</span>'
+        : (t.is_active
+            ? '<span class="wl-status-badge active"><span class="rb-dot rb-dot-on"></span> Attivo</span>'
+            : '<span class="wl-status-badge paused"><span class="rb-dot rb-dot-off"></span> Pausa</span>'));
+
+  var prio = parseInt(t.wishlist_priority, 10) || 3;
+  var prioCls = 'p' + Math.max(1, Math.min(5, prio));
+
+  var row = document.createElement('div');
+  row.className = 'wl-row' + (isPaused ? ' paused' : '') + (snoozed ? ' snoozed' : '') + ' ' + dealClass;
+  row.setAttribute('data-target-id', t.id);
+  row.innerHTML =
+    '<div class="wl-row-prio" title="Priorita\' ' + prio + '/5 - clicca per cambiare" onclick="wlCyclePriority(\'' + t.id + '\')">'
+      + '<div class="wl-row-prio-dot ' + prioCls + '"></div>'
+      + '<div class="wl-row-prio-num">P' + prio + '</div>'
+    + '</div>'
+    + '<div class="wl-row-main">'
+      + '<div class="wl-row-head">'
+        + '<span class="wl-row-name">' + esc(t.card_name) + '</span>'
+        + (t.set_name ? '<span class="wl-row-set">' + esc(t.set_name) + '</span>' : '')
+        + statusBadge
+      + '</div>'
+      + (attrs.length ? '<div class="wl-row-attrs">' + attrs.join('') + '</div>' : '')
+      + (prices.length ? '<div class="wl-row-prices">' + prices.join(' \u00b7 ') + '</div>' : '')
+      + dealHtml
+      + monHtml
+      + (t.notes ? '<div class="wl-row-notes">' + esc(t.notes) + '</div>' : '')
+    + '</div>'
+    + '<div class="wl-row-actions">'
+      + '<button class="btn btn-primary" onclick="wlOpenPortals(\'' + t.id + '\')" title="Apri eBay, Vinted, Subito, Catawiki in 4 tab">'
+        + '<span class="rb-i rb-i-search"></span> Cerca</button>'
+      + '<button class="icon-btn" onclick="wlToggleActive(\'' + t.id + '\')" title="' + (t.is_active ? 'Metti in pausa' : 'Attiva scan') + '">'
+        + (t.is_active ? '<span class="rb-i rb-i-pause"></span>' : '<span class="rb-i rb-i-play"></span>') + '</button>'
+      + '<button class="icon-btn' + (snoozed ? ' active' : '') + '" onclick="wlSnoozePrompt(\'' + t.id + '\')" title="' + (snoozed ? 'Annulla snooze' : 'Snooze (pausa temporanea)') + '">'
+        + '<span class="rb-i rb-i-clock"></span></button>'
+      + '<button class="icon-btn" onclick="wlGoToRadar()" title="Apri nel Radar">'
+        + '<span class="rb-i rb-i-radar"></span></button>'
+      + '<button class="icon-btn danger" onclick="wlDelete(\'' + t.id + '\')" title="Elimina">'
+        + '<span class="rb-i rb-i-trash"></span></button>'
+    + '</div>';
+
+  return row;
+}
+
+/* =========================================================================
+   SOFT POLLING (refresh deal counts senza F5)
+   ========================================================================= */
 function wlStartPolling(){
   if(_wlPollId) return;
   _wlPollId = setInterval(function(){
-    // Solo se il tab è visibile (parent visibility) — risparmio
     if(document.hidden) return;
     wlRefreshListingsOnly();
   }, 60000);
@@ -1081,58 +1102,54 @@ async function wlRefreshListingsOnly(){
       'hunt_listings?user_id=eq.' + uid +
       '&status=in.(new,seen,watched)' +
       '&first_seen_at=gte.' + since +
-      '&select=id,target_id,deal_score,price,auction_ends_at,listing_type' +
+      '&select=id,target_id,deal_score,price,auction_ends_at,listing_type,deal_reasons' +
       '&order=deal_score.desc.nullslast&limit=2000'
     )) || [];
     wlRender();
   }catch(e){}
 }
 
-// ── Cross-frame setpicker bootstrap (come Analizza) ─────────────────────
+/* =========================================================================
+   BOOTSTRAP
+   ========================================================================= */
 function wlSeedSetsFromParent(){
-  try {
-    var p = (window.parent && window.parent !== window) ? window.parent : window;
+  try{
+    var p = wlParent();
     if(Array.isArray(p.msSetsAll) && p.msSetsAll.length) return true;
     if(Array.isArray(p.SC_SETS_STATIC) && p.SC_SETS_STATIC.length){
       p.msSetsAll = p.SC_SETS_STATIC.slice().sort(function(a, b){
         return (b.releaseDate || '').localeCompare(a.releaseDate || '');
       });
-      try {
-        if(typeof p.msFetchSets === 'function' && !p._auSetsLoading){
-          p._auSetsLoading = true;
-          p.msFetchSets();
-        }
-      } catch(_){}
+      try{ if(typeof p.msFetchSets === 'function' && !p._auSetsLoading){ p._auSetsLoading = true; p.msFetchSets(); } }catch(_){}
       return true;
     }
-  } catch(_){}
+  }catch(_){}
   return false;
 }
 
-// ── Bootstrap ───────────────────────────────────────────────────────────
+/* Traccia se l'utente ha editato a mano Ref CM (per non sovrascriverlo al pick) */
+function wlWireRefEdit(){
+  var refEl = document.getElementById('wlRefCm');
+  if(refEl) refEl.addEventListener('input', function(){ refEl._wlUserEdited = true; });
+}
+
 document.addEventListener('DOMContentLoaded', function(){
-  // Mount set picker via parent (cross-frame, pattern Analizza)
-  try {
+  wlWireRefEdit();
+
+  // Monta il set picker del parent dentro al frame (cross-frame, come Analizza)
+  try{
     wlSeedSetsFromParent();
-    var p = (window.parent && window.parent !== window) ? window.parent : window;
+    var p = wlParent();
     var mountFn = (p && typeof p.rbMountSetPicker === 'function') ? p.rbMountSetPicker : null;
     if(mountFn){
-      mountFn({
-        containerId: 'wlSetPicker',
-        inputId:     'wlSetPicker-input',
-        placeholder: 'Scegli set (opz.)'
-      });
+      mountFn({ containerId: 'wlSetPicker', inputId: 'wlSetPicker-input', placeholder: 'Scegli set (opz.)' });
     } else {
-      console.warn('[wishlist] rbMountSetPicker non disponibile, fallback input testuale');
       var c = document.getElementById('wlSetPicker');
       if(c) c.innerHTML = '<input type="text" id="wlSetPicker-input" placeholder="Set (testuale)" style="width:100%;height:30px;font-size:12.5px;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);outline:none;box-sizing:border-box"/>';
     }
-  } catch(e){ console.error('[wishlist] mount setpicker:', e); }
+  }catch(e){ console.error('[wishlist] mount setpicker:', e); }
 
-  // Bootstrap dati
-  wlLoad().then(function(){
-    wlStartPolling();
-  }).catch(function(e){
+  wlLoad().then(function(){ wlStartPolling(); }).catch(function(e){
     console.error('[wishlist] init:', e);
     wlSt('Errore caricamento: ' + (e.message || e), 'err');
   });

@@ -82,6 +82,28 @@ Deno.serve(async (req) => {
       return json({ ok: true, message: "no monitored auctions", count: 0 });
     }
 
+    // Snooze per-carta (migration 084): salta gli alert per i target in pausa.
+    // Schema-resiliente: se la colonna snooze_until non esiste ancora, trattiamo
+    // l'insieme come vuoto (nessuno snooze) senza far fallire il monitor.
+    const snoozedTargetIds = new Set<string>();
+    const targetIds = Array.from(
+      new Set(monitored.map((l) => l.target_id).filter((x): x is string => !!x)),
+    );
+    if (targetIds.length) {
+      try {
+        const { data: snoozed, error: sErr } = await supa
+          .from("hunt_targets")
+          .select("id,snooze_until")
+          .in("id", targetIds)
+          .gt("snooze_until", new Date(now).toISOString());
+        if (sErr) throw sErr;
+        for (const t of snoozed || []) snoozedTargetIds.add(t.id);
+      } catch (e) {
+        // Colonna assente o errore non bloccante: nessuno snooze applicato.
+        console.warn("snooze lookup skipped:", (e as any)?.message || e);
+      }
+    }
+
     // Raggruppa per user_id (per caricare config una volta sola)
     const byUser: Record<string, any[]> = {};
     for (const l of monitored) {
@@ -97,6 +119,9 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       for (const listing of byUser[userId]) {
+        // Carta in pausa (snooze attivo): nessun alert finché lo snooze non scade.
+        if (listing.target_id && snoozedTargetIds.has(listing.target_id)) continue;
+
         const hoursRemaining = (new Date(listing.auction_ends_at).getTime() - now) / 3600000;
         const alreadyNotified: string[] = listing.monitor_notified || [];
 

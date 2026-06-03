@@ -5960,15 +5960,21 @@ window.rbMountSetPicker = function(opts){
 // ══════════════════════════════════════════════════════════════
 window.rbCardSearch = {
   run: async function(opts){
-    var qEl = document.getElementById(opts.queryInputId);
+    // Cross-frame: se chiamato da un iframe (es. Wishlist) come
+    // window.parent.rbCardSearch.run({doc:document,...}), gli input vivono nel
+    // documento del frame, non in quello del parent. opts.doc permette di
+    // risolvere getElementById sul documento giusto (stesso pattern di
+    // rbMountSetPicker). Default = document del parent (Collezione/Preventivi).
+    var doc = opts.doc || document;
+    var qEl = doc.getElementById(opts.queryInputId);
     if(!qEl){ console.warn('[rbCardSearch] input non trovato:', opts.queryInputId); return; }
     var raw = (qEl.value||'').trim();
-    var setInp = opts.setPickerInputId ? document.getElementById(opts.setPickerInputId) : null;
+    var setInp = opts.setPickerInputId ? doc.getElementById(opts.setPickerInputId) : null;
     var setSel = setInp ? rbResolveSetFromInput(setInp) : null;
     if(!raw && !setSel) return;
 
     var st = (typeof opts.statusEl === 'string')
-             ? document.getElementById(opts.statusEl)
+             ? doc.getElementById(opts.statusEl)
              : opts.statusEl;
     var baseCls = opts.statusBaseClass || 'status';
 
@@ -5995,7 +6001,7 @@ window.rbCardSearch = {
     // carte giapponesi, assenti dal database pokemontcg.io.
     var forcedLang=null;
     if(opts.jpToggleId){
-      var jpEl=document.getElementById(opts.jpToggleId);
+      var jpEl=doc.getElementById(opts.jpToggleId);
       if(jpEl && jpEl.checked) forcedLang=(opts.jpLang||'JPN');
     }
 
@@ -6049,10 +6055,15 @@ window.rbCardSearch = {
   renderResultsGrid: function(opts){
     var container = opts.containerEl;
     if(!container){ console.warn('[rbCardSearch] container non fornito'); return; }
+    // Cross-frame: crea i nodi nel documento a cui appartiene il container.
+    // Se il container vive in un iframe, document.createElement del parent
+    // produrrebbe nodi "adottati" — usiamo ownerDocument per sicurezza.
+    var cdoc = container.ownerDocument || document;
+    var noZoom = !!opts.noZoom;
     container.innerHTML = '';
     var thumbClass = opts.thumbClass || 'thumb';
     (opts.cards||[]).forEach(function(c){
-      var div = document.createElement('div');
+      var div = cdoc.createElement('div');
       div.className = thumbClass;
       var smImg = (c.images && c.images.small) || '';
       var lgImg = (c.images && c.images.large) || smImg;
@@ -6099,7 +6110,7 @@ window.rbCardSearch = {
         div.classList.add('sel');
         if(typeof opts.onPick === 'function') opts.onPick(c, div);
       };
-      if(lgImg && lgImg.indexOf('http') === 0){
+      if(!noZoom && lgImg && lgImg.indexOf('http') === 0){
         var imgEl = div.querySelector('img');
         if(imgEl && typeof addZoom === 'function') addZoom(imgEl, lgImg);
       }

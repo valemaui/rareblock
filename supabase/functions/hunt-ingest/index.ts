@@ -48,6 +48,8 @@ interface Target {
   ref_price_cm?: number | null;
   deal_threshold?: number | null;
   is_active: boolean;
+  total_found?: number | null;
+  last_scan_at?: string | null;
 }
 
 // ── Parser titolo (side-server) ─────────────────────────────────────────
@@ -55,45 +57,136 @@ function parseTitle(title: string) {
   const t = (title || "").toLowerCase();
   const out: Record<string, any> = {};
 
-  const g = t.match(/\b(psa|bgs|cgc|ace|cgs)\s*(10|9\.5|9|8\.5|8|7)\b/i);
+  const g = t.match(/\b(psa|bgs|cgc|ace|sgc|cgs)\s*(10|9\.5|9|8\.5|8|7\.5|7|6\.5|6)\b/i);
   if (g) { out.parsed_grader = g[1].toUpperCase(); out.parsed_grade = parseFloat(g[2]); }
+  // Marker di grading senza numero (es. "slab", "graded", "gradata")
+  if (!out.parsed_grader && /\b(graded|gradata|gradato|slab(bed)?)\b/i.test(t)) out.parsed_graded_hint = true;
 
-  if (/\b(1st\s*ed|1st\s*edition|prima\s*edizione|first\s*edition)\b/i.test(t)) out.parsed_is_1st = true;
+  if (/\b(1st\s*ed|1st\s*edition|prima\s*edizione|first\s*edition|edizione\s*1)\b/i.test(t)) out.parsed_is_1st = true;
   if (/\bshadowless\b/i.test(t)) out.parsed_shadowless = true;
 
-  if (/\b(italiano|italian|ita)\b/i.test(t)) out.parsed_lang = "ITA";
+  if (/\b(italiano|italiana|italian|ita)\b/i.test(t)) out.parsed_lang = "ITA";
   else if (/\b(japanese|japan|jap|jpn|giappon)\b/i.test(t)) out.parsed_lang = "JPN";
   else if (/\b(english|eng|inglese)\b/i.test(t)) out.parsed_lang = "ENG";
-  else if (/\b(deutsch|german|tedesco)\b/i.test(t)) out.parsed_lang = "GER";
+  else if (/\b(deutsch|german|tedesco|ger)\b/i.test(t)) out.parsed_lang = "GER";
+  else if (/\b(francese|french|fra|fre)\b/i.test(t)) out.parsed_lang = "FRA";
+  else if (/\b(spagnolo|spanish|esp|spa)\b/i.test(t)) out.parsed_lang = "ESP";
 
   if (/\b(mint|near\s*mint|nm)\b/i.test(t)) out.parsed_cond = "NM";
   else if (/\b(excellent|ex)\b/i.test(t)) out.parsed_cond = "EX";
   else if (/\b(good|gd)\b/i.test(t)) out.parsed_cond = "GD";
+
+  // Lotto / bundle / playset: NON è una singola carta → da non spacciare per deal
+  if (/\b(lotto|lot\b|bundle|stock|playset|collection\s*of|set\s*of|\d+\s*(carte|cards|pcs|pezzi)|x\s*\d{2,})\b/i.test(t)) {
+    out.parsed_is_lot = true;
+  }
+  // Riproduzione / proxy / custom / fake
+  if (/\b(proxy|custom|fake|replica|riproduzione|orica)\b/i.test(t)) out.parsed_is_proxy = true;
+
   return out;
 }
 
+// ── Helpers di matching robusto ─────────────────────────────────────────
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Match "parola intera" della carta nel titolo: evita Mew→Mewtwo, Eevee→Eeveelutions.
+// I confini sono non-alfanumerici (gestisce accenti/spazi/apostrofi nei nomi).
+function nameWholeWord(title: string, name: string): boolean {
+  if (!name) return false;
+  const re = new RegExp("(^|[^a-z0-9àèéìòù])" + escapeRe(name) + "([^a-z0-9àèéìòù]|$)", "i");
+  return re.test(title);
+}
+
+// Match numero carta con confini di cifra: "4" NON deve matchare "104"/"2024".
+// Riconosce le forme: "#4", "4/102", " 4 ", "no. 4". Esclude prezzi tipo "4,99".
+function numberMatch(title: string, cardNumber: string): { hit: boolean; exactFull: boolean } {
+  const base = (cardNumber || "").split("/")[0].trim();
+  if (!base) return { hit: false, exactFull: false };
+  const n = escapeRe(base);
+  // Forma piena "N/total" → match forte e inequivocabile
+  const full = new RegExp("(^|[^0-9/])" + escapeRe(cardNumber.trim()) + "([^0-9]|$)", "i");
+  if (cardNumber.includes("/") && full.test(title)) return { hit: true, exactFull: true };
+  // Numero isolato (#N | N/.. | spazi), MA non dentro un numero più lungo
+  // e non come prezzo (no "," o "." decimale subito dopo).
+  const re = new RegExp("(^|[^0-9])(#|n[.°]?\\s*)?" + n + "(/[0-9]+)?([^0-9.,]|$)", "i");
+  return { hit: re.test(title), exactFull: false };
+}
+
+// Soglia minima sotto la quale NON assegniamo il target (riduce falsi positivi
+// da match solo-nome o incoerenti raw/graded).
+const MIN_MATCH_SCORE = 35;
+
 // ── Match listing ↔ target ──────────────────────────────────────────────
-// Ritorna il target più specifico (score maggiore) o null
-function matchTarget(listing: IncomingListing, targets: Target[]): Target | null {
+// Ritorna il target più specifico (score maggiore) o null.
+// Migliorie 2026-06:
+//   - nome a parola intera (no Mew→Mewtwo)
+//   - numero con confini di cifra (no 4→104/2024/prezzi)
+//   - gate lingua: lingua del target specificata e titolo in lingua diversa → skip
+//   - coerenza raw/graded: penalità se il listing è gradato ma il target è raw
+//     (e viceversa) → i collezionisti raw non vogliono slab e viceversa
+//   - guard lotti/proxy: penalità forte (raramente è una singola carta)
+//   - soglia minima MIN_MATCH_SCORE per assegnare il target
+function matchTarget(listing: IncomingListing, targets: Target[], parsed: any): Target | null {
   const title = (listing.title || "").toLowerCase();
+  if (!title) return null;
   let best: Target | null = null;
   let bestScore = 0;
 
   for (const t of targets) {
     if (!t.is_active) continue;
-    const name = (t.card_name || "").toLowerCase();
-    if (!name || !title.includes(name)) continue;
+    const name = (t.card_name || "").toLowerCase().trim();
+    if (!name || !nameWholeWord(title, name)) continue;
 
-    let score = 10;
-    if (t.card_number && title.includes(t.card_number.split("/")[0])) score += 30;
-    if (t.grading_house && title.includes(t.grading_house.toLowerCase())) score += 15;
-    if (t.min_grade && title.includes(String(t.min_grade))) score += 10;
-    if (t.first_edition && /(1st|first\s*edition|prima\s*ediz)/i.test(title)) score += 8;
-    if (t.shadowless && /shadowless/i.test(title)) score += 8;
+    // Gate lingua: se il target vuole una lingua precisa e il titolo dichiara
+    // una lingua diversa, scartiamo (ITA vs JPN sono mercati distinti).
+    const wantLang = (t.language || "ANY").toUpperCase();
+    if (wantLang !== "ANY" && parsed.parsed_lang && parsed.parsed_lang !== wantLang) continue;
+
+    let score = 40; // base: nome a parola intera è già piuttosto specifico
+
+    // Numero
+    if (t.card_number) {
+      const nm = numberMatch(title, t.card_number);
+      if (nm.exactFull) score += 35;
+      else if (nm.hit) score += 25;
+      else score -= 10; // numero richiesto ma assente → meno probabile
+    }
+
+    // Lingua coerente → piccolo bonus
+    if (wantLang !== "ANY" && parsed.parsed_lang === wantLang) score += 5;
+
+    // Coerenza raw / graded
+    const listingGraded = !!parsed.parsed_grader || !!parsed.parsed_graded_hint;
+    if (t.grading_house || t.min_grade) {
+      // Target GRADATO
+      if (parsed.parsed_grader) {
+        if (t.grading_house && parsed.parsed_grader === t.grading_house.toUpperCase()) score += 15;
+        else if (t.grading_house) score += 4; // gradata ma casa diversa
+        else score += 8;                       // casa "qualsiasi"
+        if (t.min_grade && parsed.parsed_grade && parsed.parsed_grade >= t.min_grade) score += 8;
+        else if (t.min_grade && parsed.parsed_grade && parsed.parsed_grade < t.min_grade) score -= 12;
+      } else if (parsed.parsed_graded_hint) {
+        score += 2;
+      } else {
+        score -= 20; // target vuole gradata ma il listing sembra raw
+      }
+    } else {
+      // Target RAW
+      if (listingGraded) score -= 15; // chi cerca raw di solito non vuole slab
+      if (t.first_edition && parsed.parsed_is_1st) score += 8;
+      if (t.shadowless && parsed.parsed_shadowless) score += 8;
+    }
+
+    // Guard lotti/proxy
+    if (parsed.parsed_is_lot) score -= 20;
+    if (parsed.parsed_is_proxy) score -= 30;
 
     if (score > bestScore) { bestScore = score; best = t; }
   }
-  return best;
+
+  return bestScore >= MIN_MATCH_SCORE ? best : null;
 }
 
 // ── Deal score engine (mirror client) ───────────────────────────────────
@@ -129,6 +222,10 @@ function calcDealScore(listing: IncomingListing, target: Target | null, parsed: 
     if (target.min_grade && parsed.parsed_grade && parsed.parsed_grade >= target.min_grade) { score += 5; reasons.push("grade_match"); }
     if (target.first_edition && parsed.parsed_is_1st) { score += 5; reasons.push("1st_ed_match"); }
   }
+
+  // Lotti/proxy: non sono la singola carta cercata → abbattiamo il punteggio
+  if (parsed.parsed_is_lot) { score -= 30; reasons.push("lotto_o_bundle"); }
+  if (parsed.parsed_is_proxy) { score -= 60; reasons.push("proxy_o_riproduzione"); }
 
   return { score: Math.max(0, Math.min(100, Math.round(score))), reasons };
 }
@@ -171,7 +268,7 @@ Deno.serve(async (req) => {
   for (const l of incoming) {
     if (!l.platform || !l.listing_url || !l.external_id) continue;
     const parsed = parseTitle(l.title || "");
-    const target = matchTarget(l, tList);
+    const target = matchTarget(l, tList, parsed);
     const { score, reasons } = calcDealScore(l, target, parsed);
 
     rows.push({
@@ -217,11 +314,24 @@ Deno.serve(async (req) => {
   // Aggiorna contatori target
   const byTarget: Record<string, number> = {};
   for (const r of rows) if (r.target_id) byTarget[r.target_id] = (byTarget[r.target_id] || 0) + 1;
+
+  // Efficienza: un solo update batch per last_scan_at su TUTTI i target attivi scansionati
+  const nowIso = new Date().toISOString();
+  const activeIds = tList.map((t) => t.id);
+  if (activeIds.length) {
+    await supa.from("hunt_targets")
+      .update({ last_scan_at: nowIso })
+      .in("id", activeIds)
+      .eq("user_id", userId);
+  }
+
+  // Incremento reale di total_found solo sui target con nuovi match (valore per-target)
   for (const [tid, cnt] of Object.entries(byTarget)) {
-    await supa.from("hunt_targets").update({
-      last_scan_at: new Date().toISOString(),
-      total_found: ((tList.find((t) => t.id === tid)?.id === tid ? 0 : 0) + cnt),
-    }).eq("id", tid).eq("user_id", userId);
+    const prev = tList.find((t) => t.id === tid)?.total_found ?? 0;
+    await supa.from("hunt_targets")
+      .update({ total_found: (prev || 0) + cnt })
+      .eq("id", tid)
+      .eq("user_id", userId);
   }
 
   // Triggera alert rules sui listing NUOVI con deal_score sopra soglia
