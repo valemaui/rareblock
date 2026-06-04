@@ -10405,7 +10405,13 @@ async function verifyPriceEdit(opts){
   const variant  = document.getElementById('emVar').value  || 'Normal';
   const first1st = document.getElementById('em1st').checked;
 
-  // Overlay log solo se non-silent (click manuale)
+  // Overlay log solo se non-silent (click manuale). In silent (cambio
+  // condizione/lingua/variante nel modale edit) chiudiamo l'overlay rimasto da
+  // un click manuale precedente: esperienza uniforme, niente popup invasivo.
+  if(silent){
+    var staleOv = document.getElementById('cmLogOverlay');
+    if(staleOv) staleOv.remove();
+  }
   const log = silent ? null : cmLogger((c.name||'')+(c.number?' \u00b7 #'+c.number:''));
   if(log){
     log.log(cond+' \u00b7 '+lang+' \u00b7 '+variant+(first1st?' \u00b7 1st ed':''), 'data');
@@ -12640,7 +12646,15 @@ async function verifyPriceAdd(prefix, opts){
   const btn = document.getElementById(prefix+'VerifyBtn');
   if(btn){ btn.classList.add('loading'); btn.innerHTML='<span class="rb-i rb-i-clock"></span>'; }
 
-  // Overlay log floating SOLO se non-silent (click manuale dell'utente)
+  // Overlay log floating SOLO se non-silent (click manuale dell'utente).
+  // Se l'utente è in silent (cambio condizione/lingua/variante/1st) e c'è un
+  // overlay rimasto da un click manuale precedente, lo chiudiamo: l'esperienza
+  // del cambio dropdown deve essere identica al primo auto-verify NM (nessun
+  // popup, prezzo aggiornato silenzioso nella barra sotto le specifiche).
+  if(silent){
+    var staleOv = document.getElementById('cmLogOverlay');
+    if(staleOv) staleOv.remove();
+  }
   const log = silent ? null : cmLogger(name+(number?' \u00b7 #'+number:''));
 
   // Rimuovi feedback precedente
