@@ -235,6 +235,18 @@ body{display:flex;flex-direction:column}
 @keyframes radValPulse{0%,100%{opacity:.4}50%{opacity:.9}}
 .rad-scan-table .val-runbtn{font-size:10px;padding:2px 8px;color:var(--text-muted);border-color:var(--border)}
 .rad-scan-table .val-runbtn:hover{color:var(--accent);border-color:var(--accent)}
+.rad-view-filter{display:flex;flex-direction:column;gap:7px;padding:10px 12px;margin-bottom:9px;background:var(--surface,#161b22);border:1px solid var(--border);border-radius:8px}
+.rad-view-filter .rvf-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rad-view-filter .rvf-lbl{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);min-width:56px;font-family:var(--mono)}
+.rad-view-filter .rvf-neg{flex:1;min-width:180px;padding:6px 9px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--fg);font-size:12px}
+.rad-view-filter .rvf-neg:focus{outline:none;border-color:var(--accent,#c9a84c)}
+.rad-view-filter .rvf-days{display:flex;gap:5px;flex-wrap:wrap}
+.rad-view-filter .rvf-count{font-size:10px;color:var(--text-muted);font-family:var(--mono);white-space:nowrap}
+.rad-day-chip{padding:4px 9px;background:var(--bg);border:1px solid var(--border);border-radius:14px;color:var(--text-muted);font-size:11px;cursor:pointer;font-family:var(--mono);transition:all .12s}
+.rad-day-chip:hover{border-color:var(--accent,#c9a84c);color:var(--fg)}
+.rad-day-chip.on{background:var(--accent,#c9a84c);border-color:var(--accent,#c9a84c);color:#0d1117;font-weight:700}
+.rad-day-chip.clear{color:#f85149;border-color:#f8514955}
+.val-line{line-height:1}
 .rad-scan-table .val-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;letter-spacing:.04em;font-family:var(--mono);text-transform:uppercase;cursor:help;border:1px solid transparent}
 .rad-scan-table .val-affare  {background:rgba(63,185,80,.15);  color:var(--success); border-color:rgba(63,185,80,.4)}
 .rad-scan-table .val-buono   {background:rgba(122,154,110,.12);color:#7a9a6e;        border-color:rgba(122,154,110,.4)}
@@ -4288,10 +4300,19 @@ function radScanRenderResults(){
   if(runBtn) runBtn.style.display = job._running ? 'none' : 'inline-block';
   if(clearBtn) clearBtn.style.display = 'inline-block';
 
-  var results = (_radScanState.results[id] || []).slice();
+  var allResults = (_radScanState.results[id] || []).slice();
+  var filterBar = radViewFilterBarHtml(0, 0);
+
+  if(allResults.length === 0){
+    listEl.innerHTML = filterBar + '<div class="rad-empty" style="padding:40px 20px"><div class="rad-empty-icon"><span class="rb-i rb-i-search"></span></div><div class="rad-empty-title">Nessun risultato</div><div class="rad-empty-sub">Click "▶ Esegui ora" qui sopra. Se non escono match, allenta i parametri.</div></div>';
+    return;
+  }
+
+  var results = radApplyViewFilter(allResults);
+  filterBar = radViewFilterBarHtml(results.length, allResults.length);
 
   if(results.length === 0){
-    listEl.innerHTML = '<div class="rad-empty" style="padding:50px 20px"><div class="rad-empty-icon"><span class="rb-i rb-i-search"></span></div><div class="rad-empty-title">Nessun risultato</div><div class="rad-empty-sub">Click "▶ Esegui ora" qui sopra. Se non escono match, allenta i parametri.</div></div>';
+    listEl.innerHTML = filterBar + '<div class="rad-empty" style="padding:40px 20px"><div class="rad-empty-icon"><span class="rb-i rb-i-search"></span></div><div class="rad-empty-title">Tutto nascosto dai filtri</div><div class="rad-empty-sub">'+allResults.length+' risultati nascosti dai filtri attivi. Allenta i filtri qui sopra.</div></div>';
     return;
   }
 
@@ -4322,6 +4343,7 @@ function radScanRenderResults(){
   });
 
   listEl.innerHTML =
+    filterBar +
     '<div class="rad-scan-table-wrap">'+
       '<table class="rad-scan-table">'+
         '<thead><tr>'+
@@ -4386,7 +4408,7 @@ function radScanResultTr(it, jobId, isMonitored){
   var bidsLine = (typeof it.bids === 'number' && it.bids > 0)
     ? '<div style="font-size:9.5px;color:var(--text-muted);margin-top:1px;font-family:var(--mono)"><span class="rb-i rb-i-tools"></span> '+it.bids+' bid</div>'
     : '';
-  var titleCell = newBadge+unavBadge+staleBadge+'<a href="'+escapeHtml(it.url)+'" target="_blank" rel="noopener" title="'+escapeHtml(it.title)+'">'+escapeHtml(it.title)+'</a>'+bidsLine;
+  var titleCell = newBadge+unavBadge+staleBadge+'<a href="'+escapeHtml(it.url)+'" target="_blank" rel="noopener" title="'+escapeHtml(it.title)+'">'+escapeHtml(it.title)+'</a>'+bidsLine+radValBadgeHtml(it);
 
   // Price
   var priceCellClass = 'price';
@@ -4820,6 +4842,340 @@ async function radValEstimate(item){
   };
 }
 
+// ══════════════════════════════════════════════════════════════════════
+//  VALUTAZIONE LOTTI MULTI-CARTA (Catawiki & co.) — euristica pura
+//  Decompone un lotto in item, valuta ciascuno riusando la pipeline
+//  singola (radValLookupCmRaw + radValGetGradeMultiplier), aggrega in un
+//  valore di mercato lordo, sottrae le commissioni del portale e
+//  confronta col bid corrente → margine € + lot deal score.
+//  Nessuna chiamata LLM: solo regex/euristica.
+// ══════════════════════════════════════════════════════════════════════
+
+// Modello costi acquirente per portale. Valori INDICATIVI: confermare col
+// tariffario corrente del portale (commissione acquirente + IVA su commissione).
+// Spedizione di default conservativa, sovrascrivibile per lotto (item.ship_eur).
+var RAD_PORTAL_FEES = {
+  catawiki: { buyer_fee_pct: 9,  vat_on_fee_pct: 22, default_ship_eur: 15 },
+  ebay:     { buyer_fee_pct: 0,  vat_on_fee_pct: 0,  default_ship_eur: 8  },
+  subito:   { buyer_fee_pct: 0,  vat_on_fee_pct: 0,  default_ship_eur: 8  },
+  vinted:   { buyer_fee_pct: 5,  vat_on_fee_pct: 0,  default_ship_eur: 5  },
+  default:  { buyer_fee_pct: 0,  vat_on_fee_pct: 0,  default_ship_eur: 10 },
+};
+
+// Costo totale di acquisizione = bid + commissione + IVA su commissione + spedizione
+function radValAcquisitionCost(bid, source, shipEur){
+  var f = RAD_PORTAL_FEES[source] || RAD_PORTAL_FEES.default;
+  bid = (typeof bid === 'number' && bid > 0) ? bid : 0;
+  var fee  = bid * (f.buyer_fee_pct / 100);
+  var vat  = fee * (f.vat_on_fee_pct / 100);
+  var ship = (typeof shipEur === 'number') ? shipEur : f.default_ship_eur;
+  return { fee: fee, vat: vat, ship: ship, total: bid + fee + vat + ship };
+}
+
+// Nomi-carta spazzatura: header di lotto che il parser singolo cattura per sbaglio
+var RAD_LOT_JUNK_NAME = /^(lotto|lot|lots|bundle|collezione|collection|set|sets|stock|raccolta|mazzo|deck|various|vari|varie|misto|misti|mixed|job)$/i;
+
+// Quantità in un segmento: "3x", "x3", "3 ×", "3 pezzi/pcs/carte/cards"
+// (NON tocca i numeri carta tipo 4/102: serve esplicito x/× o un sostantivo)
+function radValDetectQty(seg){
+  var m;
+  if((m = seg.match(/(?:^|[\s(])(\d{1,3})\s*[x×]\b/i)))            return parseInt(m[1], 10);
+  if((m = seg.match(/\b[x×]\s*(\d{1,3})\b/i)))                      return parseInt(m[1], 10);
+  if((m = seg.match(/\b(\d{1,3})\s*(?:pezzi|pcs|carte|cards|pieces)\b/i))) return parseInt(m[1], 10);
+  return 1;
+}
+
+// Decompone testo lotto in segmenti-item. NON splitta su "/" (usato nei numeri).
+function radValSplitLotSegments(text){
+  if(!text) return [];
+  var norm = String(text)
+    .replace(/\r/g, '\n')
+    .replace(/[•·▪◦‣\u2022]/g, '\n')   // bullet → newline
+    .replace(/\s*\|\s*/g, '\n');        // pipe → newline
+  var segs = [];
+  norm.split('\n').forEach(function(ln){
+    ln = ln.trim();
+    if(!ln) return;
+    // dentro la riga, separa item multipli su " + " o ";"
+    ln.split(/\s+\+\s+|\s*;\s*/).forEach(function(part){
+      part = part.trim();
+      if(part) segs.push(part);
+    });
+  });
+  return segs;
+}
+
+// Parsing lotto → { items:[{parsed, qty, segment}], item_count, total_qty }
+function radValParseLot(title, description){
+  // Preferisci la descrizione se più ricca del titolo (più dettaglio per item)
+  var desc = description ? String(description).trim() : '';
+  var ttl  = title ? String(title).trim() : '';
+  var body = (desc.length > ttl.length) ? desc : ttl;
+
+  var segs = radValSplitLotSegments(body);
+  // Fallback: se il titolo si splitta in più item ma il body no, usa il titolo
+  if(segs.length <= 1 && ttl){
+    var tSegs = radValSplitLotSegments(ttl);
+    if(tSegs.length > segs.length) segs = tSegs;
+  }
+
+  var items = [];
+  segs.forEach(function(seg){
+    var parsed = radValParseTitle(seg);
+    if(!parsed) return;
+    if(!parsed.card_name_guess && !parsed.card_number) return;     // niente carta identificata
+    if(parsed.confidence === 'low') return;                         // segmento bulk interno
+    if(parsed.card_name_guess && RAD_LOT_JUNK_NAME.test(parsed.card_name_guess)) return; // header lotto
+    items.push({ parsed: parsed, qty: radValDetectQty(seg), segment: seg });
+  });
+
+  // Dedup per chiave carta, somma quantità
+  var byKey = {};
+  items.forEach(function(it){
+    var k = [
+      (it.parsed.card_name_guess || '').toLowerCase(),
+      it.parsed.card_number || '',
+      it.parsed.grading_house || '', it.parsed.grade || '',
+      (it.parsed.set_name_guess || '').toLowerCase()
+    ].join('|');
+    if(byKey[k]) byKey[k].qty += it.qty;
+    else byKey[k] = it;
+  });
+  var uniq = Object.keys(byKey).map(function(k){ return byKey[k]; });
+
+  return {
+    items: uniq,
+    segment_count: segs.length,
+    item_count: uniq.length,
+    total_qty: uniq.reduce(function(s, it){ return s + it.qty; }, 0),
+  };
+}
+
+function radValLotExplain(gross, cost, marginEur, marginPct, coverage, pricedItems, totalItems){
+  var p = [];
+  p.push('Valore mercato lordo: €' + gross.toFixed(0)
+        + ' (' + pricedItems + '/' + totalItems + ' item prezzati, copertura '
+        + Math.round(coverage * 100) + '%)');
+  if(cost.total > 0){
+    p.push('Costo acquisizione: €' + cost.total.toFixed(0)
+          + ' (bid + fee €' + cost.fee.toFixed(0) + ' + IVA €' + cost.vat.toFixed(0)
+          + ' + sped. €' + cost.ship.toFixed(0) + ')');
+  }
+  if(marginEur !== null){
+    p.push('Margine: ' + (marginEur >= 0 ? '+' : '') + '€' + marginEur.toFixed(0)
+          + ' (' + (marginPct >= 0 ? '+' : '') + marginPct.toFixed(0) + '%)');
+  }
+  return p.join(' · ');
+}
+
+// ── VALUTAZIONE COMPLETA LOTTO ───────────────────────────────────────────
+// item: { title, description?, price (bid corrente), source ('catawiki'…), ship_eur? }
+async function radValEstimateLot(item){
+  var lot = radValParseLot(item.title, item.description);
+  if(lot.item_count === 0){
+    return { error: 'nessun item valutabile nel lotto', lot: lot };
+  }
+  // Non è un vero lotto (1 carta singola) → delega alla pipeline esistente
+  if(lot.item_count === 1 && lot.total_qty === 1){
+    return radValEstimate(item);
+  }
+
+  var gross = 0, pricedItems = 0, pricedQty = 0;
+  var totalQty = lot.total_qty;
+  var breakdown = [];
+  for(var idx = 0; idx < lot.items.length; idx++){
+    var it = lot.items[idx];
+    var cmRes = await radValLookupCmRaw(it.parsed);
+    if(!cmRes || cmRes.error){
+      breakdown.push({ name: it.parsed.card_name_guess, qty: it.qty, value: null,
+                       error: (cmRes && cmRes.error) || 'no lookup' });
+      continue;
+    }
+    var mult = radValGetGradeMultiplier(it.parsed);
+    var unit = cmRes.raw_nm * mult;
+    var sub  = unit * it.qty;
+    gross += sub;
+    pricedItems++; pricedQty += it.qty;
+    breakdown.push({ name: it.parsed.card_name_guess, qty: it.qty,
+                     unit: unit, value: sub, cm_raw: cmRes.raw_nm, mult: mult });
+  }
+  if(pricedItems === 0){
+    return { error: 'nessun prezzo CM trovato per gli item del lotto', lot: lot, breakdown: breakdown };
+  }
+
+  var coverage = totalQty > 0 ? (pricedQty / totalQty) : 0;
+  var cost = radValAcquisitionCost(item.price, item.source, item.ship_eur);
+  var marginEur = (typeof item.price === 'number' && item.price > 0) ? (gross - cost.total) : null;
+  var marginPct = (marginEur !== null && cost.total > 0) ? (marginEur / cost.total * 100) : null;
+
+  // Lot deal score 0-100: mappa il margine% e SCALA per la copertura, così un
+  // lotto prezzato a metà non gonfia lo score. Senza bid → score null.
+  var score = null;
+  if(marginPct !== null){
+    var base = Math.max(0, Math.min(100, (marginPct + 10) * 1.2)); // ~+75% → 100, 0% → 12
+    score = Math.round(base * (0.4 + 0.6 * coverage));             // copertura pesa fino al 60%
+  }
+  var confidence = coverage >= 0.8 ? 'high' : (coverage >= 0.5 ? 'medium' : 'low');
+
+  return {
+    is_lot: true,
+    item_count: lot.item_count,
+    total_qty: totalQty,
+    priced_qty: pricedQty,
+    coverage: coverage,
+    gross_market_value: gross,
+    acquisition_cost: cost,
+    margin_eur: marginEur,
+    margin_pct: marginPct,
+    lot_deal_score: score,
+    confidence: confidence,
+    breakdown: breakdown,
+    explain: radValLotExplain(gross, cost, marginEur, marginPct, coverage, pricedItems, lot.item_count),
+  };
+}
+
+// ── Verdetto da margine % (lotti), coerente con quello dei singoli ───────
+function radValMarginVerdict(m){
+  if(m == null) return null;
+  if(m > 25)  return 'affare';
+  if(m > 5)   return 'buono';
+  if(m > -5)  return 'fair';
+  if(m > -25) return 'caro';
+  return 'costoso';
+}
+
+// ── Normalizza il risultato (singolo o lotto) sui campi letti dalla riga ─
+function radValApply(it, res){
+  if(!res || res.error){
+    it._val_error = (res && res.error) || 'errore valutazione';
+    delete it._val_cm; delete it._val_delta; delete it._val_verdict; delete it._val_lot;
+    return;
+  }
+  delete it._val_error;
+  if(res.is_lot){
+    it._val_lot = {
+      item_count: res.item_count, total_qty: res.total_qty, coverage: res.coverage,
+      margin_eur: res.margin_eur, margin_pct: res.margin_pct,
+      score: res.lot_deal_score, confidence: res.confidence,
+      breakdown: res.breakdown, explain: res.explain
+    };
+    it._val_cm = res.gross_market_value;                                   // valore mercato del lotto
+    it._val_delta = (res.margin_pct != null) ? -res.margin_pct : null;     // neg = affare (coerente coi singoli)
+    it._val_verdict = radValMarginVerdict(res.margin_pct);
+    it._val_parsed = null;
+  } else {
+    it._val_lot = null;
+    it._val_cm = res.estimated_value;
+    it._val_delta = res.delta_pct;
+    it._val_verdict = res.verdict;
+    it._val_parsed = res.parsed;
+  }
+}
+
+// ── Badge valutazione inline (sotto il titolo della riga) ────────────────
+var RAD_VAL_VERDICT_COLORS = {
+  affare:['#3fb950','#0d2a14'], buono:['#56d364','#10240f'],
+  fair:['#8b949e','#161b22'],   caro:['#d29922','#2a2110'],
+  costoso:['#f85149','#2a1212']
+};
+function radValBadgeHtml(it){
+  if(it._val_loading){
+    return '<div class="val-line"><span class="val-badge" style="background:var(--surface,#161b22);color:var(--text-muted);border-color:var(--border)">… stima</span></div>';
+  }
+  if(typeof it._val_cm !== 'number') return '';
+  var v = it._val_verdict;
+  var c = RAD_VAL_VERDICT_COLORS[v] || RAD_VAL_VERDICT_COLORS.fair;
+  var lot = it._val_lot, label, tip;
+  if(lot){
+    var mtxt = (lot.margin_eur != null)
+      ? (lot.margin_eur >= 0 ? '+' : '') + '€' + Math.round(lot.margin_eur)
+      : '€' + Math.round(it._val_cm);
+    label = 'LOTTO ' + (lot.score != null ? lot.score : '?') + ' · ' + mtxt;
+    if(lot.confidence !== 'high') label += ' · ' + Math.round(lot.coverage * 100) + '%';
+    tip = lot.explain || '';
+  } else {
+    label = (v ? radValVerdictLabel(v) + ' · ' : '') + '€' + Math.round(it._val_cm);
+    tip = (it._val_parsed && it._val_parsed._val_explain) || '';
+  }
+  return '<div class="val-line" style="margin-top:2px"><span class="val-badge" style="background:'
+    + c[1] + ';color:' + c[0] + ';border-color:' + c[0] + '55" title="' + escapeHtml(tip) + '">'
+    + escapeHtml(label) + '</span></div>';
+}
+window.radValBadgeHtml = radValBadgeHtml;
+
+// ══════════════════════════════════════════════════════════════════════
+//  FILTRO RISULTATI (lato view): parole-chiave negative + giorno scadenza
+//  Non persistito (vista volatile). I parametri di RICERCA (categorie,
+//  chiavi positive) vivono invece sul job → vedi URL builder Catawiki.
+// ══════════════════════════════════════════════════════════════════════
+function radViewFilterInit(){
+  if(!_radScanState.viewFilter) _radScanState.viewFilter = { neg: [], endDays: [] };
+  return _radScanState.viewFilter;
+}
+function radLocalDateKey(d){
+  return d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+}
+function radFilterMatchNeg(title, negList){
+  if(!negList || !negList.length) return true;
+  var lo = (title || '').toLowerCase();
+  for(var i=0; i<negList.length; i++){ if(negList[i] && lo.indexOf(negList[i]) >= 0) return false; }
+  return true;
+}
+function radFilterMatchEndDay(endTime, endDays){
+  if(!endDays || !endDays.length) return true;
+  if(!endTime) return false;                       // se filtri per giorno, escludi item senza scadenza
+  var d = new Date(endTime);
+  if(isNaN(d.getTime())) return false;
+  return endDays.indexOf(radLocalDateKey(d)) >= 0;
+}
+function radApplyViewFilter(results){
+  var vf = radViewFilterInit();
+  if((!vf.neg || !vf.neg.length) && (!vf.endDays || !vf.endDays.length)) return results;
+  return results.filter(function(r){
+    return radFilterMatchNeg(r.title, vf.neg) && radFilterMatchEndDay(r.end_time, vf.endDays);
+  });
+}
+function radViewFilterSetNeg(val){
+  radViewFilterInit().neg = String(val || '').split(',').map(function(s){ return s.trim().toLowerCase(); }).filter(Boolean);
+  radScanRenderResults();
+}
+function radViewFilterToggleDay(key){
+  var arr = radViewFilterInit().endDays;
+  var i = arr.indexOf(key);
+  if(i >= 0) arr.splice(i,1); else arr.push(key);
+  radScanRenderResults();
+}
+function radViewFilterClearDays(){
+  radViewFilterInit().endDays = [];
+  radScanRenderResults();
+}
+window.radViewFilterSetNeg = radViewFilterSetNeg;
+window.radViewFilterToggleDay = radViewFilterToggleDay;
+window.radViewFilterClearDays = radViewFilterClearDays;
+
+function radViewFilterBarHtml(shown, total){
+  var vf = radViewFilterInit();
+  var WD = ['dom','lun','mar','mer','gio','ven','sab'];
+  var base = new Date(); base.setHours(0,0,0,0);
+  var chips = '';
+  for(var i=0; i<10; i++){
+    var d = new Date(base.getTime() + i*86400000);
+    var key = radLocalDateKey(d);
+    var lbl = i===0 ? 'oggi' : (i===1 ? 'domani' : WD[d.getDay()] + ' ' + d.getDate() + '/' + (d.getMonth()+1));
+    var on = vf.endDays.indexOf(key) >= 0;
+    chips += '<button type="button" class="rad-day-chip'+(on?' on':'')+'" onclick="radViewFilterToggleDay(\''+key+'\')">'+lbl+'</button>';
+  }
+  var clearDays = vf.endDays.length ? '<button type="button" class="rad-day-chip clear" onclick="radViewFilterClearDays()" title="azzera giorni">✕</button>' : '';
+  var count = (total != null && (vf.neg.length || vf.endDays.length))
+    ? '<span class="rvf-count">mostrati '+shown+'/'+total+'</span>' : '';
+  return '<div class="rad-view-filter">'+
+    '<div class="rvf-row"><span class="rvf-lbl">Escludi</span>'+
+      '<input type="text" class="rvf-neg" placeholder="es. mistery, mystery, lotti, repack, mixed" value="'+escapeHtml((vf.neg||[]).join(', '))+'" onchange="radViewFilterSetNeg(this.value)"/>'+count+'</div>'+
+    '<div class="rvf-row"><span class="rvf-lbl">Scade il</span><div class="rvf-days">'+chips+clearDays+'</div></div>'+
+  '</div>';
+}
+window.radViewFilterBarHtml = radViewFilterBarHtml;
+
 function radValVerdictLabel(v){
   return ({
     'affare':'AFFARE',
@@ -4872,15 +5228,8 @@ async function radValRunBatch(jobId, opts){
         var idx = i++;
         var it = items[idx];
         try{
-          var res = await radValEstimate(it);
-          if(res.error){
-            it._val_error = res.error;
-          } else {
-            it._val_cm = res.estimated_value;
-            it._val_delta = res.delta_pct;
-            it._val_verdict = res.verdict;
-            it._val_parsed = res.parsed;
-          }
+          var res = await radValEstimateLot(it);
+          radValApply(it, res);
         }catch(e){
           it._val_error = String(e.message||e);
         }
@@ -4912,15 +5261,8 @@ async function radValRunSingle(jobId, url){
   delete it._val_error;
   radScanRenderResults();
   try{
-    var res = await radValEstimate(it);
-    if(res.error){
-      it._val_error = res.error;
-    } else {
-      it._val_cm = res.estimated_value;
-      it._val_delta = res.delta_pct;
-      it._val_verdict = res.verdict;
-      it._val_parsed = res.parsed;
-    }
+    var res = await radValEstimateLot(it);
+    radValApply(it, res);
   }catch(e){
     it._val_error = String(e.message||e);
   }
