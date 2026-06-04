@@ -240,6 +240,17 @@ body{display:flex;flex-direction:column}
 .ms-lcc-minus:disabled{opacity:.3;cursor:default}
 .ms-step:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px rgba(201,169,97,.28)}
 .ms-step button:focus-visible{outline:none}
+/* override manuale varianti della carta */
+.ms-load-ovr{margin-top:14px;border-top:1px dashed var(--border);padding-top:12px}
+.ms-ovr-head{display:flex;align-items:center;gap:8px;font-size:11px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
+.ms-ovr-head .ms-ovr-auto{margin-left:auto;font-size:10px;text-transform:none;letter-spacing:0;color:var(--accent);border:1px solid var(--accent-border,rgba(201,169,97,.32));border-radius:5px;padding:2px 8px;cursor:pointer;background:transparent}
+.ms-ovr-head .ms-ovr-auto:hover{background:var(--accent-soft,rgba(201,169,97,.12))}
+.ms-ovr-head .ms-ovr-badge{margin-left:auto;font-size:9px;text-transform:none;letter-spacing:.3px;color:var(--warning,#d29922)}
+.ms-ovr-chips{display:flex;flex-wrap:wrap;gap:6px}
+.ms-ovr-chip{font-size:11px;font-family:var(--mono);padding:5px 11px;border-radius:999px;border:1px solid var(--border);background:var(--surface2);color:var(--text-subtle);cursor:pointer;transition:all .12s}
+.ms-ovr-chip:hover{border-color:var(--accent-border,rgba(201,169,97,.32));color:var(--text)}
+.ms-ovr-chip.on{background:rgba(63,185,80,.12);border-color:rgba(63,185,80,.5);color:var(--success)}
+.ms-ovr-hint{font-size:10px;color:var(--text-subtle);margin-top:8px;line-height:1.5}
 .ms-load-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 20px;border-top:1px solid var(--border);grid-column:1/-1;flex-shrink:0}
 .ms-load-foot .hint{font-size:10.5px;color:var(--text-subtle);font-family:var(--mono)}
 .ms-load-prog{height:3px;background:var(--surface3);grid-column:1/-1}
@@ -477,6 +488,7 @@ body{display:flex;flex-direction:column}
       <div class="ms-load-name" id="msLoadName">—</div>
       <div class="ms-load-meta" id="msLoadMeta">—</div>
       <div class="ms-load-vars" id="msLoadVars"></div>
+      <div class="ms-load-ovr" id="msLoadOvr"></div>
     </div>
     <div class="ms-load-prog"><div class="ms-load-prog-fill" id="msLoadProgFill" style="width:0%"></div></div>
     <div class="ms-load-foot">
@@ -636,6 +648,17 @@ function msVisibleVariants(ms){
 function cardApplicableVariants(card, ms){
   var available = (ms&&ms.variants) ? ms.variants : [];
   if(!available.length) return [];
+  // Override manuale per-carta: se l'utente ha corretto a mano le varianti
+  // (es. carta holo erroneamente rilevata come normal), rispettalo. Si
+  // interseca con le varianti del masterset per coerenza.
+  if(Array.isArray(card.variantsOverride)){
+    var ov = available.filter(function(v){ return card.variantsOverride.indexOf(v)>=0; });
+    return ov.length ? ov : available.slice();
+  }
+  return _cardAutoVariants(card, ms, available);
+}
+function _cardAutoVariants(card, ms, available){
+  available = available || ((ms&&ms.variants)?ms.variants:[]);
   var rarity = (card.rarity||'').toLowerCase().trim();
   var supertype = (card.supertype||'').toLowerCase();
   var subtypes = Array.isArray(card.subtypes) ? card.subtypes.map(function(s){return (s||'').toLowerCase();}) : [];
@@ -2225,7 +2248,63 @@ function msLoadRender(){
     _msLoadFocus={v:firstPlus.getAttribute('data-v'),cond:firstPlus.getAttribute('data-cond')||'NM'};
     try{ firstPlus.focus({preventScroll:true}); }catch(_e){ firstPlus.focus(); }
   } else _msLoadFocus=null;
+  msLoadRenderOvr(ms, card);
 }
+// Editor override varianti della singola carta (correzione manuale del
+// rilevamento automatico, es. carta holo segnata come normal).
+function msLoadRenderOvr(ms, card){
+  var box=document.getElementById('msLoadOvr');
+  if(!box) return;
+  var setVars=(ms.variants||[]);
+  if(!setVars.length){ box.innerHTML=''; return; }
+  var applic=cardApplicableVariants(card, ms);
+  var isOverride=Array.isArray(card.variantsOverride);
+  var html='<div class="ms-ovr-head">Varianti di questa carta';
+  if(isOverride) html+='<button type="button" class="ms-ovr-auto" onclick="msLoadVarReset()">↺ ripristina auto</button>';
+  else html+='<span class="ms-ovr-badge">auto</span>';
+  html+='</div><div class="ms-ovr-chips">';
+  setVars.forEach(function(v){
+    var on=applic.indexOf(v)>=0;
+    html+='<button type="button" class="ms-ovr-chip'+(on?' on':'')+'" data-ov="'+esc(v)+'">'+esc(v)+'</button>';
+  });
+  html+='</div><div class="ms-ovr-hint">Attiva/disattiva una variante se il rilevamento automatico è errato (es. carta holo rilevata come normal). La modifica vale solo per questa carta.</div>';
+  box.innerHTML=html;
+  box.querySelectorAll('.ms-ovr-chip').forEach(function(ch){
+    ch.addEventListener('click',function(){ msLoadVarToggle(ch.getAttribute('data-ov')); });
+  });
+}
+window.msLoadVarToggle=function(v){
+  var ms=msData.find(function(m){return m.id===msActive;}); if(!ms) return;
+  var card=_msLoadList[_msLoadIdx]; if(!card) return;
+  var setVars=(ms.variants||[]);
+  // base = applicabili correnti (da override o auto)
+  var cur=cardApplicableVariants(card, ms).slice();
+  var i=cur.indexOf(v);
+  if(i>=0) cur.splice(i,1); else cur.push(v);
+  // mantieni ordine delle varianti del set
+  var next=setVars.filter(function(x){ return cur.indexOf(x)>=0; });
+  // se coincide con l'auto-detect, rimuovi l'override (torna "auto")
+  var auto=_cardAutoVariants(card, ms, setVars);
+  var sameAsAuto = next.length===auto.length && next.every(function(x){ return auto.indexOf(x)>=0; });
+  if(sameAsAuto) delete card.variantsOverride;
+  else card.variantsOverride = next;
+  msSave(msData);
+  msLoadRender();          // ridisegna gli stepper in base alle nuove varianti
+  msUpdateStats(ms);
+  var ls=document.getElementById('msListSearch');
+  msRenderList(ls?ls.value:'');
+};
+window.msLoadVarReset=function(){
+  var ms=msData.find(function(m){return m.id===msActive;}); if(!ms) return;
+  var card=_msLoadList[_msLoadIdx]; if(!card) return;
+  if(!Array.isArray(card.variantsOverride)) return;
+  delete card.variantsOverride;
+  msSave(msData);
+  msLoadRender();
+  msUpdateStats(ms);
+  var ls=document.getElementById('msListSearch');
+  msRenderList(ls?ls.value:'');
+};
 function _msVSlug(v){ return String(v).replace(/[^A-Za-z0-9]/g,''); }
 // Aggiorna in-place le quantità del modal di caricamento (preserva il focus,
 // indispensabile per la digitazione rapida con i tasti +/−).

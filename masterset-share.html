@@ -298,6 +298,10 @@ function msVisibleVariants(ms){
 function cardApplicableVariants(card, ms){
   var available=(ms&&ms.variants)?ms.variants:[];
   if(!available.length) return [];
+  if(Array.isArray(card.variantsOverride)){
+    var ov=available.filter(function(v){ return card.variantsOverride.indexOf(v)>=0; });
+    return ov.length ? ov : available.slice();
+  }
   var rarity=(card.rarity||'').toLowerCase().trim();
   var supertype=(card.supertype||'').toLowerCase();
   var subtypes=Array.isArray(card.subtypes)?card.subtypes.map(function(s){return (s||'').toLowerCase();}):[];
