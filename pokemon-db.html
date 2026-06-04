@@ -10435,6 +10435,7 @@ async function verifyPriceEdit(opts){
       setName:     c.set || '',
       rarity:      c.rarity || '',
       cmUrl:       c.cm_url || null,
+      silent:      silent,
     });
     const elapsed = Date.now()-t0;
 
@@ -11913,7 +11914,10 @@ async function fetchCmPriceLive(opts){
   // È l'unica fonte che bypassa Cloudflare (gira sul tuo IP). Best-effort:
   // se lo userscript non c'è o va in timeout → si prosegue con lo scrape/manuale.
   // Attivato solo per URL diretti e se richiesto (opts.useUserscript) o cond≠NM.
-  var _wantUserscript = isDirect && (opts.useUserscript === true ||
+  // ECCEZIONE: se opts.silent (auto-verify da cambio dropdown), NON apriamo la
+  // tab CM — i browser bloccano window.open senza gesto utente recente, e
+  // l'apertura sarebbe comunque invasiva. Il fallback è lo scrape server-side.
+  var _wantUserscript = !opts.silent && isDirect && (opts.useUserscript === true ||
       !/^(nm|near\s*mint|mint|m)$/i.test((cond || '').toString().trim()));
   if(_wantUserscript && typeof _vpFetchViaUserscript === 'function'){
     try{
@@ -12673,6 +12677,7 @@ async function verifyPriceAdd(prefix, opts){
       condition: cond, language: lang, variant: variant,
       first_edition: first1st, setName: setName, rarity: rarity,
       cmUrl: (typeof cmAuthoritativeUrl==='function' && card) ? cmAuthoritativeUrl(card) : null,
+      silent: silent,
     });
     const elapsed = Date.now()-t0;
 
