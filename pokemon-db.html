@@ -18673,13 +18673,26 @@ async function rbGetConditionPrices(opts, flags){
     if(cm && cm.ok){
       var ncm = _rbPcNormalizeCmapi(cardKey, opts, cm.cmapi);
       // Prova ad arricchire col ladder dal DB (se presente e fresco) senza bloccare.
+      var _hadDbLadder = false;
       try{
         var dbLadder = await _rbPcDbRead(cardKey);
         if(dbLadder && dbLadder.found){
           var nl = _rbPcNormalize('db', cardKey, opts, dbLadder);
-          ncm.conditions = nl.conditions || [];
+          if(nl.conditions && nl.conditions.length){ ncm.conditions = nl.conditions; _hadDbLadder = true; }
         }
       }catch(e){}
+      // Se NON c'era un ladder reale in DB ma CMAPI ha dato un prezzo NM,
+      // persistilo come riga NM sintetica → così cm_price_by_condition si
+      // popola anche senza userscript (è ciò che alimenta il valore collezione).
+      if(!_hadDbLadder && ncm.conditions && ncm.conditions.length){
+        try{
+          _rbPcPersist(opts,
+            ncm.conditions.map(function(c){
+              return { price: c.low1, condition: c.condition, condRank: c.condRank, isFoil: c.isFoil };
+            }),
+            ncm.cmUrl);
+        }catch(e){}
+      }
       _rbPcMemSet('cond:' + cardKey, ncm);
       _rbPcLsSet('rb_pc_', cardKey, ncm);
       return ncm;
@@ -18801,7 +18814,12 @@ async function rbWeeklyPriceSweep(opts){
     for(var i=0;i<jobs.length;i++){
       var j = jobs[i];
       try{
-        var res = await rbGetConditionPrices(j, { force: opts.force !== false });
+        // Default: NON forziamo (force salterebbe la fast-path CMAPI andando
+        // dritto allo scrape userscript, che di notte/headless non è attivo →
+        // niente prezzo → niente persistenza). Con la cascata normale, CMAPI
+        // dà il prezzo NM server-side e lo persiste in cm_price_by_condition.
+        // opts.force=true resta disponibile per uno sweep "scrape completo".
+        var res = await rbGetConditionPrices(j, { force: !!opts.force });
         if(res && (res.ok || (res.conditions && res.conditions.length) || res.marketPrice!=null)) ok++;
         else failed++;
       }catch(e){ failed++; }
@@ -18864,13 +18882,28 @@ function _rbPcFetchCmapi(opts){
 
 /* Normalizza il match CMAPI nello shape UI (senza ladder per-condizione). */
 function _rbPcNormalizeCmapi(cardKey, opts, m){
+  // CMAPI non fornisce il ladder Mint→Poor, ma fornisce un prezzo NM di
+  // riferimento (refPrice, language-aware). Sintetizziamo una condizione NM
+  // così il valore collezione può agganciarla (prima restava conditions:[] →
+  // niente da valutare → n_valued=0). La marchiamo source:'cmapi' per
+  // distinguerla dal ladder reale dello userscript.
+  var conds = [];
+  var ref = (m && m.refPrice != null) ? +m.refPrice : null;
+  if(ref != null && ref > 0){
+    conds.push({
+      condition: 'Near Mint', condRank: 2,
+      low1: ref, low2: null, low3: null, avg: ref,
+      nListings: null, isFoil: !!(opts && /holo|reverse/i.test(opts.variant||'')),
+      source: 'cmapi'
+    });
+  }
   return {
     ok: true, source: 'cmapi', cardKey: cardKey,
     cardName: (opts && opts.name) || m.name || null,
     fresh: true, ageDays: 0, capturedAt: new Date().toISOString(),
-    cmUrl: null,
+    cmUrl: (m && (m.cmLink || m.tcggoUrl)) || null,
     cmapi: m,                 // blocco ricco: refPrice/refBasis, IT/DE/FR, trend, graded, tcg
-    conditions: []            // CMAPI non fornisce il ladder Mint→Poor
+    conditions: conds         // NM sintetica da CMAPI (o [] se refPrice assente)
   };
 }
 
