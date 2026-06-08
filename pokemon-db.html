@@ -3829,6 +3829,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
       </div>
       <!-- Fonte d'acquisto + Note affiancate (info secondarie) -->
       <div class="colem-fields colem-sec-row">
+        <div class="field"><label for="colEmPurchaseDate">Data acquisto <span class="colem-opt">· opz.</span></label><input id="colEmPurchaseDate" type="date"/></div>
         <div class="field"><label for="colEmSource">Fonte d'acquisto <span class="colem-opt">· opz.</span></label><input id="colEmSource" type="text" placeholder="es. eBay, fiera, privato…"/></div>
         <div class="field"><label for="colEmNotes">Note</label><textarea id="colEmNotes" rows="1" placeholder="Provenienza, dettagli…" class="colem-notes"></textarea></div>
       </div>
@@ -4481,7 +4482,7 @@ async function supa(method,path,body){
   // quella colonna dal body e riprova. Così l'app resta funzionante prima
   // dell'ALTER TABLE. Colonne coperte: cm_url + campi carte gradate.
   if(!r.ok && (method==='POST'||method==='PATCH') && body){
-    const OPTIONAL_COLS = ['cm_url','graded','grade_company','grade_value','cert_number','slab_image_front','slab_image_back','price_estimate','acquisition_source','container_id','location_note'];
+    const OPTIONAL_COLS = ['cm_url','graded','grade_company','grade_value','cert_number','slab_image_front','slab_image_back','price_estimate','acquisition_source','container_id','location_note','purchase_date'];
     const errTxt = await r.clone().text().catch(function(){return '';});
     const missing = OPTIONAL_COLS.filter(function(col){
       return new RegExp('\\b'+col+'\\b').test(errTxt) && /(does not exist|schema cache|Could not find)/i.test(errTxt);
@@ -8140,6 +8141,8 @@ function openColEditModal(id){
   document.getElementById('colEmBuy').value   = (c.buy_price!=null && c.buy_price!=='') ? parseFloat(c.buy_price).toFixed(2) : '';
   document.getElementById('colEmNotes').value = c.notes || '';
   document.getElementById('colEmSource').value = c.acquisition_source || '';
+  var _pd=document.getElementById('colEmPurchaseDate');
+  if(_pd) _pd.value = (c.purchase_date ? String(c.purchase_date).slice(0,10) : '');
   document.getElementById('colEm1st').checked = !!c.first_edition;
   var _1stLbl=document.getElementById('colEm1stLbl'); if(_1stLbl) _1stLbl.textContent = c.first_edition?'Sì':'No';
   document.getElementById('colEmManualBadge').textContent = c.is_manual ? '· manuale' : '';
@@ -8592,6 +8595,7 @@ async function saveColEditModal(){
     cm_avg30:     parseFloat(document.getElementById('colEmSell').value)||0,
     notes:        document.getElementById('colEmNotes').value || null,
     acquisition_source: document.getElementById('colEmSource').value.trim() || null,
+    purchase_date: (document.getElementById('colEmPurchaseDate')||{}).value || null,
     container_id: (document.getElementById('colEmContainer')||{}).value || null,
     location_note: ((document.getElementById('colEmLocNote')||{}).value||'').trim() || null,
     first_edition: document.getElementById('colEm1st').checked
@@ -10027,6 +10031,7 @@ async function confirmDealConversion(){
         notes:cardNote,
         is_manual:false,
         cm_url:c.cm_url||null,
+        purchase_date:dateStr, // #1: data acquisto dichiarata una volta per tutto il preventivo
         created_at:nowIso // esplicito per garantire ordinamento corretto in collezione
       };
       if(uid) row.user_id=uid;
