@@ -12690,7 +12690,18 @@ async function slabVerifyFlow(prefix, card, house, score, opts){
         if(loading.step) loading.step('Cardmarket non disponibile, provo eBay + PriceCharting…');
         var crossed=await slabEstimateCrossed(card, house, score, loading.step);
         if(crossed.ok){ crossed.fallback_from='cm'; result=crossed; }
-        // se anche crossed fallisce, teniamo l'errore CM originale per il messaggio
+        else {
+          // Tutte le fonti fallite. Quasi sempre = scraping bloccato server-side
+          // e estensione Hunter non attiva (le 3 fonti passano da smooth-endpoint).
+          var extReady = false;
+          try{ extReady = (window.rbExtFetch && await window.rbExtFetch.isReady()); }catch(e){}
+          result = { ok:false, error:
+            'Nessuna fonte ha dati per '+house+' '+score+'. '
+            + (extReady
+                ? 'Le fonti (CM/eBay/PriceCharting) non hanno restituito venduti: prova un grado vicino o inserisci il prezzo a mano.'
+                : 'Lo scraping server-side è bloccato e l\'estensione Hunter non è attiva: attivala per leggere i prezzi dal tuo browser, oppure inserisci il prezzo a mano.')
+          };
+        }
       }
     } else {
       result=await slabEstimateCrossed(card, house, score, loading.step);
