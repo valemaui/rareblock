@@ -11500,6 +11500,26 @@ function cmLogger(label){
 (function(){
   var _pmHandlers = {};
 
+  // Estrae il parametro language= (id CM: ENG=1, ITA=5, ...) da un URL CM.
+  // Ritorna null se assente. Usato per correlare la RISPOSTA dello userscript
+  // alla RICHIESTA: senza questo controllo, un messaggio rimasto in coda da una
+  // lookup precedente (es. ITA) poteva essere consegnato a un handler appena
+  // registrato per un'altra lingua (es. ENG) → prezzo della lingua sbagliata.
+  function _cmLangIdFromUrl(u){
+    try{
+      var m = /[?&]language=(\d+)/i.exec(String(u||''));
+      return m ? m[1] : null;
+    }catch(e){ return null; }
+  }
+  // Path prodotto normalizzato (senza query/dominio) per correlare anche la carta.
+  function _cmPathFromUrl(u){
+    try{
+      var s = String(u||'').split('?')[0];
+      var i = s.indexOf('/Products/');
+      return i >= 0 ? s.slice(i).toLowerCase() : s.toLowerCase();
+    }catch(e){ return ''; }
+  }
+
   function dispatch(data){
     // Diagnostic log — utile per capire se il messaggio arriva ma viene scartato
     try{
@@ -11519,7 +11539,22 @@ function cmLogger(label){
     if(!prices.length && !listings.length && !isNoPrices) return;
 
     Object.keys(_pmHandlers).forEach(function(idx){
-      _pmHandlers[idx](prices, data, listings);
+      var h = _pmHandlers[idx];
+      var fn = (typeof h === 'function') ? h : (h && h.fn);
+      if(typeof fn !== 'function'){ delete _pmHandlers[idx]; return; }
+      // Correlazione richiesta↔risposta: se l'handler ha un matcher, accetta il
+      // messaggio solo se l'URL scrappato combacia (stessa lingua + stessa carta).
+      // Eccezione: invio manuale da chip (single:true) → l'utente ha cliccato di
+      // proposito un prezzo su QUELLA pagina, lo accettiamo sempre.
+      if(h && typeof h.match === 'function' && !data.single){
+        var okMatch = false;
+        try{ okMatch = h.match(data.url || ''); }catch(e){ okMatch = false; }
+        if(!okMatch){
+          try{ console.log('[RareBlock] messaggio scartato (lingua/carta non corrispondente):', data.url); }catch(e){}
+          return; // non consumare questo handler: aspetta il messaggio giusto
+        }
+      }
+      fn(prices, data, listings);
       delete _pmHandlers[idx];
     });
   }
@@ -11540,8 +11575,13 @@ function cmLogger(label){
     }catch(e){}
   }
 
+  // fn può essere una funzione (retro-compat) oppure {fn, match}.
+  // match(url) → bool: filtra i messaggi per URL atteso (lingua+carta).
   window._rbRegisterPriceHandler   = function(idx,fn){ _pmHandlers[idx]=fn; };
   window._rbUnregisterPriceHandler = function(idx){ delete _pmHandlers[idx]; };
+  // Esposte per costruire i matcher lato chiamante.
+  window._rbCmLangIdFromUrl = _cmLangIdFromUrl;
+  window._rbCmPathFromUrl   = _cmPathFromUrl;
 })();
 
 // ── Fonte listing via USERSCRIPT ─────────────────────────────────────────────
@@ -11579,8 +11619,30 @@ function _vpFetchViaUserscript(cmUrl, conditionReq, opts){
       resolve({ ok:true, finalPrice: Math.round(finalPrice*100)/100, listings: listings, smart: smart });
     }
 
-    window._rbRegisterPriceHandler(idx, function(prices, data, listings){
-      finish({ listings: listings, prices: prices, status: data && data.status }, null);
+    window._rbRegisterPriceHandler(idx, {
+      fn: function(prices, data, listings){
+        finish({ listings: listings, prices: prices, status: data && data.status }, null);
+      },
+      // Matcher: accetta solo risposte dalla pagina che abbiamo aperto noi.
+      // Confronto sulla lingua (param language=) e, se ricostruibile, sul path
+      // prodotto. Evita che un messaggio rimasto in coda da una lookup di lingua
+      // diversa venga assegnato a questa. Se non riusciamo a estrarre la lingua
+      // dall'URL atteso (raro), non filtriamo (degradazione sicura al vecchio
+      // comportamento).
+      match: function(respUrl){
+        try{
+          var wantLang = window._rbCmLangIdFromUrl ? window._rbCmLangIdFromUrl(cmUrl) : null;
+          if(wantLang == null) return true; // niente lingua attesa → non filtrare
+          var gotLang = window._rbCmLangIdFromUrl ? window._rbCmLangIdFromUrl(respUrl) : null;
+          if(gotLang == null) return false;  // risposta senza lingua → non è la nostra
+          if(String(wantLang) !== String(gotLang)) return false;
+          // Bonus: se entrambi hanno un path prodotto, devono combaciare.
+          var wantPath = window._rbCmPathFromUrl ? window._rbCmPathFromUrl(cmUrl) : '';
+          var gotPath  = window._rbCmPathFromUrl ? window._rbCmPathFromUrl(respUrl) : '';
+          if(wantPath && gotPath && wantPath !== gotPath) return false;
+          return true;
+        }catch(e){ return true; }
+      }
     });
   });
 }
