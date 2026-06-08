@@ -10111,9 +10111,21 @@ async function confirmDealConversion(){
     setTimeout(function(){
       closeDealModal();
       const missingCols=(_prevSchemaStatus&&_prevSchemaStatus.missing)||[];
-      const schemaWarn=missingCols.length?('\n\n<span class="rb-i rb-i-warn"></span> ATTENZIONE: le colonne '+missingCols.join(', ')+' non sono presenti nella tabella preventivi. Le carte sono state aggiunte correttamente in collezione, ma lo stato "confermato" del preventivo non è stato persistito. Esegui le ALTER TABLE mostrate nel banner in alto e riconferma il deal per salvare lo storico.'):'';
-      const viewHint='\n\n<span class="rb-i rb-i-bulb"></span> Per vedere le carte nella tab "Collezione" assicurati che i filtri (Set, Condizione, Lingua, ricerca) siano vuoti — altrimenti le nuove carte potrebbero essere nascoste.';
-      alert('Deal confermato!\n\n'+inserted+' carte sono state aggiunte in collezione con il prezzo di acquisto allocato proporzionalmente al loro valore CM.\n\nCosto totale: €'+totalPaid.toFixed(2)+'\nCoefficiente di allocazione: '+coef.toFixed(4)+' (paghi €'+coef.toFixed(2)+' per ogni € di CM)'+viewHint+schemaWarn);
+      const schemaWarn=missingCols.length?('Le colonne '+missingCols.join(', ')+' non sono presenti nella tabella preventivi. Le carte sono state aggiunte correttamente in collezione, ma lo stato "confermato" del preventivo non è stato persistito. Esegui le ALTER TABLE mostrate nel banner in alto e riconferma il deal per salvare lo storico.'):'';
+      rbSuccessModal({
+        title: 'Deal confermato',
+        icon: 'check',
+        bodyHtml: '<div style="font-size:13.5px;line-height:1.6;color:var(--text)">'
+          + '<b>'+inserted+'</b> '+(inserted===1?'carta è stata aggiunta':'carte sono state aggiunte')
+          + ' in collezione, con il costo di acquisto ripartito proporzionalmente al valore CM.</div>',
+        rows: [
+          { label:'Costo totale', value:'€'+totalPaid.toFixed(2) },
+          { label:'Coefficiente', value:coef.toFixed(4), accent:true },
+          { label:'Paghi per ogni € di CM', value:'€'+coef.toFixed(2) }
+        ],
+        note: 'Per vedere le nuove carte nella tab "Collezione", assicurati che i filtri (Set, Condizione, Lingua, ricerca) siano vuoti — altrimenti potrebbero risultare nascoste.',
+        warn: schemaWarn || null
+      });
     },800);
 
   }catch(e){
@@ -13449,7 +13461,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='5.8';
+const APP_VERSION='5.9';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -14679,6 +14691,72 @@ function showToast(msg, durationMs){
   clearTimeout(t._timer);
   t._timer = setTimeout(function(){ t.classList.remove('show'); }, durationMs);
 }
+
+/* Modale di conferma on-brand (sostituisce gli alert() nativi che non
+   renderizzano l'HTML → mostravano i tag grezzi tipo <span class="rb-i">).
+   opts: { title, icon:'check'|'warn'|'info', bodyHtml, rows:[{label,value,accent?}],
+           note?, warn?, okLabel? } */
+function rbSuccessModal(opts){
+  opts = opts || {};
+  var prev = document.getElementById('rbSuccessModalBg');
+  if(prev) prev.remove();
+
+  var iconMap = { check:'rb-i-check', warn:'rb-i-warn', info:'rb-i-info', diamond:'rb-i-diamond' };
+  var icoCls = iconMap[opts.icon] || 'rb-i-check';
+  var accentColor = opts.icon==='warn' ? 'var(--danger)' : 'var(--success)';
+
+  var rowsHtml = '';
+  if(Array.isArray(opts.rows) && opts.rows.length){
+    rowsHtml = '<div style="margin:14px 0;border:1px solid var(--border);border-radius:10px;overflow:hidden">'
+      + opts.rows.map(function(r,i){
+          return '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 13px;'
+            + (i>0?'border-top:1px solid var(--border);':'') + 'background:var(--surface2)">'
+            + '<span style="font-size:12.5px;color:var(--text-muted)">'+r.label+'</span>'
+            + '<span style="font-size:14px;font-weight:600;font-family:var(--mono);color:'+(r.accent?'var(--accent)':'var(--text)')+'">'+r.value+'</span>'
+            + '</div>';
+        }).join('')
+      + '</div>';
+  }
+
+  var noteHtml = opts.note
+    ? '<div style="display:flex;gap:8px;align-items:flex-start;margin-top:12px;font-size:12px;color:var(--text-muted);line-height:1.55">'
+      + '<span class="rb-i rb-i-bulb" style="flex-shrink:0;margin-top:1px;color:var(--gold)"></span>'
+      + '<span>'+opts.note+'</span></div>'
+    : '';
+  var warnHtml = opts.warn
+    ? '<div style="display:flex;gap:8px;align-items:flex-start;margin-top:12px;font-size:12px;color:var(--danger);line-height:1.55;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);border-radius:8px;padding:10px 12px">'
+      + '<span class="rb-i rb-i-warn" style="flex-shrink:0;margin-top:1px"></span>'
+      + '<span>'+opts.warn+'</span></div>'
+    : '';
+
+  var bg = document.createElement('div');
+  bg.id = 'rbSuccessModalBg';
+  bg.className = 'modal-bg show';
+  bg.innerHTML =
+    '<div class="modal" style="width:420px">'
+    + '<div style="display:flex;align-items:center;gap:12px;padding:18px 20px 14px;border-bottom:1px solid var(--border)">'
+    +   '<span class="rb-i '+icoCls+'" style="width:22px;height:22px;color:'+accentColor+'"></span>'
+    +   '<span style="font-family:var(--serif);font-size:18px;font-weight:600">'+(opts.title||'Fatto')+'</span>'
+    + '</div>'
+    + '<div style="padding:16px 20px 4px">'
+    +   (opts.bodyHtml||'')
+    +   rowsHtml + noteHtml + warnHtml
+    + '</div>'
+    + '<div style="display:flex;justify-content:flex-end;padding:14px 20px 18px">'
+    +   '<button type="button" class="btn-primary" id="rbSuccessModalOk" style="padding:8px 22px">'+(opts.okLabel||'Ok')+'</button>'
+    + '</div>'
+    + '</div>';
+  document.body.appendChild(bg);
+
+  function close(){ bg.remove(); }
+  bg.querySelector('#rbSuccessModalOk').onclick = close;
+  bg.onclick = function(e){ if(e.target===bg) close(); };
+  document.addEventListener('keydown', function esc(ev){
+    if(ev.key==='Escape'){ close(); document.removeEventListener('keydown', esc); }
+  });
+}
+window.rbSuccessModal = rbSuccessModal;
+
 
 async function scAddToPreventivo(){
   var btn = document.getElementById('scAddPrevBtn');
