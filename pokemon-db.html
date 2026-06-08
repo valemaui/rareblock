@@ -12889,6 +12889,29 @@ function showAddVerifyFeedback(prefix, listingsOrPrices, applied, cond, lang){
   });
   var topUnique = unique.slice(0, 6);
 
+  // ── Rete di sicurezza: rileva anomalie sul ladder per-condizione ──
+  // Solo se abbiamo listing con condizione (oggetti): li aggreghiamo e passiamo
+  // al detector. Mostriamo l'avviso più rilevante (warn ha priorità su info).
+  var _anomHtml = '';
+  try{
+    if(hasObjects && typeof _rbPcAggListings === 'function' && typeof rbDetectPriceAnomalies === 'function'){
+      var _ladder = _rbPcAggListings(listingsOrPrices);
+      var _anoms = rbDetectPriceAnomalies(_ladder);
+      if(_anoms && _anoms.length){
+        // priorità ai warn; max 2 messaggi per non invadere
+        _anoms.sort(function(a,b){ return (a.level==='warn'?0:1) - (b.level==='warn'?0:1); });
+        var _top = _anoms.slice(0,2);
+        var _hasWarn = _top.some(function(a){ return a.level==='warn'; });
+        var _col = _hasWarn ? 'var(--danger)' : 'var(--text-muted)';
+        var _ico = _hasWarn ? 'rb-i-warn' : 'rb-i-info';
+        _anomHtml = '<div style="margin-top:6px;font-size:10.5px;line-height:1.5;color:'+_col+';display:flex;gap:6px;align-items:flex-start">'
+          + '<span class="rb-i '+_ico+'" style="flex-shrink:0;margin-top:1px"></span>'
+          + '<span>'+_top.map(function(a){ return esc(a.msg); }).join('<br>')+'</span>'
+          + '</div>';
+      }
+    }
+  }catch(e){}
+
   // Se "applied" (mediana smart) non corrisponde a nessun prezzo unique,
   // lo prepongo come chip "smart" marcato con stella - cos\u00ec l'utente sa
   // che \u00e8 un valore calcolato (mediana top-3) e non un listing diretto.
@@ -12939,7 +12962,8 @@ function showAddVerifyFeedback(prefix, listingsOrPrices, applied, cond, lang){
         +'Clicca un prezzo per applicarlo'
         +(smartChip!=null?' \u00b7 \u2605 mediana smart top-3':'')
         +(hasPhotoCount>0?' \u00b7 verde pieno = con foto del venditore':'')
-      +'</div>';
+      +'</div>'
+      + _anomHtml;
     return;
   }
 
@@ -12958,7 +12982,8 @@ function showAddVerifyFeedback(prefix, listingsOrPrices, applied, cond, lang){
         var p = u.price;
         return '<span style="font-size:12px;font-family:var(--mono);font-weight:600;padding:2px 8px;border-radius:4px;background:'+(p===appliedRounded?'var(--success)':'rgba(122,154,110,.1)')+';color:'+(p===appliedRounded?'var(--bg)':'var(--success)')+';cursor:pointer;border:1px solid rgba(122,154,110,.3)" onclick="applyAddPrice(\''+prefix+'\','+p.toFixed(2)+',this)">\u20ac'+p.toFixed(2)+'</span>';
       }).join('')
-    + '<span style="font-size:10px;color:var(--text-subtle);margin-left:auto">Clicca per applicare \u00b7 <span style="cursor:pointer;color:var(--accent)" onclick="document.getElementById(\''+feedbackId+'\').remove()"><span class="rb-i rb-i-x"></span></span></span>';
+    + '<span style="font-size:10px;color:var(--text-subtle);margin-left:auto">Clicca per applicare \u00b7 <span style="cursor:pointer;color:var(--accent)" onclick="document.getElementById(\''+feedbackId+'\').remove()"><span class="rb-i rb-i-x"></span></span></span>'
+    + _anomHtml;
 }
 
 function applyAddPrice(prefix, price, el){
@@ -18535,6 +18560,83 @@ function _rbPcNormalize(source, cardKey, opts, payload){
     conditions: conditions
   };
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   DIAGNOSTICA ANOMALIE PREZZO
+   Funzione pura: dato il risultato normalizzato (o un array conditions[]),
+   ritorna una lista di anomalie rilevate. Pensata per:
+    • avvisare l'utente nel pannello verifica (rete di sicurezza visiva)
+    • essere richiamata dallo sweep per loggare/saltare dati sospetti
+   Anomalie rilevate (radicate nei bug reali visti, non astratte):
+    1) LADDER  — una condizione PEGGIORE costa più di una MIGLIORE
+                 (NM ≥ EX ≥ GD ≥ LP ≥ PL ≥ PO sui low1). Inversione = dato errato.
+    2) FLOOR   — prezzo NM (rank≤2) ≤ €0.10 mentre una condizione peggiore è
+                 sensibilmente più alta → pagina fake / floor di lingua sbagliata.
+    3) THIN    — prezzo da ≤1 listing → poco affidabile (singolo venditore).
+   Ritorna [{level:'warn'|'info', code, msg, conds:[...]}]
+   ══════════════════════════════════════════════════════════════════════ */
+function rbDetectPriceAnomalies(resultOrConds){
+  var conds = Array.isArray(resultOrConds)
+    ? resultOrConds
+    : (resultOrConds && resultOrConds.conditions) || [];
+  var out = [];
+  if(!conds.length) return out;
+
+  var COND_SHORT = { Mint:'MT','Near Mint':'NM',Excellent:'EX',Good:'GD',
+                     'Light Played':'LP',Played:'PL',Poor:'PO' };
+  function lbl(c){ return COND_SHORT[c.condition] || c.condition || '?'; }
+  function price(c){ return (c.low1 != null ? c.low1 : c.avg); }
+
+  // Ordina per qualità (condRank crescente: 1=Mint migliore → 7=Poor peggiore)
+  var ranked = conds
+    .filter(function(c){ return price(c) != null && c.condRank != null; })
+    .slice()
+    .sort(function(a,b){ return (a.condRank||99) - (b.condRank||99); });
+
+  // 1) LADDER: scorri dalla migliore alla peggiore; ogni passo dovrebbe
+  //    avere prezzo ≤ del precedente. Tolleranza 5% per rumore di mercato.
+  for(var i=1;i<ranked.length;i++){
+    var better = ranked[i-1], worse = ranked[i];
+    var pb = price(better), pw = price(worse);
+    if(pb == null || pw == null) continue;
+    if(pw > pb * 1.05){
+      out.push({
+        level:'warn', code:'ladder',
+        msg: lbl(worse)+' (€'+pw.toFixed(2)+') costa più di '+lbl(better)+' (€'+pb.toFixed(2)+') — possibile dato errato',
+        conds:[lbl(better), lbl(worse)]
+      });
+    }
+  }
+
+  // 2) FLOOR: NM/Mint ≤ €0.10 con una condizione peggiore ≥ 2× → sospetto
+  var nm = ranked.filter(function(c){ return (c.condRank||9) <= 2; })[0];
+  if(nm){
+    var pnm = price(nm);
+    var worseMax = 0;
+    ranked.forEach(function(c){ if((c.condRank||0) > (nm.condRank||0)){ var p=price(c); if(p>worseMax) worseMax=p; } });
+    if(pnm != null && pnm <= 0.10 && worseMax >= pnm * 2 && worseMax > 0.15){
+      out.push({
+        level:'warn', code:'floor',
+        msg: lbl(nm)+' a €'+pnm.toFixed(2)+' è sospettosamente basso (pagina/lingua errata?) rispetto a €'+worseMax.toFixed(2),
+        conds:[lbl(nm)]
+      });
+    }
+  }
+
+  // 3) THIN: condizioni con ≤1 listing → prezzo fragile
+  var thin = ranked.filter(function(c){ return c.nListings != null && c.nListings <= 1; }).map(lbl);
+  if(thin.length){
+    out.push({
+      level:'info', code:'thin',
+      msg:'Prezzo da 1 solo venditore: '+thin.join(', ')+' — poco affidabile',
+      conds: thin
+    });
+  }
+
+  return out;
+}
+window.rbDetectPriceAnomalies = rbDetectPriceAnomalies;
+
 
 /* ══════════════════════════════════════════════════════════════════════
    API PUBBLICA: rbGetConditionPrices(opts, flags)
