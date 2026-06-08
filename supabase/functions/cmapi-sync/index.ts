@@ -112,13 +112,32 @@ function mapCard(card: any, language: 'EN' | 'IT' | 'JP') {
     rbCardId:       card?.tcgid ?? null,   // "bw5-106" = setId+number del client
   };
 
-  // "Prezzo di riferimento" per un utente IT: priorita' IT → media 30d → media 7d
-  // → lowest globale (ultimo, perche' inquinato da listing esteri misprezzati).
-  const refPrice = row.lnmIT ?? row.avg30d ?? row.avg7d ?? row.lowestNearMint ?? null;
-  const refBasis = row.lnmIT != null ? 'IT' :
-                   row.avg30d != null ? '30d' :
-                   row.avg7d  != null ? '7d'  :
-                   row.lowestNearMint != null ? 'global' : null;
+  // "Prezzo di riferimento" LANGUAGE-AWARE.
+  // Bug storico: si usava sempre lnmIT (lowest near mint Italia) a prescindere
+  // dalla lingua richiesta → per carte ENG/estere restituiva il floor italiano
+  // (es. Skiploom ENG mostrava ~0,09 = floor IT, mentre il vero NM ENG ~0,20).
+  // CMAPI espone lnm per-paese solo IT/DE/FR/ES; l'inglese NON è un paese ma il
+  // mercato "internazionale" di default, meglio rappresentato dal lowest globale.
+  // Strategia per lingua:
+  //   IT      → lnmIT  → 30d → 7d → globale
+  //   DE/FR/ES→ lnm{paese} → globale → 30d → 7d
+  //   EN/altro→ globale → 30d → 7d  (il floor IT non è rappresentativo)
+  let refPrice: number | null;
+  let refBasis: string | null;
+  if (language === 'IT') {
+    refPrice = row.lnmIT ?? row.avg30d ?? row.avg7d ?? row.lowestNearMint ?? null;
+    refBasis = row.lnmIT != null ? 'IT' :
+               row.avg30d != null ? '30d' :
+               row.avg7d  != null ? '7d'  :
+               row.lowestNearMint != null ? 'global' : null;
+  } else {
+    // EN/JP e qualunque lingua non-IT: il lowest globale è il segnale corretto.
+    refPrice = row.lowestNearMint ?? row.avg30d ?? row.avg7d ?? row.lnmIT ?? null;
+    refBasis = row.lowestNearMint != null ? 'global' :
+               row.avg30d != null ? '30d' :
+               row.avg7d  != null ? '7d'  :
+               row.lnmIT != null ? 'IT' : null;
+  }
 
   return {
     row,
