@@ -2433,6 +2433,9 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .colem-slab-field .csf-lbl{font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px}
 .colem-slab-field .csf-val{font-size:12px;color:var(--text)}
 .colem-slab-field .csf-val.mono{font-family:var(--mono)}
+.colem-slab-field .csf-input{font-size:12px;color:var(--text);background:var(--surface2,#1a1f29);border:1px solid var(--border,#30363d);border-radius:5px;padding:4px 7px;width:100%;outline:none;font-family:inherit}
+.colem-slab-field .csf-input.mono{font-family:var(--mono)}
+.colem-slab-field .csf-input:focus{border-color:var(--accent,#58a6ff)}
 .colem-slab-photos{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
 .colem-slab-photos .csp-ph{position:relative}
 .colem-slab-photos .csp-ph img{height:96px;width:auto;max-width:72px;border-radius:5px;border:1px solid var(--border);background:#000;object-fit:contain;cursor:zoom-in;display:block}
@@ -3766,12 +3769,28 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
       <div class="colem-slab" id="colEmSlab" style="display:none">
         <div class="colem-slab-head">
           <span class="colem-slab-title"><span class="rb-i rb-i-diamond"></span> Dettagli slab</span>
-          <a id="colEmSlabCert" href="#" target="_blank" rel="noopener noreferrer" class="colem-slab-cert">Pagina ufficiale ↗</a>
+          <span style="display:flex;align-items:center;gap:8px">
+            <a id="colEmSlabCert" href="#" target="_blank" rel="noopener noreferrer" class="colem-slab-cert">Pagina ufficiale ↗</a>
+            <button type="button" class="btn-verify" id="colEmSlabEditBtn" onclick="colEmToggleSlabEdit()" title="Modifica dati slab" style="flex-shrink:0;padding:3px 7px"><span class="rb-i rb-i-edit"></span></button>
+          </span>
         </div>
-        <div class="colem-slab-body">
+        <!-- vista sola lettura -->
+        <div class="colem-slab-body" id="colEmSlabView">
           <div class="colem-slab-field"><div class="csf-lbl">Casa</div><div class="csf-val" id="colEmSlabHouse">—</div></div>
           <div class="colem-slab-field"><div class="csf-lbl">Voto</div><div class="csf-val" id="colEmSlabGrade">—</div></div>
           <div class="colem-slab-field csf-cert"><div class="csf-lbl">N° cert.</div><div class="csf-val mono" id="colEmSlabCertNum">—</div></div>
+        </div>
+        <!-- vista modifica (nascosta di default) -->
+        <div class="colem-slab-body" id="colEmSlabEdit" style="display:none">
+          <div class="colem-slab-field"><div class="csf-lbl">Casa</div>
+            <select id="colEmSlabHouseInput" class="csf-input"><option value="">—</option><option>PSA</option><option>BGS</option><option>CGC</option><option>SGC</option><option>ACE</option><option>GG</option></select>
+          </div>
+          <div class="colem-slab-field"><div class="csf-lbl">Voto</div>
+            <input id="colEmSlabGradeInput" class="csf-input" type="text" placeholder="es. 10 / 9.5 / Auth" autocomplete="off"/>
+          </div>
+          <div class="colem-slab-field csf-cert"><div class="csf-lbl">N° cert.</div>
+            <input id="colEmSlabCertInput" class="csf-input mono" type="text" placeholder="numero certificato" autocomplete="off"/>
+          </div>
         </div>
       </div>
 
@@ -8060,6 +8079,7 @@ function openColEditModal(id){
     return;
   }
   window._colEditing = c;
+  window._colEditSlabEstimate = null;  // reset stima slab della sessione precedente
   const isGraded = !!c.graded;
 
   // ── Header: immagine + cornice/badge se gradata ──
@@ -8261,6 +8281,13 @@ function colEmRenderSlab(c, isGraded, slabFront){
   setTxt('colEmSlabHouse', c.grade_company||'—');
   setTxt('colEmSlabGrade', c.grade_value||'—');
   setTxt('colEmSlabCertNum', c.cert_number||'—');
+  // Pre-popola gli input di modifica (usati dalla pennina)
+  var hi=document.getElementById('colEmSlabHouseInput'); if(hi) hi.value = c.grade_company||'';
+  var gi=document.getElementById('colEmSlabGradeInput'); if(gi) gi.value = c.grade_value||'';
+  var ci=document.getElementById('colEmSlabCertInput'); if(ci) ci.value = c.cert_number||'';
+  // Riporta sempre alla vista lettura all'apertura
+  var sv=document.getElementById('colEmSlabView'), se=document.getElementById('colEmSlabEdit');
+  if(sv) sv.style.display=''; if(se) se.style.display='none';
   const certLink = document.getElementById('colEmSlabCert');
   if(certLink){
     const vurl = (c.cert_number && typeof slabBuildVerifyUrl==='function')
@@ -8278,6 +8305,44 @@ function colEmRenderSlab(c, isGraded, slabFront){
     photos.innerHTML = h;
   }
 }
+
+// Pennina "Dettagli slab": alterna vista lettura ↔ modifica di casa/voto/cert.
+// Al toggle dalla modifica alla lettura, applica i valori a window._colEditing
+// e aggiorna la vista (il salvataggio definitivo avviene con "Salva").
+function colEmToggleSlabEdit(){
+  var sv=document.getElementById('colEmSlabView');
+  var se=document.getElementById('colEmSlabEdit');
+  var btn=document.getElementById('colEmSlabEditBtn');
+  if(!sv||!se) return;
+  var goingToEdit = (se.style.display==='none');
+  if(goingToEdit){
+    sv.style.display='none'; se.style.display='';
+    if(btn){ btn.innerHTML='<span class="rb-i rb-i-check"></span>'; btn.title='Conferma dati slab'; }
+  } else {
+    // conferma: leggi gli input, aggiorna la card in modifica + la vista lettura
+    var c = window._colEditing; if(!c) return;
+    var house=(document.getElementById('colEmSlabHouseInput')||{}).value||'';
+    var grade=((document.getElementById('colEmSlabGradeInput')||{}).value||'').trim();
+    var cert =((document.getElementById('colEmSlabCertInput')||{}).value||'').trim();
+    c.grade_company = house || null;
+    c.grade_value   = grade || null;
+    c.cert_number   = cert || null;
+    _colEmDirty = true;   // segnala modifiche non salvate
+    var setTxt=function(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; };
+    setTxt('colEmSlabHouse', house||'—');
+    setTxt('colEmSlabGrade', grade||'—');
+    setTxt('colEmSlabCertNum', cert||'—');
+    // aggiorna il link "Pagina ufficiale" se ora abbiamo cert+casa
+    var certLink=document.getElementById('colEmSlabCert');
+    if(certLink){
+      var vurl=(cert && typeof slabBuildVerifyUrl==='function') ? slabBuildVerifyUrl(house.toUpperCase(), cert) : null;
+      if(vurl){ certLink.href=vurl; certLink.style.display=''; } else certLink.style.display='none';
+    }
+    sv.style.display=''; se.style.display='none';
+    if(btn){ btn.innerHTML='<span class="rb-i rb-i-edit"></span>'; btn.title='Modifica dati slab'; }
+  }
+}
+window.colEmToggleSlabEdit = colEmToggleSlabEdit;
 
 // Mostra i chip delle fonti se esiste una stima salvata (price_estimate JSON).
 function colEmRenderSrcChips(c, isGraded){
@@ -8531,6 +8596,17 @@ async function saveColEditModal(){
     location_note: ((document.getElementById('colEmLocNote')||{}).value||'').trim() || null,
     first_edition: document.getElementById('colEm1st').checked
   };
+  // Se è stata ricalcolata una stima slab in questa sessione di modifica,
+  // persistila in price_estimate (alimenta la valutazione graded-aware, mig.086)
+  if(c.graded && window._colEditSlabEstimate){
+    payload.price_estimate = JSON.stringify(window._colEditSlabEstimate);
+  }
+  // Dati grading editati via pennina (bug #4: prima non modificabili dopo l'inserimento)
+  if(c.graded){
+    payload.grade_company = c.grade_company || null;
+    payload.grade_value   = c.grade_value || null;
+    payload.cert_number   = c.cert_number || null;
+  }
   try{
     const updated = await supa('PATCH', 'cards?id=eq.'+c.id, payload);
     // Aggiorna cache locale per evitare un re-fetch full
@@ -8573,6 +8649,61 @@ async function verifyPriceColEdit(){
   const c = window._colEditing;
   if(!c){ alert('Nessuna carta in modifica'); return; }
   const btn = document.getElementById('colEmVerifyBtn');
+
+  // Carta GRADATA → la stima va calcolata col flusso slab (eBay+PriceCharting+CM
+  // incrociati), NON con lo scrape raw di Cardmarket (che per le slab dà 0
+  // listing e dipende da CM/Cloudflare). Bug: prima girava sempre il path raw.
+  if(c.graded){
+    var house = c.grade_company || '';
+    var score = c.grade_value || '';
+    if(!house || !score){
+      alert('Per ricalcolare la stima slab servono Casa (PSA/BGS/CGC) e Voto. Aggiungili con la pennina di modifica.');
+      return;
+    }
+    if(btn){ btn.classList.add('loading'); btn.innerHTML='<span class="rb-i rb-i-clock"></span>'; }
+    var slabLoading = (typeof slabLoadingOverlay==='function') ? slabLoadingOverlay(c.name+' · '+house+' '+score) : { step:function(){}, close:function(){} };
+    try{
+      // Risolvi la carta TCG (per set/numero) così le query slab sono precise.
+      var tcg = null;
+      try{
+        if(typeof rbSearchCards==='function'){
+          var found = await rbSearchCards(c.name, c.card_number, null);
+          if(found && found.length) tcg = found[0];
+        }
+      }catch(e){}
+      var slabCard = {
+        name: c.name || '',
+        number: c.card_number || '',
+        rarity: c.rarity || (tcg && tcg.rarity) || '',
+        set: (tcg && tcg.set) || { id:null, name: c.set_name || '' }
+      };
+      // Stima incrociata (eBay + PriceCharting + CM): NON dipende dal solo CM.
+      var est = await slabEstimateCrossed(slabCard, house, score, slabLoading.step);
+      slabLoading.close();
+      if(!est || !est.ok){
+        alert('Stima slab non disponibile: '+((est&&est.error)||'nessuna fonte ha dati per '+house+' '+score)+'.\nPuoi inserire il valore manualmente.');
+        return;
+      }
+      var sellEl = document.getElementById('colEmSell');
+      if(sellEl) sellEl.value = (+est.estimate).toFixed(2);
+      // Conserva la stima da persistere col salvataggio carta (price_estimate)
+      window._colEditSlabEstimate = {
+        value: est.estimate, method: est.method, house: house, score: score,
+        sources: (est.parts||[]).map(function(x){ return {label:x.label, value:x.v, count:x.count, weight:x.w}; }),
+        at: new Date().toISOString()
+      };
+      if(typeof rbToast==='function'){
+        rbToast('Stima '+house+' '+score+': €'+(+est.estimate).toFixed(2)+(est.fellBackFromCm||est.fallback_from?' (eBay/PC)':''));
+      }
+    }catch(e){
+      try{ slabLoading.close(); }catch(_){}
+      alert('Ricalcolo stima fallito: '+((e&&e.message)||e));
+    }finally{
+      if(btn){ btn.classList.remove('loading'); btn.innerHTML='<span class="rb-i rb-i-refresh"></span>'; }
+    }
+    return;
+  }
+
   if(btn){ btn.classList.add('loading'); btn.innerHTML='<span class="rb-i rb-i-clock"></span>'; }
 
   const cond     = document.getElementById('colEmCond').value || 'NM';
@@ -12547,6 +12678,15 @@ async function slabVerifyFlow(prefix, card, house, score, opts){
     if(choice==='cm'){
       result=await _slabEstimateCM(card, house, score, loading.step);
       if(result.ok){ result.estimate=result.median; result.method='cm'; result.parts=[{v:result.median,w:1,label:'Cardmarket',count:result.count}]; }
+      else {
+        // CM scraping spesso bloccato da Cloudflare (server-side) o slug assente.
+        // Invece di fallire del tutto, ripieghiamo sul metodo incrociato
+        // (eBay + PriceCharting), che NON dipende dallo scraping Cardmarket.
+        if(loading.step) loading.step('Cardmarket non disponibile, provo eBay + PriceCharting…');
+        var crossed=await slabEstimateCrossed(card, house, score, loading.step);
+        if(crossed.ok){ crossed.fallback_from='cm'; result=crossed; }
+        // se anche crossed fallisce, teniamo l'errore CM originale per il messaggio
+      }
     } else {
       result=await slabEstimateCrossed(card, house, score, loading.step);
     }
