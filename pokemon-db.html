@@ -692,15 +692,20 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .btn-verify:hover{border-color:var(--accent);color:var(--accent);background:rgba(201,169,110,.06)}
 .btn-verify.loading{opacity:.5;cursor:wait}
 .prev-summary{border-top:1px solid var(--border);flex-shrink:0;background:var(--surface)}
-.prev-summary-grid{display:flex}
-.prev-summary-cell{padding:10px 16px;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:2px;min-width:110px}
-.prev-summary-lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
-.prev-summary-val{font-size:15px;font-weight:600;font-family:var(--mono)}
-.prev-summary-sub{font-size:10px;color:var(--text-subtle);font-family:var(--mono)}
-.prev-offer-row{display:flex;align-items:center;gap:12px;padding:8px 16px;border-top:1px solid var(--border)}
-.prev-offer-label{font-size:12px;color:var(--text-muted);white-space:nowrap}
-.prev-offer-range{font-size:11px;color:var(--text-subtle);font-family:var(--mono);white-space:nowrap}
+.prev-summary-grid{display:flex;flex-wrap:wrap}
+.prev-summary-cell{padding:6px 14px;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:1px;min-width:88px}
+.prev-summary-lbl{font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+.prev-summary-val{font-size:13px;font-weight:600;font-family:var(--mono)}
+.prev-summary-sub{font-size:9px;color:var(--text-subtle);font-family:var(--mono)}
+.prev-offer-row{display:flex;align-items:center;gap:12px;padding:7px 14px;border-top:1px solid var(--border)}
+.prev-offer-label{font-size:11px;color:var(--text-muted);white-space:nowrap}
+.prev-offer-range{font-size:10px;color:var(--text-subtle);font-family:var(--mono);white-space:nowrap}
 .prev-offer-slider{flex:1;accent-color:var(--accent)}
+/* Pill percentuale offerta — colore in base alla convenienza */
+.prev-offer-pct{font-size:13px;font-weight:700;font-family:var(--mono);min-width:46px;text-align:center;padding:2px 6px;border-radius:5px}
+.prev-offer-pct.good{color:var(--success);background:rgba(122,154,110,.14)}
+.prev-offer-pct.mid{color:var(--gold);background:rgba(201,168,76,.14)}
+.prev-offer-pct.high{color:var(--danger);background:rgba(248,81,73,.12)}
 .prev-offer-input{font-size:15px;font-weight:600;font-family:var(--mono);color:var(--text);background:none;border:none;border-bottom:1px solid var(--border);outline:none;width:90px;text-align:right;padding:2px 4px}
 .prev-offer-input:focus{border-bottom-color:var(--accent)}
 /* Note trattativa */
@@ -10287,12 +10292,14 @@ function renderPrevTotals(){
   const sorted=Object.entries(condCount).sort((a,b)=>b[1]-a[1]);
   const avgCond=sorted.length>=2?sorted[0][0]+'/'+sorted[1][0]:sorted[0]?.[0]||'—';
 
-  // Prezzo lotto = totale - 20%
+  // Prezzo lotto = totale - 20% (riferimento "sconto blocco" tipico)
   const lotto=tot*0.80;
-  // Range offerta: tra lotto -35% e lotto (65% e 80% del tot)
-  const offerMin=Math.round(tot*0.65*100)/100;
-  const offerMax=Math.round(lotto*100)/100;
-  const offerMid=Math.round((offerMin+offerMax)/2*100)/100;
+  // Range offerta DINAMICO: copre 40%-100% del valore CM, così è sempre
+  // possibile rappresentare trattative aggressive (sotto il 60%) senza clamp.
+  const offerMin=Math.round(tot*0.40*100)/100;
+  const offerMax=Math.round(tot*1.00*100)/100;
+  // Default: 72% del CM (punto di partenza ragionevole per un lotto)
+  const offerMid=Math.round(tot*0.72*100)/100;
 
   document.getElementById('prevTotals').innerHTML=`
     <div class="prev-summary">
@@ -10332,7 +10339,7 @@ function renderPrevTotals(){
           <input type="number" id="prevOfferVal" class="prev-offer-input"
             value="${offerMid.toFixed(2)}" step="0.50"
             oninput="updateOfferDisplay(this.value,${tot.toFixed(2)},true)"/>
-          <span id="prevOfferPct" style="font-size:13px;font-weight:600;font-family:var(--mono);color:var(--text-muted);min-width:42px">${Math.round(offerMid/tot*100)}%</span>
+          <span id="prevOfferPct" class="prev-offer-pct ${_offerPctClass(offerMid/tot*100)}">${Math.round(offerMid/tot*100)}%</span>
         </div>
       </div>
       <div class="prev-notes-row">
@@ -10348,6 +10355,14 @@ function renderPrevTotals(){
     </div>`;
 }
 
+// Classe colore della % offerta: più paghi (vicino/sopra 100% CM) → peggio.
+// good ≤70% · mid 70-90% · high >90% (compri quasi a prezzo pieno)
+function _offerPctClass(pct){
+  if(pct<=70) return 'good';
+  if(pct<=90) return 'mid';
+  return 'high';
+}
+
 function updateOfferDisplay(val,tot,fromInput){
   const v=parseFloat(val);
   if(isNaN(v)||!tot) return;
@@ -10356,7 +10371,11 @@ function updateOfferDisplay(val,tot,fromInput){
   const pct=document.getElementById('prevOfferPct');
   if(fromInput&&s) s.value=Math.min(Math.max(v,parseFloat(s.min)),parseFloat(s.max));
   else if(inp) inp.value=v.toFixed(2);
-  if(pct) pct.textContent=Math.round(v/tot*100)+'%';
+  if(pct){
+    const p=Math.round(v/tot*100);
+    pct.textContent=p+'%';
+    pct.className='prev-offer-pct '+_offerPctClass(p);
+  }
 }
 function syncSlider(val,min,max){
   const v=parseFloat(val);
