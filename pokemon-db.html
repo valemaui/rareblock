@@ -12152,6 +12152,114 @@ function replayCmLog(key){
 }
 window.replayCmLog = replayCmLog;
 
+/* ══════════════════════════════════════════════════════════════════════
+   MEMORIA URL CARDMARKET — il cuore del recupero prezzi "univoco".
+   Ogni volta che un URL prodotto CM FUNZIONA (listing reali), lo ricordiamo
+   per identità carta (set|numero|nome). Alla lookup successiva è il primo
+   livello (L0): niente slug indovinati, niente cascate. Una carta può
+   fallire al massimo UNA volta nella vita; poi si auto-ripara.
+   ══════════════════════════════════════════════════════════════════════ */
+var _VP_CMURL_MEM_KEY = 'rb_cmurl_mem';
+var _VP_CMURL_MEM_MAX = 800;
+
+function _vpCmUrlMemKey(name, setId, setName, number){
+  var s = ((setId || setName || '') + '').toLowerCase().trim();
+  var n = ((number || '') + '').toLowerCase().trim();
+  var nm = ((name || '') + '').toLowerCase().trim().slice(0, 40);
+  if(!n || !nm) return null;
+  return s + '|' + n + '|' + nm;
+}
+function _vpCmUrlRecall(key){
+  if(!key) return null;
+  try{
+    var mem = JSON.parse(localStorage.getItem(_VP_CMURL_MEM_KEY) || '{}');
+    var u = mem[key];
+    return (u && u.indexOf('cardmarket.com') >= 0 && u.indexOf('/Products/Singles/') >= 0) ? u : null;
+  }catch(e){ return null; }
+}
+function _vpCmUrlRemember(key, workingUrl){
+  if(!key || !workingUrl) return;
+  try{
+    var base = workingUrl.split('?')[0];
+    if(base.indexOf('/Products/Singles/') < 0) return;   // solo pagine prodotto
+    var mem = JSON.parse(localStorage.getItem(_VP_CMURL_MEM_KEY) || '{}');
+    if(mem[key] === base) return;
+    mem[key] = base;
+    var keys = Object.keys(mem);
+    if(keys.length > _VP_CMURL_MEM_MAX){               // trim FIFO grezzo
+      keys.slice(0, keys.length - _VP_CMURL_MEM_MAX).forEach(function(k){ delete mem[k]; });
+    }
+    localStorage.setItem(_VP_CMURL_MEM_KEY, JSON.stringify(mem));
+  }catch(e){}
+}
+
+/* ── L3 DISCOVERY: chiedi a Cardmarket dov'è il prodotto ──
+   Quando tutti gli slug falliscono ("Prodotto sbagliato"/0 listing), usiamo la
+   ricerca CM: smooth-endpoint mode:'discover' estrae i link prodotto dalla
+   pagina risultati (o intercetta il redirect su match unico). Scegliamo il
+   candidato col numero giusto, lo scrapiamo con i filtri lingua/condizione, e
+   se dà listing reali → trovato. L'URL viene poi memorizzato (L0). */
+async function _vpDiscoverCmProduct(name, number, cond, lang, variant, first1st){
+  var searchStr = (name + ' ' + (number || '')).trim();
+  var searchUrl = 'https://www.cardmarket.com/it/Pokemon/Products/Search?searchString='
+                + encodeURIComponent(searchStr);
+  var out = { searchUrl: searchUrl, ok: false, error: null, productUrl: null, listings: [] };
+  try{
+    var sessionToken = window._rbSession && window._rbSession.access_token;
+    var res = await fetch(SUPA_URL + '/functions/v1/smooth-endpoint', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + (sessionToken || SUPA_KEY) },
+      body: JSON.stringify({ source:'cardmarket', mode:'discover', url: searchUrl })
+    });
+    if(!res.ok){ out.error = 'discover HTTP ' + res.status; return out; }
+    var data = await res.json();
+    if(data.blocked){ out.error = 'ricerca CM bloccata (Cloudflare)'; out.blocked = true; return out; }
+
+    var candidates = data.products || [];
+    if(!candidates.length){ out.error = 'nessun prodotto nei risultati di ricerca CM'; return out; }
+
+    // Scoring: il numero carta DEVE comparire nello slug o nel nome (con confini
+    // non-numerici, così "6" non matcha "106"); il nome carta come tiebreaker.
+    var numDigits = ((number || '') + '').replace(/[^0-9]/g, '');
+    var nameTok = ((name || '') + '').toLowerCase().split(/[\s\-]+/)[0] || '';
+    function score(p){
+      var slug = (p.url.split('/').pop() || '').toLowerCase();
+      var pname = (p.name || '').toLowerCase();
+      var s = 0;
+      if(numDigits){
+        var rxNum = new RegExp('(^|[^0-9])' + numDigits + '([^0-9]|$)');
+        if(rxNum.test(slug)) s += 4;
+        else if(rxNum.test(pname)) s += 3;
+        else return -1;                                  // numero sbagliato → fuori
+      }
+      if(nameTok && (slug.indexOf(nameTok) >= 0 || pname.indexOf(nameTok) >= 0)) s += 2;
+      s -= Math.min(2, Math.floor(slug.length / 40));    // slug più corto = più "base"
+      return s;
+    }
+    var ranked = candidates.map(function(p){ return { p:p, s:score(p) }; })
+                           .filter(function(x){ return x.s >= 0; })
+                           .sort(function(a,b){ return b.s - a.s; });
+    // Caso redirect (match unico): data.redirect_product già pagina prodotto
+    var bestUrl = data.redirect_product
+               || (ranked.length ? ranked[0].p.url : null);
+    if(!bestUrl){ out.error = 'nessun candidato con numero corrispondente (' + candidates.length + ' risultati)'; return out; }
+
+    // Scrape della pagina trovata COI filtri lingua/condizione corretti
+    var fullUrl = (typeof cmAppendParams === 'function')
+                ? cmAppendParams(bestUrl, cond, lang, variant, first1st)
+                : bestUrl;
+    var srv = await _vpServerSideCMScrape(fullUrl);
+    if(srv.blocked){ out.error = 'pagina trovata ma bloccata (Cloudflare) — riprova'; out.blocked = true; out.productUrl = fullUrl; return out; }
+    if(srv.wrong_product || !srv.listings || !srv.listings.length || _isFakeCmListings(srv.listings)){
+      out.error = 'pagina trovata (' + bestUrl.split('/').pop() + ') ma senza listing per ' + lang + '/' + cond;
+      out.productUrl = fullUrl;
+      return out;
+    }
+    out.ok = true; out.productUrl = fullUrl; out.baseUrl = bestUrl.split('?')[0]; out.listings = srv.listings;
+    return out;
+  }catch(e){ out.error = (e && e.message) || String(e); return out; }
+}
+
 async function fetchCmPriceLive(opts){
   var name      = (opts && opts.name) || '';
   var setId     = (opts && opts.setId) || null;
@@ -12175,6 +12283,14 @@ async function fetchCmPriceLive(opts){
     if(!rarity && _hit && _hit.rarity) rarity = _hit.rarity;
     // Recupera URL autoritativo dalla cache TCG se non fornito esplicitamente
     if(!cmUrlAuth && _hit) cmUrlAuth = cmAuthoritativeUrl(_hit);
+  }
+
+  // ── L0: MEMORIA URL — se questa carta ha già un URL prodotto che ha
+  //    funzionato in passato, usalo come autoritativo: niente slug indovinati.
+  var _memKey = _vpCmUrlMemKey(name, setId, setName, number);
+  if(!cmUrlAuth && _memKey){
+    var _remembered = _vpCmUrlRecall(_memKey);
+    if(_remembered) cmUrlAuth = _remembered;
   }
 
   var cmUrl = buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, setName, rarity, cmUrlAuth);
@@ -12298,6 +12414,7 @@ async function fetchCmPriceLive(opts){
     try{
       var _usRes = await _vpFetchViaUserscript(cmUrl, cond, { timeoutMs: (opts.userscriptTimeoutMs || 18000) });
       if(_usRes && _usRes.ok && _usRes.listings && _usRes.listings.length && !_isFakeCmListings(_usRes.listings)){
+        if(_memKey) _vpCmUrlRemember(_memKey, cmUrl);
         attempts.push({ url:cmUrl, kind:'USERSCRIPT', count:1,
           error:_usRes.listings.length + ' listing reali (outlier rimossi: ' + ((_usRes.smart && _usRes.smart.outlierRemoved) || 0) + ')' });
         return {
@@ -12383,6 +12500,25 @@ async function fetchCmPriceLive(opts){
     }
   }
 
+  // ── Fallback C (L3): DISCOVERY — atterrati su "prodotto sbagliato" o 0
+  //    listing dopo tutti gli slug, chiediamo alla RICERCA di Cardmarket dov'è
+  //    il prodotto vero, lo seguiamo e (se dà listing) lo memorizziamo. È il
+  //    livello che rende il sistema auto-riparante: l'URL scoperto diventa L0
+  //    per tutte le lookup future di questa carta.
+  if(!primaryBlocked && (!srv.listings || !srv.listings.length)){
+    var disc = await _vpDiscoverCmProduct(name, number, cond, lang, variant, first1st);
+    attempts.push({ url: disc.searchUrl, kind: 'L3-discovery',
+                    count: (disc.listings || []).length,
+                    error: disc.ok ? null : (disc.error || 'nessun match'),
+                    blocked: !!disc.blocked });
+    if(disc.ok){
+      srv = { listings: disc.listings, error: null };
+      cmUrl = disc.productUrl;
+      isDirect = true;
+      if(_memKey && disc.baseUrl) _vpCmUrlRemember(_memKey, disc.baseUrl);
+    }
+  }
+
   if(!srv.listings || !srv.listings.length){
     var finalErr = primaryBlocked
       ? 'Cloudflare ha bloccato la pagina CM corretta (HTTP 403) dopo i retry \u2014 riprova tra poco o usa lo userscript Tampermonkey. Non applico prezzi da slug alternativi per evitare un prodotto sbagliato.'
@@ -12401,6 +12537,8 @@ async function fetchCmPriceLive(opts){
       attempts: attempts,
     };
   }
+  // SUCCESSO: memorizza l'URL che ha funzionato (L0 per le prossime lookup)
+  if(_memKey) _vpCmUrlRemember(_memKey, cmUrl);
   var smart = smartCMPrice(srv.listings, cond);
   var price = (smart && smart.price > 0) ? smart.price : srv.listings[0].price;
   return {
@@ -13626,7 +13764,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.6';
+const APP_VERSION='6.7';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 

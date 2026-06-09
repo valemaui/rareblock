@@ -422,7 +422,9 @@ Deno.serve(async (req) => {
       if (injected > 0) console.log(`[smooth-endpoint] extension pre-fetch: ${injected}/${urls.length} HTML injected in cache`);
     }
 
-    if (source === 'cardmarket')      return await handleCardmarket(firstUrl, body?.debug === true);
+    if (source === 'cardmarket')      return body?.mode === 'discover'
+                                        ? await handleCardmarketDiscover(firstUrl, body?.debug === true)
+                                        : await handleCardmarket(firstUrl, body?.debug === true);
     if (source === 'pricecharting')   return await handlePriceChartingCascade(urls, body?.card_name, body?.debug === true, { firstEdition: body?.first_edition === true });
     if (source === 'ebay_sold')       return await handleEbaySoldCascade(urls, Number(body?.min_hits ?? 3), body?.merge === true);
     if (source === 'catawiki_search') return await handleCatawikiSearch(firstUrl, body?.debug === true);
@@ -437,6 +439,61 @@ Deno.serve(async (req) => {
 // ═════════════════════════════════════════════════════════════════════
 //  CARDMARKET (v4 logic invariata)
 // ═════════════════════════════════════════════════════════════════════
+
+// ─── DISCOVERY MODE ────────────────────────────────────────────────────────
+// Dato l'URL di RICERCA CM (Products/Search?searchString=...), trova la pagina
+// prodotto vera. Due esiti possibili lato CM:
+//   a) match unico → CM fa redirect alla pagina prodotto: la riconosciamo dal
+//      canonical (/Products/Singles/) e dai listing presenti → la ritorniamo.
+//   b) pagina risultati → estraiamo i link prodotto (/Products/Singles/...)
+//      con il testo visibile, e li ritorniamo al client che sceglie il match.
+// È il livello L3 del recupero prezzi: quando lo slug indovinato fallisce
+// ("Prodotto sbagliato"/0 listing), si chiede a CM stessa dov'è il prodotto.
+function _absCmUrl(href: string): string {
+  if (/^https?:\/\//i.test(href)) return href;
+  return 'https://www.cardmarket.com' + (href.startsWith('/') ? href : '/' + href);
+}
+
+async function handleCardmarketDiscover(searchUrl: string, debug = false): Promise<Response> {
+  const { html, ok, status } = await fetchWithRetry(searchUrl);
+  if (!ok || !html) {
+    return json({ error: `CM HTTP ${status}`, products: [], status,
+                  blocked: status === 403 || status === 429 || status === 503 });
+  }
+  if (/Just a moment|cf-browser-verification/i.test(html)) {
+    return json({ error: 'Cloudflare challenge attivo', products: [], status: 403, blocked: true });
+  }
+
+  // Esito (a): redirect a pagina prodotto (match unico). Canonical o og:url
+  // puntano a /Products/Singles/... e la pagina contiene listing.
+  const canon = (html.match(/<link[^>]+rel="canonical"[^>]+href="([^"]+)"/i)
+              || html.match(/<meta[^>]+property="og:url"[^>]+content="([^"]+)"/i)
+              || [, ''])[1];
+  if (canon && /\/Products\/Singles\//i.test(canon)) {
+    const productUrl = _absCmUrl(canon.split('?')[0]);
+    return json({ redirect_product: productUrl, products: [{ url: productUrl, name: '(match unico)' }],
+                  status: 200, url: searchUrl,
+                  debug: debug ? { reason: 'single_match_redirect' } : undefined });
+  }
+
+  // Esito (b): pagina risultati → estrai i link prodotto con testo visibile.
+  // Pattern: <a href="/it/Pokemon/Products/Singles/Set-Slug/Card-Slug">Nome</a>
+  const products: Array<{ url: string; name: string }> = [];
+  const seen = new Set<string>();
+  const rx = /href="(\/[a-z]{2}\/Pokemon\/Products\/Singles\/[^"#?]+)"[^>]*>([^<]{1,120})</gi;
+  let m: RegExpExecArray | null;
+  while ((m = rx.exec(html)) !== null && products.length < 25) {
+    const base = m[1].split('?')[0];
+    if (seen.has(base)) continue;
+    seen.add(base);
+    const name = m[2].replace(/\s+/g, ' ').trim();
+    if (!name) continue;
+    products.push({ url: _absCmUrl(base), name });
+  }
+
+  return json({ products, count: products.length, status: 200, url: searchUrl,
+                debug: debug ? { html_length: html.length, extracted: products.length } : undefined });
+}
 
 // Riconosce la pagina d'errore "Prodotto sbagliato!" / "Wrong product!" che
 // Cardmarket serve (HTTP 200) quando lo slug del prodotto nell'URL non esiste.
