@@ -13626,7 +13626,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.5';
+const APP_VERSION='6.6';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -13637,10 +13637,17 @@ async function checkForUpdates(){
     const html=await r.text();
     const m=html.match(/const APP_VERSION='([\d.]+)'/);
     if(!m)return;
-    const latest=parseFloat(m[1]);
-    const current=parseFloat(APP_VERSION);
-    if(latest>current){
-      document.getElementById('updateBannerSub').textContent='v'+current+' \u2192 v'+latest;
+    // Confronto semver-like (gestisce 6.10 > 6.5, che parseFloat sbaglierebbe)
+    function cmpVer(a,b){
+      var pa=String(a).split('.').map(Number), pb=String(b).split('.').map(Number);
+      for(var i=0;i<Math.max(pa.length,pb.length);i++){
+        var x=pa[i]||0, y=pb[i]||0;
+        if(x>y)return 1; if(x<y)return -1;
+      }
+      return 0;
+    }
+    if(cmpVer(m[1], APP_VERSION) > 0){
+      document.getElementById('updateBannerSub').textContent='v'+APP_VERSION+' \u2192 v'+m[1];
       document.getElementById('updateBanner').classList.add('show');
     }
   }catch(e){
