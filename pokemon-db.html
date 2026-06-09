@@ -727,6 +727,22 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .deal-section{display:flex;flex-direction:column;gap:8px}
 .deal-section-title{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px}
 .deal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+/* Dettagli trattativa su una riga: Prezzo / Trasporto / Data / Metodo */
+.deal-grid-4{display:grid;grid-template-columns:0.85fr 0.85fr 1.1fr 1.2fr;gap:8px}
+@media(max-width:560px){.deal-grid-4{grid-template-columns:1fr 1fr}}
+/* Box fee compatto: label + input % + input € su una sola riga */
+.deal-fee-inline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 11px}
+.deal-fee-inline.active{border-color:rgba(201,169,110,.4);background:rgba(201,169,110,.04)}
+.deal-fee-inline .fee-title{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text);white-space:nowrap}
+.deal-fee-inline .fee-mini{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted)}
+.deal-fee-inline .fee-mini input{width:52px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:4px 6px;font-family:var(--mono);font-size:12px;outline:none;text-align:right}
+.deal-fee-inline .fee-mini input:focus{border-color:var(--border-focus)}
+.deal-fee-inline .fee-result{margin-left:auto;font-size:12px;font-family:var(--mono);color:var(--accent);white-space:nowrap}
+/* Toggle anteprima carte */
+.deal-preview-toggle{display:inline-flex;align-items:center;gap:6px;background:none;border:1px solid var(--border);border-radius:var(--r);color:var(--text-muted);font-family:var(--font);font-size:12px;padding:6px 11px;cursor:pointer;transition:var(--t-fast,.12s)}
+.deal-preview-toggle:hover{border-color:var(--border-strong);color:var(--text)}
+.deal-preview-toggle .chev{transition:transform .15s}
+.deal-preview-toggle.open .chev{transform:rotate(90deg)}
 .deal-field{display:flex;flex-direction:column;gap:4px}
 .deal-field label{font-size:11px;color:var(--text-muted);font-weight:500}
 .deal-field input,.deal-field select{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:7px 9px;font-family:var(--mono);font-size:13px;outline:none;transition:border-color .12s}
@@ -4158,13 +4174,13 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
       <!-- Section: Dettagli trattativa -->
       <div class="deal-section">
         <div class="deal-section-title">Dettagli trattativa</div>
-        <div class="deal-grid">
+        <div class="deal-grid-4">
           <div class="deal-field">
-            <label for="dealOffer">Prezzo concordato (€)</label>
+            <label for="dealOffer">Prezzo (€)</label>
             <input type="number" id="dealOffer" step="0.01" min="0" placeholder="0.00" oninput="recalcDeal()"/>
           </div>
           <div class="deal-field">
-            <label for="dealShipping">Spese di spedizione (€)</label>
+            <label for="dealShipping">Trasporto (€)</label>
             <input type="number" id="dealShipping" step="0.01" min="0" value="0" placeholder="0.00" oninput="recalcDeal()"/>
           </div>
           <div class="deal-field">
@@ -4184,70 +4200,47 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
           </div>
         </div>
       </div>
-      <!-- Section: Calcolatore PayPal -->
-      <div class="deal-paypal-box" id="dealPaypalBox" style="display:none">
-        <div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--text)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 11l5-5 5 5M7 17l5-5 5 5"/></svg>
-          Calcolatore PayPal Beni & Servizi
-        </div>
-        <div style="font-size:11px;color:var(--text-muted);line-height:1.4">
-          PayPal trattiene una commissione al venditore. Per fargli arrivare la cifra netta concordata, devi inviargli un importo maggiore.
-        </div>
-        <div class="deal-grid">
-          <div class="deal-field">
-            <label for="dealPpPct">Commissione variabile (%)</label>
-            <input type="number" id="dealPpPct" step="0.01" min="0" value="3.4" oninput="recalcDeal()"/>
-          </div>
-          <div class="deal-field">
-            <label for="dealPpFix">Commissione fissa (€)</label>
-            <input type="number" id="dealPpFix" step="0.01" min="0" value="0.35" oninput="recalcDeal()"/>
-          </div>
-        </div>
-        <div class="deal-paypal-calc" id="dealPaypalCalc"></div>
+      <!-- Section: Calcolatore PayPal (compatto, una riga) -->
+      <div class="deal-fee-inline" id="dealPaypalBox" style="display:none">
+        <span class="fee-title"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 11l5-5 5 5M7 17l5-5 5 5"/></svg> Fee PayPal B&amp;S</span>
+        <span class="fee-mini"><input type="number" id="dealPpPct" step="0.01" min="0" value="3.4" oninput="recalcDeal()"/>%</span>
+        <span class="fee-mini">+ €<input type="number" id="dealPpFix" step="0.01" min="0" value="0.35" oninput="recalcDeal()"/></span>
+        <span class="fee-result" id="dealPaypalCalc"></span>
       </div>
-      <!-- Section: Calcolatore Fee Catawiki (auto se provenienza = Catawiki) -->
-      <div class="deal-paypal-box" id="dealCatawikiBox" style="display:none">
-        <div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--text)">
-          <span class="rb-i rb-i-tag" style="width:14px;height:14px"></span>
-          Commissioni Catawiki (acquirente)
-        </div>
-        <div style="font-size:11px;color:var(--text-muted);line-height:1.4">
-          Catawiki applica una commissione d'asta all'acquirente sopra il prezzo di aggiudicazione. Incide sul costo reale del lotto.
-        </div>
-        <div class="deal-grid">
-          <div class="deal-field">
-            <label for="dealCwPct">Commissione variabile (%)</label>
-            <input type="number" id="dealCwPct" step="0.1" min="0" value="9" oninput="recalcDeal()"/>
-          </div>
-          <div class="deal-field">
-            <label for="dealCwFix">Quota fissa (€)</label>
-            <input type="number" id="dealCwFix" step="0.01" min="0" value="3" oninput="recalcDeal()"/>
-          </div>
-        </div>
-        <div class="deal-paypal-calc" id="dealCatawikiCalc"></div>
+      <!-- Section: Fee Catawiki (compatto, auto se provenienza = Catawiki) -->
+      <div class="deal-fee-inline" id="dealCatawikiBox" style="display:none">
+        <span class="fee-title"><span class="rb-i rb-i-tag" style="width:13px;height:13px"></span> Fee Catawiki</span>
+        <span class="fee-mini"><input type="number" id="dealCwPct" step="0.1" min="0" value="9" oninput="recalcDeal()"/>%</span>
+        <span class="fee-mini">+ €<input type="number" id="dealCwFix" step="0.01" min="0" value="3" oninput="recalcDeal()"/></span>
+        <span class="fee-result" id="dealCatawikiCalc"></span>
       </div>
       <!-- Section: Totali e riepilogo costi -->
       <div class="deal-section">
         <div class="deal-section-title">Riepilogo costi</div>
         <div class="deal-totals" id="dealTotals"></div>
       </div>
-      <!-- Section: Preview allocazione -->
+      <!-- Section: Preview allocazione (collassabile, nascosta di default) -->
       <div class="deal-section">
-        <div class="deal-section-title">Anteprima prezzo d'acquisto per carta</div>
-        <div style="font-size:11px;color:var(--text-muted);line-height:1.4;margin-bottom:4px">
-          Il costo totale viene ripartito proporzionalmente al valore CM di ciascuna carta. Le carte verranno aggiunte in collezione con il relativo <code style="background:var(--surface2);padding:1px 4px;border-radius:3px;font-size:10px">buy_price</code>.
-        </div>
-        <div class="deal-preview-table">
-          <table>
-            <thead><tr>
-              <th>Carta</th>
-              <th style="text-align:right">Qtà</th>
-              <th style="text-align:right">CM €</th>
-              <th style="text-align:right">Buy €/pz</th>
-              <th style="text-align:right">Tot €</th>
-            </tr></thead>
-            <tbody id="dealPreviewBody"></tbody>
-          </table>
+        <button type="button" class="deal-preview-toggle" id="dealPreviewToggle" onclick="toggleDealPreview()">
+          <span class="rb-i rb-i-list chev" style="width:13px;height:13px"></span>
+          <span id="dealPreviewToggleLabel">Mostra anteprima prezzo per carta</span>
+        </button>
+        <div id="dealPreviewWrap" style="display:none;margin-top:8px">
+          <div style="font-size:11px;color:var(--text-muted);line-height:1.4;margin-bottom:4px">
+            Il costo totale viene ripartito proporzionalmente al valore CM di ciascuna carta. Le carte verranno aggiunte in collezione con il relativo <code style="background:var(--surface2);padding:1px 4px;border-radius:3px;font-size:10px">buy_price</code>.
+          </div>
+          <div class="deal-preview-table">
+            <table>
+              <thead><tr>
+                <th>Carta</th>
+                <th style="text-align:right">Qtà</th>
+                <th style="text-align:right">CM €</th>
+                <th style="text-align:right">Buy €/pz</th>
+                <th style="text-align:right">Tot €</th>
+              </tr></thead>
+              <tbody id="dealPreviewBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
       <!-- Section: Note finali -->
@@ -9921,6 +9914,14 @@ function openDealModal(){
   document.getElementById('dealStatus').textContent='';
   document.getElementById('dealConfirmBtn').disabled=false;
 
+  // Anteprima carte: sempre collassata all'apertura (dettaglio opzionale)
+  var _pvWrap=document.getElementById('dealPreviewWrap');
+  if(_pvWrap) _pvWrap.style.display='none';
+  var _pvBtn=document.getElementById('dealPreviewToggle');
+  if(_pvBtn) _pvBtn.classList.remove('open');
+  var _pvLbl=document.getElementById('dealPreviewToggleLabel');
+  if(_pvLbl) _pvLbl.textContent='Mostra anteprima prezzo per carta';
+
   document.getElementById('dealModalBg').classList.add('show');
   recalcDeal();
 }
@@ -9939,6 +9940,18 @@ function calcPaypalSend(netToSeller, pctPerc, fixed){
   const fee=toSend-netToSeller;
   return {toSend:toSend, fee:fee};
 }
+
+function toggleDealPreview(){
+  var wrap=document.getElementById('dealPreviewWrap');
+  var btn=document.getElementById('dealPreviewToggle');
+  var lbl=document.getElementById('dealPreviewToggleLabel');
+  if(!wrap) return;
+  var show = wrap.style.display==='none';
+  wrap.style.display = show ? 'block' : 'none';
+  if(btn) btn.classList.toggle('open', show);
+  if(lbl) lbl.textContent = show ? 'Nascondi anteprima prezzo per carta' : 'Mostra anteprima prezzo per carta';
+}
+window.toggleDealPreview = toggleDealPreview;
 
 function recalcDeal(){
   if(!activePrev) return;
@@ -9967,9 +9980,7 @@ function recalcDeal(){
     paypalFee=r.fee;
     totalPaid=r.toSend;
     document.getElementById('dealPaypalCalc').innerHTML=
-      'Il venditore deve ricevere netti: <strong>€'+netToSeller.toFixed(2)+'</strong> (offerta €'+offer.toFixed(2)+' + spedizione €'+shipping.toFixed(2)+')<br>'
-      +'Commissione PayPal stimata: <strong>€'+paypalFee.toFixed(2)+'</strong> ('+pct.toFixed(2)+'% + €'+fix.toFixed(2)+')<br>'
-      +'→ Importo da inviare via PayPal B&amp;S: <strong>€'+totalPaid.toFixed(2)+'</strong>';
+      'fee <strong>€'+paypalFee.toFixed(2)+'</strong> → invii <strong>€'+totalPaid.toFixed(2)+'</strong>';
   }
 
   // Fee Catawiki: si attiva se la provenienza del preventivo è Catawiki.
@@ -9985,8 +9996,7 @@ function recalcDeal(){
     totalPaid+=catawikiFee;
     const cwCalc=document.getElementById('dealCatawikiCalc');
     if(cwCalc) cwCalc.innerHTML=
-      'Commissione su aggiudicazione €'+offer.toFixed(2)+': <strong>€'+catawikiFee.toFixed(2)+'</strong> ('+cwPct.toFixed(1)+'% + €'+cwFix.toFixed(2)+')<br>'
-      +'→ Costo reale lotto: <strong>€'+totalPaid.toFixed(2)+'</strong>';
+      'fee <strong>€'+catawikiFee.toFixed(2)+'</strong> → lotto <strong>€'+totalPaid.toFixed(2)+'</strong>';
   }
 
   // Totali
@@ -13614,7 +13624,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.2';
+const APP_VERSION='6.3';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
