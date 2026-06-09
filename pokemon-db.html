@@ -9874,39 +9874,52 @@ function openDealModal(){
   const items=getItems(activePrev);
   if(!items.length){ alert('Il preventivo è vuoto — aggiungi almeno una carta prima di confermare il deal'); return; }
 
-  // Se è già confermato, mostra i dettagli salvati in modalità "read-only informativa"
-  if(activePrev.status==='confirmed' && activePrev.deal_info){
-    const d=activePrev.deal_info;
-    const msg='Deal già confermato il '+(activePrev.confirmed_at?new Date(activePrev.confirmed_at).toLocaleString('it'):'—')+'\n\n'
-      +'• Prezzo concordato: €'+(d.offer||0).toFixed(2)+'\n'
-      +'• Spedizione: €'+(d.shipping||0).toFixed(2)+'\n'
-      +'• Metodo: '+(d.payment_method||'—')+'\n'
-      +(d.paypal_fee?'• Commissione PayPal: €'+d.paypal_fee.toFixed(2)+'\n':'')
-      +'• Costo totale pagato: €'+(d.total_paid||0).toFixed(2)+'\n'
-      +'• Venditore: '+(activePrev.seller_name||'—')+'\n\n'
-      +'Vuoi riconfermare e duplicare le carte in collezione? (Annulla per chiudere)';
-    if(!confirm(msg)) return;
-  }
+  // Se è già confermato → MODALITÀ MODIFICA: riapre il modal coi dati salvati
+  // prefillati, per correggere spedizione/pagamento/fee SENZA ri-duplicare le
+  // carte in collezione. (Prima c'era solo un confirm() che ri-duplicava.)
+  var _dealEditMode = (activePrev.status==='confirmed' && activePrev.deal_info);
+  window._dealEditMode = _dealEditMode;
 
   // Totale CM di riferimento
   const totCm=items.reduce((a,c)=>a+(c.cm_avg30||0)*(c.qty||1),0);
 
-  // Prefill offerta dal slider corrente, o 72% di CM se non visibile
-  const offerValEl=document.getElementById('prevOfferVal');
-  const prefillOffer=offerValEl?parseFloat(offerValEl.value)||Math.round(totCm*0.72*100)/100:Math.round(totCm*0.72*100)/100;
-
   document.getElementById('dealModalPrevName').textContent=activePrev.name+' ('+items.length+' voci, CM €'+totCm.toFixed(2)+')';
-  document.getElementById('dealOffer').value=prefillOffer.toFixed(2);
-  document.getElementById('dealShipping').value='0';
-  document.getElementById('dealDate').value=new Date().toISOString().slice(0,10);
-  document.getElementById('dealPayMethod').value='bonifico';
-  document.getElementById('dealPpPct').value='3.4';
-  document.getElementById('dealPpFix').value='0.35';
-  document.getElementById('dealMarkCompleted').checked=true;
-  document.getElementById('dealAppendNoteToCards').checked=false;
+
+  if(_dealEditMode){
+    // Prefill dai dati salvati: si modificano i dettagli senza ri-duplicare.
+    const d=activePrev.deal_info;
+    document.getElementById('dealOffer').value=(d.offer||0).toFixed(2);
+    document.getElementById('dealShipping').value=(d.shipping||0).toFixed(2);
+    document.getElementById('dealDate').value=d.purchase_date||new Date().toISOString().slice(0,10);
+    document.getElementById('dealPayMethod').value=d.payment_method||'bonifico';
+    document.getElementById('dealPpPct').value=(d.paypal_pct!=null?d.paypal_pct:3.4);
+    document.getElementById('dealPpFix').value=(d.paypal_fix!=null?d.paypal_fix:0.35);
+    document.getElementById('dealCwPct').value=(d.catawiki_pct!=null?d.catawiki_pct:9);
+    document.getElementById('dealCwFix').value=(d.catawiki_fix!=null?d.catawiki_fix:0);
+    // In modifica: niente ri-import. Il flag "marca completato" non serve.
+    document.getElementById('dealMarkCompleted').checked=true;
+    document.getElementById('dealAppendNoteToCards').checked=false;
+    document.getElementById('dealConfirmBtn').textContent='Salva modifiche dati';
+    document.getElementById('dealConfirmBtn').onclick=saveDealEdits;
+  } else {
+    // Prefill offerta dal slider corrente, o 72% di CM se non visibile
+    const offerValEl=document.getElementById('prevOfferVal');
+    const prefillOffer=offerValEl?parseFloat(offerValEl.value)||Math.round(totCm*0.72*100)/100:Math.round(totCm*0.72*100)/100;
+    document.getElementById('dealOffer').value=prefillOffer.toFixed(2);
+    document.getElementById('dealShipping').value='0';
+    document.getElementById('dealDate').value=new Date().toISOString().slice(0,10);
+    document.getElementById('dealPayMethod').value='bonifico';
+    document.getElementById('dealPpPct').value='3.4';
+    document.getElementById('dealPpFix').value='0.35';
+    document.getElementById('dealCwPct').value='9';
+    document.getElementById('dealCwFix').value='0';
+    document.getElementById('dealMarkCompleted').checked=true;
+    document.getElementById('dealAppendNoteToCards').checked=false;
+    document.getElementById('dealConfirmBtn').textContent='Conferma e aggiungi in collezione';
+    document.getElementById('dealConfirmBtn').onclick=confirmDealConversion;
+  }
   document.getElementById('dealStatus').textContent='';
   document.getElementById('dealConfirmBtn').disabled=false;
-  document.getElementById('dealConfirmBtn').textContent='Conferma e aggiungi in collezione';
 
   document.getElementById('dealModalBg').classList.add('show');
   recalcDeal();
@@ -10215,6 +10228,62 @@ async function deletePreventivo(){
   document.getElementById('prevContent').style.display='none';
   await renderPrevList();
 }
+
+// MODIFICA DEAL CONFERMATO — aggiorna solo deal_info (spedizione/pagamento/fee),
+// SENZA ri-duplicare le carte già in collezione. Usata in _dealEditMode.
+async function saveDealEdits(){
+  if(!activePrev || !activePrev.deal_info){ closeDealModal(); return; }
+  const items=getItems(activePrev);
+  const totCm=items.reduce((a,c)=>a+(c.cm_avg30||0)*(c.qty||1),0);
+
+  const offer=parseFloat(document.getElementById('dealOffer').value)||0;
+  const shipping=parseFloat(document.getElementById('dealShipping').value)||0;
+  const method=document.getElementById('dealPayMethod').value;
+  const dateStr=document.getElementById('dealDate').value||activePrev.deal_info.purchase_date||new Date().toISOString().slice(0,10);
+
+  let paypalFee=0, ppPct=0, ppFix=0, totalPaid=offer+shipping;
+  if(method==='paypal_bs'){
+    ppPct=parseFloat(document.getElementById('dealPpPct').value)||0;
+    ppFix=parseFloat(document.getElementById('dealPpFix').value)||0;
+    const r=calcPaypalSend(offer+shipping,ppPct,ppFix);
+    paypalFee=r.fee; totalPaid=r.toSend;
+  }
+  let catawikiFee=0, cwPct=0, cwFix=0;
+  if(activePrev.provenienza==='Catawiki'){
+    cwPct=parseFloat(document.getElementById('dealCwPct').value)||0;
+    cwFix=parseFloat(document.getElementById('dealCwFix').value)||0;
+    catawikiFee=offer*(cwPct/100)+cwFix; totalPaid+=catawikiFee;
+  }
+  const coef=totCm>0?totalPaid/totCm:0;
+  const accessory=shipping+paypalFee+catawikiFee;
+
+  // Aggiorna deal_info preservando i campi storici (cards_imported, total_cm originale)
+  activePrev.deal_info=Object.assign({}, activePrev.deal_info, {
+    offer:offer, shipping:shipping, payment_method:method,
+    provenienza:activePrev.provenienza||null,
+    paypal_pct:ppPct, paypal_fix:ppFix, paypal_fee:paypalFee,
+    catawiki_pct:cwPct, catawiki_fix:cwFix, catawiki_fee:catawikiFee,
+    accessory_total:accessory,
+    accessory_incidence_pct:(totCm>0?(accessory/totCm*100):0),
+    total_paid:totalPaid, purchase_date:dateStr,
+    allocation_coef:coef, edited_at:new Date().toISOString()
+  });
+
+  const btn=document.getElementById('dealConfirmBtn');
+  const st=document.getElementById('dealStatus');
+  btn.disabled=true; if(st){ st.style.color='var(--text-muted)'; st.textContent='Salvataggio…'; }
+  try{
+    await savePrev(activePrev);
+    if(typeof renderPrevList==='function') await renderPrevList();
+    closeDealModal();
+    if(typeof rbToast==='function') rbToast('Dati deal aggiornati (carte non ri-duplicate)');
+  }catch(e){
+    btn.disabled=false;
+    if(st){ st.style.color='var(--danger)'; st.textContent='Errore: '+(e.message||e); }
+  }
+}
+window.saveDealEdits=saveDealEdits;
+
 
 // Stato ordinamento preventivo
 let prevSortKey=null;
@@ -13545,7 +13614,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.0';
+const APP_VERSION='6.1';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
