@@ -4205,6 +4205,27 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
         </div>
         <div class="deal-paypal-calc" id="dealPaypalCalc"></div>
       </div>
+      <!-- Section: Calcolatore Fee Catawiki (auto se provenienza = Catawiki) -->
+      <div class="deal-paypal-box" id="dealCatawikiBox" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--text)">
+          <span class="rb-i rb-i-tag" style="width:14px;height:14px"></span>
+          Commissioni Catawiki (acquirente)
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);line-height:1.4">
+          Catawiki applica una commissione d'asta all'acquirente sopra il prezzo di aggiudicazione. Incide sul costo reale del lotto.
+        </div>
+        <div class="deal-grid">
+          <div class="deal-field">
+            <label for="dealCwPct">Commissione variabile (%)</label>
+            <input type="number" id="dealCwPct" step="0.1" min="0" value="9" oninput="recalcDeal()"/>
+          </div>
+          <div class="deal-field">
+            <label for="dealCwFix">Quota fissa (€)</label>
+            <input type="number" id="dealCwFix" step="0.01" min="0" value="0" oninput="recalcDeal()"/>
+          </div>
+        </div>
+        <div class="deal-paypal-calc" id="dealCatawikiCalc"></div>
+      </div>
       <!-- Section: Totali e riepilogo costi -->
       <div class="deal-section">
         <div class="deal-section-title">Riepilogo costi</div>
@@ -9938,14 +9959,41 @@ function recalcDeal(){
       +'→ Importo da inviare via PayPal B&amp;S: <strong>€'+totalPaid.toFixed(2)+'</strong>';
   }
 
+  // Fee Catawiki: si attiva se la provenienza del preventivo è Catawiki.
+  // È una commissione ACQUIRENTE che si somma sopra l'aggiudicazione (offer).
+  const isCatawiki = (activePrev.provenienza==='Catawiki');
+  const cwBox=document.getElementById('dealCatawikiBox');
+  if(cwBox){ cwBox.style.display=isCatawiki?'flex':'none'; cwBox.classList.toggle('active',isCatawiki); }
+  let catawikiFee=0;
+  if(isCatawiki){
+    const cwPct=parseFloat(document.getElementById('dealCwPct').value)||0;
+    const cwFix=parseFloat(document.getElementById('dealCwFix').value)||0;
+    catawikiFee=offer*(cwPct/100)+cwFix;
+    totalPaid+=catawikiFee;
+    const cwCalc=document.getElementById('dealCatawikiCalc');
+    if(cwCalc) cwCalc.innerHTML=
+      'Commissione su aggiudicazione €'+offer.toFixed(2)+': <strong>€'+catawikiFee.toFixed(2)+'</strong> ('+cwPct.toFixed(1)+'% + €'+cwFix.toFixed(2)+')<br>'
+      +'→ Costo reale lotto: <strong>€'+totalPaid.toFixed(2)+'</strong>';
+  }
+
   // Totali
   const tBox=document.getElementById('dealTotals');
   let totalsHtml='<div class="deal-totals-row"><span class="l">Prezzo concordato</span><span class="v">€'+offer.toFixed(2)+'</span></div>';
   if(shipping>0) totalsHtml+='<div class="deal-totals-row"><span class="l">Spedizione</span><span class="v">€'+shipping.toFixed(2)+'</span></div>';
   if(paypalFee>0) totalsHtml+='<div class="deal-totals-row"><span class="l">Commissione PayPal</span><span class="v">€'+paypalFee.toFixed(2)+'</span></div>';
+  if(catawikiFee>0) totalsHtml+='<div class="deal-totals-row"><span class="l">Commissione Catawiki</span><span class="v">€'+catawikiFee.toFixed(2)+'</span></div>';
   totalsHtml+='<div class="deal-totals-row"><span class="l">Valore CM (riferimento)</span><span class="v" style="color:var(--text-muted)">€'+totCm.toFixed(2)+'</span></div>';
   const discountPct=totCm>0?((1-totalPaid/totCm)*100):0;
   totalsHtml+='<div class="deal-totals-row"><span class="l">Sconto effettivo sul CM</span><span class="v" style="color:var(--success)">'+(discountPct>=0?'-':'+')+Math.abs(discountPct).toFixed(1)+'%</span></div>';
+  // Incidenza costi accessori sul valore CM — indicatori statistici confrontabili
+  // nel tempo (es. quanto pesano in media spedizione e fee sui lotti acquistati).
+  const accessory=shipping+paypalFee+catawikiFee;
+  if(accessory>0 && totCm>0){
+    const shipInc=shipping/totCm*100, feeInc=(paypalFee+catawikiFee)/totCm*100, accInc=accessory/totCm*100;
+    totalsHtml+='<div class="deal-totals-row" style="border-top:1px dashed var(--border);margin-top:4px;padding-top:6px"><span class="l" style="font-size:11px;color:var(--text-muted)">Incidenza spedizione</span><span class="v" style="font-size:12px;color:var(--text-muted)">'+shipInc.toFixed(1)+'%</span></div>';
+    if(feeInc>0) totalsHtml+='<div class="deal-totals-row"><span class="l" style="font-size:11px;color:var(--text-muted)">Incidenza commissioni</span><span class="v" style="font-size:12px;color:var(--text-muted)">'+feeInc.toFixed(1)+'%</span></div>';
+    totalsHtml+='<div class="deal-totals-row"><span class="l" style="font-size:11px;color:var(--gold)">Incidenza accessori totale</span><span class="v" style="font-size:12px;color:var(--gold)">'+accInc.toFixed(1)+'%</span></div>';
+  }
   totalsHtml+='<div class="deal-totals-row grand"><span class="l">Costo totale pagato</span><span class="v">€'+totalPaid.toFixed(2)+'</span></div>';
   tBox.innerHTML=totalsHtml;
 
@@ -9997,6 +10045,15 @@ async function confirmDealConversion(){
     const r=calcPaypalSend(offer+shipping,ppPct,ppFix);
     paypalFee=r.fee;
     totalPaid=r.toSend;
+  }
+
+  // Fee Catawiki (acquirente) — coerente con recalcDeal: attiva se provenienza Catawiki
+  let catawikiFee=0, cwPct=0, cwFix=0;
+  if(activePrev.provenienza==='Catawiki'){
+    cwPct=parseFloat(document.getElementById('dealCwPct').value)||0;
+    cwFix=parseFloat(document.getElementById('dealCwFix').value)||0;
+    catawikiFee=offer*(cwPct/100)+cwFix;
+    totalPaid+=catawikiFee;
   }
 
   const totCm=items.reduce((a,c)=>a+(c.cm_avg30||0)*(c.qty||1),0);
@@ -10080,9 +10137,15 @@ async function confirmDealConversion(){
       offer:offer,
       shipping:shipping,
       payment_method:method,
+      provenienza:activePrev.provenienza||null,
       paypal_pct:ppPct,
       paypal_fix:ppFix,
       paypal_fee:paypalFee,
+      catawiki_pct:cwPct,
+      catawiki_fix:cwFix,
+      catawiki_fee:catawikiFee,
+      accessory_total:(shipping+paypalFee+catawikiFee),
+      accessory_incidence_pct:(totCm>0?((shipping+paypalFee+catawikiFee)/totCm*100):0),
       total_paid:totalPaid,
       purchase_date:dateStr,
       cards_imported:inserted,
