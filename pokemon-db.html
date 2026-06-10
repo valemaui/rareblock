@@ -13986,7 +13986,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.13';
+const APP_VERSION='6.14';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -20025,24 +20025,11 @@ function rbShowConditionPrices(opts){
   }catch(e){ try{ console.warn('[RB-PC] modale errore:', e && e.message); }catch(_){} }
 }
 
-/* Launcher flottante (zero dipendenze dal layout esistente). */
-function _rbPcInstallLauncher(){
-  try{
-    if(document.getElementById('rbpc-fab')) return;
-    _rbPcInjectStyles();
-    var fab = document.createElement('div');
-    fab.id = 'rbpc-fab';
-    fab.innerHTML = '<span class="rbpc-fab-ic">€</span><span>Guida Prezzi</span>';
-    fab.title = 'Prezzi per condizione · cache veloce';
-    fab.onclick = function(){ rbShowConditionPrices(null); };
-    document.body.appendChild(fab);
-  }catch(e){}
-}
-
 /* ── Bootstrap ───────────────────────────────────────────────────────── */
 function _rbPcBoot(){
   _rbInstallSearchCache();
-  _rbPcInstallLauncher();
+  // FAB "Guida Prezzi" rimosso (non utilizzato). La price-cache multi-livello
+  // resta attiva: è infrastruttura usata dalle altre sezioni per i prezzi.
   try{ console.log('[RB-PC] modulo prezzi+cache attivo'); }catch(e){}
 }
 if(document.readyState === 'loading'){
