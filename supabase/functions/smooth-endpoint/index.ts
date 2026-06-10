@@ -424,6 +424,8 @@ Deno.serve(async (req) => {
 
     if (source === 'cardmarket')      return body?.mode === 'discover'
                                         ? await handleCardmarketDiscover(firstUrl, body?.debug === true)
+                                        : body?.mode === 'meta'
+                                        ? await handleCardmarketMeta(firstUrl, body?.debug === true)
                                         : await handleCardmarket(firstUrl, body?.debug === true);
     if (source === 'pricecharting')   return await handlePriceChartingCascade(urls, body?.card_name, body?.debug === true, { firstEdition: body?.first_edition === true });
     if (source === 'ebay_sold')       return await handleEbaySoldCascade(urls, Number(body?.min_hits ?? 3), body?.merge === true);
@@ -506,6 +508,117 @@ async function handleCardmarketDiscover(searchUrl: string, debug = false): Promi
 // La frase "prodotto sbagliato" non compare mai in una pagina prodotto valida,
 // quindi un singolo match affidabile è sufficiente. Restringiamo al <head> +
 // primi ~8KB di body per non intercettare testo in recensioni/commenti utente.
+// ─── CARDMARKET METADATA (census carte assenti da pokemontcg.io) ───────────
+// Estrae i metadati di un PRODOTTO Cardmarket (nome, set, numero, rarità,
+// immagine) per censire carte non coperte dalla TCG API (es. i deck "Pokémon
+// TCG Classic"). Best-effort multi-segnale: og:image/og:title (stabili),
+// canonical (set+slug), tabella info (numero/rarità), __NEXT_DATA__. I campi
+// mancanti li completa l'utente nell'anteprima editabile lato client.
+function _metaTag(html: string, prop: string): string {
+  const m = html.match(new RegExp('<meta[^>]+(?:property|name)=["\']' + prop + '["\'][^>]+content=["\']([^"\']+)["\']', 'i'))
+         || html.match(new RegExp('<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\']' + prop + '["\']', 'i'));
+  return m ? m[1].trim() : '';
+}
+function _deslug(slug: string): string {
+  return decodeURIComponent(slug || '').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function _cmInfoValue(html: string, labels: RegExp): string {
+  let m = html.match(new RegExp('<dt[^>]*>\\s*(?:' + labels.source + ')\\s*</dt>\\s*<dd[^>]*>([\\s\\S]{0,160}?)</dd>', 'i'))
+       || html.match(new RegExp('<th[^>]*>\\s*(?:' + labels.source + ')[\\s\\S]{0,40}?</th>\\s*<td[^>]*>([\\s\\S]{0,160}?)</td>', 'i'));
+  if (!m) return '';
+  const raw = m[1];
+  const titleAttr = raw.match(/title=["']([^"']+)["']/i);
+  if (titleAttr) return titleAttr[1].trim();
+  return raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function extractCMProductMeta(html: string, url: string): {
+  name: string; number: string; set_name: string; rarity: string; image: string; language: string; cm_url: string;
+} {
+  const canon = (html.match(/<link[^>]+rel="canonical"[^>]+href="([^"]+)"/i)
+              || html.match(/<meta[^>]+property="og:url"[^>]+content="([^"]+)"/i)
+              || [, ''])[1] || url;
+  const cmUrl = (canon || url).split('?')[0].split('#')[0];
+  const pathM = cmUrl.match(/\/Products\/Singles\/([^/?#]+)\/([^/?#]+)/i);
+  const setSlug = pathM ? pathM[1] : '';
+  const cardSlug = pathM ? pathM[2] : '';
+
+  // Immagine: og:image (stabile su CM), poi <img product-images>
+  let image = _metaTag(html, 'og:image');
+  if (!image) {
+    const im = html.match(/(https:\/\/[a-z0-9.\-]*cardmarket[^"' ]*product-images[^"' ]+\.(?:jpe?g|png|webp))/i);
+    if (im) image = im[1];
+  }
+
+  // Nome: og:title / <title>, ripulito da suffisso sito ed espansione
+  let title = _metaTag(html, 'og:title') || (html.match(/<title>([^<]*)<\/title>/i) || [, ''])[1] || '';
+  title = title.replace(/\s*[|·–-]\s*Cardmarket.*$/i, '').trim();
+  let name = title.split(/\s*[|]\s*/)[0].trim();
+  const nameNoVer = name.replace(/\s*\((?:V\d+)\)\s*$/i, '').trim();
+  if (nameNoVer) name = nameNoVer;
+  if (!name && cardSlug) name = _deslug(cardSlug.replace(/-(?:V\d+-)?[A-Z]{1,4}\d+$/i, ''));
+
+  // Set: breadcrumb verso il set, poi __NEXT_DATA__, poi de-slug
+  let setName = '';
+  const setSlugRe = setSlug ? setSlug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '[^"\'/]+';
+  const bc = html.match(new RegExp('href=["\'][^"\']*\\/Products\\/Singles\\/' + setSlugRe + '["\'][^>]*>\\s*([^<]{2,120})<', 'i'));
+  if (bc) setName = bc[1].replace(/\s+/g, ' ').trim();
+  if (!setName) {
+    const jm = html.match(/"expansionName"\s*:\s*"([^"]{2,120})"/i)
+            || html.match(/"expansion"\s*:\s*\{[^}]*"(?:enName|name|localization)"\s*:\s*"([^"]{2,120})"/i);
+    if (jm) setName = jm[1].trim();
+  }
+  if (!setName && setSlug) setName = _deslug(setSlug);
+
+  // Numero: tabella info, poi JSON, poi suffisso slug
+  let number = _cmInfoValue(html, /Numero|Number|No\.|Nummer|Numéro|Número/i);
+  if (number) { const nm = number.match(/(\d+[a-z]?)/i); number = nm ? nm[1] : number; }
+  if (!number) { const jn = html.match(/"(?:number|collectorNumber|cardNumber)"\s*:\s*"?(\d+[a-z]?)"?/i); if (jn) number = jn[1]; }
+  if (!number && cardSlug) { const sn = cardSlug.match(/[A-Z]{1,4}(\d+[a-z]?)$/i) || cardSlug.match(/(\d+[a-z]?)$/i); if (sn) number = sn[1]; }
+
+  // Rarità: tabella info, poi JSON
+  let rarity = _cmInfoValue(html, /Rarità|Rarity|Seltenheit|Rareté|Rareza/i);
+  if (!rarity) { const jr = html.match(/"rarity"\s*:\s*"([^"]{2,60})"/i); if (jr) rarity = jr[1].trim(); }
+
+  return { name, number, set_name: setName, rarity, image, language: '', cm_url: cmUrl };
+}
+
+async function handleCardmarketMeta(url: string, debug = false): Promise<Response> {
+  const { html, ok, status } = await fetchWithRetry(url);
+  if (!ok || !html) {
+    return json({ error: `CM HTTP ${status}`, ok: false, status,
+                  blocked: status === 403 || status === 429 || status === 503 });
+  }
+  if (/Just a moment|cf-browser-verification/i.test(html)) {
+    return json({ error: 'Cloudflare challenge attivo', ok: false, status: 403, blocked: true });
+  }
+  if (isCMWrongProductPage(html)) {
+    return json({ error: 'prodotto sbagliato (slug non valido)', ok: false, wrong_product: true });
+  }
+  // Non è un dettaglio-prodotto → pagina ricerca: estrai i candidati da scegliere.
+  if (!isCMProductDetailPage(html, url)) {
+    if (isCMNoResultsPage(html)) {
+      return json({ error: 'nessun risultato', ok: false, no_results: true, products: [] });
+    }
+    const products: Array<{ url: string; name: string }> = [];
+    const seen = new Set<string>();
+    const rx = /href="(\/[a-z]{2}\/Pokemon\/Products\/Singles\/[^"#?]+\/[^"#?]+)"[^>]*>([^<]{1,120})</gi;
+    let m: RegExpExecArray | null;
+    while ((m = rx.exec(html)) !== null && products.length < 25) {
+      const base = m[1].split('?')[0];
+      if (seen.has(base)) continue;
+      seen.add(base);
+      const nm = m[2].replace(/\s+/g, ' ').trim();
+      if (!nm) continue;
+      products.push({ url: _absCmUrl(base), name: nm });
+    }
+    return json({ ok: false, need_pick: true, products, count: products.length, url });
+  }
+  const meta = extractCMProductMeta(html, url);
+  return json({ ok: true, meta, source: 'cardmarket_meta',
+                debug: debug ? { html_length: html.length, canonical: meta.cm_url } : undefined });
+}
+
 function isCMWrongProductPage(html: string): boolean {
   if (!html) return false;
   // Frasi d'errore localizzate (CM usa "!" finale nel titolo della pagina).

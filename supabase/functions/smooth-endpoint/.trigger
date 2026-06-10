@@ -1,1 +1,1 @@
-redeploy 2026-06-10T10:34:18Z — fix no-results page gate + product-detail confirmation
+redeploy 2026-06-10T12:51:43Z — cardmarket meta mode (census)
