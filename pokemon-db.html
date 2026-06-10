@@ -11549,7 +11549,17 @@ function cmAppendParams(baseUrl, cond, lang, variant, first1st){
 // con URL mirror inutili.
 function _isAuthoritativeCMUrl(u){
   if(!u || typeof u !== 'string') return false;
-  return /^https?:\/\/(?:www\.)?cardmarket\.com\//i.test(u);
+  if(!/^https?:\/\/(?:www\.)?cardmarket\.com\//i.test(u)) return false;
+  // Deve essere una pagina DETTAGLIO-PRODOTTO, non set/categoria/ricerca.
+  // Prodotto: /Products/{Categoria}/{Set}/{Prodotto} → ≥3 segmenti dopo /Products/.
+  // Pagina set: /Products/Singles/{Set}              → 2 segmenti (NON valida).
+  // Bug Expedition/Aquapolis/Skyridge: pokemontcg.io fornisce cardmarket.url a
+  // livello SET (/Singles/Expedition-Base-Set); fidarsene apriva il set intero →
+  // prodotto sbagliato e prezzi sballati. Scartandolo, buildCMDirectUrl ricade
+  // sul Livello 1 e costruisce lo slug corretto (es. Tyranitar-EX29).
+  var m = u.split('#')[0].split('?')[0].match(/\/Products\/(.+)$/i);
+  if(!m) return false;
+  return m[1].split('/').filter(Boolean).length >= 3;
 }
 function cmAuthoritativeUrl(card){
   if(!card) return null;
@@ -13972,7 +13982,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.11';
+const APP_VERSION='6.12';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
