@@ -4123,7 +4123,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
           <div class="pq-specs">
             <div class="pq-spec">
               <label for="emLang">Lingua</label>
-              <select id="emLang" onchange="_scheduleAutoVerify('em')"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select>
+              <select id="emLang" onchange="refreshEditPrice();_scheduleAutoVerify('em')"><option selected>ITA</option><option>ENG</option><option>JPN</option><option>DEU</option><option>FRA</option><option>ESP</option><option>KOR</option><option>POR</option></select>
             </div>
             <div class="pq-spec">
               <label for="emCond">Condizione</label>
@@ -10799,14 +10799,28 @@ function closeEditModal(){
 function refreshEditPrice(){
   if(editIdx===null)return;
   const c=activePrev.items[editIdx];
+  const condEl=document.getElementById('emCond');
+  const langEl=document.getElementById('emLang');
+  const varEl =document.getElementById('emVar');
+  const ed1El =document.getElementById('em1st');
   const cached=cache[c.name.toLowerCase().trim()];
+  let tcgCard=null;
   if(cached){
-    const card=cached.find(x=>x.number===c.number)||cached[0];
-    if(card&&card.cardmarket?.prices){
-      const p=calcPrice(card.cardmarket.prices,document.getElementById('emCond').value,document.getElementById('emVar').value,document.getElementById('em1st').checked);
+    tcgCard=cached.find(x=>x.number===c.number)||cached[0];
+    if(tcgCard&&tcgCard.cardmarket?.prices){
+      const p=calcPrice(tcgCard.cardmarket.prices,condEl.value,varEl.value,ed1El.checked);
       if(p&&!p.notQuoted) document.getElementById('emCm').value=p.price.toFixed(2);
       else if(p&&p.notQuoted) document.getElementById('emCm').value='';
     }
+  }
+  // Aggiorna il link Cardmarket con condizione/lingua/variante/1ªed. LIVE.
+  // Bug precedente: il link veniva costruito solo all'apertura del modal con la
+  // condizione salvata, quindi cambiando il menu si apriva sempre la condizione
+  // iniziale (di fatto NM). Ora si rigenera a ogni cambio.
+  const lnk=document.getElementById('emCmLink');
+  if(lnk){
+    const setId=c.set_id || (tcgCard&&tcgCard.set?tcgCard.set.id:null);
+    lnk.href=buildCMDirectUrl(c.name, setId, c.number, condEl.value, langEl.value, varEl.value, ed1El.checked, c.set||'', c.rarity, cmAuthoritativeUrl(c));
   }
   emUpdatePrice();
 }
@@ -11427,13 +11441,20 @@ function cmAppendParams(baseUrl, cond, lang, variant, first1st){
   try{
     // Forza il dominio italiano (la TCG API può restituire /en/). Manteniamo il path.
     var u=baseUrl.replace(/cardmarket\.com\/[a-z]{2}\//i,'cardmarket.com/it/');
-    var hasQ=u.indexOf('?')>=0;
-    var params=new URLSearchParams();
+    // Separa hash e query già presenti. RIMUOVI i parametri che gestiamo noi:
+    // se un cm_url salvato contiene già minCondition vecchio, concatenarne un
+    // altro creerebbe un duplicato e Cardmarket userebbe il PRIMO → condizione
+    // sbagliata (sintomo: "apre sempre NM"). Così invece li riscriviamo.
+    var hash=''; var hi=u.indexOf('#'); if(hi>=0){ hash=u.slice(hi); u=u.slice(0,hi); }
+    var qi=u.indexOf('?');
+    var path=qi>=0?u.slice(0,qi):u;
+    var params=new URLSearchParams(qi>=0?u.slice(qi+1):'');
+    ['language','minCondition','isReverseHolo','isFirstEd'].forEach(function(k){ params.delete(k); });
     params.set('language',     CM_LANG_ID[lang||'ITA'] || 5);
     params.set('minCondition', CM_COND_ID[cond||'NM']  || 2);
     if(variant==='Reverse Holo') params.set('isReverseHolo','Y');
     params.set('isFirstEd', first1st ? 'Y' : 'N');
-    return u + (hasQ?'&':'?') + params.toString();
+    return path + '?' + params.toString() + hash;
   }catch(e){ return baseUrl; }
 }
 
@@ -13878,7 +13899,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.9';
+const APP_VERSION='6.10';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
