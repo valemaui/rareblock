@@ -9245,6 +9245,7 @@ async function savePrev(p){
       status:p.status||'open',
       confirmed_at:p.confirmed_at||null,
       deal_info:p.deal_info?(typeof p.deal_info==='string'?p.deal_info:JSON.stringify(p.deal_info)):null,
+      offer:(p.offer!=null && !isNaN(parseFloat(p.offer)))?parseFloat(p.offer):null,
       ...(uid?{user_id:uid}:{})
     };
     // Pre-filtraggio: se lo schema check ha già rilevato colonne mancanti, rimuovile
@@ -9304,7 +9305,7 @@ async function deletePrevFromDB(id){
 // Il payload di savePrev viene poi filtrato per escludere i campi non presenti,
 // così l'app resta funzionante anche prima della migrazione.
 var _prevSchemaStatus=null; // {checked:bool, missing:[...]}
-var PREV_NEW_COLS=['note','seller_name','status','confirmed_at','deal_info'];
+var PREV_NEW_COLS=['note','seller_name','status','confirmed_at','deal_info','offer'];
 
 async function checkPrevSchema(force){
   if(_prevSchemaStatus && !force) return _prevSchemaStatus;
@@ -9356,7 +9357,7 @@ async function checkPrevSchema(force){
 function showSchemaWarning(missingCols){
   if(document.getElementById('schemaWarningBanner')) return; // già mostrato
   const sql=missingCols.map(function(col){
-    const types={note:'text default null',seller_name:'text default null',status:"text default 'open'",confirmed_at:'timestamptz default null',deal_info:'jsonb default null'};
+    const types={note:'text default null',seller_name:'text default null',status:"text default 'open'",confirmed_at:'timestamptz default null',deal_info:'jsonb default null',offer:'numeric default null'};
     return 'ALTER TABLE preventivi ADD COLUMN IF NOT EXISTS '+col+' '+(types[col]||'text default null')+';';
   }).join('\n');
   const banner=document.createElement('div');
@@ -9948,6 +9949,24 @@ async function savePrevNotes(){
   }
 }
 
+// ── OFFERTA PROPOSTA ──
+// Persiste il valore dello slider/numero su activePrev.offer (salvato a DB).
+// Chiamato onchange (rilascio slider o conferma input numero), non oninput,
+// per non martellare il backend a ogni tick.
+async function savePrevOffer(val){
+  if(!activePrev) return;
+  const v=parseFloat(val);
+  if(isNaN(v)) return;
+  const rounded=Math.round(v*100)/100;
+  if(parseFloat(activePrev.offer)===rounded) return; // nessun cambiamento reale
+  activePrev.offer=rounded;
+  try{
+    await savePrev(activePrev);
+  }catch(e){
+    console.warn('savePrevOffer error:',e.message);
+  }
+}
+
 // ══════════════════════════════════════════════════════
 // DEAL CONFIRMATION — Converte preventivo → acquisti in collezione
 // ══════════════════════════════════════════════════════
@@ -10532,6 +10551,11 @@ function renderPrevTotals(){
   const offerMax=Math.round(tot*1.00*100)/100;
   // Default: 72% del CM (punto di partenza ragionevole per un lotto)
   const offerMid=Math.round(tot*0.72*100)/100;
+  // Offerta salvata (persistente su activePrev.offer) o default. La slider è
+  // clampata al range; il campo numero mostra il valore reale anche se fuori range.
+  const savedOffer=(activePrev.offer!=null && !isNaN(parseFloat(activePrev.offer)))?parseFloat(activePrev.offer):null;
+  const curOffer=(savedOffer!=null)?savedOffer:offerMid;
+  const sliderOffer=Math.min(Math.max(curOffer,offerMin),offerMax);
 
   document.getElementById('prevTotals').innerHTML=`
     <div class="prev-summary">
@@ -10564,14 +10588,16 @@ function renderPrevTotals(){
         </div>
         <input type="range" class="prev-offer-slider" id="prevOfferSlider"
           min="${offerMin.toFixed(2)}" max="${offerMax.toFixed(2)}" step="0.50"
-          value="${offerMid.toFixed(2)}"
-          oninput="updateOfferDisplay(this.value,${tot.toFixed(2)})"/>
+          value="${sliderOffer.toFixed(2)}"
+          oninput="updateOfferDisplay(this.value,${tot.toFixed(2)})"
+          onchange="savePrevOffer(this.value)"/>
         <div style="display:flex;align-items:baseline;gap:6px">
           <span style="font-size:13px;color:var(--text-muted)">€</span>
           <input type="number" id="prevOfferVal" class="prev-offer-input"
-            value="${offerMid.toFixed(2)}" step="0.50"
-            oninput="updateOfferDisplay(this.value,${tot.toFixed(2)},true)"/>
-          <span id="prevOfferPct" class="prev-offer-pct ${_offerPctClass(offerMid/tot*100)}">${Math.round(offerMid/tot*100)}%</span>
+            value="${curOffer.toFixed(2)}" step="0.50"
+            oninput="updateOfferDisplay(this.value,${tot.toFixed(2)},true)"
+            onchange="savePrevOffer(this.value)"/>
+          <span id="prevOfferPct" class="prev-offer-pct ${_offerPctClass(curOffer/tot*100)}">${Math.round(curOffer/tot*100)}%</span>
         </div>
       </div>
       <div class="prev-notes-row">
@@ -13852,7 +13878,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.8';
+const APP_VERSION='6.9';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
