@@ -5666,6 +5666,80 @@ function nameVariants(name){
   return[...v];
 }
 
+// ── Tolleranza ai refusi (typo) nella ricerca carte ──────────────────────────
+// La TCG API supporta i wildcard (name:*x*) ma NON la fuzziness: "Misti's" non
+// matcha "Misty's". Strategia: pool di candidati via wildcard sul prefisso del
+// primo token (robusto ai refusi finali/interni, i più comuni) + re-ranking per
+// distanza di edit (Levenshtein) rispetto alla query.
+function _normName(s){
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/['\u2019\u2640\u2642]/g,'').replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+}
+// Levenshtein con early-exit a maxd (oltre la soglia ritorna maxd+1).
+function _lev(a,b,maxd){
+  if(a===b) return 0;
+  const la=a.length, lb=b.length;
+  if(maxd!=null && Math.abs(la-lb)>maxd) return maxd+1;
+  if(!la) return lb; if(!lb) return la;
+  let prev=new Array(lb+1), cur=new Array(lb+1);
+  for(let j=0;j<=lb;j++) prev[j]=j;
+  for(let i=1;i<=la;i++){
+    cur[0]=i; let rowMin=cur[0]; const ai=a.charCodeAt(i-1);
+    for(let j=1;j<=lb;j++){
+      const cost=ai===b.charCodeAt(j-1)?0:1;
+      cur[j]=Math.min(prev[j]+1, cur[j-1]+1, prev[j-1]+cost);
+      if(cur[j]<rowMin) rowMin=cur[j];
+    }
+    if(maxd!=null && rowMin>maxd) return maxd+1;
+    const tmp=prev; prev=cur; cur=tmp;
+  }
+  return prev[lb];
+}
+// Miglior distanza tra query e nome carta: confronta col nome intero e con i
+// prefissi per token (gestisce query corta vs nome lungo: "Misti's" vs
+// "Misty's Tears" → confronta con "misty s").
+function _fuzzyScoreCard(qNorm, cardName){
+  const c=_normName(cardName);
+  if(!qNorm||!c) return 99;
+  let best=_lev(qNorm,c);
+  if(c.length>qNorm.length){
+    best=Math.min(best,_lev(qNorm,c.slice(0,qNorm.length)));
+    const toks=c.split(' '); let acc='';
+    for(const t of toks){ acc=acc?acc+' '+t:t; best=Math.min(best,_lev(qNorm,acc)); if(acc.length>=qNorm.length) break; }
+  }
+  return best;
+}
+// Fallback fuzzy: pool via wildcard sul prefisso + filtro/ordinamento per
+// distanza di edit. Se passato `number`, porta in cima i match col numero giusto.
+async function _fuzzyCardFallback(name, number){
+  const q=_normName(name);
+  if(q.length<3) return [];
+  const first=q.split(' ')[0];
+  const core=first.length>=4?first.slice(0,4):first;
+  const seen=new Set(); const pool=[];
+  const queries=['name:*'+core+'*'];
+  if(first!==core) queries.push('name:*'+first+'*');
+  for(const qy of queries){
+    try{
+      const res=await _fetchTCGDirect(qy,60);
+      for(const c of res){ if(c&&c.id&&!seen.has(c.id)){ seen.add(c.id); pool.push(c); } }
+    }catch(e){}
+    if(pool.length>=40) break;
+  }
+  if(!pool.length) return [];
+  const thr=Math.max(1, Math.round(q.length*0.25));
+  let scored=pool.map(c=>({c,d:_fuzzyScoreCard(q,c.name)})).filter(x=>x.d<=thr).sort((a,b)=>a.d-b.d);
+  if(number){
+    const nn=String(number).split('/')[0].replace(/^0+/,'');
+    scored.sort((a,b)=>{
+      const an=(String(a.c.number||'').split('/')[0].replace(/^0+/,'')===nn)?0:1;
+      const bn=(String(b.c.number||'').split('/')[0].replace(/^0+/,'')===nn)?0:1;
+      return (an-bn)||(a.d-b.d);
+    });
+  }
+  return scored.map(x=>x.c);
+}
+
 async function _fetchRaw(name,attempt=1){
   const key=name.toLowerCase().trim();
   if(cache[key]) return cache[key];
@@ -5746,15 +5820,14 @@ async function fetchCards(name, number){
     }
   }
 
-  // 6. Se nome italiano fallisce con mappa, prova traduzione AI-assisted
-  //    (solo se nome non trovato e sembra italiano)
-  if(!results.length && enName === name){
-    // Wildcard sul primo token come ultima risorsa
+  // 6. Fallback fuzzy tollerante ai refusi (es. "Misti's" → "Misty's",
+  //    "Charizar" → "Charizard"): pool via wildcard sul prefisso del primo
+  //    token + re-ranking per distanza di edit. Gira sempre se ancora vuoto.
+  if(!results.length){
+    setLed('checking','Ricerca tollerante ai refusi…');
     try {
-      const firstWord = name.split(' ')[0];
-      if(firstWord.length > 3){
-        results = await _fetchTCGDirect('name:*'+firstWord+'*');
-      }
+      const fz = await _fuzzyCardFallback(nameToSearch, number);
+      if(fz.length) results = fz;
     } catch(e) {}
   }
 
@@ -12186,9 +12259,9 @@ async function _vpServerSideCMScrape(cmUrl){
     var _blocked = _st===403 || _st===429 || _st===503
                 || /\b(403|429|503)\b|cloudflare|\bwaf\b|challenge|just a moment/i.test(_err);
     if(data.error) return {listings:[], error:data.error, debug:data.debug,
-                           wrong_product:data.wrong_product===true, blocked:_blocked, status:_st};
+                           wrong_product:data.wrong_product===true, no_results:data.no_results===true, blocked:_blocked, status:_st};
     return {listings: data.listings || [], error: null, debug: data.debug,
-            wrong_product:data.wrong_product===true, blocked:false, status:_st||200};
+            wrong_product:data.wrong_product===true, no_results:data.no_results===true, blocked:false, status:_st||200};
   }catch(e){
     // Timeout / errore di rete: pagina non letta → trattata come "blocked" così
     // non innesca la sostituzione di slug (che porterebbe a un prodotto diverso).
@@ -13899,7 +13972,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.10';
+const APP_VERSION='6.11';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 

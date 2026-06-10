@@ -529,6 +529,36 @@ function isCMWrongProductPage(html: string): boolean {
   return false;
 }
 
+// Riconosce la pagina di RICERCA a 0 risultati ("Prodotto non trovato" / "No
+// results"). CM la serve HTTP 200 per /Products/Search e
+// /Products/Singles/{Set}?searchString= quando la query non matcha nulla.
+// NON è una scheda prodotto: non deve mai produrre prezzi (senza questo, la
+// PHASE 2/3 markup-agnostica raccoglieva i prezzi dei "prodotti consigliati"
+// in vetrina → prezzi completamente sballati, bug "Tyrant 29").
+function isCMNoResultsPage(html: string): boolean {
+  if (!html) return false;
+  const head = html.substring(0, 14000);
+  const phrase = /(no (?:products?|results|matching products?|items)[^<]{0,30}(?:found|match|to display)|nessun (?:prodotto|risultato|articolo)|non (?:è|e) stato trovato alcun|keine (?:produkte|ergebnisse|artikel) (?:gefunden)?|aucun (?:produit|résultat|article)|no se (?:han )?encontrado (?:productos|resultados)|geen (?:producten|resultaten))/i;
+  return phrase.test(head);
+}
+
+// Conferma POSITIVA che `url`/`html` rappresentano una pagina DETTAGLIO-PRODOTTO
+// CM (schema ricorrente /Products/Singles/{Set}/{Card}), non una ricerca/errore.
+// Locale-indipendente: usa la forma dell'URL e il <link rel=canonical> (CM lo
+// imposta sempre alla pagina prodotto, anche dopo un redirect ricerca→prodotto).
+// Solo su queste pagine ha senso il fallback markup-agnostico (PHASE 2/3).
+function isCMProductDetailPage(html: string, url: string): boolean {
+  const isSearchUrl = /\/Products\/Search/i.test(url) || /[?&]searchString=/i.test(url);
+  // URL già in forma /Products/Singles/{Set}/{Card} (2 segmenti dopo Singles).
+  if (!isSearchUrl && /\/Products\/Singles\/[^/?#]+\/[^/?#]+/i.test(url)) return true;
+  // Canonical/og:url che punta a una pagina prodotto singola.
+  const canon = (html.match(/<link[^>]+rel="canonical"[^>]+href="([^"]+)"/i)
+              || html.match(/<meta[^>]+property="og:url"[^>]+content="([^"]+)"/i)
+              || [, ''])[1] || '';
+  if (/\/Products\/Singles\/[^/?#]+\/[^/?#]+/i.test(canon)) return true;
+  return false;
+}
+
 async function handleCardmarket(url: string, debug = false): Promise<Response> {
   const { html, ok, status } = await fetchWithRetry(url);
   if (!ok || !html) {
@@ -563,7 +593,21 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
     });
   }
 
-  const listings = extractCMListings(html);
+  // ─── NO-RESULTS / SEARCH PAGE DETECTION ─────────────────────────────────
+  // Pagina ricerca a 0 risultati ("Prodotto non trovato"): non è una scheda
+  // prodotto. Ritorniamo no_results:true con listings vuoti così il client
+  // prosegue la cascata (variante slug / discovery) invece di applicare i
+  // prezzi della vetrina consigliati.
+  if (isCMNoResultsPage(html) && !isCMProductDetailPage(html, url)) {
+    return json({
+      error: 'nessun risultato (pagina ricerca CM senza prodotti)',
+      no_results: true,
+      listings: [], prices: [], url, source: 'cardmarket', count: 0,
+      debug: debug ? { html_length: html.length, reason: 'no_results_page' } : undefined,
+    });
+  }
+
+  const listings = extractCMListings(html, url);
 
   // ─── POST-EXTRACTION GLOBAL GRADING SCAN ──
   // Last-resort: SOLO se nessun listing ha grading (extractCommentFromRow ha
@@ -850,7 +894,7 @@ async function handleCardmarket(url: string, debug = false): Promise<Response> {
   return json(baseResp);
 }
 
-function extractCMListings(html: string): Listing[] {
+function extractCMListings(html: string, pageUrl = ''): Listing[] {
   // Estrazione JSON (__NEXT_DATA__). PROBLEMA NOTO: il JSON CM spesso contiene
   // i prezzi ma NON i commenti del venditore (dove sta il grading "PSA 8").
   // Quindi se il JSON produce listing SENZA alcun grading, NON ci fidiamo
@@ -915,6 +959,18 @@ function extractCMListings(html: string): Listing[] {
     return jsonListings.length > 0 ? jsonListings : capCMListings(listings);
   }
   if (jsonListings.length > 0) return jsonListings;
+
+  // ─── GATE PHASE 2/3 ─────────────────────────────────────────────────────
+  // Le PHASE 2/3 sono markup-agnostiche: raschiano QUALSIASI prezzo €XX,XX
+  // nell'HTML. Vanno eseguite SOLO su una pagina dettaglio-prodotto reale,
+  // altrimenti su pagine ricerca/errore raccolgono i prezzi della vetrina
+  // "prodotti consigliati" (bug "Tyrant 29": prodotto non trovato → prezzi
+  // sballati). Se PHASE 1/JSON non hanno trovato listing reali e NON siamo su
+  // una scheda prodotto, NON inventiamo prezzi: ritorniamo vuoto e lasciamo
+  // che la cascata client provi la variante slug / discovery corretta.
+  if (!isCMProductDetailPage(html, pageUrl)) {
+    return [];
+  }
 
   // ─── PHASE 2: PRICE-ANCHORED extraction ──
   // Fallback strutturalmente agnostico: se PHASE 1 non trova nulla (CM ha
