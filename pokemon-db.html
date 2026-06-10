@@ -11787,10 +11787,26 @@ window.openCmFallbackSearch = openCmFallbackSearch;
 // Preleva nome/set/numero/rarità/immagine da una pagina prodotto CM e crea una
 // carta manuale riusando il form di aggiunta rapida (showQuickMatch/addQuickCard).
 // ══════════════════════════════════════════════════════════════════════
-async function _rbCmMetaFetch(url){
+async function _rbCmMetaFetch(url, providedHtml){
   var bearer = (window._rbSession && window._rbSession.access_token) || SUPA_KEY;
-  var ctrl = new AbortController(); var t = setTimeout(function(){ctrl.abort();}, 15000);
-  function mkBody(){ return JSON.stringify({source:'cardmarket', mode:'meta', url:url, debug:true}); }
+  var ctrl = new AbortController(); var t = setTimeout(function(){ctrl.abort();}, 20000);
+  // Bypass Cloudflare: se non ho già l'HTML e l'estensione Hunter è attiva,
+  // scarico la pagina lato browser (IP residenziale) e la passo come
+  // provided_html → il server estrae i metadati dalla pagina fornita.
+  if(!providedHtml){
+    try{
+      var ext = window.rbExtFetch;
+      if(typeof ext==='function' && await ext.isReady()){
+        var f = await ext(url).catch(function(){return null;});
+        if(f && f.ok && f.html && f.html.length>500) providedHtml = f.html;
+      }
+    }catch(e){}
+  }
+  function mkBody(){
+    var b={source:'cardmarket', mode:'meta', url:url, debug:true};
+    if(providedHtml){ b.urls=[url]; b.provided_html=[providedHtml]; }
+    return JSON.stringify(b);
+  }
   try{
     var res = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+bearer},body:mkBody(),signal:ctrl.signal});
     clearTimeout(t);
@@ -11827,6 +11843,24 @@ function _rbCmCensusInjectStyles(){
   document.head.appendChild(s);
 }
 
+// Sorgente del bookmarklet: gira NELLA pagina CM (nel suo contesto → niente
+// CORS/Cloudflare), estrae i metadati dal DOM e copia un JSON negli appunti.
+function _rbBmSrc(){
+  function m(p){var a=document.getElementsByTagName('meta'),i;for(i=0;i<a.length;i++){if(a[i].getAttribute('property')==p||a[i].getAttribute('name')==p)return a[i].content||'';}return '';}
+  var img=m('og:image');
+  var lk=document.querySelector('link[rel=canonical]');
+  var c=(lk&&lk.href)||location.href;
+  var t=(m('og:title')||document.title||'').replace(/ *\|.*/,'').trim();
+  var nm=t.replace(/ *\(V\d+\) *$/i,'').trim();
+  var pm=c.split('?')[0].match(/\/Products\/Singles\/([^\/?#]+)\/([^\/?#]+)/i);
+  var sn=pm?decodeURIComponent(pm[1]).replace(/-/g,' '):'';
+  var num='';if(pm){var x=pm[2].match(/[A-Z]{1,4}(\d+[a-z]?)$/i)||pm[2].match(/(\d+[a-z]?)$/i);if(x)num=x[1];}
+  var d={name:nm,number:num,set_name:sn,rarity:'',image:img,cm_url:c.split('?')[0]};
+  var s=JSON.stringify(d);
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(s).then(function(){alert('RareBlock: dati copiati! Torna in RareBlock e incollali nella modale Censisci da Cardmarket.');},function(){window.prompt('Copia e incolla in RareBlock:',s);});}else{window.prompt('Copia e incolla in RareBlock:',s);}
+}
+function _rbBmHref(){ return 'javascript:(' + _rbBmSrc.toString().replace(/\n\s*/g,' ') + ')();'; }
+
 function rbOpenCmCensus(prefill, target){
   target = (target==='preventivo') ? 'preventivo' : 'collection';
   _rbCmCensusInjectStyles();
@@ -11839,6 +11873,12 @@ function rbOpenCmCensus(prefill, target){
    +'<div class="rbcc-row"><input class="rbcc-in" id="rbcc-url" placeholder="https://www.cardmarket.com/it/Pokemon/Products/Singles/..." value="'+esc(pre)+'"/><button class="rbcc-btn" id="rbcc-go">Preleva</button></div>'
    +'<div class="rbcc-row" style="margin-top:-4px"><button class="rbcc-btn" id="rbcc-open" style="background:none;border-color:var(--border,#2a2620);color:var(--text-muted,#999)">\ud83c\udf0d Apri su Cardmarket</button></div>'
    +'<div id="rbcc-body"></div>'
+   +'<details id="rbcc-manual" style="margin-top:14px;border-top:1px solid var(--border,#2a2620);padding-top:10px">'
+   +'<summary style="cursor:pointer;font-size:12px;color:var(--text-muted,#999)">CM bloccato da Cloudflare? Importa dal browser \u25be</summary>'
+   +'<div class="rbcc-hint" style="margin-top:8px">1) Trascina questo nei preferiti: <a id="rbcc-bm" href="#" style="color:var(--accent,#c9a961);font-weight:700;text-decoration:underline">\ud83d\udce5 RB Preleva CM</a> &nbsp;2) Apri la pagina del <b>prodotto</b> su Cardmarket e clicca il preferito (copia i dati). &nbsp;3) Incolla qui sotto e premi Importa.</div>'
+   +'<textarea id="rbcc-paste" class="rbcc-in" style="height:64px;resize:vertical;font-size:11px" placeholder="Incolla qui i dati copiati dal preferito (oppure l\'HTML della pagina)\u2026"></textarea>'
+   +'<div class="rbcc-row" style="justify-content:flex-end;margin-top:6px"><button class="rbcc-btn" id="rbcc-import">Importa</button></div>'
+   +'</details>'
    +'</div>';
   document.body.appendChild(ov);
   function close(){ ov.remove(); document.removeEventListener('keydown',onKey); }
@@ -11854,11 +11894,12 @@ function rbOpenCmCensus(prefill, target){
     var d= await _rbCmMetaFetch(u);
     if(d && d.ok && d.meta){ renderPreview(d.meta); return; }
     if(d && d.need_pick && d.products && d.products.length){ renderCandidates(d.products); return; }
-    var msg = (d&&d.blocked) ? 'Cardmarket ha bloccato la lettura server-side (Cloudflare). Apri la pagina con \u201c\ud83c\udf0d Apri su Cardmarket\u201d, entra nella scheda della carta e incolla qui l\'URL del <b>prodotto</b> (non della ricerca), poi riprova.'
+    var msg = (d&&d.blocked) ? 'Cardmarket blocca la lettura automatica (Cloudflare) da questo server. Usa la sezione <b>\u201cImporta dal browser\u201d</b> qui sotto: col bookmarklet prelevi i dati direttamente dalla pagina aperta nel tuo browser (nessun blocco).'
             : (d&&d.no_results) ? 'La ricerca non ha prodotti. Verifica il nome o incolla l\'URL del prodotto.'
             : (d&&d.wrong_product) ? 'URL prodotto non valido (pagina \u201cprodotto sbagliato\u201d).'
             : ('Impossibile prelevare i dati'+((d&&d.error)?': '+esc(d.error):'')+'.');
     bodyEl.innerHTML='<div class="rbcc-err">'+msg+'</div>';
+    if(d&&d.blocked){ var det=ov.querySelector('#rbcc-manual'); if(det) det.open=true; }
   }
   function renderCandidates(prods){
     var h='<div class="rbcc-hint">Pi\u00f9 risultati: scegli la carta da censire.</div><div class="rbcc-cand">';
@@ -11902,6 +11943,24 @@ function rbOpenCmCensus(prefill, target){
     };
   }
   ov.querySelector('#rbcc-go').onclick=function(){ var u=urlIn.value.trim(); if(!u){ urlIn.focus(); return; } doFetch(u); };
+  // Bookmarklet + import manuale (bypass Cloudflare senza estensione).
+  var bmEl=ov.querySelector('#rbcc-bm');
+  if(bmEl){ try{ bmEl.setAttribute('href', _rbBmHref()); }catch(e){} bmEl.onclick=function(e){ e.preventDefault(); alert('Trascina questo link nella barra dei preferiti (non cliccarlo qui). Poi aprilo mentre sei sulla pagina del PRODOTTO su Cardmarket: copia i dati e incollali qui.'); }; }
+  var importBtn=ov.querySelector('#rbcc-import');
+  if(importBtn) importBtn.onclick=async function(){
+    var ta=ov.querySelector('#rbcc-paste'); var raw=(ta&&ta.value||'').trim();
+    if(!raw){ if(ta) ta.focus(); return; }
+    if(raw.charAt(0)==='{'){
+      try{ renderPreview(JSON.parse(raw)); }catch(err){ bodyEl.innerHTML='<div class="rbcc-err">Dati incollati non validi (JSON).</div>'; }
+      return;
+    }
+    // Altrimenti tratto l'incollato come HTML della pagina → estrazione server-side sui dati forniti.
+    bodyEl.innerHTML='<div class="rbcc-hint">Estraggo dai dati incollati\u2026</div>';
+    var u=urlIn.value.trim()||'https://www.cardmarket.com/it/Pokemon/Products/Singles/x/x';
+    var d=await _rbCmMetaFetch(u, raw);
+    if(d && d.ok && d.meta){ renderPreview(d.meta); }
+    else { bodyEl.innerHTML='<div class="rbcc-err">Non sono riuscito a estrarre i dati dal contenuto incollato.</div>'; }
+  };
   urlIn.addEventListener('keydown',function(e){ if(e.key==='Enter') ov.querySelector('#rbcc-go').click(); });
   // Se ho già un URL (prodotto o ricerca), avvio subito il prelievo.
   setTimeout(function(){ try{ urlIn.focus(); if(pre) ov.querySelector('#rbcc-go').click(); }catch(e){} }, 60);
@@ -14158,7 +14217,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.16';
+const APP_VERSION='6.17';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
