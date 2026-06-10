@@ -719,6 +719,18 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .prev-notes-textarea:focus{border-color:var(--border-focus)}
 /* Deal badge */
 .prev-deal-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 6px;border-radius:3px;background:rgba(122,154,110,.12);color:var(--success);border:1px solid rgba(122,154,110,.3);font-weight:600;text-transform:uppercase;letter-spacing:.3px;margin-left:4px}
+/* ── Filtri sidebar preventivi ── */
+.prev-filters{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.prev-seg{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:2px;gap:2px}
+.prev-seg-btn{flex:1;background:transparent;border:none;color:var(--text-muted);padding:5px 6px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:600;font-family:var(--mono);text-transform:uppercase;letter-spacing:.3px;transition:all .12s;white-space:nowrap}
+.prev-seg-btn:hover{color:var(--text)}
+.prev-seg-btn.active{background:var(--surface3);color:var(--accent);box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.prev-plat-sel{width:100%;font-size:11px;font-family:var(--mono);padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text-muted);cursor:pointer}
+.prev-plat-sel:hover{border-color:var(--border-focus)}
+.prev-list-more{margin:6px 4px 2px;padding:7px;text-align:center;font-size:11px;font-family:var(--mono);color:var(--text-muted);background:var(--surface2);border:1px dashed var(--border);border-radius:var(--r);cursor:pointer;transition:all .12s}
+.prev-list-more:hover{color:var(--accent);border-color:var(--accent-border)}
+.prev-list-count{font-size:9.5px;font-family:var(--mono);color:var(--text-subtle);padding:2px 6px 6px;text-align:right}
+.prev-list-empty{font-size:11px;color:var(--text-subtle);padding:16px 8px;text-align:center;line-height:1.5}
 /* Deal modal */
 .deal-modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;width:680px;max-width:96vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.5);overflow:hidden}
 .deal-modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0}
@@ -3925,6 +3937,16 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
       <div class="prev-sidebar-top">
         <h3>Preventivi</h3>
         <input type="text" placeholder="Cerca..." id="prevListSearch" oninput="filterPrevList(this.value)"/>
+        <div class="prev-filters">
+          <div class="prev-seg" id="prevStatusSeg">
+            <button class="prev-seg-btn active" data-st="" onclick="setPrevStatusFilter('',this)">Tutti</button>
+            <button class="prev-seg-btn" data-st="confirmed" onclick="setPrevStatusFilter('confirmed',this)" title="Solo preventivi con deal confermato"><span class="rb-i rb-i-check"></span> Deal</button>
+            <button class="prev-seg-btn" data-st="open" onclick="setPrevStatusFilter('open',this)" title="Preventivi non ancora confermati">Aperti</button>
+          </div>
+          <select id="prevPlatFilter" class="prev-plat-sel" onchange="setPrevPlatFilter(this.value)" title="Filtra per piattaforma/provenienza">
+            <option value="">Tutte le piattaforme</option>
+          </select>
+        </div>
       </div>
       <div class="prev-list" id="prevList"></div>
       <div class="prev-sidebar-bottom">
@@ -9516,12 +9538,87 @@ function togglePrevSearch(){
   }
 }
 
+// Stato dei filtri della colonna sinistra: testo, stato deal, piattaforma, limite di render.
+var _prevFilter={ q:'', status:'', plat:'', limit:50 };
+var PREV_LIST_PAGE=50; // quanti preventivi mostrare per "pagina" (perf: evita il render di centinaia di nodi DOM in una volta)
+
+// Ricerca testuale: aggiorna lo stato e ri-renderizza in memoria (nessuna chiamata di rete → digitazione fluida).
 function filterPrevList(q){
-  const query=q.toLowerCase().trim();
-  document.querySelectorAll('#prevList .prev-item').forEach(el=>{
-    const name=el.querySelector('.prev-item-name')?.textContent.toLowerCase()||'';
-    el.style.display=(!query||name.includes(query))?'':'none';
-  });
+  _prevFilter.q=(q||'').toLowerCase().trim();
+  _prevFilter.limit=PREV_LIST_PAGE; // ogni nuova ricerca riparte dal limite base
+  _renderPrevItems();
+}
+
+// Filtro stato deal: '' = tutti · 'confirmed' = deal confermato · 'open' = non ancora confermato.
+function setPrevStatusFilter(st,btn){
+  _prevFilter.status=st;
+  _prevFilter.limit=PREV_LIST_PAGE;
+  try{ document.querySelectorAll('#prevStatusSeg .prev-seg-btn').forEach(b=>b.classList.toggle('active', b===btn)); }catch(e){}
+  _renderPrevItems();
+}
+
+// Filtro piattaforma/provenienza.
+function setPrevPlatFilter(v){
+  _prevFilter.plat=v||'';
+  _prevFilter.limit=PREV_LIST_PAGE;
+  _renderPrevItems();
+}
+
+// "Mostra tutti": rimuove il limite di render.
+function prevShowMore(){
+  _prevFilter.limit=Infinity;
+  _renderPrevItems();
+}
+
+// Popola il select piattaforma con le provenienze effettivamente presenti nei preventivi.
+function _buildPrevPlatOptions(){
+  const sel=document.getElementById('prevPlatFilter');
+  if(!sel) return;
+  const seen=[];
+  preventivi.forEach(p=>{ const v=(p.provenienza||'').trim(); if(v && seen.indexOf(v)<0) seen.push(v); });
+  seen.sort((a,b)=>a.localeCompare(b,'it'));
+  // Se il filtro corrente non è più disponibile, azzeralo per non nascondere tutto.
+  if(_prevFilter.plat && seen.indexOf(_prevFilter.plat)<0) _prevFilter.plat='';
+  let html='<option value="">Tutte le piattaforme</option>';
+  seen.forEach(v=>{ html+='<option value="'+esc(v)+'"'+(v===_prevFilter.plat?' selected':'')+'>'+esc(v)+'</option>'; });
+  sel.innerHTML=html;
+}
+
+// Render della lista filtrata (in memoria). Mantiene l'indice reale in preventivi[] per openPreventivo().
+function _renderPrevItems(){
+  const list=document.getElementById('prevList');
+  if(!list) return;
+  const f=_prevFilter;
+  let rows=preventivi.map((p,idx)=>({p,idx}));
+  if(f.q)    rows=rows.filter(r=>(r.p.name||'').toLowerCase().includes(f.q));
+  if(f.plat) rows=rows.filter(r=>(r.p.provenienza||'')===f.plat);
+  if(f.status==='confirmed')  rows=rows.filter(r=>r.p.status==='confirmed');
+  else if(f.status==='open')  rows=rows.filter(r=>r.p.status!=='confirmed');
+
+  const total=rows.length;
+  if(!total){
+    list.innerHTML='<div class="prev-list-empty">Nessun preventivo corrisponde ai filtri.</div>';
+    return;
+  }
+  const limited=(f.limit===Infinity)?rows:rows.slice(0,f.limit);
+  let html=limited.map(({p,idx})=>{
+    const items=getItems(p);
+    const tot=items.reduce((a,c)=>a+(c.cm_avg30||0)*(c.qty||1),0);
+    const provBadge=p.provenienza?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--surface3);color:var(--text-subtle);border:1px solid var(--border);margin-left:4px">${esc(p.provenienza)}</span>`:'';
+    const dealBadge=p.status==='confirmed'?`<span class="prev-deal-badge" title="Deal confermato il ${p.confirmed_at?new Date(p.confirmed_at).toLocaleDateString('it'):'—'}"><span class="rb-i rb-i-check"></span> Deal</span>`:'';
+    return '<div class="prev-item'+(activePrev&&activePrev.id===p.id?' active':'')+'" onclick="openPreventivo('+idx+')">'
+      +'<div style="min-width:0;flex:1"><div class="prev-item-name" style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">'+esc(p.name||'')+provBadge+dealBadge+'</div>'
+      +'<div class="prev-item-meta">'+items.length+' carte · '+new Date(p.created).toLocaleDateString('it')+'</div></div>'
+      +'<div class="prev-item-val">€'+tot.toFixed(0)+'</div>'
+      +'</div>';
+  }).join('');
+  if(limited.length<total){
+    html+='<div class="prev-list-more" onclick="prevShowMore()">Mostra tutti ('+(total-limited.length)+' altri)</div>';
+  }
+  if(f.q||f.plat||f.status){
+    html+='<div class="prev-list-count">'+total+' di '+preventivi.length+' preventivi</div>';
+  }
+  list.innerHTML=html;
 }
 
 async function renderPrevList(){
@@ -9539,17 +9636,8 @@ async function renderPrevList(){
     list.innerHTML='<div style="font-size:12px;color:var(--text-subtle);padding:8px 4px;line-height:1.5">'+hint+'</div>';
     return;
   }
-  list.innerHTML=preventivi.map((p,i)=>{
-    const items = getItems(p);
-    const tot=items.reduce((a,c)=>a+(c.cm_avg30||0)*(c.qty||1),0);
-    const provBadge=p.provenienza?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--surface3);color:var(--text-subtle);border:1px solid var(--border);margin-left:4px">${p.provenienza}</span>`:'';
-    const dealBadge=p.status==='confirmed'?`<span class="prev-deal-badge" title="Deal confermato il ${p.confirmed_at?new Date(p.confirmed_at).toLocaleDateString('it'):'—'}"><span class="rb-i rb-i-check"></span> Deal</span>`:'';
-    return '<div class="prev-item'+(activePrev&&activePrev.id===p.id?' active':'')+'" onclick="openPreventivo('+i+')">'
-      +'<div style="min-width:0;flex:1"><div class="prev-item-name" style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">'+p.name+provBadge+dealBadge+'</div>'
-      +'<div class="prev-item-meta">'+items.length+' carte · '+new Date(p.created).toLocaleDateString('it')+'</div></div>'
-      +'<div class="prev-item-val">€'+tot.toFixed(0)+'</div>'
-      +'</div>';
-  }).join('');
+  _buildPrevPlatOptions();
+  _renderPrevItems();
 }
 
 // Ripristina i preventivi dal backup localStorage (chiamato dal banner emergency)
@@ -13764,7 +13852,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.7';
+const APP_VERSION='6.8';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
