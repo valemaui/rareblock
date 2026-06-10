@@ -543,11 +543,16 @@ function extractCMProductMeta(html: string, url: string): {
   const setSlug = pathM ? pathM[1] : '';
   const cardSlug = pathM ? pathM[2] : '';
 
-  // Immagine: og:image (stabile su CM), poi <img product-images>
-  let image = _metaTag(html, 'og:image');
-  if (!image) {
-    const im = html.match(/(https:\/\/[a-z0-9.\-]*cardmarket[^"' ]*product-images[^"' ]+\.(?:jpe?g|png|webp))/i);
-    if (im) image = im[1];
+  // Immagine: og:image / twitter:image, poi la <img> carta vera nella pagina.
+  let image = _metaTag(html, 'og:image') || _metaTag(html, 'twitter:image');
+  if (!image || /logo|placeholder|default|sprite|no[-_]?image/i.test(image)) {
+    const imgs: string[] = [];
+    const irx = /<img[^>]+src=["']([^"']+)["']/gi;
+    let im: RegExpExecArray | null;
+    while ((im = irx.exec(html)) !== null && imgs.length < 60) imgs.push(im[1]);
+    const card = imgs.find((u) => /product-images|\/Cards\/|\/items\//i.test(u) && /\.(?:jpe?g|png|webp)/i.test(u))
+              || imgs.find((u) => /cardmarket[^"']*\.(?:jpe?g|png|webp)/i.test(u) && !/logo|sprite|flag|icon/i.test(u));
+    if (card) image = card;
   }
 
   // Nome: og:title / <title>, ripulito da suffisso sito ed espansione

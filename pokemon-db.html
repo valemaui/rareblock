@@ -11847,7 +11847,8 @@ function _rbCmCensusInjectStyles(){
 // CORS/Cloudflare), estrae i metadati dal DOM e copia un JSON negli appunti.
 function _rbBmSrc(){
   function m(p){var a=document.getElementsByTagName('meta'),i;for(i=0;i<a.length;i++){if(a[i].getAttribute('property')==p||a[i].getAttribute('name')==p)return a[i].content||'';}return '';}
-  var img=m('og:image');
+  var img=m('og:image')||m('twitter:image');
+  try{ var gi=[].slice.call(document.images||[]).filter(function(im){return im&&im.src&&/product-images|\/Cards\/|\/items\//i.test(im.src)&&(im.naturalWidth||0)>120;}).sort(function(a,b){return (b.naturalWidth||0)-(a.naturalWidth||0);}); if(gi.length) img=gi[0].src; }catch(e){}
   var lk=document.querySelector('link[rel=canonical]');
   var c=(lk&&lk.href)||location.href;
   var t=(m('og:title')||document.title||'').replace(/ *\|.*/,'').trim();
@@ -11894,12 +11895,24 @@ function rbOpenCmCensus(prefill, target){
     var d= await _rbCmMetaFetch(u);
     if(d && d.ok && d.meta){ renderPreview(d.meta); return; }
     if(d && d.need_pick && d.products && d.products.length){ renderCandidates(d.products); return; }
-    var msg = (d&&d.blocked) ? 'Cardmarket blocca la lettura automatica (Cloudflare) da questo server. Usa la sezione <b>\u201cImporta dal browser\u201d</b> qui sotto: col bookmarklet prelevi i dati direttamente dalla pagina aperta nel tuo browser (nessun blocco).'
-            : (d&&d.no_results) ? 'La ricerca non ha prodotti. Verifica il nome o incolla l\'URL del prodotto.'
-            : (d&&d.wrong_product) ? 'URL prodotto non valido (pagina \u201cprodotto sbagliato\u201d).'
-            : ('Impossibile prelevare i dati'+((d&&d.error)?': '+esc(d.error):'')+'.');
-    bodyEl.innerHTML='<div class="rbcc-err">'+msg+'</div>';
-    if(d&&d.blocked){ var det=ov.querySelector('#rbcc-manual'); if(det) det.open=true; }
+    // Estrazione automatica non riuscita → NON è un vicolo cieco: apro comunque
+    // l'anteprima editabile prefillata da ciò che so (nome/numero dalla ricerca,
+    // URL prodotto se presente) così l'utente completa a mano. Il bookmarklet
+    // resta disponibile nella sezione "Importa dal browser".
+    var ss=''; try{ ss=decodeURIComponent((u.match(/[?&]searchString=([^&]+)/)||[])[1]||''); }catch(e){}
+    var pm=(u.split('?')[0]||'').match(/\/Products\/Singles\/([^/?#]+)\/([^/?#]+)/i);
+    var preName=ss, preNum='';
+    var mnum=ss.match(/\s(\d+[a-z]?)$/i); if(mnum){ preNum=mnum[1]; preName=ss.replace(/\s\d+[a-z]?$/i,'').trim(); }
+    if(pm && !preNum){ var sx=pm[2].match(/[A-Z]{1,4}(\d+[a-z]?)$/i)||pm[2].match(/(\d+[a-z]?)$/i); if(sx) preNum=sx[1]; }
+    var reason = (d&&d.blocked) ? 'Cardmarket ha bloccato la lettura automatica.' : (d&&d.no_results)?'Nessun prodotto trovato automaticamente.':'Estrazione automatica non riuscita.';
+    renderPreview({
+      name: preName||'', number: preNum||'',
+      set_name: pm?decodeURIComponent(pm[1]).replace(/-/g,' '):'',
+      rarity:'', image:'',
+      cm_url: (pm? u.split('?')[0] : ''),
+      _notice: reason+' Completa i campi mancanti e l\u2019immagine (o usa il bookmarklet qui sotto).'
+    });
+    var det=ov.querySelector('#rbcc-manual'); if(det) det.open=true;
   }
   function renderCandidates(prods){
     var h='<div class="rbcc-hint">Pi\u00f9 risultati: scegli la carta da censire.</div><div class="rbcc-cand">';
@@ -11911,19 +11924,29 @@ function rbOpenCmCensus(prefill, target){
   function renderPreview(meta){
     var langOpts=['','ITA','ENG','JPN','DEU','FRA','ESP','KOR','POR'].map(function(l){return '<option value="'+l+'">'+(l||'\u2014')+'</option>';}).join('');
     bodyEl.innerHTML=
-      '<div class="rbcc-prev">'
-     +'<div class="rbcc-img" id="rbcc-img">'+(meta.image?'<img src="'+esc(meta.image)+'"/>':'No img')+'</div>'
+      (meta._notice?'<div class="rbcc-err" style="margin-bottom:10px">'+esc(meta._notice)+'</div>':'')
+     +'<div class="rbcc-prev">'
+     +'<div class="rbcc-img" id="rbcc-img">No img</div>'
      +'<div class="rbcc-fields">'
      +'<div><div class="rbcc-lbl">Nome</div><input class="rbcc-in" id="rbcc-name" value="'+esc(meta.name||'')+'"/></div>'
      +'<div><div class="rbcc-lbl">Set / Espansione</div><input class="rbcc-in" id="rbcc-set" value="'+esc(meta.set_name||'')+'"/></div>'
      +'<div class="rbcc-row" style="margin:0"><div style="flex:1"><div class="rbcc-lbl">Numero</div><input class="rbcc-in" id="rbcc-num" value="'+esc(meta.number||'')+'"/></div><div style="flex:1"><div class="rbcc-lbl">Lingua</div><select class="rbcc-in" id="rbcc-lang">'+langOpts+'</select></div></div>'
      +'<div><div class="rbcc-lbl">Rarit\u00e0</div><input class="rbcc-in" id="rbcc-rar" value="'+esc(meta.rarity||'')+'"/></div>'
-     +'<div><div class="rbcc-lbl">URL immagine</div><input class="rbcc-in" id="rbcc-imgurl" value="'+esc(meta.image||'')+'" placeholder="https://\u2026"/></div>'
+     +'<div><div class="rbcc-lbl">URL immagine</div><input class="rbcc-in" id="rbcc-imgurl" value="'+esc(meta.image||'')+'" placeholder="https://\u2026"/><div class="rbcc-hint" style="margin:3px 0 0">Manca la foto? Tasto destro sull\u2019immagine su Cardmarket \u2192 \u201cCopia indirizzo immagine\u201d \u2192 incolla qui.</div></div>'
      +'</div></div>'
      +'<div class="rbcc-row" style="margin-top:14px;justify-content:flex-end"><button class="rbcc-btn" id="rbcc-add">'+(target==='preventivo'?'Aggiungi al preventivo':'Aggiungi alla collezione')+' \u2192</button></div>'
      +'<div class="rbcc-hint">Controlla e correggi i campi se serve, poi conferma: la carta passa al form di aggiunta dove imposti condizione, quantit\u00e0 e prezzo.</div>';
+    function setImg(u){
+      var box=bodyEl.querySelector('#rbcc-img');
+      if(u && u.indexOf('http')===0){
+        box.innerHTML='<img src="'+esc(u)+'"/>';
+        var ie=box.querySelector('img');
+        if(ie) ie.onerror=function(){ box.innerHTML='<div style="font-size:10px;text-align:center;padding:6px;color:var(--text-muted,#888)">Immagine non caricabile.<br>Incolla un altro URL.</div>'; };
+      } else { box.innerHTML='No img'; }
+    }
+    setImg(meta.image||'');
     var imgUrlEl=bodyEl.querySelector('#rbcc-imgurl');
-    imgUrlEl.addEventListener('input',function(){ var u=imgUrlEl.value.trim(); bodyEl.querySelector('#rbcc-img').innerHTML=(u&&u.indexOf('http')===0)?'<img src="'+esc(u)+'"/>':'No img'; });
+    imgUrlEl.addEventListener('input',function(){ setImg(imgUrlEl.value.trim()); });
     bodyEl.querySelector('#rbcc-add').onclick=function(){
       var img=imgUrlEl.value.trim();
       var langVal=(bodyEl.querySelector('#rbcc-lang')||{}).value||'';
@@ -14217,7 +14240,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.17';
+const APP_VERSION='6.18';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
