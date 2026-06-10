@@ -11789,7 +11789,9 @@ function openCardmarketAdd(){
   // pattern V1/V2 imprevedibile).
   const stash = _cmStash && _cmStash[prefix];
   if(stash && stash.cmUrl){
-    window.open(stash.cmUrl, '_blank');
+    // Lo stash è l'URL del verify (costruito a NM): riallinealo alla dropdown
+    // condizione/lingua/variante/1ªed. LIVE, altrimenti apre sempre NM.
+    window.open(cmAppendParams(stash.cmUrl, cond, lang, variant, first1st) || stash.cmUrl, '_blank');
     return;
   }
   window.open(buildCMDirectUrl(c.name, c.set?.id, c.number, cond, lang, variant, first1st, c.set?.name, c.rarity, cmAuthoritativeUrl(c)),'_blank');
@@ -11804,7 +11806,9 @@ function openCardmarket(){
   // Riusa l'URL del verify riuscito se disponibile
   const stash = _cmStash && _cmStash['p'];
   if(stash && stash.cmUrl){
-    window.open(stash.cmUrl, '_blank');
+    // Riallinea lo stash (URL verify, costruito a NM) alla condizione/lingua/
+    // variante/1ªed. LIVE, altrimenti apre sempre NM.
+    window.open(cmAppendParams(stash.cmUrl, cond, lang, variant, is1st) || stash.cmUrl, '_blank');
     return;
   }
   window.open(buildCMDirectUrl(prevCard.name, prevCard.set?.id, prevCard.number, cond, lang, variant, is1st, prevCard.set?.name, prevCard.rarity, cmAuthoritativeUrl(prevCard)),'_blank');
@@ -13982,7 +13986,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.12';
+const APP_VERSION='6.13';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
