@@ -3560,6 +3560,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
             <div id="q-setpicker" class="cah-setpicker"></div>
             <label for="qJpToggle" title="Cerca carte giapponesi (fonte TCGdex). Ignora il filtro set." class="cah-jp"><input id="qJpToggle" type="checkbox" onchange="if(document.getElementById('q').value.trim())doSearch()"/>🇯🇵</label>
             <button class="btn btn-primary cah-search-btn" onclick="doSearch()">Cerca</button>
+            <button class="btn cah-search-btn" onclick="rbCmCensusFromBox('q','collection')" title="Censisci da Cardmarket: preleva i dati (nome, set, numero, rarità, immagine) dalla pagina CM per una carta assente dal database TCG, usando nome+numero qui sopra." style="padding:5px 10px;font-size:13px;font-weight:700">＋ CM</button>
           </div>
           <button class="btn-icon" onclick="closeColAdd()"><span class="rb-i rb-i-x"></span></button>
         </div>
@@ -4023,6 +4024,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                 <div id="pq-setpicker" style="flex:1 1 130px;min-width:130px;position:relative"></div>
                 <button class="btn btn-primary" onclick="prevSearch()" title="Cerca nel ns DB (nomi inglesi)" style="flex-shrink:0;padding:5px 10px;font-size:12px"><span class="rb-i rb-i-search"></span></button>
                 <button class="btn" onclick="openCmFallbackSearch()" title="Cerca su Cardmarket (supporta nomi italiani, francesi, tedeschi). Apre una nuova tab con i risultati \u2014 leggi il nome ufficiale inglese della carta e poi rifa la ricerca qui." style="flex-shrink:0;padding:5px 10px;font-size:12px">🌍</button>
+                <button class="btn" onclick="rbCmCensusFromBox('pq','preventivo')" title="Censisci da Cardmarket: preleva i dati (nome, set, numero, rarità, immagine) dalla pagina CM per una carta assente dal database TCG, usando nome+numero qui sopra." style="flex-shrink:0;padding:5px 10px;font-size:13px;font-weight:700">＋</button>
               </div>
               <div class="status info" id="pst" style="padding:0"></div>
               <div id="prevResults" class="prev-panel-results" style="display:none"></div>
@@ -6148,10 +6150,11 @@ window.rbCardSearch = {
       if(!cards.length){
         if(st){
           st.className = baseCls+' '+(opts.noResultsClass||'warn');
+          var _csTarget = (opts.queryInputId==='pq') ? 'preventivo' : 'collection';
           var _csQ = (name||'') + (number?(' '+number):'');
           window._rbCmCensusPrefill = 'https://www.cardmarket.com/it/Pokemon/Products/Search?searchString='+encodeURIComponent(_csQ);
           st.innerHTML = 'Nessuna carta trovata'+(setSel?' in "'+esc(setSel.name)+'"':'')+'.'+(opts.noResultsSuffix||'')
-            + ' <button type="button" class="btn" style="margin-left:6px;padding:3px 10px;font-size:12px" onclick="rbOpenCmCensus()" title="Preleva i dati dalla pagina Cardmarket per censire una carta non presente nel database TCG">\ud83c\udf0d Censisci da Cardmarket</button>';
+            + ' <button type="button" class="btn" style="margin-left:6px;padding:3px 10px;font-size:12px" onclick="rbOpenCmCensus(null,\''+_csTarget+'\')" title="Preleva i dati dalla pagina Cardmarket per censire una carta non presente nel database TCG">\ud83c\udf0d Censisci da Cardmarket</button>';
         }
         if(typeof opts.onNoResults === 'function'){
           try{ opts.onNoResults(name, number); }catch(e){ console.warn('[rbCardSearch] onNoResults error:', e); }
@@ -11824,7 +11827,8 @@ function _rbCmCensusInjectStyles(){
   document.head.appendChild(s);
 }
 
-function rbOpenCmCensus(prefill){
+function rbOpenCmCensus(prefill, target){
+  target = (target==='preventivo') ? 'preventivo' : 'collection';
   _rbCmCensusInjectStyles();
   var pre = prefill || window._rbCmCensusPrefill || '';
   var ov=document.createElement('div'); ov.className='rbcc-ov';
@@ -11875,7 +11879,7 @@ function rbOpenCmCensus(prefill){
      +'<div><div class="rbcc-lbl">Rarit\u00e0</div><input class="rbcc-in" id="rbcc-rar" value="'+esc(meta.rarity||'')+'"/></div>'
      +'<div><div class="rbcc-lbl">URL immagine</div><input class="rbcc-in" id="rbcc-imgurl" value="'+esc(meta.image||'')+'" placeholder="https://\u2026"/></div>'
      +'</div></div>'
-     +'<div class="rbcc-row" style="margin-top:14px;justify-content:flex-end"><button class="rbcc-btn" id="rbcc-add">Aggiungi alla collezione \u2192</button></div>'
+     +'<div class="rbcc-row" style="margin-top:14px;justify-content:flex-end"><button class="rbcc-btn" id="rbcc-add">'+(target==='preventivo'?'Aggiungi al preventivo':'Aggiungi alla collezione')+' \u2192</button></div>'
      +'<div class="rbcc-hint">Controlla e correggi i campi se serve, poi conferma: la carta passa al form di aggiunta dove imposti condizione, quantit\u00e0 e prezzo.</div>';
     var imgUrlEl=bodyEl.querySelector('#rbcc-imgurl');
     imgUrlEl.addEventListener('input',function(){ var u=imgUrlEl.value.trim(); bodyEl.querySelector('#rbcc-img').innerHTML=(u&&u.indexOf('http')===0)?'<img src="'+esc(u)+'"/>':'No img'; });
@@ -11894,25 +11898,55 @@ function rbOpenCmCensus(prefill){
       };
       if(!card.name){ alert('Il nome \u00e8 obbligatorio'); return; }
       close();
-      _rbCensusToAddForm(card, langVal);
+      _rbCensusToAddForm(card, langVal, target);
     };
   }
   ov.querySelector('#rbcc-go').onclick=function(){ var u=urlIn.value.trim(); if(!u){ urlIn.focus(); return; } doFetch(u); };
   urlIn.addEventListener('keydown',function(e){ if(e.key==='Enter') ov.querySelector('#rbcc-go').click(); });
-  // Se ho già un URL prodotto specifico, prelevo subito.
-  setTimeout(function(){ try{ urlIn.focus(); if(pre && /\/Singles\/[^/?#]+\/[^/?#]+/.test(pre)) ov.querySelector('#rbcc-go').click(); }catch(e){} }, 60);
+  // Se ho già un URL (prodotto o ricerca), avvio subito il prelievo.
+  setTimeout(function(){ try{ urlIn.focus(); if(pre) ov.querySelector('#rbcc-go').click(); }catch(e){} }, 60);
 }
 window.rbOpenCmCensus = rbOpenCmCensus;
 
-// Passa la carta sintetica al form di aggiunta rapida (riusa showQuickMatch + addQuickCard).
-function _rbCensusToAddForm(card, lang){
+// Passa la carta sintetica al form di aggiunta giusto (collezione o preventivo).
+function _rbCensusToAddForm(card, lang, target){
   try{
-    quickCard = card;
-    if(typeof showQuickMatch === 'function') showQuickMatch(card);
-    if(lang){ var lc=document.getElementById('qLang'); if(lc) lc.value=lang; }
-    var f=document.getElementById('quickAddForm'); if(f && f.scrollIntoView) f.scrollIntoView({behavior:'smooth',block:'center'});
-  }catch(e){ console.warn('[RB-CM-CENSUS] add form error:', e && e.message); alert('Carta pronta ma non riesco ad aprire il form di aggiunta. Vai alla sezione "Aggiungi carta".'); }
+    if(target==='preventivo'){
+      prevCard = card;
+      if(typeof showPrevQuickAdd === 'function') showPrevQuickAdd(card);
+      if(lang){ var pl=document.getElementById('pLang'); if(pl) pl.value=lang; }
+      var pf=document.getElementById('prevQuickAdd'); if(pf && pf.scrollIntoView) pf.scrollIntoView({behavior:'smooth',block:'center'});
+    } else {
+      quickCard = card;
+      if(typeof showQuickMatch === 'function') showQuickMatch(card);
+      if(lang){ var lc=document.getElementById('qLang'); if(lc) lc.value=lang; }
+      var f=document.getElementById('quickAddForm'); if(f && f.scrollIntoView) f.scrollIntoView({behavior:'smooth',block:'center'});
+    }
+  }catch(e){ console.warn('[RB-CM-CENSUS] add form error:', e && e.message); alert('Carta pronta ma non riesco ad aprire il form di aggiunta.'); }
 }
+
+// Avvia il censimento da una barra di ricerca: costruisce l'URL di ricerca CM
+// dal nome+numero digitati (e dal set selezionato, se c'è) e apre la modale.
+function rbCmCensusFromBox(inputId, target){
+  var raw = ((document.getElementById(inputId)||{}).value||'').trim();
+  if(!raw){
+    var el=document.getElementById(inputId);
+    if(el){ el.focus(); }
+    alert('Scrivi prima il nome (e numero) della carta nel campo di ricerca.');
+    return;
+  }
+  var setSlug=null;
+  try{
+    var setInp=document.getElementById(inputId+'-setpicker-input');
+    var setSel=(setInp && typeof rbResolveSetFromInput==='function') ? rbResolveSetFromInput(setInp) : null;
+    if(setSel && setSel.id && typeof CM_SET_SLUG!=='undefined') setSlug=CM_SET_SLUG[setSel.id];
+  }catch(e){}
+  var url = setSlug
+    ? 'https://www.cardmarket.com/it/Pokemon/Products/Singles/'+setSlug+'?searchString='+encodeURIComponent(raw)
+    : 'https://www.cardmarket.com/it/Pokemon/Products/Search?searchString='+encodeURIComponent(raw);
+  rbOpenCmCensus(url, target);
+}
+window.rbCmCensusFromBox = rbCmCensusFromBox;
 
 function openCardmarketAdd(){
   const c = quickCard || selCard;
@@ -14124,7 +14158,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.15';
+const APP_VERSION='6.16';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
