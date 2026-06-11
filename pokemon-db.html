@@ -12901,7 +12901,13 @@ async function fetchCmPriceLive(opts){
   // si prosegue con lo scrape/userscript. Fail-safe totale: su errore/miss →
   // fallthrough silenzioso al percorso esistente.
   var _cmaCondNM = /^(nm|near\s*mint|mint|m)$/i.test((cond || '').toString().trim());
-  if(setId && number && _cmaCondNM && typeof SUPA_URL === 'string' && typeof getHDR === 'function'){
+  // Quando il chiamante vuole il LADDER reale per-condizione via estensione
+  // (sweep settimanale con Hunter pronta), saltiamo la fast-lane CMAPI NM:
+  // CMAPI dà solo l'NM, mentre l'ext-scrape legge l'intera scala Mint→Poor
+  // dalla pagina CM reale (sessione utente, IP residenziale) e popola
+  // cm_price_by_condition con il ladder completo. Senza estensione resta CMAPI.
+  var _wantExtLadder = !!(opts && (opts.extLadder === true || opts.useUserscript === true));
+  if(setId && number && _cmaCondNM && !_wantExtLadder && typeof SUPA_URL === 'string' && typeof getHDR === 'function'){
     try{
       var _tcgid = (setId + '-' + number).toString().toLowerCase();
       var _cmaCtrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
@@ -14395,7 +14401,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.21';
+const APP_VERSION='6.22';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -19991,17 +19997,26 @@ async function rbWeeklyPriceSweep(opts){
 
     var total = jobs.length, ok = 0, failed = 0;
     var skipped = rows.length - total; // carte non risolvibili (set non mappato ecc.)
-    onProgress(0, total, 'Avvio…');
+
+    // Estensione Hunter pronta? In tal caso raccogliamo il LADDER reale
+    // per-condizione (Mint→Poor) leggendo la pagina CM dalla TUA sessione
+    // (cookie utente, IP residenziale, zero tab visibili) → popola davvero
+    // cm_price_by_condition con la scala completa, non solo l'NM di CMAPI.
+    // Se l'estensione non c'è, si ricade sulla cascata CMAPI NM server-side.
+    var extReady = false;
+    try{ extReady = !!(window.rbExtFetch && await window.rbExtFetch.isReady()); }catch(e){}
+    // Con estensione pronta forziamo la live (force) così le cache non
+    // cortocircuitano e si arriva all'ext-scrape che restituisce il ladder.
+    var effForce = !!opts.force || extReady;
+    onProgress(0, total, extReady ? 'Avvio · ladder via estensione…' : 'Avvio · NM via CMAPI…');
 
     for(var i=0;i<jobs.length;i++){
       var j = jobs[i];
+      if(extReady) j.extLadder = true; // instrada su _vpServerSideCMScrape (ext-first)
       try{
-        // Default: NON forziamo (force salterebbe la fast-path CMAPI andando
-        // dritto allo scrape userscript, che di notte/headless non è attivo →
-        // niente prezzo → niente persistenza). Con la cascata normale, CMAPI
-        // dà il prezzo NM server-side e lo persiste in cm_price_by_condition.
-        // opts.force=true resta disponibile per uno sweep "scrape completo".
-        var res = await rbGetConditionPrices(j, { force: !!opts.force });
+        // extReady → ladder reale per-condizione dalla pagina CM (sessione utente).
+        // !extReady → cascata CMAPI: prezzo NM server-side persistito comunque.
+        var res = await rbGetConditionPrices(j, { force: effForce });
         if(res && (res.ok || (res.conditions && res.conditions.length) || res.marketPrice!=null)) ok++;
         else failed++;
       }catch(e){ failed++; }
@@ -20016,7 +20031,8 @@ async function rbWeeklyPriceSweep(opts){
       try{ snap = await supa('POST','rpc/collection_snapshot_me', {}); }catch(e){ snap = { error: (e&&e.message)||'snapshot fallito' }; }
     }
 
-    return { total: total, ok: ok, failed: failed, skipped: skipped, snapshot: snap };
+    return { total: total, ok: ok, failed: failed, skipped: skipped, snapshot: snap,
+             mode: extReady ? 'ext-ladder' : 'cmapi-nm', extReady: extReady };
   } finally {
     _rbSweepRunning = false;
   }
