@@ -8625,7 +8625,9 @@ function colEmOpenCM(){
   const first1st = (document.getElementById('colEm1st')||{}).checked;
   let url=null;
   try{
-    url = (typeof buildCMDirectUrl==='function')
+    url = (typeof rbCmSafeHref==='function')
+      ? rbCmSafeHref(c.name, (c.set_id||null), c.card_number, cond, lang, variant, first1st, c.set_name||'', c.rarity||'', c.cm_url||null)
+      : (typeof buildCMDirectUrl==='function')
       ? buildCMDirectUrl(c.name, (c.set_id||null), c.card_number, cond, lang, variant, first1st, c.set_name||'', c.rarity||'', c.cm_url||null)
       : (c.cm_url||null);
   }catch(e){ url = c.cm_url||null; }
@@ -10783,7 +10785,7 @@ function openEditModal(idx){
   const _cached2 = cache[(c.name||'').toLowerCase().trim()];
   const tcgCard2 = _cached2 ? (_cached2.find(function(x){return x.number===c.number;})||_cached2[0]) : null;
   const setId2 = c.set_id || (tcgCard2&&tcgCard2.set ? tcgCard2.set.id : null);
-  document.getElementById('emCmLink').href = buildCMDirectUrl(c.name, setId2, c.number, c.condition||'NM', c.language||'ITA', c.variant||'Normal', c.first_edition||false, c.set||'', c.rarity, c.cm_url);
+  document.getElementById('emCmLink').href = (typeof rbCmSafeHref==='function'?rbCmSafeHref:buildCMDirectUrl)(c.name, setId2, c.number, c.condition||'NM', c.language||'ITA', c.variant||'Normal', c.first_edition||false, c.set||'', c.rarity, c.cm_url);
   // Sincronizza il visual del toggle "1\u00aa" (gold quando checked)
   if(typeof _emToggle1st === 'function') _emToggle1st(document.getElementById('em1st'));
   // Reset stash precedente (era di un'altra carta) e nascondi banner
@@ -10874,7 +10876,7 @@ function emPickReplace(c,el){
     item.image=c.images&&c.images.small||''; item.image_lg=c.images&&c.images.large||'';
     item.cm_url=cmAuthoritativeUrl(c);
     // Aggiorna link Cardmarket con URL diretto
-    document.getElementById('emCmLink').href = buildCMDirectUrl(c.name, c.set&&c.set.id, c.number, document.getElementById('emCond').value, document.getElementById('emLang').value, document.getElementById('emVar').value, document.getElementById('em1st').checked, c.set&&c.set.name, c.rarity, cmAuthoritativeUrl(c));
+    document.getElementById('emCmLink').href = (typeof rbCmSafeHref==='function'?rbCmSafeHref:buildCMDirectUrl)(c.name, c.set&&c.set.id, c.number, document.getElementById('emCond').value, document.getElementById('emLang').value, document.getElementById('emVar').value, document.getElementById('em1st').checked, c.set&&c.set.name, c.rarity, cmAuthoritativeUrl(c));
     // Ricalcola prezzo con nuova carta
     if(c.cardmarket&&c.cardmarket.prices){
       const p=calcPrice(c.cardmarket.prices,document.getElementById('emCond').value,document.getElementById('emVar').value,document.getElementById('em1st').checked);
@@ -10923,7 +10925,7 @@ function refreshEditPrice(){
   const lnk=document.getElementById('emCmLink');
   if(lnk){
     const setId=c.set_id || (tcgCard&&tcgCard.set?tcgCard.set.id:null);
-    lnk.href=buildCMDirectUrl(c.name, setId, c.number, condEl.value, langEl.value, varEl.value, ed1El.checked, c.set||'', c.rarity, cmAuthoritativeUrl(c));
+    lnk.href=(typeof rbCmSafeHref==='function'?rbCmSafeHref:buildCMDirectUrl)(c.name, setId, c.number, condEl.value, langEl.value, varEl.value, ed1El.checked, c.set||'', c.rarity, cmAuthoritativeUrl(c));
   }
   emUpdatePrice();
 }
@@ -12083,7 +12085,10 @@ function openCardmarketAdd(){
     window.open(cmAppendParams(stash.cmUrl, cond, lang, variant, first1st) || stash.cmUrl, '_blank');
     return;
   }
-  window.open(buildCMDirectUrl(c.name, c.set?.id, c.number, cond, lang, variant, first1st, c.set?.name, c.rarity, cmAuthoritativeUrl(c)),'_blank');
+  // Risoluzione VERA prima di navigare: indice DB → verifica via estensione
+  // (cascata V1/V2 persistita) → ripiego ricerca. Mai "Prodotto sbagliato".
+  if(typeof rbOpenCmResolved === 'function'){ rbOpenCmResolved(c, cond, lang, variant, first1st); return; }
+  window.open((typeof rbCmSafeHref==='function'?rbCmSafeHref:buildCMDirectUrl)(c.name, c.set?.id, c.number, cond, lang, variant, first1st, c.set?.name, c.rarity, cmAuthoritativeUrl(c)),'_blank');
 }
 
 function openCardmarket(){
@@ -12100,7 +12105,8 @@ function openCardmarket(){
     window.open(cmAppendParams(stash.cmUrl, cond, lang, variant, is1st) || stash.cmUrl, '_blank');
     return;
   }
-  window.open(buildCMDirectUrl(prevCard.name, prevCard.set?.id, prevCard.number, cond, lang, variant, is1st, prevCard.set?.name, prevCard.rarity, cmAuthoritativeUrl(prevCard)),'_blank');
+  if(typeof rbOpenCmResolved === 'function'){ rbOpenCmResolved(prevCard, cond, lang, variant, is1st); return; }
+  window.open((typeof rbCmSafeHref==='function'?rbCmSafeHref:buildCMDirectUrl)(prevCard.name, prevCard.set?.id, prevCard.number, cond, lang, variant, is1st, prevCard.set?.name, prevCard.rarity, cmAuthoritativeUrl(prevCard)),'_blank');
 }
 
 // ── VERIFICA PREZZI LIVE ──────────────────────────────────────────────────────
@@ -14389,7 +14395,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.20';
+const APP_VERSION='6.21';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -20922,6 +20928,147 @@ async function rbIndexMerge(cards, idxPromise){
   }catch(e){ return cards || []; }
 }
 window.rbIndexMerge = rbIndexMerge;
+
+/* ══════════════════════════════════════════════════════════════════════
+   NAVIGAZIONE CM SENZA "PRODOTTO SBAGLIATO"
+   Il bug Feraligatr-EX12: i pulsanti/link "apri su Cardmarket" costruivano
+   lo slug A INDOVINO (buildCMDirectUrl) e per i set con versioni V1/V2
+   imprevedibili (Expedition, Aquapolis, Skyridge, Base, Neo, …) atterravano
+   sulla pagina d'errore di CM. Da qui due strumenti:
+
+   • rbCmSafeHref(...)  — SINCRONO, stessa firma di buildCMDirectUrl.
+     Per gli <a href>: se l'URL sarebbe un indovino su set ambiguo NON
+     verificato, ritorna l'URL di RICERCA del set (la carta è in lista,
+     un click) invece dello slug. Mai una pagina d'errore. Se l'indice ha
+     già l'URL verificato in cache locale, usa quello (atterraggio esatto).
+
+   • rbOpenCmResolved(card, cond, lang, variant, first1st) — ASINCRONO,
+     per i PULSANTI: apre subito la tab (gesto utente), risolve la pagina
+     giusta (indice DB → verifica via estensione con cascata V1/V2 →
+     ripiego ricerca) e naviga. L'URL trovato viene persistito nell'indice:
+     la prossima apertura è istantanea per tutti i device.
+   ══════════════════════════════════════════════════════════════════════ */
+function rbCmSafeHref(name, setId, number, cond, lang, variant, first1st, setName, rarity, cmUrlOverride){
+  try{
+    var url = buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, setName, rarity, cmUrlOverride);
+    // URL di ricerca (L2/L3) → già sicuro
+    if(url.indexOf('/Singles/') < 0 || url.indexOf('searchString=') >= 0) return url;
+    // Override autoritativo (TCG API o record) → esatto
+    if(typeof _isAuthoritativeCMUrl === 'function' && _isAuthoritativeCMUrl(cmUrlOverride)) return url;
+    // Indice in cache locale (popolato dalla ricerca/overlay) → esatto
+    var key = rbProductKey({ setId:setId, set_name:setName, number:number, name:name });
+    if(key){
+      var c = _rbIdxCacheGet(key);
+      if(c && c.row && c.row.cm_url && (+c.row.fail_count||0) < 2 &&
+         typeof _isAuthoritativeCMUrl === 'function' && _isAuthoritativeCMUrl(c.row.cm_url)){
+        var aligned = (typeof cmAppendParams === 'function')
+          ? cmAppendParams(c.row.cm_url, cond, lang, variant, first1st) : null;
+        return aligned || c.row.cm_url;
+      }
+    }
+    // Set ambiguo (V1/V2 imprevedibile) e nessuna verifica → ricerca nel set:
+    // atterraggio garantito con la carta in lista. MAI lo slug a indovino.
+    var resolvedSetId = setId || (typeof CM_SET_NAME_TO_ID !== 'undefined' && CM_SET_NAME_TO_ID[setName||'']) || null;
+    if(typeof CM_AMBIGUOUS_VERSION_SETS !== 'undefined' && CM_AMBIGUOUS_VERSION_SETS.has(resolvedSetId)){
+      var su = (typeof buildCMSearchUrl === 'function')
+        ? buildCMSearchUrl(name, setId, number, cond, lang, variant, first1st, setName) : null;
+      if(su) return su;
+    }
+    return url;  // set a pattern stabile → lo slug diretto è affidabile
+  }catch(e){
+    try{ return buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, setName, rarity, cmUrlOverride); }
+    catch(_){ return 'https://www.cardmarket.com/it/Pokemon/Products/Search?searchString=' + encodeURIComponent((name||'')+' '+(number||'')); }
+  }
+}
+window.rbCmSafeHref = rbCmSafeHref;
+
+/* Risolve l'URL prodotto ESATTO per la navigazione. Ritorna {url, verified}.
+   Cascata: autoritativo → indice DB → (set stabile: diretto) → verifica via
+   estensione su primario + varianti V1/V2 (persistita) → ricerca set. */
+async function rbCmResolveProductUrl(card, cond, lang, variant, first1st){
+  var name    = card.name || '';
+  var setId   = (card.set && card.set.id) || card.set_id || card.setId || null;
+  var setName = (card.set && card.set.name) || card.set_name || card.setName || '';
+  var number  = card.number || card.card_number || '';
+  var rarity  = card.rarity || '';
+  function align(base){
+    var u = (typeof cmAppendParams === 'function') ? cmAppendParams(base, cond, lang, variant, first1st) : null;
+    return u || base;
+  }
+  // 1) Autoritativo (TCG API / record salvato)
+  var auth = (typeof cmAuthoritativeUrl === 'function') ? cmAuthoritativeUrl(card) : null;
+  if(auth) return { url: align(auth), verified: true };
+  // 2) Indice DB (cross-device)
+  try{
+    var idxUrl = await rbIndexCmUrl({ setId:setId, setName:setName, number:number, name:name });
+    if(idxUrl) return { url: align(idxUrl), verified: true };
+  }catch(e){}
+  // 3) Costruzione client
+  var primary = buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, setName, rarity, null);
+  var isDirect = primary.indexOf('/Singles/') >= 0 && primary.indexOf('searchString=') < 0;
+  if(!isDirect) return { url: primary, verified: false };  // già ricerca → sicuro
+  var resolvedSetId = setId || (typeof CM_SET_NAME_TO_ID !== 'undefined' && CM_SET_NAME_TO_ID[setName||'']) || null;
+  var ambiguous = (typeof CM_AMBIGUOUS_VERSION_SETS !== 'undefined') && CM_AMBIGUOUS_VERSION_SETS.has(resolvedSetId);
+  if(!ambiguous) return { url: primary, verified: false };  // pattern stabile
+  // 4) Set ambiguo: verifica VERA via estensione (primario + max 2 varianti)
+  var extReady = false;
+  try{ extReady = !!(window.rbExtFetch && await window.rbExtFetch.isReady()); }catch(e){}
+  if(extReady && typeof _vpServerSideCMScrape === 'function'){
+    var candidates = [primary];
+    try{
+      var vars = buildCMDirectUrlVariants(name, setId, number, cond, lang, variant, first1st, setName, rarity) || [];
+      vars.forEach(function(u){ if(candidates.indexOf(u) < 0) candidates.push(u); });
+    }catch(e){}
+    candidates = candidates.slice(0, 3);
+    var idxOpts = { name:name, setId:setId, setName:setName, number:number, rarity:rarity };
+    for(var i=0; i<candidates.length; i++){
+      try{
+        var srv = await _vpServerSideCMScrape(candidates[i]);
+        if(srv && srv.listings && srv.listings.length && !srv.wrong_product && !srv.blocked){
+          // Verificato: persisti per tutti (URL + ladder + foto) e naviga esatto
+          rbIndexRemember(idxOpts, candidates[i],
+                          (i === 0 ? 'direct' : 'variant-cascade'),
+                          { listings: srv.listings, priceSource:'ext-resolve', imageUrl: srv.image || null });
+          return { url: candidates[i], verified: true };
+        }
+      }catch(e){}
+    }
+  }
+  // 5) Ripiego garantito: ricerca nel set (carta in lista, mai errore)
+  var su = (typeof buildCMSearchUrl === 'function')
+    ? buildCMSearchUrl(name, setId, number, cond, lang, variant, first1st, setName) : null;
+  return { url: su || primary, verified: false };
+}
+window.rbCmResolveProductUrl = rbCmResolveProductUrl;
+
+/* Apre Cardmarket sulla pagina GIUSTA: tab subito (gesto utente) con stato
+   di risoluzione brand-styled, poi naviga sull'URL risolto. */
+function rbOpenCmResolved(card, cond, lang, variant, first1st){
+  if(!card) return;
+  var w = null;
+  try{ w = window.open('', '_blank'); }catch(e){ w = null; }
+  if(w){
+    try{
+      w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>RareBlock \u00b7 Cardmarket</title></head>'
+        + '<body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;'
+        + 'background:#0d1117;color:#c9a84c;font-family:Georgia,serif">'
+        + '<div style="text-align:center"><div style="font-size:22px;letter-spacing:.06em">Rare<b>Block</b></div>'
+        + '<div style="margin-top:14px;font-size:13px;color:#8a857a;font-family:monospace">Risolvo la pagina prodotto su Cardmarket\u2026</div>'
+        + '</div></body></html>');
+    }catch(e){}
+  }
+  rbCmResolveProductUrl(card, cond, lang, variant, first1st).then(function(r){
+    if(w && !w.closed){ try{ w.location.href = r.url; return; }catch(e){} }
+    try{ window.open(r.url, '_blank'); }catch(e){}
+  }).catch(function(){
+    var fb = rbCmSafeHref(card.name, (card.set&&card.set.id)||card.set_id||null, card.number,
+                          cond, lang, variant, first1st, (card.set&&card.set.name)||card.set_name||'', card.rarity||'', null);
+    if(w && !w.closed){ try{ w.location.href = fb; return; }catch(e){} }
+    try{ window.open(fb, '_blank'); }catch(e){}
+  });
+}
+window.rbOpenCmResolved = rbOpenCmResolved;
+
 </script>
 
 </body>
