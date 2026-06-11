@@ -11181,22 +11181,30 @@ function showPrevResults(cards){
    specifico della singola carta, ereditarlo sarebbe pericoloso (default off).
    Fail-safe: qualunque errore → si ricade sui default storici ITA/NM/Normal. */
 var RB_STICKY_DEFAULTS = { language:'ITA', condition:'NM', variant:'Normal' };
+// Fonte PRIMARIA in memoria: funziona sempre nella sessione anche se il
+// browser blocca/non persiste localStorage (incognito, privacy, quota piena —
+// caso reale diagnosticato: setItem seguito da getItem→null). localStorage
+// resta un BONUS per sopravvivere al reload quando disponibile.
+var _rbStickyMem = null;
 function rbGetSticky(){
+  // 1) memoria (sempre affidabile nella sessione)
+  if(_rbStickyMem) return _rbStickyMem;
+  // 2) localStorage (bonus cross-reload)
   try{
     var raw = localStorage.getItem('rb_add_sticky');
-    if(raw){ var o = JSON.parse(raw); if(o && typeof o === 'object') return o; }
+    if(raw){ var o = JSON.parse(raw); if(o && typeof o === 'object'){ _rbStickyMem = o; return o; } }
   }catch(e){}
   return Object.assign({}, RB_STICKY_DEFAULTS);
 }
 function rbRememberSticky(language, condition, variant){
-  try{
-    var o = {
-      language:  language  || RB_STICKY_DEFAULTS.language,
-      condition: condition || RB_STICKY_DEFAULTS.condition,
-      variant:   variant   || RB_STICKY_DEFAULTS.variant
-    };
-    localStorage.setItem('rb_add_sticky', JSON.stringify(o));
-  }catch(e){}
+  var o = {
+    language:  language  || RB_STICKY_DEFAULTS.language,
+    condition: condition || RB_STICKY_DEFAULTS.condition,
+    variant:   variant   || RB_STICKY_DEFAULTS.variant
+  };
+  _rbStickyMem = o;                                  // primaria: sempre
+  try{ localStorage.setItem('rb_add_sticky', JSON.stringify(o)); }catch(e){}  // bonus
+  return o;
 }
 window.rbGetSticky = rbGetSticky;
 window.rbRememberSticky = rbRememberSticky;
@@ -11223,7 +11231,6 @@ function showPrevQuickAdd(c){
   // Default ai campi: ultime scelte "sticky" (UX: meno click sulla carta
   // successiva). 1ª edizione resta sempre off (attributo per-carta).
   var _sticky = rbGetSticky();
-  try{ console.log('[STICKY apply] LS=', localStorage.getItem('rb_add_sticky'), '→ applico lingua='+_sticky.language+' cond='+_sticky.condition+' var='+_sticky.variant); }catch(e){}
   document.getElementById('pCond').value = _sticky.condition;
   document.getElementById('pLang').value = _sticky.language;
   document.getElementById('pVar').value = _sticky.variant;
@@ -11233,7 +11240,6 @@ function showPrevQuickAdd(c){
   // Carta giapponese/asiatica (TCGdex): la lingua della CARTA ha precedenza
   // sullo sticky — non avrebbe senso proporre ITA per una carta JPN.
   if(typeof tcgdexSyncLangSelect === 'function') tcgdexSyncLangSelect(c, 'pLang');
-  try{ console.log('[STICKY apply] pLang DOPO sync TCGdex =', document.getElementById('pLang').value, '(carta _source='+(c&&c._source)+')'); }catch(e){}
   // Pulisci eventuale banner CM live precedente (di un'altra carta)
   const oldBanner=document.getElementById('pVerifyFeedback');
   if(oldBanner) oldBanner.remove();
@@ -14368,7 +14374,6 @@ async function addToPrev(){
   // Memorizza lingua/condizione/variante come default per la prossima carta
   // (UX: meno click). 1ª edizione esclusa di proposito.
   rbRememberSticky(item.language, cond, variant);
-  try{ console.log('[STICKY save] lingua='+item.language+' cond='+cond+' var='+variant+' → LS=', localStorage.getItem('rb_add_sticky')); }catch(e){}
   await savePrev(activePrev);
   renderPrevTable();renderPrevList();
   // Reset
@@ -14617,7 +14622,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.29';
+const APP_VERSION='6.30';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
