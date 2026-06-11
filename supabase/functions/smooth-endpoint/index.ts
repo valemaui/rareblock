@@ -20,7 +20,7 @@ const COND_ORDER: Record<string,number> = {
   'MT':1,'NM':2,'EX':3,'GD':4,'LP':5,'PL':6,'PO':7,
 };
 
-interface Listing { price: number; condition: string; condRank: number; seller?: string; comment?: string; grading?: { house: string; score: number; raw: string } | null; language?: string | null; has_photo?: boolean; }
+interface Listing { price: number; condition: string; condRank: number; seller?: string; comment?: string; grading?: { house: string; score: number; raw: string } | null; language?: string | null; has_photo?: boolean; is_professional?: boolean; }
 
 // ─── CAP DEI LISTING PRIMA DEL RETURN ──────────────────────────────────────
 // BUG STORICO: tutti i path facevano `.sort(prezzo crescente).slice(0, 30)` →
@@ -1056,6 +1056,7 @@ function extractCMListings(html: string, pageUrl = ''): Listing[] {
     const grading = comment ? parseGradingFromText(comment) : null;
     const language = extractLanguageFromRow(row);
     const hasPhoto = detectListingPhoto(row);
+    const isPro = detectProfessionalSeller(row);
     if (price) {
       const finalCond = cond || 'Near Mint';
       const listing: Listing = { price, condition: finalCond, condRank: COND_ORDER[finalCond] || 2 };
@@ -1063,6 +1064,7 @@ function extractCMListings(html: string, pageUrl = ''): Listing[] {
       if (grading) listing.grading = grading;
       if (language) listing.language = language;
       if (hasPhoto) listing.has_photo = true;
+      if (isPro) listing.is_professional = true;
       listings.push(listing);
     }
   }
@@ -1140,12 +1142,14 @@ function extractCMListings(html: string, pageUrl = ''): Listing[] {
     const grading = comment ? parseGradingFromText(comment) : null;
     const language = extractLanguageFromRow(window);
     const hasPhoto = detectListingPhoto(window);
+    const isPro = detectProfessionalSeller(window);
 
     const listing: Listing = { price, condition: cond, condRank: COND_ORDER[cond] || 2 };
     if (comment) listing.comment = comment;
     if (grading) listing.grading = grading;
     if (language) listing.language = language;
     if (hasPhoto) listing.has_photo = true;
+    if (isPro) listing.is_professional = true;
     listings.push(listing);
 
     if (listings.length >= 120) break; // safety cap (gradate costose stanno in fondo)
@@ -1211,6 +1215,25 @@ function detectListingPhoto(row: string): boolean {
   if (/<img[^>]+(?:articles|productPics|article-image|seller-image)/i.test(row)) return true;
   // Pattern 4: JSON residuo
   if (/"hasPicture"\s*:\s*true|"imagesCount"\s*:\s*[1-9]/i.test(row)) return true;
+  return false;
+}
+
+// Riconosce i venditori PROFESSIONALI / Powerseller. Su Cardmarket il "tipo"
+// del venditore è reso con un'icona accanto al nome (l'omino): le card di
+// venditori privati hanno l'icona "private", i negozi/professionisti hanno
+// "professional" o "powerseller". Cerchiamo questi marcatori nella riga.
+// Best-effort: in dubbio → false (privato), così il filtro "solo pro" è
+// conservativo e non gonfia i risultati.
+function detectProfessionalSeller(row: string): boolean {
+  if (!row) return false;
+  // Pattern 1: classi/icone CM del tipo venditore (it/en/de)
+  if (/\b(?:seller-)?(?:professional|powerseller|commercial)\b/i.test(row)) return true;
+  if (/icon-[a-z-]*(?:professional|powerseller|shop|store)/i.test(row)) return true;
+  // Pattern 2: title/aria/tooltip dell'omino professionale (multilingua)
+  if (/(?:title|aria-label|data-original-title)\s*=\s*["'][^"']*(?:Professional|Powerseller|Venditore professionale|Gewerblich|Profession?nel|Profesional)/i.test(row)) return true;
+  // Pattern 3: JSON residuo sellerType / isCommercial
+  if (/"sellerType"\s*:\s*"?(?:professional|powerseller|commercial)/i.test(row)) return true;
+  if (/"is(?:Commercial|Professional|Powerseller)"\s*:\s*(?:true|1)/i.test(row)) return true;
   return false;
 }
 
@@ -1467,6 +1490,10 @@ function extractFromNextData(obj: unknown, depth = 0): Listing[] {
           if (comment) listing.comment = comment;
           if (grading) listing.grading = grading;
           if (hasPhoto) listing.has_photo = true;
+          // Tipo venditore se esposto nel JSON (best-effort)
+          const st = i.sellerType ?? i.seller_type ?? (i.seller && (i.seller.type ?? i.seller.sellerType));
+          const isComm = i.isCommercial ?? i.is_commercial ?? (i.seller && (i.seller.isCommercial ?? i.seller.commercial));
+          if (/professional|powerseller|commercial/i.test(String(st || '')) || isComm === true || isComm === 1) listing.is_professional = true;
           listings.push(listing);
         }
         if (listings.length > 0) return capCMListings(listings);

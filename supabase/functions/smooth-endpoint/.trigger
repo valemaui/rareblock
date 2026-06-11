@@ -1,1 +1,1 @@
-redeploy 2026-06-10T20:41:16Z — meta image extraction improved
+2026-06-11T13:24:48Z redeploy is_professional
