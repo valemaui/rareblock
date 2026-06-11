@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         RareBlock · CM Price Bridge
 // @namespace    https://rareblock.app
-// @version      2.2
+// @version      2.3
 // @description  Legge prezzi + condizioni da Cardmarket e li invia a RareBlock via postMessage + BroadcastChannel. v2.2: auto-close ricevendo messaggio esplicito dall'app.
 // @author       RareBlock
 // @match        https://www.cardmarket.com/*/Pokemon/Products/*
@@ -185,9 +185,27 @@
       type: 'rareblock_cm_prices',
       prices: listings.map(function (l) { return l.price; }),
       listings: listings,
+      image: pageCardImage(),     // v2.3: foto carta reale → cache RareBlock
       url: location.href,
       timestamp: Date.now()
     });
+  }
+
+  // ── v2.3: estrae l'URL della foto carta dalla pagina prodotto ───────────────
+  // Priorità: og:image/twitter:image (stabili), poi la <img> prodotto più
+  // grande nella pagina. Ritorna '' se non identificabile (best-effort).
+  function pageCardImage() {
+    try {
+      var metas = document.getElementsByTagName('meta');
+      for (var i = 0; i < metas.length; i++) {
+        var prop = metas[i].getAttribute('property') || metas[i].getAttribute('name');
+        if ((prop === 'og:image' || prop === 'twitter:image') && metas[i].content) return metas[i].content;
+      }
+      var imgs = [].slice.call(document.images || []).filter(function (im) {
+        return im && im.src && /product-images|\/items\//i.test(im.src) && (im.naturalWidth || 0) > 120;
+      }).sort(function (a, b) { return (b.naturalWidth || 0) - (a.naturalWidth || 0); });
+      return imgs.length ? imgs[0].src : '';
+    } catch (e) { return ''; }
   }
 
   function sendNoPrices(reason) {

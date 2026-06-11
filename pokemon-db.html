@@ -5859,6 +5859,27 @@ window.rbSearchCards = async function(name, number, setId, lang){
     }
   }
 
+  // ── INDICE RAREBLOCK (fonte primaria, in parallelo) ──────────────────
+  // Interroga rb_card_index mentre parte la TCG API: l'overlay porta foto
+  // reale CM, URL verificato e prezzo NM pesato sui risultati; le carte
+  // censite (assenti dalla TCG API) compaiono comunque. Fail-safe: errore
+  // o timeout dell'indice → risultati identici a prima.
+  var _idxP = null;
+  try{
+    if(name && typeof rbIndexSearch === 'function'){
+      _idxP = rbIndexSearch(name, number || null).catch(function(){ return []; });
+      if(setId){
+        // Con filtro set: tieni dell'indice solo le righe dello stesso set
+        var _idxSet = String(setId).toLowerCase();
+        _idxP = _idxP.then(function(rows){
+          return (rows || []).filter(function(r){
+            return (r.set_id || '').toLowerCase() === _idxSet;
+          });
+        });
+      }
+    }
+  }catch(e){ _idxP = null; }
+
   // lang (opzionale): valore dropdown UI (ITA/ENG/JPN/...). Se e' una lingua
   // presente SOLO su TCGdex (ja/ko/zh/...), bypassiamo pokemontcg.io e cerchiamo
   // direttamente su TCGdex. I set picker usano ID pokemontcg.io che NON mappano
@@ -5866,7 +5887,10 @@ window.rbSearchCards = async function(name, number, setId, lang){
   // ignorato (ricerca per nome su tutti i set della lingua).
   var langCode=tcgdexLangCode(lang);
   if(lang && TCGDEX_ONLY_LANGS[langCode]){
-    try{ return await rbSearchTCGdex(name, number||null, langCode); }
+    try{
+      var jpCards = await rbSearchTCGdex(name, number||null, langCode);
+      return (typeof rbIndexMerge === 'function') ? await rbIndexMerge(jpCards, _idxP) : jpCards;
+    }
     catch(e){ console.warn('[rbSearchCards] TCGdex JP search error:', e); return []; }
   }
 
@@ -5892,7 +5916,7 @@ window.rbSearchCards = async function(name, number, setId, lang){
       if(na!==nb) return na-nb;
       return (a.number||'').localeCompare(b.number||'');
     });
-    return cards;
+    return (typeof rbIndexMerge === 'function') ? await rbIndexMerge(cards, _idxP) : cards;
   }
   // Senza setId: usa fetchCards (engine classico con fuzzy+translate+cache)
   if(!name) return [];
@@ -5900,9 +5924,9 @@ window.rbSearchCards = async function(name, number, setId, lang){
   if(number && all.length){
     var ex=all.filter(function(c){return c.number===number;});
     var pa=all.filter(function(c){return c.number&&c.number.startsWith(number+'/');});
-    return ex.length?ex:(pa.length?pa:all);
+    all = ex.length?ex:(pa.length?pa:all);
   }
-  return all;
+  return (typeof rbIndexMerge === 'function') ? await rbIndexMerge(all, _idxP) : all;
 };
 
 // auSetLabel — formatta un set per la visualizzazione (nome · anno · serie)
@@ -11961,6 +11985,17 @@ function rbOpenCmCensus(prefill, target){
         _manual:true
       };
       if(!card.name){ alert('Il nome \u00e8 obbligatorio'); return; }
+      // Indice RareBlock: la carta censita entra nel DB proprietario (URL CM
+      // confermato a mano dall'utente + foto reale). Da ora comparirà nelle
+      // ricerche anche se assente dalla TCG API.
+      try{ if(typeof rbIndexRemember === 'function'){
+        var _cuBase = (card.cardmarket.url || '').split('?')[0];
+        rbIndexRemember({ name: card.name, number: card.number,
+                          set_name: card.set.name, rarity: card.rarity,
+                          cm_url: _cuBase },
+                        _cuBase || null, 'census',
+                        { imageUrl: img || null });
+      } }catch(e){}
       close();
       _rbCensusToAddForm(card, langVal, target);
     };
@@ -12405,12 +12440,13 @@ function _vpFetchViaUserscript(cmUrl, conditionReq, opts){
       if(!listings.length){ resolve({ ok:false, reason:'no listings', status:data.status }); return; }
       var smart = (typeof smartCMPrice === 'function') ? smartCMPrice(listings, conditionReq) : null;
       var finalPrice = (smart && smart.price > 0) ? smart.price : listings[0].price;
-      resolve({ ok:true, finalPrice: Math.round(finalPrice*100)/100, listings: listings, smart: smart });
+      resolve({ ok:true, finalPrice: Math.round(finalPrice*100)/100, listings: listings, smart: smart,
+                image: (data && data.image) || null });
     }
 
     window._rbRegisterPriceHandler(idx, {
       fn: function(prices, data, listings){
-        finish({ listings: listings, prices: prices, status: data && data.status }, null);
+        finish({ listings: listings, prices: prices, status: data && data.status, image: data && data.image }, null);
       },
       // Matcher: accetta solo risposte dalla pagina che abbiamo aperto noi.
       // Confronto sulla lingua (param language=) e, se ricostruibile, sul path
@@ -12769,6 +12805,18 @@ async function fetchCmPriceLive(opts){
     if(_remembered) cmUrlAuth = _remembered;
   }
 
+  // ── L0-DB: INDICE RAREBLOCK — URL verificato cross-device/cross-utente
+  //    (rb_card_index). È la fonte più affidabile dopo la memoria locale:
+  //    contiene solo URL che hanno restituito listing reali, con contatore
+  //    fallimenti (2 wrong-product → invalidato e si riparte da capo).
+  var _idxFromDb = false;
+  if(!cmUrlAuth && typeof rbIndexCmUrl === 'function'){
+    try{
+      var _idxUrl = await rbIndexCmUrl({ setId:setId, setName:setName, number:number, name:name });
+      if(_idxUrl){ cmUrlAuth = _idxUrl; _idxFromDb = true; }
+    }catch(e){}
+  }
+
   var cmUrl = buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, setName, rarity, cmUrlAuth);
   // Se l'URL deriva dall'URL autoritativo TCG API, è già esatto: niente cascata di
   // varianti V1/V2 (che genererebbe PRODOTTI DIVERSI). Su 403 si ritenta solo lo
@@ -12785,6 +12833,10 @@ async function fetchCmPriceLive(opts){
 
   // Traccia tutti i tentativi fatti — esposto al caller per logging dettagliato
   var attempts = [];
+  if(_idxFromDb){
+    attempts.push({ url: cmUrlAuth, kind: 'L0-INDEX', count: 0,
+                    error: 'URL verificato dall\u2019indice RareBlock (rb_card_index)' });
+  }
 
   // ── FAST-PATH CMAPI (cardmarket-api via edge function, NIENTE Cloudflare) ──
   // Caso carta ESATTA (setId+number → tcgid, sempre vero nel preventivo): CMAPI
@@ -12818,6 +12870,11 @@ async function fetchCmPriceLive(opts){
           error:'IT \u20ac'+(_m.lnm_it != null ? _m.lnm_it : '?')
               + ' \u00b7 30g \u20ac'+(_m.avg_30d != null ? _m.avg_30d : '?')
               + ' \u00b7 basis='+(_m.refBasis || '?') });
+        // Indice RareBlock: registra il prezzo NM (niente URL: qui non è verificato)
+        try{ if(typeof rbIndexRemember === 'function'){
+          rbIndexRemember({ name:name, setId:setId, setName:setName, number:number, rarity:rarity },
+                          null, 'cmapi', { priceNm:_cmaPrice, priceSource:'cmapi' });
+        } }catch(e){}
         return {
           ok:true, price:_cmaPrice, listings:[],
           smart:{ price:_cmaPrice, source:'cmapi', basis:_m.refBasis,
@@ -12891,6 +12948,13 @@ async function fetchCmPriceLive(opts){
       var _usRes = await _vpFetchViaUserscript(cmUrl, cond, { timeoutMs: (opts.userscriptTimeoutMs || 18000) });
       if(_usRes && _usRes.ok && _usRes.listings && _usRes.listings.length && !_isFakeCmListings(_usRes.listings)){
         if(_memKey) _vpCmUrlRemember(_memKey, cmUrl);
+        // Indice RareBlock: listing reali su IP residenziale = prova più forte.
+        // Persiste URL verificato, prezzo pesato e (se presente) la foto carta.
+        try{ if(typeof rbIndexRemember === 'function'){
+          rbIndexRemember({ name:name, setId:setId, setName:setName, number:number, rarity:rarity },
+                          cmUrl, 'userscript',
+                          { listings:_usRes.listings, priceSource:'userscript', imageUrl:_usRes.image || null });
+        } }catch(e){}
         attempts.push({ url:cmUrl, kind:'USERSCRIPT', count:1,
           error:_usRes.listings.length + ' listing reali (outlier rimossi: ' + ((_usRes.smart && _usRes.smart.outlierRemoved) || 0) + ')' });
         return {
@@ -12920,6 +12984,11 @@ async function fetchCmPriceLive(opts){
   if(srv.blocked) primaryBlocked = true;
 
   if(srv.wrong_product) sawWrongProduct = true;
+  // Se l'URL primario veniva dall'indice DB e CM risponde "Prodotto sbagliato",
+  // segnalalo: al 2° fallimento l'indice invalida l'URL e si auto-ripara.
+  if(srv.wrong_product && _idxFromDb && typeof rbIndexReportFailure === 'function'){
+    try{ rbIndexReportFailure({ setId:setId, setName:setName, number:number, name:name }, cmUrl); }catch(e){}
+  }
   if(_isFakeCmListings(srv.listings)){
     srv = {listings:[], error:'pagina CM probabilmente non valida (vetrina \u20ac0.10)', _fake:true};
   }
@@ -12992,6 +13061,12 @@ async function fetchCmPriceLive(opts){
       cmUrl = disc.productUrl;
       isDirect = true;
       if(_memKey && disc.baseUrl) _vpCmUrlRemember(_memKey, disc.baseUrl);
+      // Indice RareBlock: l'URL scoperto vale per TUTTI i device/utenti
+      try{ if(typeof rbIndexRemember === 'function'){
+        rbIndexRemember({ name:name, setId:setId, setName:setName, number:number, rarity:rarity },
+                        disc.baseUrl || disc.productUrl, 'discover',
+                        { listings: disc.listings, priceSource:'scrape' });
+      } }catch(e){}
     }
   }
 
@@ -13015,6 +13090,14 @@ async function fetchCmPriceLive(opts){
   }
   // SUCCESSO: memorizza l'URL che ha funzionato (L0 per le prossime lookup)
   if(_memKey) _vpCmUrlRemember(_memKey, cmUrl);
+  // Indice RareBlock: URL verificato dai listing reali + prezzo NM pesato.
+  // method: authoritative (URL TCG API), direct (slug primario/cascata) —
+  // solo pagine prodotto: gli URL di ricerca vengono scartati a monte.
+  try{ if(typeof rbIndexRemember === 'function' && isDirect){
+    rbIndexRemember({ name:name, setId:setId, setName:setName, number:number, rarity:rarity },
+                    cmUrl, (isAuthoritative ? 'authoritative' : 'direct'),
+                    { listings: srv.listings, priceSource:'scrape' });
+  } }catch(e){}
   var smart = smartCMPrice(srv.listings, cond);
   var price = (smart && smart.price > 0) ? smart.price : srv.listings[0].price;
   return {
@@ -14240,7 +14323,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.18';
+const APP_VERSION='6.19';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -20067,7 +20150,11 @@ function _rbPcAgeLabel(d){
   return Math.round(d) + 'gg fa';
 }
 
-/* Costruisce la scaletta HTML da un risultato normalizzato. */
+/* Costruisce la scaletta HTML da un risultato normalizzato.
+   Il prezzo "Da" mostrato è quello EFFETTIVO pesato anti-anomalie
+   (rbWeightedConditions): outlier singolo venditore attenuati, condizioni
+   peggiori cappate al prezzo delle migliori. Quando differisce dal minimo
+   grezzo, un marcatore ✦ lo segnala (dettaglio nel tooltip). */
 function rbRenderConditionLadder(data){
   if(!data || !data.ok && (!data.conditions || !data.conditions.length)){
     var msg = (data && data.error) ? data.error : 'Nessun dato prezzo disponibile per questa carta.';
@@ -20077,6 +20164,13 @@ function rbRenderConditionLadder(data){
   var rows = (data.conditions || []).slice().sort(function(a,b){
     return (a.condRank - b.condRank) || ((a.isFoil?1:0) - (b.isFoil?1:0));
   });
+  // Pesa le anomalie (funzione pura, fail-safe: su errore priceW = low1)
+  if(typeof rbWeightedConditions === 'function') rows = rbWeightedConditions(rows);
+  var _wFlagLabel = {
+    'outlier-low':'minimo anomalo (molto sotto il 2\u00b0 prezzo): attenuato',
+    'capped':'cappato al prezzo di una condizione migliore gi\u00e0 in vendita',
+    'thin':'un solo venditore: prezzo fragile'
+  };
   var html = '<div class="rbpc-ladder">'
     + '<div class="rbpc-row head"><span>Condizione</span><span style="text-align:right">Da</span><span style="text-align:right">Media</span><span style="text-align:right">N°</span></div>';
   if(!rows.length){
@@ -20085,13 +20179,23 @@ function rbRenderConditionLadder(data){
   rows.forEach(function(c){
     var from = [c.low1, c.low2, c.low3].filter(function(x){ return x != null && !isNaN(x); });
     var fromV = from.length ? Math.min.apply(null, from) : null;
+    var effV  = (c.priceW != null) ? c.priceW : fromV;
+    var weighted = (effV != null && fromV != null && Math.abs(effV - fromV) >= 0.01);
+    var tip = '';
+    if(c.wFlags && c.wFlags.length){
+      tip = c.wFlags.map(function(f){ return _wFlagLabel[f] || f; }).join(' \u00b7 ');
+      if(weighted) tip += ' \u00b7 minimo grezzo: ' + _rbPcFmt(fromV);
+    }
     var bdg = RB_PC_COND_SHORT[c.condition] || (c.condition || '').slice(0,2).toUpperCase();
     html += '<div class="rbpc-row">'
       + '<div class="rbpc-cond"><span class="bdg">' + bdg + '</span>'
       +   '<span>' + (c.condition || '') + '</span>'
       +   (c.isFoil ? '<span class="foil">✦ FOIL</span>' : '')
       + '</div>'
-      + '<div class="rbpc-num">' + _rbPcFmt(fromV) + '</div>'
+      + '<div class="rbpc-num"' + (tip ? ' title="' + (typeof esc==='function'?esc(tip):tip) + '"' : '') + '>'
+      +   _rbPcFmt(effV)
+      +   (weighted ? ' <span style="color:#c9a961;font-size:11px;cursor:help">\u2726</span>' : '')
+      + '</div>'
       + '<div class="rbpc-num dim">' + _rbPcFmt(c.avg) + '</div>'
       + '<div class="rbpc-n">' + (c.nListings || '·') + '</div>'
       + '</div>';
@@ -20293,5 +20397,408 @@ if(document.readyState === 'loading'){
 }
 
 </script>
+
+<!-- ══ RB-CARD-INDEX · registro proprietario carte (URL CM verificati + foto + prezzi reali) ══ -->
+<script>
+/* ══════════════════════════════════════════════════════════════════════
+   RB-CARD-INDEX · rev 2026-06-11
+   DB proprietario RareBlock costruito sui DATI REALI di Cardmarket.
+
+   Pilastri:
+     1. RISOLUZIONE INFALLIBILE — ogni URL prodotto CM che ha restituito
+        listing reali viene persistito in rb_card_index (Supabase, condiviso
+        cross-device/cross-utente). Le lookup future partono da lì: zero
+        guessing, zero cascate. Auto-riparante: 2 "Prodotto sbagliato"
+        consecutivi invalidano l'URL → riparte la discovery.
+     2. FONTE PRIMARIA — la ricerca carte consulta l'indice in parallelo
+        alla TCG API: foto reale CM, URL verificato e prezzo NM pesato
+        arricchiscono i risultati; le carte censite (assenti dalla TCG API)
+        compaiono comunque.
+     3. PREZZI PESATI — rbWeightedConditions() ragiona sulle anomalie del
+        ladder (condizioni migliori più economiche, outlier singolo
+        venditore) e produce un prezzo "effettivo" per condizione.
+     4. FOTO PROPRIETARIA — la foto carta CM (più fedele della TCG API)
+        viene salvata su Storage via edge function cm-image-cache e
+        preferita ovunque nell'app.
+
+   VINCOLI ARCHITETTURA (pokemon-db.html): niente IIFE, solo var/function
+   a livello globale, fail-safe totale (ogni errore → comportamento legacy).
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Config ──────────────────────────────────────────────────────────── */
+var RB_IDX_LS_TTL_MS       = 1000 * 60 * 60 * 24 * 3;   // 3gg cache locale righe indice
+var RB_IDX_MISS_TTL_MS     = 1000 * 60 * 30;            // 30min cache "non in indice"
+var RB_IDX_IMG_THROTTLE_MS = 1000 * 60 * 60 * 24 * 30;  // ricattura foto max 1/mese
+var RB_IDX_OVERLAY_TIMEOUT = 1800;                      // ms max attesa overlay in ricerca
+
+/* Confidenza per metodo di risoluzione (più alto = più affidabile).
+   userscript > authoritative: i listing letti su IP residenziale sono la
+   prova più forte che la pagina è quella giusta E viva. */
+var RB_IDX_CONFIDENCE = {
+  'userscript': 92, 'authoritative': 90, 'discover': 85,
+  'direct': 80, 'variant-cascade': 75, 'census': 70, 'manual': 60
+};
+
+/* ── Chiave prodotto ─────────────────────────────────────────────────── */
+/* Identità della PAGINA prodotto CM: set+numero (lingua/condizione sono
+   solo filtri query-string). Fallback per carte censite senza set TCG:
+   chiave derivata dall'URL prodotto CM ('cm|set-slug|card-slug'). */
+function rbProductKey(o){
+  if(!o) return null;
+  try{
+    var setId = ((o.setId || o.set_id || (o.set && o.set.id)) || '').toString().toLowerCase().trim();
+    var num   = ((o.number || o.card_number) || '').toString().toLowerCase().trim().split('/')[0];
+    if(setId && setId !== 'cmcustom' && setId !== 'rbidx' && num){
+      return setId + '|' + num;
+    }
+    // Fallback: chiave da URL prodotto CM (carte censite / custom)
+    var u = o.cm_url || (o.cardmarket && o.cardmarket.url) || '';
+    var m = (u.split('?')[0] || '').match(/\/Products\/Singles\/([^\/?#]+)\/([^\/?#]+)/i);
+    if(m) return 'cm|' + m[1].toLowerCase() + '|' + m[2].toLowerCase();
+    // Ultimo fallback: set_name slug + numero
+    var sn = ((o.setName || o.set_name || (o.set && o.set.name)) || '').toString().toLowerCase().trim()
+              .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+    if(sn && num) return 'sn|' + sn + '|' + num;
+    return null;
+  }catch(e){ return null; }
+}
+window.rbProductKey = rbProductKey;
+
+/* ── Cache locale righe indice (mem + LS, riusa helper RB-PC) ────────── */
+var _rbIdxMem = {};
+function _rbIdxCacheGet(key){
+  try{
+    var m = _rbIdxMem[key];
+    if(m && (Date.now() - m.t) < (m.row ? RB_IDX_LS_TTL_MS : RB_IDX_MISS_TTL_MS)) return m;
+    if(typeof _rbPcLsGet === 'function'){
+      var ls = _rbPcLsGet('rb_idx_', key, RB_IDX_LS_TTL_MS);
+      if(ls){ _rbIdxMem[key] = { t: Date.now(), row: ls.row || null }; return _rbIdxMem[key]; }
+    }
+  }catch(e){}
+  return null;
+}
+function _rbIdxCacheSet(key, row){
+  try{
+    _rbIdxMem[key] = { t: Date.now(), row: row || null };
+    if(row && typeof _rbPcLsSet === 'function') _rbPcLsSet('rb_idx_', key, { row: row });
+  }catch(e){}
+}
+function _rbIdxCacheInvalidate(key){
+  try{ delete _rbIdxMem[key]; localStorage.removeItem('rb_idx_' + key); }catch(e){}
+}
+
+/* ── Lettura batch dall'indice (RPC rb_index_get) ────────────────────── */
+async function rbIndexGet(keys){
+  var out = {};
+  try{
+    if(!keys || !keys.length || typeof supa !== 'function') return out;
+    var missing = [];
+    keys.forEach(function(k){
+      if(!k) return;
+      var c = _rbIdxCacheGet(k);
+      if(c){ if(c.row) out[k] = c.row; }
+      else missing.push(k);
+    });
+    if(!missing.length) return out;
+    var dedupKey = 'idxget:' + missing.slice().sort().join(',');
+    var rows = await (typeof _rbPcDedup === 'function'
+      ? _rbPcDedup(dedupKey, function(){ return supa('POST','rpc/rb_index_get',{ p_keys: missing }); })
+      : supa('POST','rpc/rb_index_get',{ p_keys: missing }));
+    var byKey = {};
+    (rows || []).forEach(function(r){ if(r && r.product_key) byKey[r.product_key] = r; });
+    missing.forEach(function(k){
+      var r = byKey[k] || null;
+      _rbIdxCacheSet(k, r);
+      if(r) out[k] = r;
+    });
+  }catch(e){ try{ console.warn('[RB-IDX] rbIndexGet:', e && e.message); }catch(_){} }
+  return out;
+}
+window.rbIndexGet = rbIndexGet;
+
+/* ── URL CM verificato dall'indice (L0 della risoluzione) ────────────── */
+/* Ritorna l'URL prodotto SOLO se verificato e non invalidato (fail<2). */
+async function rbIndexCmUrl(opts){
+  try{
+    var key = rbProductKey(opts);
+    if(!key) return null;
+    var rows = await rbIndexGet([key]);
+    var r = rows[key];
+    if(r && r.cm_url && (+r.fail_count || 0) < 2 &&
+       typeof _isAuthoritativeCMUrl === 'function' && _isAuthoritativeCMUrl(r.cm_url)){
+      return r.cm_url.split('?')[0];
+    }
+  }catch(e){}
+  return null;
+}
+window.rbIndexCmUrl = rbIndexCmUrl;
+
+/* ── Persistenza risoluzione + dati reali (fire-and-forget) ──────────── */
+/* opts  = card-like (name/setId/number/setName/rarity/…)
+   cmUrl = URL prodotto che HA FUNZIONATO (null per update solo-prezzi)
+   method= chiave RB_IDX_CONFIDENCE
+   extra = { listings?, priceNm?, priceSource?, imageUrl?, cmProductId? } */
+function rbIndexRemember(opts, cmUrl, method, extra){
+  try{
+    if(!opts) return;
+    extra = extra || {};
+    var key = rbProductKey(opts);
+    // Per carte censite la chiave può derivare proprio dall'URL appena trovato
+    if(!key && cmUrl) key = rbProductKey({ cm_url: cmUrl, number: opts.number });
+    if(!key || typeof supa !== 'function') return;
+
+    var base = cmUrl ? cmUrl.split('?')[0] : null;
+    // Solo pagine PRODOTTO (≥3 segmenti dopo /Products/): le pagine set
+    // aprirebbero il set intero → stesse regole di _isAuthoritativeCMUrl.
+    if(base && typeof _isAuthoritativeCMUrl === 'function' && !_isAuthoritativeCMUrl(base)) base = null;
+    else if(base && base.indexOf('/Products/Singles/') < 0) base = null;
+
+    // Prezzo NM: raw + pesato dai listing reali, se presenti
+    var priceNm = (extra.priceNm != null && extra.priceNm > 0) ? Math.round(extra.priceNm*100)/100 : null;
+    var priceNmW = null;
+    try{
+      if(extra.listings && extra.listings.length && typeof _rbPcAggListings === 'function'){
+        var ladder = rbWeightedConditions(_rbPcAggListings(extra.listings));
+        var nm = null;
+        for(var i=0;i<ladder.length;i++){
+          if((ladder[i].condRank||9) <= 2 && !ladder[i].isFoil){ nm = ladder[i]; break; }
+        }
+        if(!nm && ladder.length) nm = ladder[0];
+        if(nm){
+          if(priceNm == null && nm.low1 != null) priceNm = nm.low1;
+          if(nm.priceW != null) priceNmW = nm.priceW;
+        }
+      }
+    }catch(e){}
+
+    var payload = {
+      name:     opts.name || null,
+      set_id:   (opts.setId || opts.set_id || (opts.set && opts.set.id)) || null,
+      set_name: (opts.setName || opts.set_name || (opts.set && opts.set.name)) || null,
+      number:   ((opts.number || opts.card_number || '') + '').split('/')[0] || null,
+      rarity:   opts.rarity || null,
+      cm_url:   base,
+      method:   base ? (method || 'direct') : null,
+      confidence: base ? (RB_IDX_CONFIDENCE[method] || 50) : 0,
+      cm_product_id: extra.cmProductId || null,
+      price_nm: priceNm,
+      price_nm_weighted: priceNmW,
+      price_source: (priceNm != null || priceNmW != null) ? (extra.priceSource || method || null) : null,
+      image_source_url: extra.imageUrl || null
+    };
+
+    supa('POST','rpc/rb_index_upsert', { p_product_key: key, p: payload })
+      .then(function(row){
+        if(row) _rbIdxCacheSet(key, row);
+        try{ console.log('[RB-IDX] remember', key, '·', method, base ? '· URL ok' : '· solo dati'); }catch(e){}
+      })
+      .catch(function(err){ try{ console.warn('[RB-IDX] upsert fallito:', err && err.message); }catch(e){} });
+
+    // Cattura foto (throttled): se conosciamo l'URL immagine CM, salviamola
+    if(extra.imageUrl) rbCaptureCardImage(key, extra.imageUrl, { name: opts.name });
+  }catch(e){ try{ console.warn('[RB-IDX] remember error:', e && e.message); }catch(_){} }
+}
+window.rbIndexRemember = rbIndexRemember;
+
+/* ── Segnala fallimento dell'URL indicizzato ("Prodotto sbagliato") ──── */
+function rbIndexReportFailure(opts, failedUrl){
+  try{
+    var key = rbProductKey(opts);
+    if(!key || !failedUrl || typeof supa !== 'function') return;
+    supa('POST','rpc/rb_index_report_failure', { p_product_key: key, p_url: failedUrl.split('?')[0] })
+      .then(function(n){
+        _rbIdxCacheInvalidate(key);
+        try{ console.warn('[RB-IDX] fallimento segnalato (', n, ') per', key); }catch(e){}
+      })
+      .catch(function(){});
+  }catch(e){}
+}
+window.rbIndexReportFailure = rbIndexReportFailure;
+
+/* ── Cattura foto carta → edge function cm-image-cache ───────────────── */
+/* Fire-and-forget, throttling 30gg per chiave (marker localStorage). */
+function rbCaptureCardImage(productKey, imageUrl, meta){
+  try{
+    if(!productKey || !imageUrl || imageUrl.indexOf('http') !== 0) return;
+    if(typeof SUPA_URL !== 'string' || typeof getHDR !== 'function') return;
+    // Solo immagini da CDN Cardmarket (la foto TCG API ce l'abbiamo già)
+    if(!/cardmarket\.com|product-images\.s3\.|cloudfront\.net/i.test(imageUrl)) return;
+    var marker = 'rb_idximg_' + productKey;
+    try{
+      var last = +(localStorage.getItem(marker) || 0);
+      if(last && (Date.now() - last) < RB_IDX_IMG_THROTTLE_MS) return;
+      localStorage.setItem(marker, String(Date.now()));
+    }catch(e){}
+    fetch(SUPA_URL + '/functions/v1/cm-image-cache', {
+      method:'POST', headers:getHDR(),
+      body: JSON.stringify({ product_key: productKey, image_url: imageUrl, name: (meta && meta.name) || undefined })
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if(d && d.ok && d.image_url){
+        _rbIdxCacheInvalidate(productKey);  // la prossima lettura porta la foto
+        try{ console.log('[RB-IDX] foto carta salvata:', d.image_url); }catch(e){}
+      }
+    }).catch(function(){ try{ localStorage.removeItem(marker); }catch(e){} });
+  }catch(e){}
+}
+window.rbCaptureCardImage = rbCaptureCardImage;
+
+/* ══════════════════════════════════════════════════════════════════════
+   PREZZI PESATI PER CONDIZIONE — rbWeightedConditions(conditions)
+   I prezzi e le condizioni su CM sono decisi dai VENDITORI: non è una
+   scienza esatta. Due anomalie reali e come le pesiamo:
+
+   1) OUTLIER-LOW — il minimo di una condizione è molto sotto al secondo
+      minimo (≤50% di low2, con ≥3 listing): tipicamente carta mal gradata,
+      scam o errore. Il prezzo effettivo è una blend 40% low1 + 60% low2
+      (non lo ignoriamo del tutto: a volte è solo un affare).
+
+   2) CAP-DA-MIGLIORE — una condizione PEGGIORE non può valere più di una
+      MIGLIORE già in vendita: nessun compratore razionale paga EX €12 se
+      NM è a €9. Il prezzo effettivo di ogni condizione è quindi cappato
+      al minimo robusto di tutte le condizioni migliori-o-uguali.
+
+   3) THIN — prezzo da ≤1 listing: flag informativo (fragile).
+
+   Input:  array conditions di _rbPcAggListings ({condition,condRank,low1,
+           low2,low3,avg,nListings,isFoil}).
+   Output: stesso array (copie) + priceW (prezzo effettivo) + wFlags[].
+   Funzione PURA, fail-safe: su input strano ritorna l'input con priceW=low1.
+   ══════════════════════════════════════════════════════════════════════ */
+function rbWeightedConditions(conditions){
+  try{
+    var conds = (conditions || []).map(function(c){ return Object.assign({}, c); });
+    // Gruppi separati normale/foil: il cap tra condizioni vale dentro lo
+    // stesso tipo di carta.
+    [false, true].forEach(function(foil){
+      var grp = conds.filter(function(c){ return !!c.isFoil === foil && c.low1 != null; })
+                     .sort(function(a,b){ return (a.condRank||99) - (b.condRank||99); });
+      var cap = null;  // minimo robusto visto sulle condizioni migliori
+      grp.forEach(function(c){
+        var flags = [];
+        var base = +c.low1;
+        // 1) outlier-low
+        if(c.low2 != null && (c.nListings||0) >= 3 && base <= (+c.low2) * 0.5){
+          base = Math.round((0.4*base + 0.6*(+c.low2)) * 100) / 100;
+          flags.push('outlier-low');
+        }
+        // 3) thin
+        if((c.nListings||0) <= 1) flags.push('thin');
+        // 2) cap dalla condizione migliore
+        if(cap != null && base > cap * 1.0001){
+          base = cap;
+          flags.push('capped');
+        }
+        c.priceW = Math.round(base * 100) / 100;
+        c.wFlags = flags;
+        cap = (cap == null) ? c.priceW : Math.min(cap, c.priceW);
+      });
+    });
+    return conds;
+  }catch(e){
+    return (conditions || []).map(function(c){
+      var x = Object.assign({}, c); x.priceW = c && c.low1 != null ? c.low1 : null; x.wFlags = []; return x;
+    });
+  }
+}
+window.rbWeightedConditions = rbWeightedConditions;
+
+/* ══════════════════════════════════════════════════════════════════════
+   RICERCA: indice come FONTE PRIMARIA + overlay sui risultati TCG API
+   ══════════════════════════════════════════════════════════════════════ */
+async function rbIndexSearch(name, number){
+  try{
+    if(!name || String(name).trim().length < 2 || typeof supa !== 'function') return [];
+    var rows = await supa('POST','rpc/rb_index_search', {
+      p_name: String(name).trim(),
+      p_number: number ? String(number).split('/')[0] : null,
+      p_limit: 30
+    });
+    (rows || []).forEach(function(r){ if(r && r.product_key) _rbIdxCacheSet(r.product_key, r); });
+    return rows || [];
+  }catch(e){ return []; }
+}
+window.rbIndexSearch = rbIndexSearch;
+
+/* Riga indice → card in forma TCG API (per carte assenti dalla TCG API). */
+function rbIndexToTcgShape(row){
+  var img = row.image_url || '';
+  return {
+    id: 'rbidx-' + row.product_key,
+    name: row.name || '?',
+    number: row.number || '',
+    rarity: row.rarity || '',
+    set: { id: row.set_id || 'rbidx', name: row.set_name || 'RareBlock Index' },
+    images: { small: img, large: img },
+    cardmarket: {
+      url: row.cm_url || '',
+      prices: (row.price_nm_weighted != null || row.price_nm != null)
+        ? { trendPrice: +(row.price_nm_weighted != null ? row.price_nm_weighted : row.price_nm) }
+        : {}
+    },
+    _source: 'rbindex',
+    _rbIdx: row
+  };
+}
+window.rbIndexToTcgShape = rbIndexToTcgShape;
+
+/* Overlay: arricchisce i risultati TCG API con i dati reali dell'indice e
+   appende le carte rb-only (censite). Timeout breve: la ricerca non deve
+   MAI rallentare per colpa dell'indice. Fail-safe totale. */
+async function rbIndexMerge(cards, idxPromise){
+  try{
+    // Copia difensiva: il ramo classico può passare l'array della cache di
+    // fetchCards (condiviso tra ricerche). L'overlay arricchisce gli oggetti
+    // carta (voluto), ma gli append delle carte rb-only vanno su una copia.
+    cards = (cards || []).slice();
+    if(!idxPromise) return cards;
+    var rows = await Promise.race([
+      idxPromise,
+      new Promise(function(r){ setTimeout(function(){ r(null); }, RB_IDX_OVERLAY_TIMEOUT); })
+    ]);
+    if(!rows || !rows.length) return cards;
+
+    var byKey = {};
+    rows.forEach(function(r){ if(r && r.product_key) byKey[r.product_key] = r; });
+
+    var seen = {};
+    cards.forEach(function(c){
+      var key = rbProductKey(c);
+      if(!key) return;
+      seen[key] = true;
+      var r = byKey[key];
+      if(!r) return;
+      // Foto proprietaria (CM) preferita — la TCG resta come backup
+      if(r.image_url){
+        c.images = c.images || {};
+        if(!c.images._rb){
+          c.images._tcg_small = c.images.small || null;
+          c.images._tcg_large = c.images.large || null;
+        }
+        c.images.small = r.image_url;
+        c.images.large = r.image_url;
+        c.images._rb = true;
+      }
+      // URL CM verificato → canale autoritativo esistente (se mancante/non valido)
+      if(r.cm_url && (+r.fail_count||0) < 2 && (+r.resolution_confidence||0) >= 70){
+        c.cardmarket = c.cardmarket || {};
+        if(typeof _isAuthoritativeCMUrl !== 'function' || !_isAuthoritativeCMUrl(c.cardmarket.url)){
+          c.cardmarket.url = r.cm_url;
+        }
+      }
+      c._rbIdx = r;
+    });
+
+    // Carte solo-indice (censite da CM, fuori dalla TCG API)
+    rows.forEach(function(r){
+      if(!r || !r.product_key || seen[r.product_key]) return;
+      // Evita doppioni logici: stesso set_id+number già nei risultati
+      cards.push(rbIndexToTcgShape(r));
+    });
+    return cards;
+  }catch(e){ return cards || []; }
+}
+window.rbIndexMerge = rbIndexMerge;
+</script>
+
 </body>
 </html><!-- v20260424 -->
