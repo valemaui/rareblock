@@ -8806,7 +8806,10 @@ window.colDeleteFromModal = colDeleteFromModal;
 // ─── Verifica prezzo CM live dal modal di edit collezione ────────────────────
 // Usa il record corrente in window._colEditing + i valori form attuali.
 // Risolve set_id automaticamente via cache TCG dentro fetchCmPriceLive.
-async function verifyPriceColEdit(){
+function verifyPriceColEdit(){
+  return rbCmUserAction(function(){ return _verifyPriceColEditCore(); });
+}
+async function _verifyPriceColEditCore(){
   const c = window._colEditing;
   if(!c){ alert('Nessuna carta in modifica'); return; }
   const btn = document.getElementById('colEmVerifyBtn');
@@ -10941,7 +10944,13 @@ function refreshEditPrice(){
 }
 
 // ─── Verifica prezzo CM live dal modal di edit preventivo ────────────────────
-async function verifyPriceEdit(opts){
+function verifyPriceEdit(opts){
+  // silent = auto-verify (cambio dropdown/carta): NIENTE scraping CM, solo
+  // cache+CMAPI. Non-silent = click "€": azione esplicita.
+  if(opts && opts.silent) return _verifyPriceEditCore(opts);
+  return rbCmUserAction(function(){ return _verifyPriceEditCore(opts); });
+}
+async function _verifyPriceEditCore(opts){
   opts = opts || {};
   var silent = !!opts.silent;
   if(editIdx===null || !activePrev){
@@ -12145,7 +12154,10 @@ async function applyVerifiedPrice(idx, price){
 // Supporta cancellazione e mostra progress overlay in basso a sinistra.
 var _alignState = null; // { cancelled: bool, running: bool }
 
-async function alignAllPrices(){
+function alignAllPrices(){
+  return rbCmUserAction(function(){ return _alignAllPricesCore(); });
+}
+async function _alignAllPricesCore(){
   if(!activePrev){ alert('Nessun preventivo attivo'); return; }
   const items = activePrev.items || [];
   if(!items.length){ alert('Preventivo vuoto'); return; }
@@ -12550,8 +12562,41 @@ function _vpCloseCMTab(tab){
 // cookie CM → niente Cloudflare, niente tab aperte, niente userscript.
 // Ritorna {html, image} o null (estensione assente/fetch fallito) — il
 // chiamante degrada al percorso server-side esistente.
+/* ══════════════════════════════════════════════════════════════════════
+   POLICY SCRAPING CARDMARKET — solo su azione esplicita dell'utente.
+   Le letture di pagine cardmarket.com (estensione Hunter su IP residenziale
+   o smooth-endpoint) avvengono SOLO dentro un'azione esplicita: click su
+   "€" verifica, "↗ CM", "Allinea prezzi", risoluzione ↗. MAI in automatico
+   (auto-verify silenzioso, harvest in background, sweep settimanale):
+   chiamate multiple non richieste sono il modo più rapido per farsi
+   blacklistare l'IP da Cardmarket.
+
+   Meccanismo: contatore di profondità. Gli entry point click-driven
+   avvolgono il proprio lavoro in rbCmUserAction(fn); i due chokepoint
+   (_vpExtFetchCmHtml, _vpServerSideCMScrape) rifiutano quando il contatore
+   è a zero. CMAPI (RapidAPI, fonte legittima a pagamento) NON è soggetta
+   alla policy: resta la fonte automatica per i prezzi NM.
+
+   Flag globale: mettere a false per ripristinare il comportamento
+   precedente (harvest/sweep/auto-verify con scraping).
+   ══════════════════════════════════════════════════════════════════════ */
+var RB_CM_SCRAPE_ON_CLICK_ONLY = true;
+var _rbCmActionDepth = 0;
+function rbCmScrapeAllowed(){
+  return !RB_CM_SCRAPE_ON_CLICK_ONLY || _rbCmActionDepth > 0;
+}
+async function rbCmUserAction(fn){
+  _rbCmActionDepth++;
+  try{ return await fn(); }
+  finally{ _rbCmActionDepth--; }
+}
+window.rbCmScrapeAllowed = rbCmScrapeAllowed;
+window.rbCmUserAction = rbCmUserAction;
+
 async function _vpExtFetchCmHtml(url){
   try{
+    // Policy: nessuna lettura CM dall'IP residenziale fuori da azioni esplicite
+    if(!rbCmScrapeAllowed()) return null;
     var ext = window.rbExtFetch;
     if(typeof ext !== 'function') return null;
     var ready = await ext.isReady().catch(function(){ return false; });
@@ -12571,6 +12616,13 @@ async function _vpExtFetchCmHtml(url){
 
 async function _vpServerSideCMScrape(cmUrl){
   try{
+    // ── POLICY: lettura pagina CM solo dentro un'azione esplicita (click).
+    //    blocked:false e policy:true → i chiamanti la trattano come "nessun
+    //    listing" senza innescare retry né sostituzioni di slug.
+    if(!rbCmScrapeAllowed()){
+      return {listings:[], error:'policy: lettura pagina CM solo su azione esplicita',
+              blocked:false, policy:true, viaExt:false, image:null};
+    }
     // ── EXT-FIRST: HTML dal browser (Hunter) → parsing server su provided_html.
     //    È il percorso AUTOMATICO primario: zero Cloudflare, zero tab, zero
     //    passaggi manuali. smooth-endpoint inietta l'HTML in cache e il parser
@@ -13030,6 +13082,10 @@ async function fetchCmPriceLive(opts){
   // l'apertura sarebbe comunque invasiva. Il fallback è lo scrape server-side.
   var _wantUserscript = !opts.silent && isDirect && (opts.useUserscript === true ||
       !/^(nm|near\s*mint|mint|m)$/i.test((cond || '').toString().trim()));
+  // POLICY: anche la tab userscript è una lettura CM dall'IP residenziale →
+  // consentita solo dentro un'azione esplicita (click), mai da flussi
+  // automatici (sweep, batch non interattivi).
+  if(_wantUserscript && typeof rbCmScrapeAllowed === 'function' && !rbCmScrapeAllowed()) _wantUserscript = false;
   // Con l'estensione Hunter pronta, lo scrape ext-first (sotto) legge la stessa
   // pagina in BACKGROUND (IP residenziale, zero tab): lo userscript a tab
   // diventa superfluo e invasivo → si usa solo come ripiego senza estensione.
@@ -13251,7 +13307,11 @@ function _rbPersistConditionPrices(c, listings, cmUrl){
   }catch(e){ try{ console.warn('[RareBlock] _rbPersistConditionPrices error:', e); }catch(_){} }
 }
 
-async function verifyPrice(idx){
+function verifyPrice(idx){
+  // Click sul "€" della tabella: azione esplicita → scraping CM consentito
+  return rbCmUserAction(function(){ return _verifyPriceCore(idx); });
+}
+async function _verifyPriceCore(idx){
   const btn = document.getElementById('vbtn_'+idx);
   try{
     if(!activePrev){ alert('Nessun preventivo attivo'); return; }
@@ -13800,7 +13860,12 @@ function slabShowResult(prefix, result){
     '<div class="slab-est-sources">'+srcChips+'</div>';
 }
 
-async function verifyPriceAdd(prefix, opts){
+function verifyPriceAdd(prefix, opts){
+  // silent = auto-verify: niente scraping CM (solo cache+CMAPI).
+  if(opts && opts.silent) return _verifyPriceAddCore(prefix, opts);
+  return rbCmUserAction(function(){ return _verifyPriceAddCore(prefix, opts); });
+}
+async function _verifyPriceAddCore(prefix, opts){
   opts = opts || {};
   // Silent mode (no overlay log popup, no alert): usato dall'auto-verify
   // triggerato al cambio di carta/dropdown. Il banner CM live sotto il pannello
@@ -14431,7 +14496,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.24';
+const APP_VERSION='6.25';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -20085,7 +20150,11 @@ async function rbWeeklyPriceSweep(opts){
 
     for(var i=0;i<jobs.length;i++){
       var j = jobs[i];
-      if(extReady) j.extLadder = true; // instrada su _vpServerSideCMScrape (ext-first)
+      // POLICY: il ladder via estensione (lettura pagine CM reali per ogni
+      // carta) solo se lo scraping automatico è consentito. Con la policy
+      // click-only attiva lo sweep resta su CMAPI (NM, fonte legittima):
+      // il ladder per-condizione si accumula dalle azioni esplicite.
+      if(extReady && (typeof rbCmScrapeAllowed !== 'function' || rbCmScrapeAllowed())) j.extLadder = true; // instrada su _vpServerSideCMScrape (ext-first)
       try{
         // extReady → ladder reale per-condizione dalla pagina CM (sessione utente).
         // !extReady → cascata CMAPI: prezzo NM server-side persistito comunque.
@@ -20820,6 +20889,11 @@ window.rbCaptureCardImage = rbCaptureCardImage;
 function rbIndexBackgroundHarvest(opts, cmUrl){
   try{
     if(!opts || !cmUrl) return;
+    // POLICY: l'harvest parte SOLO se lanciato dentro un'azione esplicita
+    // (es. click "€" che ha risposto via CMAPI). Mai da auto-verify/sweep:
+    // la decisione si prende ADESSO perché il lavoro vero è differito e
+    // il contatore azione sarà già tornato a zero.
+    if(typeof rbCmScrapeAllowed === 'function' && !rbCmScrapeAllowed()) return;
     if(typeof _isAuthoritativeCMUrl === 'function' && !_isAuthoritativeCMUrl(cmUrl)) return;
     var key = rbProductKey(opts);
     if(!key) return;
@@ -20851,8 +20925,10 @@ function rbIndexBackgroundHarvest(opts, cmUrl){
     // ladder per-condizione (card_key già distingue lingua/variante/1ª ed.).
     var canonical = (vari === 'Normal') && !fe && /^(ITA|IT)$/i.test(lang);
     // Solo con estensione pronta: in background NON vogliamo né tab né
-    // tentativi datacenter destinati al 403.
-    Promise.resolve().then(async function(){
+    // tentativi datacenter destinati al 403. Il lavoro differito gira quando
+    // l'azione click è già conclusa → riapre una finestra d'azione propria
+    // (l'autorizzazione è stata presa sopra, dentro il click).
+    var _harvestWork = async function(){
       try{
         if(!window.rbExtFetch || !(await window.rbExtFetch.isReady())) return;
         if(typeof _vpServerSideCMScrape !== 'function') return;
@@ -20877,6 +20953,9 @@ function rbIndexBackgroundHarvest(opts, cmUrl){
                           imageUrl: srv.image || null });
         try{ console.log('[RB-IDX] harvest background ok:', key, '(' + srv.listings.length + ' listing · ' + lang + '/' + vari + (fe ? '/1ªed' : '') + ')'); }catch(e){}
       }catch(e){ try{ localStorage.removeItem(marker); }catch(_){} }
+    };
+    Promise.resolve().then(function(){
+      return (typeof rbCmUserAction === 'function') ? rbCmUserAction(_harvestWork) : _harvestWork();
     });
   }catch(e){}
 }
@@ -21167,7 +21246,9 @@ function rbOpenCmResolved(card, cond, lang, variant, first1st){
         + '</div></body></html>');
     }catch(e){}
   }
-  rbCmResolveProductUrl(card, cond, lang, variant, first1st).then(function(r){
+  // Click "↗ CM": azione esplicita → la verifica via estensione è consentita
+  var _resolve = function(){ return rbCmResolveProductUrl(card, cond, lang, variant, first1st); };
+  (typeof rbCmUserAction === 'function' ? rbCmUserAction(_resolve) : _resolve()).then(function(r){
     if(w && !w.closed){ try{ w.location.href = r.url; return; }catch(e){} }
     try{ window.open(r.url, '_blank'); }catch(e){}
   }).catch(function(){
