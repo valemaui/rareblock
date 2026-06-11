@@ -9072,6 +9072,7 @@ async function _verifyPriceColEditCore(){
     if(res.smart && res.smart.outlierRemoved > 0)
       log.log('<span class="rb-i rb-i-warn"></span> '+res.smart.outlierRemoved+' outlier rimossi', 'warn');
     log.log('<span class="rb-i rb-i-check"></span> Prezzo ('+(res.source==='cmapi'?((res.smart&&res.smart.label)||'CMAPI'):'mediana top-3')+'): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
+    if(res.smart && res.smart.condEstimated){ log.log('<span class="rb-i rb-i-warn"></span> Stima da NM \u00d7 scala condizione \u00b7 NM \u20ac'+(res.smart.nmPrice!=null?res.smart.nmPrice.toFixed(2):'?')+'. CMAPI non espone il ladder per-condizione: per il prezzo reale usa userscript/estensione su IP residenziale.', 'warn'); }
 
     _saveCmStash('colEdit', {
       title: _stashTitle, headerInfo: _stashHeader,
@@ -11196,6 +11197,7 @@ async function _verifyPriceEditCore(opts){
       if(res.smart && res.smart.outlierRemoved > 0)
         log.log('<span class="rb-i rb-i-warn"></span> '+res.smart.outlierRemoved+' outlier rimossi', 'warn');
       log.log('<span class="rb-i rb-i-check"></span> Prezzo ('+(res.source==='cmapi'?((res.smart&&res.smart.label)||'CMAPI'):'mediana top-3')+'): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
+      if(res.smart && res.smart.condEstimated){ log.log('<span class="rb-i rb-i-warn"></span> Stima da NM \u00d7 scala condizione \u00b7 NM \u20ac'+(res.smart.nmPrice!=null?res.smart.nmPrice.toFixed(2):'?')+'. CMAPI non espone il ladder per-condizione: per il prezzo reale usa userscript/estensione su IP residenziale.', 'warn'); }
     }
 
     _saveCmStash('em', {
@@ -13154,7 +13156,16 @@ async function fetchCmPriceLive(opts){
   // NM/Mint perché CMAPI non espone il ladder Mint→Poor: per condizioni inferiori
   // si prosegue con lo scrape/userscript. Fail-safe totale: su errore/miss →
   // fallthrough silenzioso al percorso esistente.
-  var _cmaCondNM = /^(nm|near\s*mint|mint|m)$/i.test((cond || '').toString().trim());
+  // CMAPI espone solo l'NM/refPrice canonico, NON il ladder Mint→Poor. Dal
+  // datacenter Supabase però lo scrape della pagina CM è permanentemente
+  // bloccato (Cloudflare Enterprise WAF), quindi cascare allo scrape per le
+  // condizioni inferiori = fallimento garantito. Soluzione: per OGNI condizione
+  // nota (COND_FACTOR) deriviamo il prezzo dall'NM CMAPI applicando lo stesso
+  // moltiplicatore usato per le carte TCG (calcPrice). Risultato dichiarato come
+  // stima da NM × scala, non come listing reale. Solo l'estensione/userscript
+  // (IP residenziale) può leggere il ladder reale: lì _wantExtLadder salta tutto.
+  var _cmaCondFactor = (typeof COND_FACTOR === 'object') ? COND_FACTOR[(cond || 'NM').toString().toUpperCase()] : undefined;
+  var _cmaCondKnown  = (_cmaCondFactor !== undefined && _cmaCondFactor > 0);
   // CMAPI prezza la carta CANONICA (regular, unlimited): per Reverse Holo,
   // 1ª edizione o lingue fuori da IT/EN/JP il suo refPrice è SBAGLIATO
   // (è il prezzo della versione regular). In quei casi si salta la fast-lane
@@ -13168,7 +13179,7 @@ async function fetchCmPriceLive(opts){
   // dalla pagina CM reale (sessione utente, IP residenziale) e popola
   // cm_price_by_condition con il ladder completo. Senza estensione resta CMAPI.
   var _wantExtLadder = !!(opts && (opts.extLadder === true || opts.useUserscript === true));
-  if(setId && number && _cmaCondNM && _cmaVariantOk && _cmaLangOk && !_wantExtLadder && typeof SUPA_URL === 'string' && typeof getHDR === 'function'){
+  if(setId && number && _cmaCondKnown && _cmaVariantOk && _cmaLangOk && !_wantExtLadder && typeof SUPA_URL === 'string' && typeof getHDR === 'function'){
     try{
       var _tcgid = (setId + '-' + number).toString().toLowerCase();
       var _cmaCtrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
@@ -13183,19 +13194,32 @@ async function fetchCmPriceLive(opts){
       var _cma = await _cmaResp.json().catch(function(){ return null; });
       if(_cma && _cma.ok && _cma.match && _cma.match.refPrice != null){
         var _m = _cma.match;
-        var _cmaPrice = Math.round((+_m.refPrice) * 100) / 100;
+        var _cmaNm = Math.round((+_m.refPrice) * 100) / 100;
+        // NM canonico CMAPI → condizione richiesta via scala COND_FACTOR
+        // (stessa logica di calcPrice). NM ha factor 1.0 esatto → identità;
+        // MINT 1.15, GD 0.70, ecc. _cmaIsNm distingue il prezzo reale (NM)
+        // dalla stima derivata.
+        var _cmaIsNm  = (_cmaCondFactor === 1);
+        var _cmaPrice = Math.round(_cmaNm * _cmaCondFactor * 100) / 100;
         var _basisLbl = _m.refBasis === 'IT' ? 'NM Italia'
                       : _m.refBasis === '30d' ? 'media 30g'
                       : _m.refBasis === '7d' ? 'media 7g'
                       : 'NM globale';
+        var _cmaCondPct = (typeof COND_LABEL === 'object' && COND_LABEL[(cond||'NM').toString().toUpperCase()]) || '';
+        var _cmaLabel = _cmaIsNm
+          ? ('CMAPI \u00b7 ' + _basisLbl)
+          : ('CMAPI \u00b7 ' + _basisLbl + ' \u00d7 ' + (cond) + (_cmaCondPct?(' '+_cmaCondPct):'') + ' (stima)');
         attempts.push({ url:'(CMAPI)', kind:'CMAPI', count:1,
           error:'IT \u20ac'+(_m.lnm_it != null ? _m.lnm_it : '?')
               + ' \u00b7 30g \u20ac'+(_m.avg_30d != null ? _m.avg_30d : '?')
-              + ' \u00b7 basis='+(_m.refBasis || '?') });
-        // Indice RareBlock: registra il prezzo NM (niente URL: qui non è verificato)
+              + ' \u00b7 basis='+(_m.refBasis || '?')
+              + (_cmaIsNm ? '' : (' \u00b7 NM \u20ac'+_cmaNm.toFixed(2)+' \u00d7'+_cmaCondFactor+' \u2192 '+cond+' \u20ac'+_cmaPrice.toFixed(2))) });
+        // Indice RareBlock: registra il prezzo NM canonico (niente URL: qui non
+        // è verificato). NB: priceNm è sempre l'NM, mai il valore derivato per
+        // condizione, così l'indice resta condizione-agnostico.
         try{ if(typeof rbIndexRemember === 'function'){
           rbIndexRemember({ name:name, setId:setId, setName:setName, number:number, rarity:rarity },
-                          null, 'cmapi', { priceNm:_cmaPrice, priceSource:'cmapi' });
+                          null, 'cmapi', { priceNm:_cmaNm, priceSource:'cmapi' });
         } }catch(e){}
         // Raccolta in background (fire-and-forget, throttle 24h): con
         // l'estensione Hunter pronta completa ladder per-condizione, URL
@@ -13209,7 +13233,8 @@ async function fetchCmPriceLive(opts){
         return {
           ok:true, price:_cmaPrice, listings:[],
           smart:{ price:_cmaPrice, source:'cmapi', basis:_m.refBasis,
-                  avg30:_m.avg_30d, avg7:_m.avg_7d, label:'CMAPI \u00b7 '+_basisLbl },
+                  avg30:_m.avg_30d, avg7:_m.avg_7d, label:_cmaLabel,
+                  nmPrice:_cmaNm, condEstimated:!_cmaIsNm, condFactor:_cmaCondFactor },
           isDirect:isDirect, cmUrl:(cmUrl || _m.cmLink || _m.tcggoUrl), source:'cmapi', cmapi:_m, attempts:attempts
         };
       }
@@ -14753,7 +14778,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.32';
+const APP_VERSION='6.33';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
