@@ -888,6 +888,17 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .pq-cm-chip.smart{background:rgba(201,168,76,.18);color:var(--gold,#c9a84c);border-color:rgba(201,168,76,.45)}
 .pq-cm-chip.smart::before{content:'★\00a0';font-size:9px;opacity:.9}
 .pq-cm-chip.smart.applied{background:var(--gold,#c9a84c);color:var(--bg);border-color:var(--gold,#c9a84c);box-shadow:0 1px 4px rgba(201,168,76,.45)}
+/* Marcatore "venditore professionale" (omino Cardmarket) dentro il chip */
+.pq-cm-pro{display:inline-block;margin-right:3px;font-size:11px;line-height:1;opacity:.85;transform:translateY(.5px)}
+.pq-cm-chip.with-photo .pq-cm-pro{opacity:1}
+/* Azioni nell'header del banner (filtro pro + chiudi) */
+.pq-cm-head-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+/* Toggle "solo pro" */
+.pq-cm-proflt{font-family:var(--mono);font-size:10px;letter-spacing:.03em;padding:2px 7px;border-radius:10px;background:none;border:1px solid var(--border);color:var(--text-subtle);cursor:pointer;transition:all .15s;white-space:nowrap}
+.pq-cm-proflt:hover{color:var(--text-muted);border-color:var(--text-subtle)}
+.pq-cm-proflt.on{background:rgba(201,168,76,.16);color:var(--gold,#c9a84c);border-color:rgba(201,168,76,.5)}
+/* Tag "API" accanto all'etichetta-fonte quando il prezzo viene da CMAPI */
+.pq-cm-srctag{font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.05em;padding:1px 4px;margin-left:5px;border-radius:3px;background:rgba(88,166,255,.14);color:var(--accent);border:1px solid rgba(88,166,255,.32);vertical-align:middle}
 .pq-cm-footer{font-size:9px;color:var(--text-subtle);text-align:right;font-style:italic}
 
 
@@ -11057,7 +11068,7 @@ async function _verifyPriceEditCore(opts){
 
     // Banner CM live con chip prezzi (3 stati: con foto / senza / selezionato)
     if(typeof showAddVerifyFeedback === 'function'){
-      showAddVerifyFeedback('em', res.listings, res.price, cond, lang);
+      showAddVerifyFeedback('em', res.listings, res.price, cond, lang, res.source);
     }
 
     if(log) setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 2000);
@@ -14017,6 +14028,7 @@ async function _verifyPriceAddCore(prefix, opts){
       title: _stashTitle, headerInfo: _stashHeader,
       attempts: res.attempts, listings: listings, smart: res.smart,
       finalPrice: res.price, elapsedMs: elapsed, ok: true, cmUrl: res.cmUrl,
+      cond: cond, lang: lang, source: res.source,
     });
 
     // Applica il prezzo nel campo target
@@ -14045,7 +14057,7 @@ async function _verifyPriceAddCore(prefix, opts){
       if(silent) delete pcp.dataset.manual;
       else pcp.dataset.manual = '1';
     }
-    showAddVerifyFeedback(prefix, listings, bestPrice, cond, lang);
+    showAddVerifyFeedback(prefix, listings, bestPrice, cond, lang, res.source);
 
     // Auto-close overlay dopo successo (solo se log esiste e non ci sono
     // alternate-versioni/avvisi cliccabili da mostrare).
@@ -14070,24 +14082,30 @@ async function _verifyPriceAddCore(prefix, opts){
   }
 }
 
-function showAddVerifyFeedback(prefix, listingsOrPrices, applied, cond, lang){
-  // Backward compat: il chiamante pu\u00f2 passare sia listings (oggetti) sia prezzi (numeri)
+function showAddVerifyFeedback(prefix, listingsOrPrices, applied, cond, lang, source){
+  // Fonte del dato: 'cmapi' = prezzo NM da API RapidAPI (nessuna lettura della
+  // pagina Cardmarket). Solo lo scrape reale porta listing con foto/pro, quindi
+  // chip-foto, marcatore pro e filtro pro hanno senso SOLO fuori da CMAPI.
+  var isCmapi = (source === 'cmapi');
+  // Backward compat: il chiamante puo' passare sia listings (oggetti) sia prezzi (numeri)
   var hasObjects = listingsOrPrices && listingsOrPrices.length && typeof listingsOrPrices[0] === 'object';
   // Dedup prezzi (round 2 decimals) preservando ordine. Quando dedup, prendiamo
-  // il flag has_photo da QUALSIASI listing dello stesso prezzo abbia foto (cos\u00ec
-  // l'utente vede il chip verde-pieno anche se solo 1 dei venditori a quel
-  // prezzo ha allegato foto).
+  // i flag has_photo / is_professional da QUALSIASI listing dello stesso prezzo
+  // che li abbia (cosi' l'utente vede l'evidenziazione anche se solo 1 dei
+  // venditori a quel prezzo ha foto o e' professionale).
   var seen = {};
-  var unique = [];  // array di {price:number, has_photo:boolean}
+  var unique = [];  // array di {price, has_photo, is_professional}
   (listingsOrPrices||[]).forEach(function(item){
     var price = hasObjects ? item.price : item;
     var hp = hasObjects ? !!item.has_photo : false;
+    var pro = hasObjects ? !!item.is_professional : false;
     var k = Math.round(price*100)/100;
     if(!seen[k]){
-      seen[k] = { price: k, has_photo: hp };
+      seen[k] = { price: k, has_photo: hp, is_professional: pro };
       unique.push(seen[k]);
-    } else if(hp && !seen[k].has_photo){
-      seen[k].has_photo = true;
+    } else {
+      if(hp  && !seen[k].has_photo)       seen[k].has_photo = true;
+      if(pro && !seen[k].is_professional) seen[k].is_professional = true;
     }
   });
   var topUnique = unique.slice(0, 6);
@@ -14149,22 +14167,52 @@ function showAddVerifyFeedback(prefix, listingsOrPrices, applied, cond, lang){
     if(smartChip != null){
       chipsHtml += '<span class="pq-cm-chip smart applied" title="Mediana smart top-3 (non corrisponde a un listing diretto)" onclick="applyAddPrice(\''+prefix+'\','+smartChip.toFixed(2)+',this)">\u20ac'+smartChip.toFixed(2)+'</span>';
     }
-    chipsHtml += topUnique.map(function(u){
+    // Filtro "solo venditori professionali" (omino su Cardmarket): stato per
+    // banner, persistito in localStorage. Ha senso solo sui dati scrapati.
+    var proOnly = false;
+    try{ proOnly = localStorage.getItem('rb_cm_pro_only') === '1'; }catch(e){}
+    var proCount = topUnique.filter(function(u){ return u.is_professional; }).length;
+    var chipPool = (proOnly && !isCmapi && proCount > 0)
+      ? topUnique.filter(function(u){ return u.is_professional; })
+      : topUnique;
+    chipsHtml += chipPool.map(function(u){
       var isApplied = (u.price === appliedRounded) && !smartChip;
-      var title = u.has_photo ? 'Listing con foto della carta' : 'Listing senza foto';
-      return '<span class="'+chipClasses(u, isApplied, false)+'" title="'+title+'" onclick="applyAddPrice(\''+prefix+'\','+u.price.toFixed(2)+',this)">\u20ac'+u.price.toFixed(2)+'</span>';
+      var bits = [];
+      if(u.has_photo)        bits.push('foto del venditore');
+      if(u.is_professional)  bits.push('venditore professionale');
+      var title = bits.length ? bits.join(' \u00b7 ') : 'Listing privato senza foto';
+      var pro = u.is_professional ? '<span class="pq-cm-pro" title="Venditore professionale">\u2302</span>' : '';
+      return '<span class="'+chipClasses(u, isApplied, false)+'" title="'+title+'" onclick="applyAddPrice(\''+prefix+'\','+u.price.toFixed(2)+',this)">'+pro+'\u20ac'+u.price.toFixed(2)+'</span>';
     }).join('');
-    var hasPhotoCount = topUnique.filter(function(u){ return u.has_photo; }).length;
+    var hasPhotoCount = chipPool.filter(function(u){ return u.has_photo; }).length;
+
+    // Etichetta-fonte: NON dire "CM live" quando il dato viene da CMAPI (API,
+    // nessuna lettura della pagina). Solo lo scrape reale e' "CM live".
+    var srcLabel = isCmapi
+      ? 'CMAPI \u00b7 NM \u00b7 ' + lang + ' <span class="pq-cm-srctag" title="Prezzo di riferimento da API Cardmarket (RapidAPI) — nessuna pagina letta">API</span>'
+      : 'CM live \u00b7 ' + cond + ' \u00b7 ' + lang;
+    // Toggle solo-pro: visibile solo se ci sono dati scrapati con almeno un pro
+    var proToggle = (!isCmapi && proCount > 0)
+      ? '<button class="pq-cm-proflt'+(proOnly?' on':'')+'" onclick="rbToggleCmProOnly(\''+prefix+'\')" title="Mostra solo i prezzi dei venditori professionali (\u2302)">\u2302 solo pro</button>'
+      : '';
+
     el.innerHTML =
       '<div class="pq-cm-header">'
-        +'<span>CM live \u00b7 '+cond+' \u00b7 '+lang+'</span>'
-        +'<button class="pq-cm-close" onclick="document.getElementById(\''+feedbackId+'\').remove()" title="Chiudi"><span class="rb-i rb-i-x"></span></button>'
+        +'<span>'+srcLabel+'</span>'
+        +'<div class="pq-cm-head-actions">'
+          +proToggle
+          +'<button class="pq-cm-close" onclick="document.getElementById(\''+feedbackId+'\').remove()" title="Chiudi"><span class="rb-i rb-i-x"></span></button>'
+        +'</div>'
       +'</div>'
       +'<div class="pq-cm-prices">'+chipsHtml+'</div>'
       +'<div class="pq-cm-footer">'
-        +'Clicca un prezzo per applicarlo'
-        +(smartChip!=null?' \u00b7 \u2605 mediana smart top-3':'')
-        +(hasPhotoCount>0?' \u00b7 verde pieno = con foto del venditore':'')
+        +(isCmapi
+            ? 'Prezzo NM di riferimento \u00b7 clicca per applicarlo \u00b7 apri \u2197 o premi \u20ac per i listing reali'
+            : 'Clicca un prezzo per applicarlo'
+              +(smartChip!=null?' \u00b7 \u2605 mediana smart top-3':'')
+              +(hasPhotoCount>0?' \u00b7 verde pieno = con foto del venditore':'')
+              +(proCount>0?' \u00b7 \u2302 = venditore professionale':'')
+              +(proOnly && proCount>0?' \u00b7 <b>filtro pro attivo</b>':''))
       +'</div>'
       + _anomHtml;
     return;
@@ -14180,14 +14228,36 @@ function showAddVerifyFeedback(prefix, listingsOrPrices, applied, cond, lang){
     const form = document.getElementById(prefix==='q'?'quickAddForm':prefix==='s'?'selAddForm':'mform');
     if(form) form.appendChild(el);
   }
-  el.innerHTML = '<span style="font-size:10px;font-weight:600;color:var(--success);text-transform:uppercase;letter-spacing:.5px">CM live \u00b7 '+cond+' \u00b7 '+lang+'</span>'
+  el.innerHTML = '<span style="font-size:10px;font-weight:600;color:var(--success);text-transform:uppercase;letter-spacing:.5px">'+(isCmapi?('CMAPI \u00b7 NM \u00b7 '+lang):('CM live \u00b7 '+cond+' \u00b7 '+lang))+'</span>'
     + topUnique.map(function(u){
         var p = u.price;
-        return '<span style="font-size:12px;font-family:var(--mono);font-weight:600;padding:2px 8px;border-radius:4px;background:'+(p===appliedRounded?'var(--success)':'rgba(122,154,110,.1)')+';color:'+(p===appliedRounded?'var(--bg)':'var(--success)')+';cursor:pointer;border:1px solid rgba(122,154,110,.3)" onclick="applyAddPrice(\''+prefix+'\','+p.toFixed(2)+',this)">\u20ac'+p.toFixed(2)+'</span>';
+        var pro = u.is_professional ? '\u2302\u00a0' : '';
+        var bg = p===appliedRounded ? 'var(--success)' : (u.has_photo && !isCmapi ? 'var(--success)' : 'rgba(122,154,110,.1)');
+        var fg = (p===appliedRounded || (u.has_photo && !isCmapi)) ? 'var(--bg)' : 'var(--success)';
+        var tt = []; if(u.has_photo) tt.push('foto del venditore'); if(u.is_professional) tt.push('venditore professionale');
+        return '<span title="'+(tt.join(' \u00b7 ')||'listing privato')+'" style="font-size:12px;font-family:var(--mono);font-weight:600;padding:2px 8px;border-radius:4px;background:'+bg+';color:'+fg+';cursor:pointer;border:1px solid rgba(122,154,110,.3)" onclick="applyAddPrice(\''+prefix+'\','+p.toFixed(2)+',this)">'+pro+'\u20ac'+p.toFixed(2)+'</span>';
       }).join('')
-    + '<span style="font-size:10px;color:var(--text-subtle);margin-left:auto">Clicca per applicare \u00b7 <span style="cursor:pointer;color:var(--accent)" onclick="document.getElementById(\''+feedbackId+'\').remove()"><span class="rb-i rb-i-x"></span></span></span>'
+    + '<span style="font-size:10px;color:var(--text-subtle);margin-left:auto">'+(isCmapi?'prezzo NM API':'Clicca per applicare')+' \u00b7 <span style="cursor:pointer;color:var(--accent)" onclick="document.getElementById(\''+feedbackId+'\').remove()"><span class="rb-i rb-i-x"></span></span></span>'
     + _anomHtml;
 }
+
+// Toggle "solo venditori professionali" nel banner CM. Persiste la scelta e
+// re-renderizza il banner del prefix corrente riusando l'ultimo verify (stash):
+// nessuna nuova chiamata a Cardmarket, filtra solo i chip gia' in memoria.
+function rbToggleCmProOnly(prefix){
+  try{
+    var cur = localStorage.getItem('rb_cm_pro_only') === '1';
+    localStorage.setItem('rb_cm_pro_only', cur ? '0' : '1');
+  }catch(e){}
+  // Re-render dal verify gia' fatto (stash) — zero scraping.
+  try{
+    var st = _cmStash && _cmStash[prefix];
+    if(st && st.listings && st.listings.length){
+      showAddVerifyFeedback(prefix, st.listings, st.finalPrice, st.cond, st.lang, st.source);
+    }
+  }catch(e){ try{ console.warn('[CM pro-only] re-render:', e && e.message); }catch(_){} }
+}
+window.rbToggleCmProOnly = rbToggleCmProOnly;
 
 function applyAddPrice(prefix, price, el){
   // Evidenzia il chip selezionato. Gestisce sia i vecchi chip inline-styled
@@ -14496,7 +14566,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.25';
+const APP_VERSION='6.26';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
