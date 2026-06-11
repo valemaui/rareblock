@@ -12901,13 +12901,20 @@ async function fetchCmPriceLive(opts){
   // si prosegue con lo scrape/userscript. Fail-safe totale: su errore/miss →
   // fallthrough silenzioso al percorso esistente.
   var _cmaCondNM = /^(nm|near\s*mint|mint|m)$/i.test((cond || '').toString().trim());
+  // CMAPI prezza la carta CANONICA (regular, unlimited): per Reverse Holo,
+  // 1ª edizione o lingue fuori da IT/EN/JP il suo refPrice è SBAGLIATO
+  // (è il prezzo della versione regular). In quei casi si salta la fast-lane
+  // e si va allo scrape della pagina CM con i filtri reali
+  // (isReverseHolo/isFirstEd/language) — che è l'unica fonte corretta.
+  var _cmaVariantOk = (!variant || variant === 'Normal') && !first1st;
+  var _cmaLangOk    = /^(ITA|ENG|JPN|IT|EN|JP)$/i.test((lang || 'ITA').toString().trim());
   // Quando il chiamante vuole il LADDER reale per-condizione via estensione
   // (sweep settimanale con Hunter pronta), saltiamo la fast-lane CMAPI NM:
   // CMAPI dà solo l'NM, mentre l'ext-scrape legge l'intera scala Mint→Poor
   // dalla pagina CM reale (sessione utente, IP residenziale) e popola
   // cm_price_by_condition con il ladder completo. Senza estensione resta CMAPI.
   var _wantExtLadder = !!(opts && (opts.extLadder === true || opts.useUserscript === true));
-  if(setId && number && _cmaCondNM && !_wantExtLadder && typeof SUPA_URL === 'string' && typeof getHDR === 'function'){
+  if(setId && number && _cmaCondNM && _cmaVariantOk && _cmaLangOk && !_wantExtLadder && typeof SUPA_URL === 'string' && typeof getHDR === 'function'){
     try{
       var _tcgid = (setId + '-' + number).toString().toLowerCase();
       var _cmaCtrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
@@ -13029,9 +13036,15 @@ async function fetchCmPriceLive(opts){
         // Indice RareBlock: listing reali su IP residenziale = prova più forte.
         // Persiste URL verificato, prezzo pesato e (se presente) la foto carta.
         try{ if(typeof rbIndexRemember === 'function'){
+          // Prezzo "di prodotto" nell'indice SOLO dalla pagina canonica
+          // (Normal, no 1ª ed., ITA): le varianti RH/1ªed/lingue alimentano il
+          // ladder per-condizione (card_key dedicata), non il prezzo prodotto.
+          var _usCanon = (variant === 'Normal') && !first1st && /^(ITA|IT)$/i.test(lang || 'ITA');
           rbIndexRemember({ name:name, setId:setId, setName:setName, number:number, rarity:rarity },
                           cmUrl, 'userscript',
-                          { listings:_usRes.listings, priceSource:'userscript', imageUrl:_usRes.image || null });
+                          { listings: _usCanon ? _usRes.listings : null,
+                            priceSource: _usCanon ? 'userscript' : null,
+                            imageUrl:_usRes.image || null });
         } }catch(e){}
         attempts.push({ url:cmUrl, kind:'USERSCRIPT', count:1,
           error:_usRes.listings.length + ' listing reali (outlier rimossi: ' + ((_usRes.smart && _usRes.smart.outlierRemoved) || 0) + ')' });
@@ -13141,9 +13154,12 @@ async function fetchCmPriceLive(opts){
       if(_memKey && disc.baseUrl) _vpCmUrlRemember(_memKey, disc.baseUrl);
       // Indice RareBlock: l'URL scoperto vale per TUTTI i device/utenti
       try{ if(typeof rbIndexRemember === 'function'){
+        var _dcCanon = (variant === 'Normal') && !first1st && /^(ITA|IT)$/i.test(lang || 'ITA');
         rbIndexRemember({ name:name, setId:setId, setName:setName, number:number, rarity:rarity },
                         disc.baseUrl || disc.productUrl, 'discover',
-                        { listings: disc.listings, priceSource:'scrape', imageUrl: disc.image || null });
+                        { listings: _dcCanon ? disc.listings : null,
+                          priceSource: _dcCanon ? 'scrape' : null,
+                          imageUrl: disc.image || null });
       } }catch(e){}
     }
   }
@@ -13172,9 +13188,13 @@ async function fetchCmPriceLive(opts){
   // method: authoritative (URL TCG API), direct (slug primario/cascata) —
   // solo pagine prodotto: gli URL di ricerca vengono scartati a monte.
   try{ if(typeof rbIndexRemember === 'function' && isDirect){
+    // Prezzo "di prodotto" solo dalla pagina canonica (vedi sito userscript)
+    var _scCanon = (variant === 'Normal') && !first1st && /^(ITA|IT)$/i.test(lang || 'ITA');
     rbIndexRemember({ name:name, setId:setId, setName:setName, number:number, rarity:rarity },
                     cmUrl, (isAuthoritative ? 'authoritative' : 'direct'),
-                    { listings: srv.listings, priceSource:'scrape', imageUrl: srv.image || null });
+                    { listings: _scCanon ? srv.listings : null,
+                      priceSource: _scCanon ? 'scrape' : null,
+                      imageUrl: srv.image || null });
   } }catch(e){}
   var smart = smartCMPrice(srv.listings, cond);
   var price = (smart && smart.price > 0) ? smart.price : srv.listings[0].price;
@@ -19850,7 +19870,14 @@ async function rbGetConditionPrices(opts, flags){
     // L1.5 — CMAPI fast-lane (legittima, niente Cloudflare): prezzo NM IT + trend.
     // Se il ladder per-condizione e' gia' in DB lo unisco; altrimenti CMAPI da sola
     // basta per "quanto vale". Cache breve in memoria/LS sotto chiave dedicata.
-    var cm = await _rbPcFetchCmapi(opts);
+    // GATE CANONICO: CMAPI prezza la versione regular/unlimited IT-EN-JP. Per
+    // Reverse Holo, 1ª edizione o altre lingue il refPrice è quello della
+    // regular → SBAGLIATO: si salta la lane e si prosegue su DB → live (scrape
+    // con i filtri isReverseHolo/isFirstEd/language applicati alla pagina).
+    var _cmaEligible = (!opts.variant || opts.variant === 'Normal')
+                    && !opts.first_edition
+                    && /^(ITA|ENG|JPN|IT|EN|JP)$/i.test((opts.language || 'ITA').toString().trim());
+    var cm = _cmaEligible ? await _rbPcFetchCmapi(opts) : { ok:false, error:'fuori dal canone CMAPI (variante/1ª ed./lingua)' };
     if(cm && cm.ok){
       var ncm = _rbPcNormalizeCmapi(cardKey, opts, cm.cmapi);
       // Raccolta in background (estensione, throttle 24h): completa ladder
@@ -20750,38 +20777,59 @@ function rbIndexBackgroundHarvest(opts, cmUrl){
     if(typeof _isAuthoritativeCMUrl === 'function' && !_isAuthoritativeCMUrl(cmUrl)) return;
     var key = rbProductKey(opts);
     if(!key) return;
-    // Throttle 24h
-    var marker = 'rb_idxbg_' + key;
+    var lang = opts.language || 'ITA';
+    var vari = opts.variant || 'Normal';
+    var fe   = !!opts.first_edition;
+    // ALLINEA l'URL ai filtri REALI della carta (lingua/variante/1ª ed.):
+    // l'URL ricevuto può venire da CMAPI (cmLink senza filtri) o da un build
+    // a condizione diversa. minCondition=PO (tutte) → ladder COMPLETO
+    // Mint→Poor in una sola lettura. Senza questo allineamento si rischiava
+    // di persistere dati della versione regular sotto la chiave Reverse Holo.
+    var harvestUrl = cmUrl;
+    try{
+      if(typeof cmAppendParams === 'function'){
+        var aligned = cmAppendParams(cmUrl.split('?')[0], 'PO', lang, vari, fe);
+        if(aligned) harvestUrl = aligned;
+      }
+    }catch(e){}
+    // Throttle 24h PER VARIANTE: la stessa pagina prodotto con filtri diversi
+    // (lingua/RH/1ª ed.) è un dataset diverso → marker distinto.
+    var marker = 'rb_idxbg_' + key + '|' + lang + '|' + (vari === 'Reverse Holo' ? 'rh' : 'n') + '|' + (fe ? '1' : '0');
     try{
       var last = +(localStorage.getItem(marker) || 0);
       if(last && (Date.now() - last) < 1000*60*60*24) return;
       localStorage.setItem(marker, String(Date.now()));
     }catch(e){}
+    // Pagina CANONICA (Normal, no 1ª ed., ITA): solo da questa si aggiorna il
+    // prezzo NM "di prodotto" dell'indice. Le varianti alimentano SOLO il
+    // ladder per-condizione (card_key già distingue lingua/variante/1ª ed.).
+    var canonical = (vari === 'Normal') && !fe && /^(ITA|IT)$/i.test(lang);
     // Solo con estensione pronta: in background NON vogliamo né tab né
     // tentativi datacenter destinati al 403.
     Promise.resolve().then(async function(){
       try{
         if(!window.rbExtFetch || !(await window.rbExtFetch.isReady())) return;
         if(typeof _vpServerSideCMScrape !== 'function') return;
-        var srv = await _vpServerSideCMScrape(cmUrl);
+        var srv = await _vpServerSideCMScrape(harvestUrl);
         if(!srv || !srv.viaExt) return;                  // solo dati via estensione
-        if(srv.wrong_product){ rbIndexReportFailure(opts, cmUrl); return; }
+        if(srv.wrong_product){ rbIndexReportFailure(opts, harvestUrl); return; }
         if(!srv.listings || !srv.listings.length) return;
         // Ladder per-condizione → cm_price_by_condition (riusa il core)
         try{
           if(typeof _rbPersistConditionPrices === 'function'){
             _rbPersistConditionPrices({
               name: opts.name, set_id: opts.setId || opts.set_id,
-              number: opts.number, language: opts.language,
-              variant: opts.variant, first_edition: opts.first_edition
-            }, srv.listings, cmUrl);
+              number: opts.number, language: lang,
+              variant: vari, first_edition: fe
+            }, srv.listings, harvestUrl);
           }
         }catch(e){}
-        // Indice: URL verificato + prezzo pesato + foto
-        rbIndexRemember(opts, cmUrl, 'direct',
-                        { listings: srv.listings, priceSource:'ext-harvest',
+        // Indice: URL verificato + foto sempre; prezzo di prodotto SOLO canonico
+        rbIndexRemember(opts, harvestUrl, 'direct',
+                        { listings: canonical ? srv.listings : null,
+                          priceSource: canonical ? 'ext-harvest' : null,
                           imageUrl: srv.image || null });
-        try{ console.log('[RB-IDX] harvest background ok:', key, '(' + srv.listings.length + ' listing)'); }catch(e){}
+        try{ console.log('[RB-IDX] harvest background ok:', key, '(' + srv.listings.length + ' listing · ' + lang + '/' + vari + (fe ? '/1ªed' : '') + ')'); }catch(e){}
       }catch(e){ try{ localStorage.removeItem(marker); }catch(_){} }
     });
   }catch(e){}
