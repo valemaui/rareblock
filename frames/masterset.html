@@ -242,6 +242,32 @@ body{display:flex;flex-direction:column}
 .ms-step button:focus-visible{outline:none}
 /* override manuale varianti della carta */
 .ms-load-ovr{margin-top:14px;border-top:1px dashed var(--border);padding-top:12px}
+/* — Sezione Caveau (carico in collezione) nel modal di caricamento — */
+.ms-load-vault{margin-top:12px;border-top:1px dashed var(--border);padding-top:11px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ms-vault-btn{
+  display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+  font-size:11.5px;font-weight:600;padding:7px 14px;border-radius:7px;
+  color:var(--gold,#c9a84c);background:rgba(201,168,76,.08);
+  border:1px solid rgba(201,168,76,.38);transition:all .14s;font-family:inherit;
+}
+.ms-vault-btn:hover:not(:disabled){background:rgba(201,168,76,.16);border-color:var(--gold,#c9a84c)}
+.ms-vault-btn:disabled{opacity:.45;cursor:default}
+.ms-vault-done{
+  display:inline-flex;align-items:center;gap:6px;font-size:11px;
+  color:var(--success,#3fb950);font-family:var(--mono);
+}
+.ms-vault-hint{font-size:10.5px;color:var(--text-subtle);font-family:var(--mono)}
+/* — Toast minimale del frame — */
+.ms-toast{
+  position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(8px);
+  background:var(--surface2,#161b22);border:1px solid var(--border);color:var(--text);
+  padding:10px 18px;border-radius:9px;font-size:12.5px;z-index:9999;opacity:0;
+  transition:opacity .18s,transform .18s;box-shadow:0 8px 28px rgba(0,0,0,.45);
+  max-width:88vw;text-align:center;line-height:1.45;
+}
+.ms-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.ms-toast.ok{border-color:rgba(63,185,80,.5)}
+.ms-toast.err{border-color:rgba(248,81,73,.5)}
 .ms-ovr-head{display:flex;align-items:center;gap:8px;font-size:11px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
 .ms-ovr-head .ms-ovr-auto{margin-left:auto;font-size:10px;text-transform:none;letter-spacing:0;color:var(--accent);border:1px solid var(--accent-border,rgba(201,169,97,.32));border-radius:5px;padding:2px 8px;cursor:pointer;background:transparent}
 .ms-ovr-head .ms-ovr-auto:hover{background:var(--accent-soft,rgba(201,169,97,.12))}
@@ -314,6 +340,7 @@ body{display:flex;flex-direction:column}
           <div class="ms-topbar-meta" id="msTopMeta"></div>
           <span class="ms-loc-pill empty" id="msLocPill" onclick="msEditLocation()" title="Ubicazione fisica del masterset (raccoglitore, scatola, scaffale...)"><span class="ms-loc-ico">&#128205;</span><span id="msLocText">Ubicazione</span></span>
           <button class="btn btn-primary" onclick="msLoadOpen()" id="msLoadBtn" title="Caricamento sequenziale carte con foto grande e frecce">&#9654; Carica</button>
+          <button class="btn" onclick="msVaultBulk()" id="msVaultBulkBtn" title="Carica nel Caveau (collezione) tutte le copie possedute non ancora caricate" style="color:var(--gold,#c9a84c);border-color:rgba(201,168,76,.38)">&#11014; Caveau</button>
           <button class="btn" onclick="msShareOpen()" id="msShareBtn" title="Crea un link pubblico (sola lettura) della mancolista">&#128279; Condividi</button>
           <button class="btn" onclick="msToggleConditions()" id="msToggleCondBtn" title="Attiva/Disattiva tracciamento per condizione (NM/EX/GD/LP/PL/PO)">Condizioni</button>
           <button class="btn" onclick="msDupesOpen()" title="Lista delle carte in eccesso da scambiare">⇄ Doppie</button>
@@ -489,6 +516,7 @@ body{display:flex;flex-direction:column}
       <div class="ms-load-meta" id="msLoadMeta">—</div>
       <div class="ms-load-vars" id="msLoadVars"></div>
       <div class="ms-load-ovr" id="msLoadOvr"></div>
+      <div class="ms-load-vault" id="msLoadVault"></div>
     </div>
     <div class="ms-load-prog"><div class="ms-load-prog-fill" id="msLoadProgFill" style="width:0%"></div></div>
     <div class="ms-load-foot">
@@ -2249,6 +2277,7 @@ function msLoadRender(){
     try{ firstPlus.focus({preventScroll:true}); }catch(_e){ firstPlus.focus(); }
   } else _msLoadFocus=null;
   msLoadRenderOvr(ms, card);
+  msLoadRenderVault(ms, card);
 }
 // Editor override varianti della singola carta (correzione manuale del
 // rilevamento automatico, es. carta holo segnata come normal).
@@ -2306,6 +2335,166 @@ window.msLoadVarReset=function(){
   msRenderList(ls?ls.value:'');
 };
 function _msVSlug(v){ return String(v).replace(/[^A-Za-z0-9]/g,''); }
+
+// ─── CAVEAU: carico copie possedute nella collezione (tabella cards) ───
+// Ogni carta del masterset tiene in card.vault { "<variante>|<cond>": n } il
+// numero di copie GIÀ caricate nel Caveau. Il delta (qty − vault) è ciò che
+// resta da caricare: ricaricare è quindi idempotente e si può fare in ogni
+// momento, anche molto dopo il caricamento delle quantità.
+function msVaultLoaded(card, v, cond){
+  return (card && card.vault && card.vault[v+'|'+cond]) || 0;
+}
+function msVaultMark(card, v, cond, n){
+  if(!card.vault) card.vault = {};
+  var k = v+'|'+cond;
+  card.vault[k] = (card.vault[k]||0) + n;
+}
+// → [{v, cond, n}] copie possedute non ancora caricate nel Caveau
+function msVaultDeltas(card){
+  var out = [];
+  if(!card || !card.qty) return out;
+  for(var v in card.qty){
+    var q = card.qty[v];
+    if(q == null) continue;
+    if(typeof q === 'number'){
+      var d = q - msVaultLoaded(card, v, 'NM');
+      if(d > 0) out.push({v:v, cond:'NM', n:d});
+    } else {
+      for(var c in q){
+        var d2 = (q[c]||0) - msVaultLoaded(card, v, c);
+        if(d2 > 0) out.push({v:v, cond:c, n:d2});
+      }
+    }
+  }
+  return out;
+}
+function msVaultLoadedTotal(card){
+  if(!card || !card.vault) return 0;
+  var s = 0; for(var k in card.vault) s += (card.vault[k]||0);
+  return s;
+}
+// Riga `cards` (collezione) per un delta. Naming lingua/variante/condizione
+// è già allineato 1:1 con la collezione (ITA/ENG…, Normal/Holo…, NM/EX…).
+function msVaultRowPayload(ms, card, d, uid){
+  return {
+    name: card.name||'', set_name: ms.setName||'', card_number: card.num||'',
+    rarity: card.rarity||'', image_url: card.img||'', image_url_lg: card.imgLg||'',
+    condition: d.cond, language: ms.lang||'ITA', variant: d.v||'Normal',
+    first_edition: false, qty: d.n, buy_price: 0, sell_price: 0, cm_avg30: 0,
+    notes: 'Da Masterset · '+(ms.label||ms.setName||''),
+    is_manual: false, user_id: uid
+  };
+}
+function msToast(msg, cls){
+  var old = document.getElementById('msToastEl'); if(old) old.remove();
+  var el = document.createElement('div');
+  el.id = 'msToastEl'; el.className = 'ms-toast'+(cls?(' '+cls):'');
+  el.innerHTML = msg;
+  document.body.appendChild(el);
+  requestAnimationFrame(function(){ el.classList.add('show'); });
+  setTimeout(function(){ el.classList.remove('show'); setTimeout(function(){ el.remove(); }, 250); }, 3800);
+}
+// Refresh best-effort della collezione nel parent (stesso dominio).
+function _msVaultRefreshParent(){
+  try{ if(window.parent && window.parent !== window && typeof window.parent.loadCollection === 'function') window.parent.loadCollection(); }catch(_e){}
+}
+// Carica nel Caveau i delta della SINGOLA carta corrente del modal.
+window.msVaultCardLoad = async function(){
+  var ms = msData.find(function(m){ return m.id===msActive; }); if(!ms) return;
+  var card = _msLoadList[_msLoadIdx]; if(!card) return;
+  var deltas = msVaultDeltas(card);
+  if(!deltas.length) return;
+  var uid = (typeof getCurrentUserId==='function') ? getCurrentUserId() : null;
+  if(!uid){ msToast('Devi essere autenticato per caricare nel Caveau.', 'err'); return; }
+  var btn = document.getElementById('msVaultCardBtn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Caricamento…'; }
+  try{
+    var rows = deltas.map(function(d){ return msVaultRowPayload(ms, card, d, uid); });
+    await supa('POST', 'cards', rows);
+    deltas.forEach(function(d){ msVaultMark(card, d.v, d.cond, d.n); });
+    await msSave(msData);
+    var tot = deltas.reduce(function(a,d){ return a+d.n; }, 0);
+    msToast('&#11014; '+tot+' copi'+(tot===1?'a':'e')+' di <b>'+esc(card.name||'')+'</b> caricat'+(tot===1?'a':'e')+' nel Caveau.', 'ok');
+    _msVaultRefreshParent();
+  }catch(e){
+    msToast('Errore nel carico al Caveau: '+esc(e.message||String(e)), 'err');
+  }
+  msLoadRenderVault(ms, card);
+};
+// Carica nel Caveau TUTTI i delta del masterset attivo (bulk, a lotti).
+window.msVaultBulk = async function(){
+  var ms = msData.find(function(m){ return m.id===msActive; }); if(!ms) return;
+  var uid = (typeof getCurrentUserId==='function') ? getCurrentUserId() : null;
+  if(!uid){ msToast('Devi essere autenticato per caricare nel Caveau.', 'err'); return; }
+  // Riepilogo delta su tutto il masterset
+  var plan = []; // {card, deltas}
+  var copie = 0;
+  ms.cards.forEach(function(c){
+    var ds = msVaultDeltas(c);
+    if(ds.length){ plan.push({card:c, deltas:ds}); copie += ds.reduce(function(a,d){return a+d.n;},0); }
+  });
+  if(!plan.length){
+    msToast('Tutte le copie possedute di questo masterset sono già nel Caveau. &#10003;', 'ok');
+    return;
+  }
+  var nome = ms.label || ms.setName || 'masterset';
+  if(!confirm('Caricare nel Caveau (collezione) '+copie+' copie su '+plan.length+' carte di "'+nome+'"?\n\n'+
+    'Vengono caricate solo le copie non ancora presenti (operazione ripetibile in sicurezza). '+
+    'I valori di mercato partono da 0: usa "Aggiorna valori" nel Caveau per quotarle.')) return;
+  var btn = document.getElementById('msVaultBulkBtn');
+  if(btn){ btn.disabled = true; btn.innerHTML = '&#11014; Caricamento…'; }
+  // Espandi in righe e spedisci a lotti da 50, marcando il vault SOLO per i lotti riusciti.
+  var rows = [], refs = []; // refs[i] = {card, d} parallelo a rows
+  plan.forEach(function(p){
+    p.deltas.forEach(function(d){
+      rows.push(msVaultRowPayload(ms, p.card, d, uid));
+      refs.push({card:p.card, d:d});
+    });
+  });
+  var okCopies = 0, failed = 0;
+  for(var i=0; i<rows.length; i+=50){
+    var slice = rows.slice(i, i+50);
+    try{
+      await supa('POST', 'cards', slice);
+      refs.slice(i, i+50).forEach(function(r){ msVaultMark(r.card, r.d.v, r.d.cond, r.d.n); okCopies += r.d.n; });
+    }catch(e){ failed += slice.length; }
+  }
+  try{ await msSave(msData); }catch(_e){}
+  if(btn){ btn.disabled = false; btn.innerHTML = '&#11014; Caveau'; }
+  if(failed === 0){
+    msToast('&#11014; '+okCopies+' copie caricate nel Caveau. Apri il Caveau e usa "Aggiorna valori" per quotarle.', 'ok');
+  } else if(okCopies > 0){
+    msToast(okCopies+' copie caricate, '+failed+' righe non riuscite: riprova "&#11014; Caveau" per completare (carica solo il mancante).', 'err');
+  } else {
+    msToast('Carico al Caveau non riuscito: controlla la connessione e riprova.', 'err');
+  }
+  _msVaultRefreshParent();
+  // Riallinea il modal se aperto
+  var bg = document.getElementById('msLoadBg');
+  if(bg && bg.classList.contains('show')){
+    var card = _msLoadList[_msLoadIdx];
+    if(card) msLoadRenderVault(ms, card);
+  }
+};
+// Sezione "Caveau" del modal di caricamento per la carta corrente.
+function msLoadRenderVault(ms, card){
+  var box = document.getElementById('msLoadVault');
+  if(!box) return;
+  var deltas = msVaultDeltas(card);
+  var pending = deltas.reduce(function(a,d){ return a+d.n; }, 0);
+  var loaded = msVaultLoadedTotal(card);
+  if(!pending && !loaded){ box.innerHTML=''; box.style.display='none'; return; }
+  box.style.display = 'flex';
+  var html = '';
+  if(pending > 0){
+    html += '<button type="button" class="ms-vault-btn" id="msVaultCardBtn" onclick="msVaultCardLoad()" title="Crea le righe corrispondenti nella collezione (Caveau)">'+
+      '&#11014; Aggiungi '+pending+' al Caveau</button>';
+    if(loaded > 0) html += '<span class="ms-vault-hint">già nel Caveau: '+loaded+'</span>';
+  } else {
+    html += '<span class="ms-vault-done">&#10003; Nel Caveau ('+loaded+' copi'+(loaded===1?'a':'e')+')</span>';
+  }
+  box.innerHTML = html;
+}
 // Aggiorna in-place le quantità del modal di caricamento (preserva il focus,
 // indispensabile per la digitazione rapida con i tasti +/−).
 window.msLoadStep=function(cardId,v,cond,delta){
@@ -2336,6 +2525,7 @@ window.msLoadStep=function(cardId,v,cond,delta){
   }
   if(minusBtn) minusBtn.disabled=(newVal<=0);
   msUpdateStats(ms);
+  msLoadRenderVault(ms, card);
   var ls=document.getElementById('msListSearch');
   msRenderList(ls?ls.value:'');
 };

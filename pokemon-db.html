@@ -82,12 +82,13 @@
   display:flex;gap:10px;align-items:center;flex-wrap:wrap;flex-shrink:0;
   background:var(--surface);
 }
-.col-tb-search{position:relative;flex:1 1 240px;max-width:340px;min-width:180px}
+.col-tb-search{position:relative;flex:0 1 200px;min-width:150px;transition:flex-basis .2s ease}
+.col-tb-search:focus-within,.col-tb-search.has-value{flex-basis:300px}
 .col-tb-search input{
-  width:100%;padding:7px 28px 7px 32px;
+  width:100%;padding:6px 26px 6px 30px;
   background:var(--surface2);border:1px solid var(--border);
-  border-radius:var(--r);color:var(--text);font-size:13px;
-  font-family:var(--font);transition:border-color .12s;
+  border-radius:var(--r);color:var(--text);font-size:12.5px;
+  font-family:var(--font);transition:border-color .12s,background .12s;
 }
 .col-tb-search input:focus{outline:none;border-color:var(--border-focus);box-shadow:none}
 .col-tb-search-icon{
@@ -603,7 +604,9 @@
 
 @media(max-width:780px){
   .col-toolbar{padding:10px 12px;gap:6px}
-  .col-tb-search{flex:1 1 100%;max-width:none;order:-1}
+  .col-tb-search{flex:1 1 100%;max-width:none;min-width:0;order:10}
+  .col-tb-search:focus-within,.col-tb-search.has-value{flex-basis:100%}
+  .col-tb-spacer{display:none}
   .col-tb-grp{flex-wrap:wrap}
   .col-stats-bar{padding:0}
   .col-stat-cell{padding:8px 12px}
@@ -3082,7 +3085,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
   </div>
   <nav class="nav" data-mode="collector">
     <!-- ▸ Modalità COLLECTOR — gestione & analisi della propria collezione -->
-    <button class="nav-btn active" data-mode="collector" onclick="showTab('col')">Collezione</button>
+    <button class="nav-btn active" data-mode="collector" onclick="showTab('col')" title="Il tuo Caveau — le carte che possiedi">Caveau</button>
     <button class="nav-btn" data-mode="collector" onclick="showTab('prev')">Preventivi</button>
     <button class="nav-btn" data-mode="collector" onclick="showTab('ms')">Masterset</button>
     <button class="nav-btn" data-mode="collector" onclick="showTab('wish')"><span class="rb-i rb-i-star"></span> Wishlist</button>
@@ -3238,54 +3241,131 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 }
 .csub-add:hover{border-color:var(--accent-border);color:var(--accent)}
 
-/* ── Vista raggruppata ─────────────────────────────────────────────── */
+/* ── Vista raggruppata v2 — "Teche" ────────────────────────────────────
+   Due densità: rows (pochi gruppi ricchi: per Set/Rarità) e dense
+   (molti gruppi piccoli: per Pokémon) come griglia di teche compatte.
+   Il gruppo aperto in dense occupa l'intera riga (grid-column:1/-1). */
 .col-group-area{display:none;flex-direction:column;gap:12px;padding:16px 20px;overflow-y:auto;flex:1}
+/* il display grid/flex viene impostato inline da colRenderGrouped; qui solo il layout */
+.col-group-area.dense{
+  grid-template-columns:repeat(auto-fill,minmax(225px,1fr));
+  gap:10px;align-content:start;
+}
 .cgrp{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-  overflow:hidden;transition:border-color var(--t-fast);
+  overflow:hidden;transition:border-color var(--t-fast),box-shadow var(--t-fast);
 }
 .cgrp:hover{border-color:var(--border-strong)}
+.cgrp.open{border-color:var(--accent-border);box-shadow:0 0 0 1px var(--accent-border)}
+.col-group-area.dense .cgrp.open{grid-column:1/-1}
 .cgrp-head{
-  display:flex;align-items:center;gap:14px;padding:12px 16px;cursor:pointer;
+  display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;
   user-select:none;background:linear-gradient(180deg,var(--surface2),var(--surface));
+  flex-wrap:wrap;
 }
 .cgrp-head:hover{background:var(--surface2)}
 .cgrp-chevron{width:14px;height:14px;flex-shrink:0;color:var(--text-muted);transition:transform var(--t-med)}
 .cgrp.open .cgrp-chevron{transform:rotate(90deg)}
 .cgrp-mosaic{display:flex;flex-shrink:0}
 .cgrp-mosaic img,.cgrp-mosaic .cgrp-mph{
-  width:30px;height:42px;border-radius:3px;object-fit:cover;
-  border:1px solid var(--border);margin-left:-12px;background:var(--surface3);
+  width:32px;height:45px;border-radius:3px;object-fit:cover;
+  border:1px solid var(--border);margin-left:-13px;background:var(--surface3);
   box-shadow:0 2px 6px rgba(0,0,0,.4);
 }
 .cgrp-mosaic img:first-child,.cgrp-mosaic .cgrp-mph:first-child{margin-left:0}
 .cgrp-mph{display:flex;align-items:center;justify-content:center;font-size:13px}
-.cgrp-title{flex:1;min-width:0}
-.cgrp-title-name{font-size:14px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cgrp-title-meta{font-size:11px;color:var(--text-muted);font-family:var(--mono);margin-top:2px}
+.cgrp-title{flex:1 1 140px;min-width:0}
+.cgrp-title-name{
+  font-family:var(--serif);font-style:italic;font-weight:400;
+  font-size:16.5px;color:var(--text);letter-spacing:-.01em;line-height:1.15;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.cgrp-title-meta{font-size:10.5px;color:var(--text-muted);font-family:var(--mono);margin-top:3px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.cgrp-meta-graded{color:var(--gold,#c9a84c)}
 .cgrp-val{text-align:right;flex-shrink:0}
-.cgrp-val-num{font-family:var(--mono);font-size:15px;font-weight:600;color:var(--accent)}
+.cgrp-val-num{font-family:var(--mono);font-size:14.5px;font-weight:600;color:var(--accent)}
 .cgrp-val-lbl{font-size:9px;color:var(--text-subtle);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em}
 .cgrp-filterbtn{
   flex-shrink:0;background:var(--surface2);border:1px solid var(--border);
-  color:var(--text-muted);border-radius:var(--r);padding:5px 10px;font-size:10.5px;
+  color:var(--text-muted);border-radius:var(--r);padding:5px 8px;font-size:10.5px;
   font-family:var(--mono);cursor:pointer;transition:all var(--t-fast);display:flex;align-items:center;gap:5px;
 }
 .cgrp-filterbtn:hover{color:var(--accent);border-color:var(--accent-border)}
 .cgrp-body{display:none;padding:14px 16px;border-top:1px solid var(--border);
-  grid-template-columns:repeat(auto-fill,minmax(116px,1fr));gap:10px}
+  grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:11px}
 .cgrp.open .cgrp-body{display:grid}
+/* — Teca compatta (modalità dense, chiusa) — */
+.col-group-area.dense .cgrp:not(.open) .cgrp-head{
+  flex-direction:column;align-items:stretch;gap:9px;padding:13px 14px;height:100%;
+}
+.col-group-area.dense .cgrp:not(.open) .cgrp-chevron{display:none}
+.col-group-area.dense .cgrp:not(.open) .cgrp-mosaic{justify-content:center}
+.col-group-area.dense .cgrp:not(.open) .cgrp-mosaic img,
+.col-group-area.dense .cgrp:not(.open) .cgrp-mosaic .cgrp-mph{
+  width:46px;height:64px;border-radius:4px;margin-left:-17px;
+}
+.col-group-area.dense .cgrp:not(.open) .cgrp-mosaic img:first-child,
+.col-group-area.dense .cgrp:not(.open) .cgrp-mosaic .cgrp-mph:first-child{margin-left:0}
+.col-group-area.dense .cgrp:not(.open) .cgrp-title{flex:0 0 auto;text-align:center}
+.col-group-area.dense .cgrp:not(.open) .cgrp-title-meta{justify-content:center}
+.col-group-area.dense .cgrp:not(.open) .cgrp-val{
+  text-align:center;border-top:1px solid var(--border);padding-top:8px;margin-top:auto;
+  display:flex;align-items:baseline;justify-content:center;gap:6px;
+}
+.col-group-area.dense .cgrp:not(.open) .cgrp-filterbtn{display:none}
+/* — Mini-card nel corpo gruppo — */
 .cgrp-mini{
-  background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);
+  position:relative;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);
   overflow:hidden;cursor:pointer;transition:all var(--t-fast);
 }
-.cgrp-mini:hover{border-color:var(--accent-border);transform:translateY(-2px)}
-.cgrp-mini-img{aspect-ratio:.72;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:20px}
-.cgrp-mini-img img{width:100%;height:100%;object-fit:cover}
-.cgrp-mini-info{padding:6px 8px}
-.cgrp-mini-name{font-size:11px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cgrp-mini-sub{font-size:9.5px;color:var(--text-muted);font-family:var(--mono);display:flex;justify-content:space-between;margin-top:2px}
+.cgrp-mini:hover{border-color:var(--accent-border);transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.4)}
+.cgrp-mini.is-graded{
+  border-color:var(--gold,#c9a84c);
+  background:linear-gradient(160deg,rgba(201,168,76,.20),rgba(201,168,76,.05) 55%,var(--surface2));
+  box-shadow:inset 0 0 0 1px rgba(201,168,76,.25);
+}
+.cgrp-mini.is-graded:hover{box-shadow:0 6px 16px rgba(0,0,0,.4),0 0 0 1px var(--gold,#c9a84c)}
+.cgrp-mini-img{position:relative;aspect-ratio:.72;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:22px}
+.cgrp-mini-img img{width:100%;height:100%;object-fit:contain}
+.cgrp-mini-grade{
+  position:absolute;top:5px;right:5px;z-index:2;
+  background:linear-gradient(135deg,#c9a84c,#a8862e);color:#0d1117;
+  font-size:8.5px;font-weight:800;padding:2px 6px;border-radius:3px;
+  letter-spacing:.05em;font-family:var(--mono);box-shadow:0 2px 6px rgba(0,0,0,.45);
+}
+.cgrp-mini-cond{
+  position:absolute;bottom:5px;left:5px;z-index:2;
+  background:rgba(13,17,23,.88);backdrop-filter:blur(4px);
+  border:1px solid var(--border);color:var(--text);
+  font-size:8.5px;font-weight:600;font-family:var(--mono);
+  padding:1px 5px;border-radius:3px;letter-spacing:.05em;
+}
+.cgrp-mini-cond.c-mint,.cgrp-mini-cond.c-nm{border-color:rgba(63,185,80,.5);color:#7be08c}
+.cgrp-mini-cond.c-ex{border-color:rgba(88,166,255,.5);color:#82bbff}
+.cgrp-mini-cond.c-gd,.cgrp-mini-cond.c-lp{border-color:rgba(210,153,34,.5);color:#e6b94d}
+.cgrp-mini-cond.c-pl,.cgrp-mini-cond.c-po,.cgrp-mini-cond.c-inkalt{border-color:rgba(248,81,73,.5);color:#ff8a82}
+.cgrp-mini-qty{
+  position:absolute;bottom:5px;right:5px;z-index:2;
+  background:rgba(13,17,23,.88);border:1px solid var(--border);color:var(--text);
+  font-size:8.5px;font-weight:600;font-family:var(--mono);padding:1px 5px;border-radius:3px;
+}
+.cgrp-mini-info{padding:7px 9px}
+.cgrp-mini-name{font-size:11.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cgrp-mini-sub{font-size:9.5px;color:var(--text-muted);font-family:var(--mono);display:flex;justify-content:space-between;gap:6px;margin-top:2px}
 .cgrp-mini-price{color:var(--accent)}
+.cgrp-more{
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);color:var(--text-muted);font-size:12px;
+  background:transparent;border:1px dashed var(--border-strong);border-radius:var(--r);
+  cursor:pointer;min-height:80px;transition:all var(--t-fast);
+}
+.cgrp-more:hover{color:var(--accent);border-color:var(--accent-border)}
+@media(max-width:780px){
+  .col-group-area{padding:10px 12px;gap:8px}
+  .col-group-area.dense{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+  .cgrp-body{grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px;padding:10px 12px}
+  .cgrp-title-name{font-size:14.5px}
+}
 
 /* ── Batch update overlay (riusa look ao-* ma scoped) ──────────────── */
 .cbatch-ov{
@@ -3332,14 +3412,8 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
     <!-- ▸ Banner prestige (livello collezionista) -->
     <div class="cprest" id="colPrestige"></div>
 
-    <!-- ▸ Toolbar principale: ricerca, view toggle, ordinamento, azioni -->
+    <!-- ▸ Toolbar principale: filtri/viste/ordinamento → ricerca compatta → azioni -->
     <div class="col-toolbar">
-      <div class="col-tb-search" id="colSearchWrap">
-        <svg class="col-tb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input type="text" placeholder="Cerca per nome, set, numero o note…" id="searchCol" oninput="colOnSearchInput()" autocomplete="off"/>
-        <button class="col-tb-search-clear" type="button" onclick="colClearSearch()" title="Cancella">×</button>
-      </div>
-
       <div class="col-tb-grp">
         <button class="col-tb-btn" id="colFiltersToggle" onclick="colToggleFilters()" type="button" title="Filtri">
           <svg viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
@@ -3388,12 +3462,18 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 
       <div class="col-tb-spacer"></div>
 
+      <div class="col-tb-search" id="colSearchWrap">
+        <svg class="col-tb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input type="text" placeholder="Cerca nel Caveau…" id="searchCol" oninput="colOnSearchInput()" autocomplete="off"/>
+        <button class="col-tb-search-clear" type="button" onclick="colClearSearch()" title="Cancella">×</button>
+      </div>
+
       <div class="col-tb-grp">
         <button class="col-tb-btn" id="colBatchBtn" onclick="colBatchUpdatePrices()" type="button" title="Aggiorna il valore di mercato di tutte le carte TCG (Pokémon TCG API)">
           <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
           <span>Aggiorna valori</span>
         </button>
-        <button class="col-tb-btn col-tb-btn-share" onclick="colShareOpen()" type="button" title="Condividi collezione">
+        <button class="col-tb-btn col-tb-btn-share" onclick="colShareOpen()" type="button" title="Condividi il Caveau">
           <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
           <span>Condividi</span>
         </button>
@@ -3570,7 +3650,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
       <div class="col-add-panel" id="colAddPanel">
         <div class="col-add-header">
           <div class="cah-titles">
-            <span class="cah-title"><span class="cah-title-ic rb-i rb-i-diamond"></span>Nuova carta in collezione</span>
+            <span class="cah-title"><span class="cah-title-ic rb-i rb-i-diamond"></span>Nuova carta nel Caveau</span>
           </div>
           <div class="cah-search">
             <span class="cah-search-ic rb-i rb-i-search"></span>
@@ -4000,7 +4080,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
               Allinea prezzi
             </button>
             <button class="btn" onclick="exportPrevCSV()">CSV</button>
-            <button class="btn btn-success" onclick="openDealModal()" id="btnConfirmDeal" title="Converte il preventivo in acquisto e aggiunge le carte in collezione"><span class="rb-i rb-i-check"></span> Conferma Deal</button>
+            <button class="btn btn-success" onclick="openDealModal()" id="btnConfirmDeal" title="Converte il preventivo in acquisto e aggiunge le carte nel Caveau"><span class="rb-i rb-i-check"></span> Conferma Deal</button>
             <button class="btn btn-danger" onclick="deletePreventivo()">Elimina</button>
           </div>
         </div>
@@ -7659,8 +7739,18 @@ function colGroupKeyOf(c, dim){
   return (v==null || v==='') ? '—' : String(v);
 }
 
+// Sorgente immagine hi-res per lo zoom hover (slab → lg → hires derivata).
+function colLgSrc(c){
+  if(c.slab_image_front && String(c.slab_image_front).indexOf('http')===0) return c.slab_image_front;
+  if(c.image_url_lg && String(c.image_url_lg).indexOf('http')===0) return c.image_url_lg;
+  var u = String(c.image_url||'');
+  if(/images\.pokemontcg\.io\/.+\.png$/i.test(u) && u.indexOf('_hires')<0) return u.replace(/\.png$/i,'_hires.png');
+  return (u.indexOf('http')===0) ? u : '';
+}
+window.colLgSrc = colLgSrc;
+
 // Raggruppa + ordina i gruppi per valore decrescente. Restituisce array di
-// { key, cards, count, value, thumbs[] }.
+// { key, cards, count, value, thumbs[], gradedCount }.
 function colBuildGroups(cards, dim){
   var map = {};
   cards.forEach(function(c){
@@ -7672,57 +7762,96 @@ function colBuildGroups(cards, dim){
     var arr = map[k];
     var value = colCollectionValue(arr);
     var count = arr.reduce(function(a,c){ return a+(parseInt(c.qty)||1); }, 0);
+    var gradedCount = arr.filter(function(c){ return !!c.graded; }).length;
     var thumbs = arr.filter(function(c){ return c.image_url && String(c.image_url).indexOf('http')===0; })
-                    .slice(0,5).map(function(c){ return c.image_url; });
-    return { key:k, cards:arr, count:count, value:value, thumbs:thumbs };
+                    .slice(0,4).map(function(c){ return c.image_url; });
+    return { key:k, cards:arr, count:count, value:value, thumbs:thumbs, gradedCount:gradedCount };
   });
   groups.sort(function(a,b){ return b.value - a.value || b.count - a.count; });
   return groups;
 }
+
+// HTML di una mini-card del gruppo (con badge grade/condizione/qty).
+function colGroupMiniHtml(c){
+  var slabFront = (c.slab_image_front && String(c.slab_image_front).indexOf('http')===0) ? c.slab_image_front : '';
+  var thumbSrc  = slabFront || ((c.image_url && String(c.image_url).indexOf('http')===0) ? c.image_url : '');
+  var img = thumbSrc ? '<img src="'+escapeHtml(thumbSrc)+'" loading="lazy" alt=""/>' : '🃏';
+  var cm = parseFloat(c.cm_avg30)||0;
+  var sp = parseFloat(c.sell_price)||0;
+  var price = cm>0?cm:sp;
+  var isGraded = !!c.graded;
+  var gradeBadge = isGraded
+    ? '<span class="cgrp-mini-grade">'+escapeHtml((c.grade_company||'')+(c.grade_value?(' '+c.grade_value):''))+'</span>' : '';
+  var condCls = 'c-'+String(c.condition||'').toLowerCase().replace('/','');
+  var condChip = c.condition ? '<span class="cgrp-mini-cond '+condCls+'">'+escapeHtml(c.condition)+'</span>' : '';
+  var qty = parseInt(c.qty)||1;
+  var qtyChip = qty>1 ? '<span class="cgrp-mini-qty">×'+qty+'</span>' : '';
+  return '<div class="cgrp-mini'+(isGraded?' is-graded':'')+'" data-cid="'+escapeHtml(c.id)+'" onclick="openColEditModal(\''+c.id+'\')" title="'+escapeHtml(c.name||'')+'">'+
+    '<div class="cgrp-mini-img">'+img+gradeBadge+condChip+qtyChip+'</div>'+
+    '<div class="cgrp-mini-info"><div class="cgrp-mini-name">'+escapeHtml(c.name||'—')+'</div>'+
+    '<div class="cgrp-mini-sub"><span>'+(c.card_number?('#'+escapeHtml(c.card_number)):'—')+'</span>'+
+    '<span class="cgrp-mini-price">'+(price>0?('€'+price.toFixed(0)):'—')+'</span></div></div></div>';
+}
+
+// Dopo un render, aggancia lo zoom hover hi-res alle mini-card visibili.
+function colAttachGroupZoom(host){
+  if(typeof addZoom!=='function') return;
+  var byId = {};
+  (window.colData||[]).forEach(function(c){ byId[c.id]=c; });
+  host.querySelectorAll('.cgrp-mini[data-cid]').forEach(function(el){
+    var c = byId[el.getAttribute('data-cid')];
+    if(!c) return;
+    var lg = colLgSrc(c);
+    var img = el.querySelector('.cgrp-mini-img img');
+    if(img && lg) addZoom(img, lg);
+  });
+}
+
+var COL_GROUP_MINI_CAP = 24; // mini mostrate per gruppo prima del "+N altre"
 
 function colRenderGrouped(cards){
   var host = document.getElementById('colGroupArea');
   if(!host) return;
   var dim = colState.groupBy || 'set_name';
   if(!cards.length){
+    host.classList.remove('dense');
+    host.style.display='flex';
     host.innerHTML = '<div class="col-empty"><div class="col-empty-icon">🃏</div>'+
-      '<div class="col-empty-title">'+(window.colData.length?'Nessuna carta corrisponde ai filtri':'La tua collezione è vuota')+'</div>'+
+      '<div class="col-empty-title">'+(window.colData.length?'Nessuna carta corrisponde ai filtri':'Il tuo Caveau è vuoto')+'</div>'+
       '<div class="col-empty-hint">'+(window.colData.length?'Modifica o azzera i filtri attivi.':'Aggiungi la tua prima carta.')+'</div></div>';
     return;
   }
   var groups = colBuildGroups(cards, dim);
   var dimLabel = COL_GROUP_LABELS[dim] || dim;
+  // Modalità "teche" dense: tanti gruppi piccoli (tipico raggruppando per
+  // Pokémon) → griglia di teche compatte invece di righe a tutta larghezza,
+  // così i nomi restano sempre leggibili.
+  var avg = cards.length / groups.length;
+  var dense = (dim==='name') || (groups.length >= 12 && avg <= 4);
+  host.classList.toggle('dense', dense);
+  host.style.display = dense ? 'grid' : 'flex';
   host.innerHTML = groups.map(function(g, gi){
     var mosaic = g.thumbs.map(function(u){ return '<img src="'+escapeHtml(u)+'" loading="lazy" alt=""/>'; }).join('');
     if(!mosaic) mosaic = '<div class="cgrp-mph">🃏</div>';
-    // primi 12 mini-card; se di più, mostra contatore "+N"
-    var minis = g.cards.slice(0,12).map(function(c){
-      var img = (c.image_url && String(c.image_url).indexOf('http')===0)
-        ? '<img src="'+escapeHtml(c.image_url)+'" loading="lazy" alt=""/>' : '🃏';
-      var cm = parseFloat(c.cm_avg30)||0;
-      var sp = parseFloat(c.sell_price)||0;
-      var price = cm>0?cm:sp;
-      return '<div class="cgrp-mini" onclick="openColEditModal(\''+c.id+'\')" title="'+escapeHtml(c.name||'')+'">'+
-        '<div class="cgrp-mini-img">'+img+'</div>'+
-        '<div class="cgrp-mini-info"><div class="cgrp-mini-name">'+escapeHtml(c.name||'—')+'</div>'+
-        '<div class="cgrp-mini-sub"><span>'+(c.card_number?('#'+escapeHtml(c.card_number)):'—')+'</span>'+
-        '<span class="cgrp-mini-price">'+(price>0?('€'+price.toFixed(0)):'—')+'</span></div></div></div>';
-    }).join('');
-    var moreBadge = g.cards.length>12 ? '<div class="cgrp-mini" style="display:flex;align-items:center;justify-content:center;font-family:var(--mono);color:var(--text-muted);font-size:12px" onclick="colGroupFilterTo(\''+dim+'\',this.dataset.k)" data-k="'+escapeHtml(g.key)+'">+'+(g.cards.length-12)+' altre →</div>' : '';
-    var openCls = gi===0 ? ' open' : '';
+    var minis = g.cards.slice(0,COL_GROUP_MINI_CAP).map(colGroupMiniHtml).join('');
+    var moreBadge = g.cards.length>COL_GROUP_MINI_CAP
+      ? '<div class="cgrp-more" onclick="event.stopPropagation();colGroupFilterTo(\''+dim+'\',this.dataset.k)" data-k="'+escapeHtml(g.key)+'">+'+(g.cards.length-COL_GROUP_MINI_CAP)+' altre →</div>' : '';
+    var openCls = (!dense && gi===0) ? ' open' : '';
+    var gradedMeta = g.gradedCount>0 ? '<span class="cgrp-meta-graded">◆ '+g.gradedCount+' gradat'+(g.gradedCount===1?'a':'e')+'</span>' : '';
     return '<div class="cgrp'+openCls+'">'+
       '<div class="cgrp-head" onclick="colToggleGroup(this.parentNode)">'+
         '<svg class="cgrp-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'+
         '<div class="cgrp-mosaic">'+mosaic+'</div>'+
-        '<div class="cgrp-title"><div class="cgrp-title-name">'+escapeHtml(g.key)+'</div>'+
-          '<div class="cgrp-title-meta">'+g.count+' cart'+(g.count===1?'a':'e')+' · '+dimLabel+'</div></div>'+
+        '<div class="cgrp-title"><div class="cgrp-title-name" title="'+escapeHtml(g.key)+'">'+escapeHtml(g.key)+'</div>'+
+          '<div class="cgrp-title-meta"><span>'+g.count+' cart'+(g.count===1?'a':'e')+' · '+dimLabel+'</span>'+gradedMeta+'</div></div>'+
         '<div class="cgrp-val"><div class="cgrp-val-num">'+colFmtEurFull(g.value)+'</div><div class="cgrp-val-lbl">valore</div></div>'+
-        '<button class="cgrp-filterbtn" onclick="event.stopPropagation();colGroupFilterTo(\''+dim+'\',this.dataset.k)" data-k="'+escapeHtml(g.key)+'" title="Filtra la collezione su questo gruppo">'+
+        '<button class="cgrp-filterbtn" onclick="event.stopPropagation();colGroupFilterTo(\''+dim+'\',this.dataset.k)" data-k="'+escapeHtml(g.key)+'" title="Filtra il Caveau su questo gruppo">'+
           '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> isola</button>'+
       '</div>'+
       '<div class="cgrp-body">'+minis+moreBadge+'</div>'+
     '</div>';
   }).join('');
+  colAttachGroupZoom(host);
 }
 
 function colToggleGroup(el){ if(el) el.classList.toggle('open'); }
@@ -8111,7 +8240,7 @@ function colRenderGrid(cards){
   if(!cards.length){
     host.innerHTML = '<div class="col-empty" style="grid-column:1/-1">' +
       '<div class="col-empty-icon">🃏</div>' +
-      '<div class="col-empty-title">'+(window.colData.length?'Nessuna carta corrisponde ai filtri':'La tua collezione è vuota')+'</div>' +
+      '<div class="col-empty-title">'+(window.colData.length?'Nessuna carta corrisponde ai filtri':'Il tuo Caveau è vuoto')+'</div>' +
       '<div class="col-empty-hint">'+(window.colData.length?'Prova a modificare o azzerare i filtri attivi.':'Aggiungi la tua prima carta cliccando "+ Aggiungi carta" in alto a destra.')+'</div>' +
       '</div>';
     return;
@@ -8201,7 +8330,7 @@ function colRenderList(cards){
     body.innerHTML = '<tr><td colspan="11" style="padding:0">'+
       '<div class="col-empty">'+
         '<div class="col-empty-icon">🃏</div>'+
-        '<div class="col-empty-title">'+(window.colData.length?'Nessuna carta corrisponde ai filtri':'La tua collezione è vuota')+'</div>'+
+        '<div class="col-empty-title">'+(window.colData.length?'Nessuna carta corrisponde ai filtri':'Il tuo Caveau è vuoto')+'</div>'+
       '</div>'+
     '</td></tr>';
     return;
@@ -10039,7 +10168,7 @@ function openPreventivo(idx){
       btnDeal.innerHTML='<span class="rb-i rb-i-check"></span> Conferma Deal';
       btnDeal.classList.add('btn-success');
       btnDeal.style.opacity='';
-      btnDeal.title='Converte il preventivo in acquisto e aggiunge le carte in collezione';
+      btnDeal.title='Converte il preventivo in acquisto e aggiunge le carte nel Caveau';
     }
   }
   renderPrevTable();renderPrevList();
@@ -10449,7 +10578,7 @@ async function confirmDealConversion(){
     setTimeout(function(){
       closeDealModal();
       const missingCols=(_prevSchemaStatus&&_prevSchemaStatus.missing)||[];
-      const schemaWarn=missingCols.length?('Le colonne '+missingCols.join(', ')+' non sono presenti nella tabella preventivi. Le carte sono state aggiunte correttamente in collezione, ma lo stato "confermato" del preventivo non è stato persistito. Esegui le ALTER TABLE mostrate nel banner in alto e riconferma il deal per salvare lo storico.'):'';
+      const schemaWarn=missingCols.length?('Le colonne '+missingCols.join(', ')+' non sono presenti nella tabella preventivi. Le carte sono state aggiunte correttamente nel Caveau, ma lo stato "confermato" del preventivo non è stato persistito. Esegui le ALTER TABLE mostrate nel banner in alto e riconferma il deal per salvare lo storico.'):'';
       rbSuccessModal({
         title: 'Deal confermato',
         icon: 'check',
@@ -10461,7 +10590,7 @@ async function confirmDealConversion(){
           { label:'Coefficiente', value:coef.toFixed(4), accent:true },
           { label:'Paghi per ogni € di CM', value:'€'+coef.toFixed(2) }
         ],
-        note: 'Per vedere le nuove carte nella tab "Collezione", assicurati che i filtri (Set, Condizione, Lingua, ricerca) siano vuoti — altrimenti potrebbero risultare nascoste.',
+        note: 'Per vedere le nuove carte nella tab "Caveau", assicurati che i filtri (Set, Condizione, Lingua, ricerca) siano vuoti — altrimenti potrebbero risultare nascoste.',
         warn: schemaWarn || null
       });
     },800);
@@ -14622,7 +14751,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.30';
+const APP_VERSION='6.31';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -16295,7 +16424,7 @@ function scReset(){
 
 <!-- TAB MASTERSET -->
 <div class="tab" id="tab-ms" style="display:none;flex-direction:column;overflow:hidden">
-  <iframe id="msFrame" src="frames/masterset.html"
+  <iframe id="msFrame" src="frames/masterset.html?v=20260611-vault"
           title="Masterset"
           style="flex:1;width:100%;border:0;background:var(--bg);display:block"></iframe>
 </div>
