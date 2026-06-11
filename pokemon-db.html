@@ -20321,6 +20321,143 @@ async function rbWeeklyPriceSweep(opts){
 }
 window.rbWeeklyPriceSweep = rbWeeklyPriceSweep;
 
+/* ═══════════════════════════════════════════════════════════════════════
+   LAUNCHER UI — "Indicizza tutta la collezione"
+   Overlay brand-styled con barra di avanzamento, ETA, contatori e log live.
+   Avvolge rbWeeklyPriceSweep esponendolo come azione un-click. Il bottone
+   fluttuante compare solo nel tab Listino. Con Hunter pronta indicizza il
+   ladder reale per-condizione + URL verificati + foto; senza, NM via CMAPI.
+   ═══════════════════════════════════════════════════════════════════════ */
+function rbSweepLauncherOpen(){
+  if(document.getElementById('rbSweepOv')) return;
+  var total = Array.isArray(window.colData) ? window.colData.length : 0;
+  var ov = document.createElement('div');
+  ov.id = 'rbSweepOv';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(6,9,14,.78);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;font-family:var(--font,system-ui)';
+  ov.innerHTML =
+    '<div style="width:min(560px,92vw);background:var(--card,#0f141b);border:1px solid rgba(201,168,76,.35);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.6);overflow:hidden">'
+    + '<div style="padding:18px 22px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:space-between">'
+    +   '<div><div style="font-family:Fraunces,Georgia,serif;font-size:19px;color:var(--gold,#c9a84c)">Indicizza la collezione</div>'
+    +   '<div style="font-size:12px;color:#8a857a;margin-top:3px">Prezzi reali per-condizione, URL Cardmarket verificati e foto \u2192 DB proprietario</div></div>'
+    +   '<button id="rbSwClose" style="background:none;border:0;color:#8a857a;font-size:24px;cursor:pointer;line-height:1">\u00d7</button>'
+    + '</div>'
+    + '<div id="rbSwBody" style="padding:22px">'
+    +   '<div id="rbSwInfo" style="font-size:13px;color:#c9c4ba;line-height:1.55"></div>'
+    +   '<div id="rbSwProg" style="display:none;margin-top:18px">'
+    +     '<div style="height:8px;background:rgba(255,255,255,.07);border-radius:5px;overflow:hidden"><div id="rbSwBar" style="height:100%;width:0;background:linear-gradient(90deg,#c9a84c,#e6c977);transition:width .3s"></div></div>'
+    +     '<div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;font-family:var(--mono,monospace);color:#8a857a">'
+    +       '<span id="rbSwCount">0 / '+total+'</span><span id="rbSwEta"></span></div>'
+    +     '<div id="rbSwNow" style="margin-top:10px;font-size:12px;color:#c9c4ba;font-family:var(--mono,monospace);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>'
+    +     '<div id="rbSwStats" style="margin-top:6px;font-size:11px;color:#6f6a60;font-family:var(--mono,monospace)"></div>'
+    +   '</div>'
+    + '</div>'
+    + '<div id="rbSwFoot" style="padding:16px 22px;border-top:1px solid rgba(255,255,255,.06);display:flex;gap:10px;justify-content:flex-end">'
+    +   '<button id="rbSwCancel" style="height:36px;padding:0 16px;font-size:12px;background:none;border:1px solid rgba(255,255,255,.14);border-radius:6px;color:#c9c4ba;cursor:pointer">Chiudi</button>'
+    +   '<button id="rbSwStart" style="height:36px;padding:0 20px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:var(--gold,#c9a84c);border:0;border-radius:6px;color:#0d1117;cursor:pointer">Avvia</button>'
+    + '</div></div>';
+  document.body.appendChild(ov);
+
+  var $ = function(id){ return document.getElementById(id); };
+  function close(){ if(!_rbSweepRunning) ov.remove(); else if(typeof rbToast==='function') rbToast('Indicizzazione in corso: attendi il completamento'); }
+  $('rbSwClose').onclick = close; $('rbSwCancel').onclick = close;
+
+  // Stato iniziale: ambiente + stima
+  async function _rbSwInit(){
+    var extReady = false;
+    try{ extReady = !!(window.rbExtFetch && await window.rbExtFetch.isReady()); }catch(e){}
+    var allowed = (typeof rbCmScrapeAllowed !== 'function') || rbCmScrapeAllowed();
+    var mode = (extReady && allowed)
+      ? '<b style="color:#7fdca0">Hunter attivo</b> \u2014 ladder reale per-condizione, URL verificati e foto'
+      : (extReady ? '<b style="color:#e6c977">Hunter attivo ma scraping su click-only</b> \u2014 questo sweep userà CMAPI (solo NM)'
+                  : '<b style="color:#e6c977">Hunter non attivo</b> \u2014 solo NM via CMAPI (niente ladder/foto)');
+    // Stima durata: delay medio ~5.7s + fetch per carta
+    var perCard = ((extReady && allowed) ? 7.2 : 6.0);
+    var mins = Math.max(1, Math.round(total * perCard / 60));
+    $('rbSwInfo').innerHTML = mode + '.<br><br>'
+      + 'Carte in collezione: <b>'+total+'</b> (le copie/condizioni della stessa carta contano una volta sola).<br>'
+      + 'Durata stimata: <b>~'+mins+' min</b>. Puoi lasciare la scheda in background.<br><br>'
+      + '<span style="font-size:11px;color:#6f6a60">Delay randomizzato tra le carte per non stressare Cardmarket. Al termine viene salvato uno snapshot del valore collezione.</span>';
+    $('rbSwStart').onclick = function(){ runSweep(extReady && allowed); };
+  }
+  _rbSwInit();
+
+  function fmtEta(sec){
+    if(sec < 60) return Math.round(sec)+'s';
+    var m = Math.floor(sec/60), s = Math.round(sec%60);
+    return m+'m '+(s<10?'0':'')+s+'s';
+  }
+
+  async function runSweep(extMode){
+    $('rbSwStart').style.display = 'none';
+    $('rbSwCancel').textContent = 'In corso…'; $('rbSwCancel').disabled = true; $('rbSwCancel').style.opacity = '.5';
+    $('rbSwInfo').style.display = 'none';
+    $('rbSwProg').style.display = 'block';
+    var t0 = Date.now(), okc = 0;
+    var res = await rbWeeklyPriceSweep({
+      onProgress: function(done, tot, label){
+        var pct = tot ? (done/tot*100) : 0;
+        $('rbSwBar').style.width = pct.toFixed(1)+'%';
+        $('rbSwCount').textContent = done + ' / ' + tot;
+        $('rbSwNow').textContent = label || '';
+        if(done > 0){
+          var elapsed = (Date.now()-t0)/1000;
+          var eta = elapsed/done*(tot-done);
+          $('rbSwEta').textContent = 'ETA ~' + fmtEta(eta);
+        }
+      }
+    }).catch(function(e){ return { error:(e&&e.message)||'errore sweep' }; });
+
+    $('rbSwBar').style.width = '100%';
+    $('rbSwCancel').textContent = 'Chiudi'; $('rbSwCancel').disabled = false; $('rbSwCancel').style.opacity = '1';
+    if(res && res.error){
+      $('rbSwNow').innerHTML = '<span style="color:#e88">'+res.error+'</span>';
+    }else{
+      var took = fmtEta((Date.now()-t0)/1000);
+      $('rbSwNow').innerHTML = '<span style="color:#7fdca0">\u2713 Completato in '+took+'</span>';
+      $('rbSwStats').textContent = (res.ok||0)+' ok \u00b7 '+(res.failed||0)+' falliti \u00b7 '+(res.skipped||0)+' saltati (set non mappato) \u00b7 modo: '+(res.mode||'?');
+      if(typeof rbToast==='function') rbToast('Indicizzazione completata: '+(res.ok||0)+' carte');
+      // Ricarica il Listino per mostrare i nuovi dati
+      try{ var f=document.getElementById('lstFrame'); if(f) f.contentWindow.location.reload(); }catch(e){}
+    }
+  }
+}
+window.rbSweepLauncherOpen = rbSweepLauncherOpen;
+
+/* Bottone fluttuante: visibile solo nel tab Listino. */
+function rbSweepFabSync(){
+  try{
+    var lst = document.getElementById('tab-lst');
+    var visible = lst && lst.style.display !== 'none';
+    var fab = document.getElementById('rbSweepFab');
+    if(visible && !fab){
+      fab = document.createElement('button');
+      fab.id = 'rbSweepFab';
+      fab.title = 'Indicizza tutta la collezione (prezzi reali, URL, foto)';
+      fab.innerHTML = '<span class="rb-i rb-i-refresh"></span> Indicizza tutto';
+      fab.style.cssText = 'position:fixed;right:22px;bottom:22px;z-index:900;height:42px;padding:0 18px;'
+        + 'background:var(--gold,#c9a84c);color:#0d1117;border:0;border-radius:22px;font-weight:700;font-size:12px;'
+        + 'letter-spacing:.05em;text-transform:uppercase;cursor:pointer;box-shadow:0 6px 20px rgba(201,168,76,.35);'
+        + 'display:flex;align-items:center;gap:7px;font-family:var(--font,system-ui)';
+      fab.onclick = rbSweepLauncherOpen;
+      document.body.appendChild(fab);
+    }else if(!visible && fab){ fab.remove(); }
+  }catch(e){}
+}
+window.rbSweepFabSync = rbSweepFabSync;
+// Aggancia il sync del FAB ai click di navigazione (event delegation sul
+// document): niente wrapping di showTab (function declaration richiamata
+// inline) né IIFE/polling. Un microtask dopo il click lo stato tab è
+// aggiornato e sincronizziamo il bottone.
+function _rbSweepFabBoot(){
+  document.addEventListener('click', function(e){
+    var nb = e.target && e.target.closest && e.target.closest('.nav-btn');
+    if(nb) setTimeout(rbSweepFabSync, 40);
+  });
+  try{ rbSweepFabSync(); }catch(e){}
+}
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _rbSweepFabBoot);
+else _rbSweepFabBoot();
+
 
 function _rbPcFetchLive(opts){
   return Promise.resolve().then(function(){
