@@ -6428,6 +6428,14 @@ async function doSearch(){
 
 function showQuickMatch(c){
   document.getElementById('quickMatch').style.display='flex';document.getElementById('quickAddForm').style.display='block';document.getElementById('formEmpty').style.display='none';document.getElementById('addEmpty').style.display='none';
+  // Default sticky (ultime scelte) sui dropdown della collezione. La sync
+  // TCGdex più sotto ha precedenza per le carte JP. 1ª ed. sempre off.
+  try{
+    var _stk = rbGetSticky();
+    var _ql=document.getElementById('qLang'); if(_ql) _ql.value=_stk.language;
+    var _qc=document.getElementById('qCond'); if(_qc) _qc.value=_stk.condition;
+    var _qv=document.getElementById('qVar');  if(_qv) _qv.value=_stk.variant;
+  }catch(e){}
   _addEnterFocus();
   renderAddHero(c);
   const wrap=document.getElementById('qmImgWrap');
@@ -6486,6 +6494,8 @@ async function addQuickCard(){
   const cond=document.getElementById('qCond').value;
   const variant=document.getElementById('qVar').value;
   const first1st=document.getElementById('q1st').checked;
+  // Sticky: lingua/condizione/variante come default per la prossima carta
+  try{ rbRememberSticky(document.getElementById('qLang').value, cond, variant); }catch(e){}
   const p=calcPrice(quickCard.cardmarket?.prices,cond,variant,first1st);
   try{
     const _payload={
@@ -11164,6 +11174,33 @@ function showPrevResults(cards){
   });
 }
 
+/* ── Memoria "sticky" delle ultime scelte di inserimento ──────────────────
+   Migliora la UX riducendo i click: la lingua/condizione/variante scelte per
+   l'ultima carta diventano il default della successiva. Persistito in
+   localStorage (sopravvive al reload). NON include 1ª edizione: è un attributo
+   specifico della singola carta, ereditarlo sarebbe pericoloso (default off).
+   Fail-safe: qualunque errore → si ricade sui default storici ITA/NM/Normal. */
+var RB_STICKY_DEFAULTS = { language:'ITA', condition:'NM', variant:'Normal' };
+function rbGetSticky(){
+  try{
+    var raw = localStorage.getItem('rb_add_sticky');
+    if(raw){ var o = JSON.parse(raw); if(o && typeof o === 'object') return o; }
+  }catch(e){}
+  return Object.assign({}, RB_STICKY_DEFAULTS);
+}
+function rbRememberSticky(language, condition, variant){
+  try{
+    var o = {
+      language:  language  || RB_STICKY_DEFAULTS.language,
+      condition: condition || RB_STICKY_DEFAULTS.condition,
+      variant:   variant   || RB_STICKY_DEFAULTS.variant
+    };
+    localStorage.setItem('rb_add_sticky', JSON.stringify(o));
+  }catch(e){}
+}
+window.rbGetSticky = rbGetSticky;
+window.rbRememberSticky = rbRememberSticky;
+
 function showPrevQuickAdd(c){
   const qa=document.getElementById('prevQuickAdd');qa.style.display='block';
   // Auto-close griglia risultati: una volta scelta la carta, mostriamo solo i dettagli.
@@ -11183,13 +11220,18 @@ function showPrevQuickAdd(c){
   const rarity = c.rarity || '';
   document.getElementById('pqMeta').textContent = setName + (setName && rarity ? ' \u00b7 ' : '') + rarity;
   document.getElementById('pqAvg30').textContent = nmPrice ? 'NM avg30: \u20ac'+nmPrice.toFixed(2) : '';
-  // Reset form fields ai default
-  document.getElementById('pCond').value = 'NM';
-  document.getElementById('pLang').value = 'ITA';
-  document.getElementById('pVar').value = 'Normal';
+  // Default ai campi: ultime scelte "sticky" (UX: meno click sulla carta
+  // successiva). 1ª edizione resta sempre off (attributo per-carta).
+  var _sticky = rbGetSticky();
+  document.getElementById('pCond').value = _sticky.condition;
+  document.getElementById('pLang').value = _sticky.language;
+  document.getElementById('pVar').value = _sticky.variant;
   document.getElementById('pQty').value = '1';
   document.getElementById('p1st').checked = false;
   _pqToggle1st(document.getElementById('p1st'));
+  // Carta giapponese/asiatica (TCGdex): la lingua della CARTA ha precedenza
+  // sullo sticky — non avrebbe senso proporre ITA per una carta JPN.
+  if(typeof tcgdexSyncLangSelect === 'function') tcgdexSyncLangSelect(c, 'pLang');
   // Pulisci eventuale banner CM live precedente (di un'altra carta)
   const oldBanner=document.getElementById('pVerifyFeedback');
   if(oldBanner) oldBanner.remove();
@@ -14321,6 +14363,9 @@ async function addToPrev(){
     price_source: usedManual ? 'manual' : 'avg30'
   };
   activePrev.items.push(item);
+  // Memorizza lingua/condizione/variante come default per la prossima carta
+  // (UX: meno click). 1ª edizione esclusa di proposito.
+  rbRememberSticky(item.language, cond, variant);
   await savePrev(activePrev);
   renderPrevTable();renderPrevList();
   // Reset
@@ -14566,7 +14611,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.26';
+const APP_VERSION='6.27';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
