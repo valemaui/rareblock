@@ -14677,17 +14677,31 @@ function rbVerBadgeClick(){
 window.rbVerBadgeClick=rbVerBadgeClick;
 
 async function applyUpdate(){
-  const btn=document.querySelector('.update-banner .btn-accent');
-  btn.textContent='Download...';btn.disabled=true;
+  // Bottone corretto (era .btn-accent, inesistente → la funzione crashava
+  // subito e "Aggiorna ora" non faceva nulla).
+  var btn=document.querySelector('.update-banner .btn-primary');
+  if(btn){ btn.textContent='Aggiorno…'; btn.disabled=true; }
   try{
-    const r=await fetch(APP_URL+'?t='+Date.now(),{cache:'no-store'});
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const html=await r.text();
-    // Sostituisce il DOM con la nuova versione e ricarica
-    document.open();document.write(html);document.close();
+    // Hard refresh stile Ctrl+Shift+R: svuota le Cache API (se presenti) così
+    // nessuna copia vecchia dell'HTML può sopravvivere, poi ricarica dalla
+    // rete bypassando la cache con un cache-buster forte. document.write NON
+    // basta: non rigenera lo stato e può ripescare HTML stantio.
+    try{
+      if(window.caches && caches.keys){
+        var keys = await caches.keys();
+        await Promise.all(keys.map(function(k){ return caches.delete(k); }));
+      }
+    }catch(e){}
+    // Cache-buster: stessa pagina, parametro che cambia → il browser è
+    // obbligato a riscaricare l'HTML fresco da Aruba.
+    var base = location.href.split('#')[0].replace(/[?&]_rbv=\d+/,'');
+    var sep  = base.indexOf('?') >= 0 ? '&' : '?';
+    location.replace(base + sep + '_rbv=' + Date.now());
   }catch(e){
-    btn.textContent='Errore — riprova';btn.disabled=false;
+    if(btn){ btn.textContent='Errore — riprova'; btn.disabled=false; }
     console.error('Update failed:',e);
+    // Ultimo ripiego: reload semplice forzato
+    try{ location.reload(); }catch(_){}
   }
 }
 
