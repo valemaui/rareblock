@@ -12529,16 +12529,51 @@ function _vpCloseCMTab(tab){
 // ── Helper: tenta scraping server-side via edge function, 10s timeout ────────
 // Ritorna l'intera response data — se listings vuoto, include un oggetto `debug`
 // con diagnostica dell'HTML ricevuto dal server.
+// ─── Helper: HTML pagina CM via estensione Hunter (gateway residenziale) ────
+// Fetch SILENZIOSO in background dal browser dell'utente: IP residenziale +
+// cookie CM → niente Cloudflare, niente tab aperte, niente userscript.
+// Ritorna {html, image} o null (estensione assente/fetch fallito) — il
+// chiamante degrada al percorso server-side esistente.
+async function _vpExtFetchCmHtml(url){
+  try{
+    var ext = window.rbExtFetch;
+    if(typeof ext !== 'function') return null;
+    var ready = await ext.isReady().catch(function(){ return false; });
+    if(!ready) return null;
+    var f = await ext(url).catch(function(){ return null; });
+    if(!f || !f.ok || !f.html || f.html.length < 500) return null;
+    if(/Just a moment|cf-browser-verification/i.test(f.html)) return null;
+    // og:image / twitter:image: la foto reale della carta, gratis dallo
+    // stesso HTML → alimenta cm-image-cache senza passaggi aggiuntivi.
+    var image = null;
+    var mi = f.html.match(/<meta[^>]+(?:property|name)=["'](?:og:image|twitter:image)["'][^>]+content=["']([^"']+)["']/i)
+          || f.html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:og:image|twitter:image)["']/i);
+    if(mi && mi[1] && mi[1].indexOf('http') === 0) image = mi[1];
+    return { html: f.html, image: image };
+  }catch(e){ return null; }
+}
+
 async function _vpServerSideCMScrape(cmUrl){
   try{
+    // ── EXT-FIRST: HTML dal browser (Hunter) → parsing server su provided_html.
+    //    È il percorso AUTOMATICO primario: zero Cloudflare, zero tab, zero
+    //    passaggi manuali. smooth-endpoint inietta l'HTML in cache e il parser
+    //    listings lavora come sempre (logica di parsing in UN solo posto).
+    var _extPage = await _vpExtFetchCmHtml(cmUrl);
+
     var controller = new AbortController();
-    var timer = setTimeout(function(){ controller.abort(); }, 10000);
+    var timer = setTimeout(function(){ controller.abort(); }, _extPage ? 20000 : 10000);
     var sessionToken = window._rbSession && window._rbSession.access_token;
     var bearer = sessionToken || SUPA_KEY;
+    function mkBody(){
+      var b = {source:'cardmarket', url:cmUrl, debug:true};
+      if(_extPage){ b.urls = [cmUrl]; b.provided_html = [_extPage.html]; }
+      return JSON.stringify(b);
+    }
     var res = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+bearer},
-      body:JSON.stringify({source:'cardmarket', url:cmUrl, debug:true}),
+      body:mkBody(),
       signal: controller.signal,
     });
     clearTimeout(timer);
@@ -12547,7 +12582,7 @@ async function _vpServerSideCMScrape(cmUrl){
         res = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {
           method:'POST',
           headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPA_KEY},
-          body:JSON.stringify({source:'cardmarket', url:cmUrl, debug:true}),
+          body:mkBody(),
         });
       }
       if(!res.ok) return {listings:[], error:'HTTP '+res.status,
@@ -12562,10 +12597,16 @@ async function _vpServerSideCMScrape(cmUrl){
     var _err = data.error || '';
     var _blocked = _st===403 || _st===429 || _st===503
                 || /\b(403|429|503)\b|cloudflare|\bwaf\b|challenge|just a moment/i.test(_err);
+    // Con HTML fornito dall'estensione un "blocked" non ha senso (la pagina è
+    // stata letta): se il parser non trova listing è la pagina a essere vuota
+    // o sbagliata, e la cascata varianti DEVE potersi attivare.
+    if(_extPage) _blocked = false;
     if(data.error) return {listings:[], error:data.error, debug:data.debug,
-                           wrong_product:data.wrong_product===true, no_results:data.no_results===true, blocked:_blocked, status:_st};
+                           wrong_product:data.wrong_product===true, no_results:data.no_results===true, blocked:_blocked, status:_st,
+                           viaExt:!!_extPage, image:(_extPage&&_extPage.image)||null};
     return {listings: data.listings || [], error: null, debug: data.debug,
-            wrong_product:data.wrong_product===true, no_results:data.no_results===true, blocked:false, status:_st||200};
+            wrong_product:data.wrong_product===true, no_results:data.no_results===true, blocked:false, status:_st||200,
+            viaExt:!!_extPage, image:(_extPage&&_extPage.image)||null};
   }catch(e){
     // Timeout / errore di rete: pagina non letta → trattata come "blocked" così
     // non innesca la sostituzione di slug (che porterebbe a un prodotto diverso).
@@ -12717,11 +12758,18 @@ async function _vpDiscoverCmProduct(name, number, cond, lang, variant, first1st)
                 + encodeURIComponent(searchStr);
   var out = { searchUrl: searchUrl, ok: false, error: null, productUrl: null, listings: [] };
   try{
+    // Ext-first: la pagina RISULTATI di ricerca CM è anch'essa dietro
+    // Cloudflare lato datacenter. Con Hunter pronta la leggiamo dal browser
+    // (silenzioso) e la passiamo al server come provided_html: il parser
+    // discover lavora identico, ma senza blocchi.
+    var _extSearch = (typeof _vpExtFetchCmHtml === 'function') ? await _vpExtFetchCmHtml(searchUrl) : null;
     var sessionToken = window._rbSession && window._rbSession.access_token;
+    var _discBody = { source:'cardmarket', mode:'discover', url: searchUrl };
+    if(_extSearch){ _discBody.urls = [searchUrl]; _discBody.provided_html = [_extSearch.html]; }
     var res = await fetch(SUPA_URL + '/functions/v1/smooth-endpoint', {
       method:'POST',
       headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + (sessionToken || SUPA_KEY) },
-      body: JSON.stringify({ source:'cardmarket', mode:'discover', url: searchUrl })
+      body: JSON.stringify(_discBody)
     });
     if(!res.ok){ out.error = 'discover HTTP ' + res.status; return out; }
     var data = await res.json();
@@ -12768,6 +12816,7 @@ async function _vpDiscoverCmProduct(name, number, cond, lang, variant, first1st)
       return out;
     }
     out.ok = true; out.productUrl = fullUrl; out.baseUrl = bestUrl.split('?')[0]; out.listings = srv.listings;
+    out.image = srv.image || null;   // foto reale (og:image) se la pagina è passata via estensione
     return out;
   }catch(e){ out.error = (e && e.message) || String(e); return out; }
 }
@@ -12875,6 +12924,15 @@ async function fetchCmPriceLive(opts){
           rbIndexRemember({ name:name, setId:setId, setName:setName, number:number, rarity:rarity },
                           null, 'cmapi', { priceNm:_cmaPrice, priceSource:'cmapi' });
         } }catch(e){}
+        // Raccolta in background (fire-and-forget, throttle 24h): con
+        // l'estensione Hunter pronta completa ladder per-condizione, URL
+        // verificato e foto reale — il DB proprietario cresce ad ogni uso
+        // senza rallentare questa risposta né richiedere azioni manuali.
+        try{ if(typeof rbIndexBackgroundHarvest === 'function'){
+          rbIndexBackgroundHarvest({ name:name, setId:setId, setName:setName, number:number,
+                                     rarity:rarity, language:lang, variant:variant, first_edition:first1st },
+                                   cmUrl);
+        } }catch(e){}
         return {
           ok:true, price:_cmaPrice, listings:[],
           smart:{ price:_cmaPrice, source:'cmapi', basis:_m.refBasis,
@@ -12943,6 +13001,14 @@ async function fetchCmPriceLive(opts){
   // l'apertura sarebbe comunque invasiva. Il fallback è lo scrape server-side.
   var _wantUserscript = !opts.silent && isDirect && (opts.useUserscript === true ||
       !/^(nm|near\s*mint|mint|m)$/i.test((cond || '').toString().trim()));
+  // Con l'estensione Hunter pronta, lo scrape ext-first (sotto) legge la stessa
+  // pagina in BACKGROUND (IP residenziale, zero tab): lo userscript a tab
+  // diventa superfluo e invasivo → si usa solo come ripiego senza estensione.
+  if(_wantUserscript){
+    try{
+      if(window.rbExtFetch && await window.rbExtFetch.isReady()) _wantUserscript = false;
+    }catch(e){}
+  }
   if(_wantUserscript && typeof _vpFetchViaUserscript === 'function'){
     try{
       var _usRes = await _vpFetchViaUserscript(cmUrl, cond, { timeoutMs: (opts.userscriptTimeoutMs || 18000) });
@@ -13065,7 +13131,7 @@ async function fetchCmPriceLive(opts){
       try{ if(typeof rbIndexRemember === 'function'){
         rbIndexRemember({ name:name, setId:setId, setName:setName, number:number, rarity:rarity },
                         disc.baseUrl || disc.productUrl, 'discover',
-                        { listings: disc.listings, priceSource:'scrape' });
+                        { listings: disc.listings, priceSource:'scrape', imageUrl: disc.image || null });
       } }catch(e){}
     }
   }
@@ -13096,7 +13162,7 @@ async function fetchCmPriceLive(opts){
   try{ if(typeof rbIndexRemember === 'function' && isDirect){
     rbIndexRemember({ name:name, setId:setId, setName:setName, number:number, rarity:rarity },
                     cmUrl, (isAuthoritative ? 'authoritative' : 'direct'),
-                    { listings: srv.listings, priceSource:'scrape' });
+                    { listings: srv.listings, priceSource:'scrape', imageUrl: srv.image || null });
   } }catch(e){}
   var smart = smartCMPrice(srv.listings, cond);
   var price = (smart && smart.price > 0) ? smart.price : srv.listings[0].price;
@@ -14323,7 +14389,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.19';
+const APP_VERSION='6.20';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -19775,6 +19841,13 @@ async function rbGetConditionPrices(opts, flags){
     var cm = await _rbPcFetchCmapi(opts);
     if(cm && cm.ok){
       var ncm = _rbPcNormalizeCmapi(cardKey, opts, cm.cmapi);
+      // Raccolta in background (estensione, throttle 24h): completa ladder
+      // reale, URL verificato e foto senza rallentare questa risposta.
+      try{
+        if(typeof rbIndexBackgroundHarvest === 'function' && ncm && ncm.cmUrl){
+          rbIndexBackgroundHarvest(opts, ncm.cmUrl);
+        }
+      }catch(e){}
       // Prova ad arricchire col ladder dal DB (se presente e fresco) senza bloccare.
       var _hadDbLadder = false;
       try{
@@ -20641,6 +20714,57 @@ function rbCaptureCardImage(productKey, imageUrl, meta){
   }catch(e){}
 }
 window.rbCaptureCardImage = rbCaptureCardImage;
+
+/* ── Raccolta in background (fire-and-forget) ────────────────────────── */
+/* Quando il prezzo arriva da una via veloce (CMAPI: solo NM, niente URL
+   né foto), questa funzione completa il lavoro IN SILENZIO: scrape della
+   pagina prodotto via estensione Hunter (IP residenziale, zero tab),
+   persistenza del ladder per-condizione, URL verificato e foto reale
+   nell'indice. Throttle 24h per carta: il DB cresce ad ogni uso senza
+   martellare CM. Nessun passaggio manuale, nessun impatto sulla UX. */
+function rbIndexBackgroundHarvest(opts, cmUrl){
+  try{
+    if(!opts || !cmUrl) return;
+    if(typeof _isAuthoritativeCMUrl === 'function' && !_isAuthoritativeCMUrl(cmUrl)) return;
+    var key = rbProductKey(opts);
+    if(!key) return;
+    // Throttle 24h
+    var marker = 'rb_idxbg_' + key;
+    try{
+      var last = +(localStorage.getItem(marker) || 0);
+      if(last && (Date.now() - last) < 1000*60*60*24) return;
+      localStorage.setItem(marker, String(Date.now()));
+    }catch(e){}
+    // Solo con estensione pronta: in background NON vogliamo né tab né
+    // tentativi datacenter destinati al 403.
+    Promise.resolve().then(async function(){
+      try{
+        if(!window.rbExtFetch || !(await window.rbExtFetch.isReady())) return;
+        if(typeof _vpServerSideCMScrape !== 'function') return;
+        var srv = await _vpServerSideCMScrape(cmUrl);
+        if(!srv || !srv.viaExt) return;                  // solo dati via estensione
+        if(srv.wrong_product){ rbIndexReportFailure(opts, cmUrl); return; }
+        if(!srv.listings || !srv.listings.length) return;
+        // Ladder per-condizione → cm_price_by_condition (riusa il core)
+        try{
+          if(typeof _rbPersistConditionPrices === 'function'){
+            _rbPersistConditionPrices({
+              name: opts.name, set_id: opts.setId || opts.set_id,
+              number: opts.number, language: opts.language,
+              variant: opts.variant, first_edition: opts.first_edition
+            }, srv.listings, cmUrl);
+          }
+        }catch(e){}
+        // Indice: URL verificato + prezzo pesato + foto
+        rbIndexRemember(opts, cmUrl, 'direct',
+                        { listings: srv.listings, priceSource:'ext-harvest',
+                          imageUrl: srv.image || null });
+        try{ console.log('[RB-IDX] harvest background ok:', key, '(' + srv.listings.length + ' listing)'); }catch(e){}
+      }catch(e){ try{ localStorage.removeItem(marker); }catch(_){} }
+    });
+  }catch(e){}
+}
+window.rbIndexBackgroundHarvest = rbIndexBackgroundHarvest;
 
 /* ══════════════════════════════════════════════════════════════════════
    PREZZI PESATI PER CONDIZIONE — rbWeightedConditions(conditions)
