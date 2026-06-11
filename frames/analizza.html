@@ -980,8 +980,10 @@ function anlSourcesScaffold(card){
 
   // CM URL — passiamo TUTTI i parametri inclusi setName e rarity per
   // permettere a _cmPrimaryVersionFor di scegliere la variant corretta
-  // (es. rarity 'Rare Holo' su e-Card \u2192 no-V, su Fossil \u2192 V1)
-  var cmUrl=(rbParentFn("buildCMDirectUrl")||function(){return"#"})(card.name,setId,card.number,cond,lang,'Normal',is1st,setNm,card.rarity||'');
+  // (es. rarity 'Rare Holo' su e-Card \u2192 no-V, su Fossil \u2192 V1).
+  // rbCmSafeHref (parent) evita gli slug a indovino sui set ambigui:
+  // URL verificato dall'indice rb_card_index oppure ricerca-set sicura.
+  var cmUrl=(rbParentFn("rbCmSafeHref")||rbParentFn("buildCMDirectUrl")||function(){return"#"})(card.name,setId,card.number,cond,lang,'Normal',is1st,setNm,card.rarity||'');
 
   // Tag/titolo CM neutri — ora il box mostra dati gradati reali se disponibili,
   // quindi non ha senso dire "riferimento raw" anche in mode graded.
