@@ -12494,7 +12494,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-12-anl-v5';
+var RB_BUILD = '2026-06-12-anl-v5.1';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -13179,6 +13179,9 @@ async function fetchCmPriceLive(opts){
   // dalla pagina CM reale (sessione utente, IP residenziale) e popola
   // cm_price_by_condition con il ladder completo. Senza estensione resta CMAPI.
   var _wantExtLadder = !!(opts && (opts.extLadder === true || opts.useUserscript === true));
+  // Prezzo CMAPI "incoerente" per richieste ITA (basis globale): messo da
+  // parte e usato SOLO se anche tutta la cascata scrape fallisce.
+  var _cmaStash = null;
   if(setId && number && _cmaCondKnown && _cmaVariantOk && _cmaLangOk && !_wantExtLadder && typeof SUPA_URL === 'string' && typeof getHDR === 'function'){
     try{
       var _tcgid = (setId + '-' + number).toString().toLowerCase();
@@ -13195,6 +13198,16 @@ async function fetchCmPriceLive(opts){
       if(_cma && _cma.ok && _cma.match && _cma.match.refPrice != null){
         var _m = _cma.match;
         var _cmaNm = Math.round((+_m.refPrice) * 100) / 100;
+        // ── GATE DI COERENZA LINGUA (bug Groudon-EX FA €95 vs pagina ITA €250) ──
+        // Per richieste ITA il fast-path è autoritativo SOLO con basis 'IT'
+        // (lnmIT presente). Un basis 30d/7d/globale è il mercato multi-lingua:
+        // su carte con premium ITA marcato diverge anche di 2-3× dalla pagina
+        // language=5 che l'utente apre dal link "apri →". In quel caso NON si
+        // corto-circuita: si prosegue con lo scrape dei listing reali (con
+        // Hunter è la pagina ITA vera) e il prezzo CMAPI resta da parte come
+        // ULTIMA SPIAGGIA etichettata "globale" se anche lo scrape fallisce.
+        var _cmaItaReq      = /^(ITA|IT)$/i.test((lang || 'ITA').toString().trim());
+        var _cmaItaCoherent = !_cmaItaReq || _m.refBasis === 'IT';
         // NM canonico CMAPI → condizione richiesta via scala COND_FACTOR
         // (stessa logica di calcPrice). NM ha factor 1.0 esatto → identità;
         // MINT 1.15, GD 0.70, ecc. _cmaIsNm distingue il prezzo reale (NM)
@@ -13209,15 +13222,19 @@ async function fetchCmPriceLive(opts){
         var _cmaLabel = _cmaIsNm
           ? ('CMAPI \u00b7 ' + _basisLbl)
           : ('CMAPI \u00b7 ' + _basisLbl + ' \u00d7 ' + (cond) + (_cmaCondPct?(' '+_cmaCondPct):'') + ' (stima)');
+        if(!_cmaItaCoherent) _cmaLabel += ' \u00b7 \u26a0 globale, non filtrato ITA';
         attempts.push({ url:'(CMAPI)', kind:'CMAPI', count:1,
           error:'IT \u20ac'+(_m.lnm_it != null ? _m.lnm_it : '?')
               + ' \u00b7 30g \u20ac'+(_m.avg_30d != null ? _m.avg_30d : '?')
               + ' \u00b7 basis='+(_m.refBasis || '?')
+              + (_cmaItaCoherent ? '' : ' \u00b7 INCOERENTE per ITA \u2192 stash, proseguo con scrape')
               + (_cmaIsNm ? '' : (' \u00b7 NM \u20ac'+_cmaNm.toFixed(2)+' \u00d7'+_cmaCondFactor+' \u2192 '+cond+' \u20ac'+_cmaPrice.toFixed(2))) });
         // Indice RareBlock: registra il prezzo NM canonico (niente URL: qui non
         // è verificato). NB: priceNm è sempre l'NM, mai il valore derivato per
         // condizione, così l'indice resta condizione-agnostico.
-        try{ if(typeof rbIndexRemember === 'function'){
+        // SOLO con basis coerente: un prezzo globale NON è il canonico ITA e
+        // inquinerebbe rb_card_index.price_nm (canonical price gate).
+        try{ if(_cmaItaCoherent && typeof rbIndexRemember === 'function'){
           rbIndexRemember({ name:name, setId:setId, setName:setName, number:number, rarity:rarity },
                           null, 'cmapi', { priceNm:_cmaNm, priceSource:'cmapi' });
         } }catch(e){}
@@ -13230,13 +13247,16 @@ async function fetchCmPriceLive(opts){
                                      rarity:rarity, language:lang, variant:variant, first_edition:first1st },
                                    cmUrl);
         } }catch(e){}
-        return {
+        var _cmaResult = {
           ok:true, price:_cmaPrice, listings:[],
           smart:{ price:_cmaPrice, source:'cmapi', basis:_m.refBasis,
                   avg30:_m.avg_30d, avg7:_m.avg_7d, label:_cmaLabel,
-                  nmPrice:_cmaNm, condEstimated:!_cmaIsNm, condFactor:_cmaCondFactor },
+                  nmPrice:_cmaNm, condEstimated:!_cmaIsNm, condFactor:_cmaCondFactor,
+                  global_basis:!_cmaItaCoherent },
           isDirect:isDirect, cmUrl:(cmUrl || _m.cmLink || _m.tcggoUrl), source:'cmapi', cmapi:_m, attempts:attempts
         };
+        if(_cmaItaCoherent) return _cmaResult;
+        _cmaStash = _cmaResult;   // fallthrough allo scrape dei listing reali
       }
     }catch(e){ /* fallthrough allo scrape esistente */ }
   }
@@ -13448,6 +13468,16 @@ async function fetchCmPriceLive(opts){
   }
 
   if(!srv.listings || !srv.listings.length){
+    // ULTIMA SPIAGGIA: tutta la cascata listing è fallita ma abbiamo il prezzo
+    // CMAPI a basis globale messo da parte (richiesta ITA senza lnmIT). Meglio
+    // un prezzo etichettato "globale, non filtrato ITA" che nessun prezzo —
+    // la UI lo mostra con confidenza ridotta e warning esplicito.
+    if(_cmaStash){
+      attempts.push({ url:'(CMAPI)', kind:'CMAPI-stash', count:1,
+        error:'cascata listing fallita → uso prezzo CMAPI globale come ultima spiaggia' });
+      _cmaStash.attempts = attempts;
+      return _cmaStash;
+    }
     var finalErr = primaryBlocked
       ? 'Cloudflare ha bloccato la pagina CM corretta (HTTP 403) dopo i retry \u2014 riprova tra poco o usa lo userscript Tampermonkey. Non applico prezzi da slug alternativi per evitare un prodotto sbagliato.'
       : sawWrongProduct
@@ -14778,7 +14808,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.34';
+const APP_VERSION='6.35';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -16470,7 +16500,7 @@ function scReset(){
      TAB ANALIZZA — Valutazione carta (v4 data-driven)
      ═══════════════════════════════════════════════════════════ -->
 <div class="tab" id="tab-anl" style="display:none;flex-direction:column;overflow:hidden">
-  <iframe id="anlFrame" src="frames/analizza.html?v=20260612-anl-v5"
+  <iframe id="anlFrame" src="frames/analizza.html?v=20260612-anl-v5.1"
           title="Analizza"
           style="flex:1;width:100%;border:0;background:var(--bg);display:block"></iframe>
 </div>

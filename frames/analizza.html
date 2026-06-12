@@ -2914,8 +2914,31 @@ function anlPopCmLive(r, card){
     // dentro fetchCmPriceLive) — niente doppia applicazione qui.
     anlLiveData.cm = r.price;
     if(priceEl){ priceEl.textContent='€'+r.price.toFixed(2); priceEl.classList.remove('loading','na'); }
-    if(noteEl){ noteEl.textContent = (r.smart && r.smart.label) ? r.smart.label : 'CMAPI · prezzo ufficiale'; }
-    anlSetDot('anlSrcCmDot', 'high');
+
+    // ── Confidenza e cross-validazione ──
+    // 1. basis globale (richiesta ITA senza lnmIT, ultima spiaggia): il numero
+    //    NON riflette la pagina ITA filtrata che l'utente apre dal link.
+    // 2. divergenza forte dal trend TCG (stesso card id, quindi prodotto
+    //    sicuramente giusto): possibile match CMAPI errato o dato stantio.
+    var conf = 'high';
+    var noteParts = [(r.smart && r.smart.label) ? r.smart.label : 'CMAPI · prezzo ufficiale'];
+    var isGlobal = !!(r.smart && r.smart.global_basis);
+    if(isGlobal){
+      conf = 'low';
+      noteParts.push('⚠ può divergere dalla pagina ITA');
+    }
+    try{
+      var tp = card && card.cardmarket && card.cardmarket.prices && card.cardmarket.prices.trendPrice;
+      if(tp && tp > 0){
+        var ratio = r.price / tp;
+        if(ratio < 0.55 || ratio > 1.8){
+          conf = 'low';
+          noteParts.push('⚠ diverge dal trend €'+tp.toFixed(2)+' — verifica sulla pagina');
+        }
+      }
+    }catch(e){}
+    if(noteEl){ noteEl.textContent = noteParts.join(' · '); }
+    anlSetDot('anlSrcCmDot', conf);
     anlRenderCmGradeTable(null);
     anlRenderToday();
     anlRenderProjection();
@@ -3077,10 +3100,12 @@ function anlPopCm(data, card){
     console.groupEnd();
   }catch(e){}
 
-  // Se in graded mode E ci sono gradate, mostra SEMPRE la tabella raggruppata
-  // (anche prima del calcolo finale, così l'utente vede subito cosa c'è)
-  if(graded && gradedListings.length > 0){
-    anlRenderCmGradeTable(gradedListings, house, score, userLang);
+  // Tabella raggruppata gradate: in GRADED mode evidenzia il target; in RAW
+  // mode resta visibile come informazione (le gradate sono escluse dalla
+  // mediana raw, ma l'utente DEVE vederle — es. un ACE 9 a €1.500 sulla stessa
+  // pagina è un segnale di mercato che non va nascosto).
+  if(gradedListings.length > 0){
+    anlRenderCmGradeTable(gradedListings, graded ? house : null, graded ? score : null, graded ? userLang : null);
   } else {
     anlRenderCmGradeTable(null);
   }
@@ -3169,11 +3194,21 @@ function anlPopCm(data, card){
   } else if(data._live){
     // Listing dalla cascata canonica: l'URL era GIÀ filtrato per condizione e
     // 1ª edizione (minCondition/isFirstEd nei parametri CM) — riapplicare
-    // ANL_COND_FACTOR/ANL_FIRST_ED_MULT qui sconterebbe DUE VOLTE. Usiamo il
-    // prezzo smart-weighted di fetchCmPriceLive (outlier rejection identica al
-    // flusso preventivi) se disponibile, altrimenti la mediana raw pura.
-    var liveP = (data._live.smart && data._live.smart.price > 0) ? data._live.smart.price
-              : (data._live.price > 0 ? data._live.price : median);
+    // ANL_COND_FACTOR/ANL_FIRST_ED_MULT qui sconterebbe DUE VOLTE.
+    // Prezzo: smartCMPrice (stessa pesatura/outlier-rejection dei preventivi)
+    // ricalcolato sui SOLI listing raw — gli slab gradati (es. ACE 9 a €1.500
+    // sulla stessa pagina) sono già esclusi a monte, così non servono i numeri
+    // dell'outlier rejection per tenerli fuori quando il campione è piccolo.
+    var liveP = null;
+    try{
+      var fnSmart = rbParentFn('smartCMPrice');
+      if(typeof fnSmart === 'function'){
+        var sm = fnSmart(rawListings, document.getElementById('anlCond').value);
+        if(sm && sm.price > 0) liveP = sm.price;
+      }
+    }catch(e){}
+    if(liveP == null) liveP = (data._live.smart && data._live.smart.price > 0) ? data._live.smart.price
+                            : (data._live.price > 0 ? data._live.price : median);
     anlLiveData.cm = Math.round(liveP*100)/100;
   } else {
     // Percorso legacy (fetch diretto): comportamento storico — la mediana è
