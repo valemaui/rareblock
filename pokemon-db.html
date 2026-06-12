@@ -12494,7 +12494,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-12-anl-v5.1';
+var RB_BUILD = '2026-06-12-msval-v1';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -13171,7 +13171,12 @@ async function fetchCmPriceLive(opts){
   // (è il prezzo della versione regular). In quei casi si salta la fast-lane
   // e si va allo scrape della pagina CM con i filtri reali
   // (isReverseHolo/isFirstEd/language) — che è l'unica fonte corretta.
-  var _cmaVariantOk = (!variant || variant === 'Normal') && !first1st;
+  // ECCEZIONE canonicalHolo: quando il chiamante DICHIARA che la variante
+  // "Holo" è la stampa intrinseca della carta (es. Holo Rare WotC tracciata
+  // come variante 'Holo' nel masterset), il prodotto CM identificato dal
+  // tcgid È la carta holo → il refPrice CMAPI è corretto. Opt-in esplicito:
+  // nessun comportamento esistente cambia senza il flag.
+  var _cmaVariantOk = ((!variant || variant === 'Normal') || (opts && opts.canonicalHolo === true)) && !first1st;
   var _cmaLangOk    = /^(ITA|ENG|JPN|IT|EN|JP)$/i.test((lang || 'ITA').toString().trim());
   // Quando il chiamante vuole il LADDER reale per-condizione via estensione
   // (sweep settimanale con Hunter pronta), saltiamo la fast-lane CMAPI NM:
@@ -14808,7 +14813,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.35';
+const APP_VERSION='6.36';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -16481,7 +16486,7 @@ function scReset(){
 
 <!-- TAB MASTERSET -->
 <div class="tab" id="tab-ms" style="display:none;flex-direction:column;overflow:hidden">
-  <iframe id="msFrame" src="frames/masterset.html?v=20260611-vault"
+  <iframe id="msFrame" src="frames/masterset.html?v=20260612-msval"
           title="Masterset"
           style="flex:1;width:100%;border:0;background:var(--bg);display:block"></iframe>
 </div>
@@ -20311,7 +20316,10 @@ async function rbGetConditionPrices(opts, flags){
     // Reverse Holo, 1ª edizione o altre lingue il refPrice è quello della
     // regular → SBAGLIATO: si salta la lane e si prosegue su DB → live (scrape
     // con i filtri isReverseHolo/isFirstEd/language applicati alla pagina).
-    var _cmaEligible = (!opts.variant || opts.variant === 'Normal')
+    // canonicalHolo (opt-in dal chiamante, es. valutazione masterset): la
+    // variante 'Holo' è la stampa intrinseca della carta → il prodotto CM del
+    // tcgid È la holo, CMAPI corretta. Vedi stesso flag in fetchCmPriceLive.
+    var _cmaEligible = (!opts.variant || opts.variant === 'Normal' || opts.canonicalHolo === true)
                     && !opts.first_edition
                     && /^(ITA|ENG|JPN|IT|EN|JP)$/i.test((opts.language || 'ITA').toString().trim());
     var cm = _cmaEligible ? await _rbPcFetchCmapi(opts) : { ok:false, error:'fuori dal canone CMAPI (variante/1ª ed./lingua)' };
