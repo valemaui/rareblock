@@ -362,6 +362,23 @@ body{display:flex;flex-direction:column}
 .msv-badge.miss{background:rgba(248,81,73,.1);color:#f85149;border:1px solid rgba(248,81,73,.3)}
 .msv-last{margin-top:12px;font-size:11px;color:var(--text-subtle);font-family:var(--mono);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .msv-last a{color:var(--accent);cursor:pointer;text-decoration:underline}
+.msv-badge.api{background:rgba(88,166,255,.1);color:#58a6ff;border:1px solid rgba(88,166,255,.3)}
+.msv-org{display:inline-block;font-size:8.5px;font-family:var(--mono);padding:1px 5px;border-radius:4px;background:var(--surface3);color:var(--text-subtle);border:1px solid var(--border);white-space:nowrap;letter-spacing:.3px}
+.msv-cml{color:var(--text);text-decoration:none;border-bottom:1px dotted rgba(201,168,76,.45)}
+.msv-cml:hover{color:var(--gold,#c9a84c)}
+.msv-cml .ar{font-size:9px;color:var(--gold,#c9a84c);opacity:.7}
+.msv-feed{margin-top:14px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);max-height:200px;overflow:hidden;display:flex;flex-direction:column-reverse}
+.msv-feed-row{display:flex;align-items:center;gap:8px;padding:5px 11px;font-size:11px;border-top:1px solid var(--border);animation:msvIn .18s ease}
+.msv-feed-row:last-child{border-top:none}
+.msv-feed-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+.msv-feed-pr{font-family:var(--mono);color:var(--gold,#c9a84c);white-space:nowrap}
+@keyframes msvIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.msv-qbar{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--surface3);margin:8px 0 4px}
+.msv-qbar i{display:block;height:100%}
+.msv-qbar .ql{background:#3fb950}.msv-qbar .qa{background:#58a6ff}.msv-qbar .qs{background:#cf8e44}.msv-qbar .qm{background:rgba(248,81,73,.55)}
+.msv-legend{font-size:10.5px;color:var(--text-subtle);line-height:1.6;padding:8px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);margin-bottom:10px}
+.msv-legend b{color:var(--text);font-weight:600}
+.msv-legend .dot{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:4px;vertical-align:0}
 </style>
 </head>
 <body>
@@ -643,13 +660,13 @@ body{display:flex;flex-direction:column}
       <div class="msv-src" id="msvSrcWrap">
         <label class="msv-src-opt sel" id="msvSrcApi" onclick="msvSetSource('api')">
           <input type="radio" name="msvSrc" checked/>
-          <div><div class="msv-src-t">API Cardmarket (veloce, zero impatti)</div>
-          <div class="msv-src-d">Prezzo NM ufficiale via API + ladder gi&agrave; presente nel DB RareBlock. Le condizioni inferiori senza dato reale vengono stimate dalla scala NM (dichiarate come stima). Nessuna lettura di pagine CM.</div></div>
+          <div><div class="msv-src-t">API Cardmarket (veloce, zero impatti) <span class="msv-badge api" style="margin-left:6px;vertical-align:1px">API</span></div>
+          <div class="msv-src-d"><b style="color:var(--text)">Prezzo di riferimento</b> dall'API ufficiale CM: minimo NM dei venditori italiani (o media 7/30gg se assente) &mdash; <b style="color:var(--text)">pu&ograve; non coincidere</b> con i listing visibili in pagina. Dove il DB RareBlock ha gi&agrave; un ladder reale, viene usato quello. Condizioni inferiori senza dato: stimate dalla scala NM e dichiarate come stima.</div></div>
         </label>
         <label class="msv-src-opt" id="msvSrcHunter" onclick="msvSetSource('hunter')">
           <input type="radio" name="msvSrc"/>
-          <div><div class="msv-src-t">Scraping pagine CM via Hunter (ladder reale, lento)</div>
-          <div class="msv-src-d" id="msvSrcHunterD">Legge la pagina Cardmarket reale di ogni carta dal tuo browser (IP residenziale): prezzi per-condizione veri, con delay anti-bot 3,5&ndash;8s a carta.</div></div>
+          <div><div class="msv-src-t">Pagine CM via Hunter (listing reali, lento) <span class="msv-badge reale" style="margin-left:6px;vertical-align:1px">listing</span></div>
+          <div class="msv-src-d" id="msvSrcHunterD">Legge la pagina Cardmarket reale di ogni carta dal tuo browser (IP residenziale): <b style="color:var(--text)">gli stessi prezzi per condizione che vedi tu in pagina</b>, con delay anti-bot 3,5&ndash;8s a carta. Usa questa fonte se vuoi numeri verificabili sui listing.</div></div>
         </label>
       </div>
 
@@ -669,11 +686,13 @@ body{display:flex;flex-direction:column}
         <div class="msv-prog-meta"><span id="msvCount">0 / 0</span><span id="msvEta"></span></div>
         <div class="msv-prog-now" id="msvNow">Avvio&hellip;</div>
       </div>
+      <div class="msv-feed" id="msvFeed"></div>
     </div>
 
     <!-- FASE 3: risultati -->
     <div id="msvResults" style="display:none;flex-direction:column;overflow:hidden;flex:1;min-height:0">
       <div class="msv-sum" id="msvSum"></div>
+      <div class="msv-legend" id="msvLegend"></div>
       <div class="msv-cmp" id="msvCmp">
         <div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px">Prezzo richiesto<br><span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px">(lotto in trattativa)</span></div>
         <input type="number" id="msvAsk" min="0" step="0.01" placeholder="es. 1500" oninput="msvCompareRender()"/>
@@ -2991,12 +3010,54 @@ function msvBustCache(cardKey){
   }catch(e){}
 }
 
+// Provenienza del risultato prezzi: da dove arriva il dato, quanto è vecchio,
+// quale pagina CM lo sostiene (per il link di verifica) e — se CMAPI — su che
+// base è calcolato il refPrice (min NM IT / media 7gg / media 30gg / min globale).
+var MSV_BASIS_LBL = { IT:'min NM IT', '30d':'media 30gg', '7d':'media 7gg', global:'min NM globale' };
+function msvResMeta(res){
+  if(!res || !res.ok) return { lbl:null, age:null, cmUrl:null, basis:null, tip:null };
+  var s = res.source;
+  var age = null;
+  try{
+    if(res.capturedAt) age = Math.max(0, Math.round((Date.now() - new Date(res.capturedAt).getTime()) / 86400000));
+    else if(res.ageDays != null) age = Math.round(res.ageDays);
+  }catch(e){}
+  var lbl = s === 'live' ? 'CM live'
+          : s === 'db' ? 'DB'
+          : (s === 'memory' || s === 'localStorage') ? 'cache'
+          : s === 'cmapi' ? 'API'
+          : (s || '?');
+  if(age != null && age > 0) lbl += '\u00b7' + age + 'g';
+  var tip = s === 'live' ? 'Letto adesso dalla pagina Cardmarket'
+          : s === 'db' ? 'Ladder dal DB RareBlock (scraping precedente)'
+          : (s === 'memory' || s === 'localStorage') ? 'Dato in cache di una lettura precedente'
+          : s === 'cmapi' ? 'Risposta API ufficiale Cardmarket'
+          : '';
+  if(age != null && age > 0) tip += ' \u00b7 rilevato ' + age + ' giorn' + (age===1?'o':'i') + ' fa';
+  return { lbl: lbl, age: age, cmUrl: res.cmUrl || null,
+           basis: (res.cmapi && res.cmapi.refBasis) || null, tip: tip };
+}
+
+// Feed live in fase run: ultime righe quotate (trasparenza durante l'estrazione)
+function msvFeedPush(html){
+  var f = document.getElementById('msvFeed'); if(!f) return;
+  var d = document.createElement('div');
+  d.className = 'msv-feed-row'; d.innerHTML = html;
+  f.insertBefore(d, f.firstChild);          // column-reverse → visivamente in coda
+  while(f.children.length > 8) f.removeChild(f.lastChild);
+}
+
 // Deriva il prezzo per una condizione richiesta dal ladder disponibile.
-// 1) voce reale per la condizione esatta → 'reale'
-// 2) condizione MIGLIORE disponibile a prezzo ≤ stima → 'reale' (compri
-//    meglio allo stesso prezzo o meno: è il costo vero di acquisizione)
-// 3) stima dalla voce più vicina × rapporto di scala → 'stima'
-// Ritorna {p, src:'reale'|'stima', via?, from?, n?} o null se ladder vuoto.
+// Tassonomia fonti (onestà sui dati, nessun "reale" ambiguo):
+//   'listing' — prezzo da listing CM reali per quella condizione (o, via X,
+//               listing reale di condizione MIGLIORE più economico della stima:
+//               è il costo vero di acquisizione)
+//   'api'     — refPrice CMAPI (min NM venditori IT, o media 7/30gg se assente):
+//               riferimento ufficiale, NON un listing visibile in pagina
+//   'stima'   — scala condizioni MSV_FACTOR dalla voce più vicina
+// Le voci sintetiche CMAPI (entry.source==='cmapi') NON valgono come listing:
+// niente promozione a 'reale' né uso come betterCheap.
+// Ritorna {p, src, via?, from?, fromApi?, n?} o null se ladder vuoto.
 function msvDerive(conditions, condShort){
   var target = MSV_LONG[condShort]; if(!target) return null;
   var tRank = MSV_RANK[target];
@@ -3004,24 +3065,29 @@ function msvDerive(conditions, condShort){
     return c && c.low1 != null && c.low1 > 0 && MSV_RANK[c.condition];
   });
   if(!entries.length) return null;
+  function isApi(c){ return c.source === 'cmapi'; }
   var exact = null;
   entries.forEach(function(c){ if(c.condition === target && !exact) exact = c; });
-  if(exact) return { p: exact.low1, src:'reale', n: exact.nListings };
+  if(exact){
+    return isApi(exact) ? { p: exact.low1, src:'api' }
+                        : { p: exact.low1, src:'listing', n: exact.nListings };
+  }
   // base di stima: la voce con rank più vicino al target (preferendo migliori)
   var base = entries.slice().sort(function(a,b){
     var da = Math.abs(MSV_RANK[a.condition]-tRank), db = Math.abs(MSV_RANK[b.condition]-tRank);
     return da!==db ? da-db : MSV_RANK[a.condition]-MSV_RANK[b.condition];
   })[0];
   var est = Math.round(base.low1 * (MSV_FACTOR[target] / MSV_FACTOR[base.condition]) * 100) / 100;
-  // voce reale di condizione migliore più economica della stima?
+  // listing REALE di condizione migliore più economico della stima?
   var betterCheap = null;
   entries.forEach(function(c){
+    if(isApi(c)) return;
     if(MSV_RANK[c.condition] < tRank && (betterCheap == null || c.low1 < betterCheap.low1)) betterCheap = c;
   });
   if(betterCheap && betterCheap.low1 <= est){
-    return { p: betterCheap.low1, src:'reale', via: MSV_SHORT[betterCheap.condition], n: betterCheap.nListings };
+    return { p: betterCheap.low1, src:'listing', via: MSV_SHORT[betterCheap.condition], n: betterCheap.nListings };
   }
-  return { p: est, src:'stima', from: MSV_SHORT[base.condition] };
+  return { p: est, src:'stima', from: MSV_SHORT[base.condition], fromApi: isApi(base) };
 }
 
 // ── Costruzione job ─────────────────────────────────────────────────────
@@ -3169,6 +3235,7 @@ window.msvRefreshInfo = function(){
     infoEl.classList.add('msv-warn');
   }
   if(_msv.source === 'api'){
+    html += '<br>I prezzi marcati <b>API</b> sono il riferimento ufficiale CM (min NM venditori IT, o media 7/30gg): per i listing visibili in pagina usa la fonte Hunter.';
     var hasNonCanon = built.jobs.some(function(j){ return j.variant === 'Reverse Holo' || j.variant === '1\u00aa Edizione' || j.variant === 'Shadowless'; });
     if(hasNonCanon) html += '<br>Reverse Holo / 1\u00aa Edizione / Shadowless sono fuori dal canone API: in questa modalit\u00e0 vengono quotate solo se gi\u00e0 nel DB, altrimenti risultano \u00abn.d.\u00bb (usa Hunter per il dato live).';
   }
@@ -3180,8 +3247,11 @@ function msvRenderLast(ms){
   if(!v || !v.at){ el.style.display = 'none'; return; }
   var when = new Date(v.at).toLocaleString('it-IT', { dateStyle:'short', timeStyle:'short' });
   var tot = Object.keys(v.totals||{}).map(function(k){ return (k==='TOT'?'posseduto':('min. '+k)) + ' ' + fmtEur(v.totals[k]); }).join(' \u00b7 ');
+  var q = (v.listing != null)
+    ? (v.listing + ' listing \u00b7 ' + (v.api||0) + ' API \u00b7 ' + (v.stima||0) + ' stime')
+    : (v.reale != null ? (v.reale + ' reali \u00b7 ' + (v.stima||0) + ' stime') : '');
   el.style.display = 'flex';
-  el.innerHTML = 'Ultima valutazione: ' + esc(when) + ' \u00b7 ' + esc(v.mode === 'owned' ? 'posseduto' : ('acquisto/' + (v.scope||''))) + ' \u00b7 ' + esc(tot || '\u2014') + (v.partial ? ' \u00b7 parziale' : '');
+  el.innerHTML = 'Ultima valutazione: ' + esc(when) + ' \u00b7 ' + esc(v.mode === 'owned' ? 'posseduto' : ('acquisto/' + (v.scope||''))) + ' \u00b7 ' + esc(tot || '\u2014') + (q ? ' \u00b7 ' + esc(q) : '') + (v.partial ? ' \u00b7 parziale' : '');
 }
 
 // ── Esecuzione ──────────────────────────────────────────────────────────
@@ -3254,6 +3324,7 @@ async function _msvWork(ms, cfg, getCP){
   var now = document.getElementById('msvNow');
   var hunter = cfg.source === 'hunter';
   var delayMin = hunter ? 3500 : 650, delayMax = hunter ? 8000 : 1300;
+  try{ document.getElementById('msvFeed').innerHTML = ''; }catch(e){}
 
   // dedup: i job che condividono il card_key usano lo stesso ladder
   var fetchCache = {};
@@ -3294,18 +3365,28 @@ async function _msvWork(ms, cfg, getCP){
 
     // deriva prezzi per le condizioni richieste
     var conds = (res && res.conditions) || [];
+    var meta = msvResMeta(res);
     if(cfg.mode === 'owned'){
       Object.keys(j.owned).forEach(function(cShort){
         var d = msvDerive(conds, cShort);
         rows.push({ num:j.card.num, name:j.card.name, variant:j.variant, cond:cShort,
                     qty:j.owned[cShort], unit:d?d.p:null, src:d?d.src:null, via:(d&&(d.via||d.from))||null,
-                    source:(res&&res.source)||null });
+                    fromApi:!!(d&&d.fromApi), org:meta.lbl, orgTip:meta.tip, basis:meta.basis, cmUrl:meta.cmUrl });
+        if(!wasCached) msvFeedPush(
+          '<span class="msv-feed-name">'+(j.card.num?'#'+esc(j.card.num)+' ':'')+esc(j.card.name||'')+' \u00b7 '+esc(cShort)+'</span>'
+          + (d ? '<span class="msv-feed-pr">'+fmtEur(d.p)+'</span>'+_msvBadge(d, meta.basis) : '<span class="msv-badge miss">n.d.</span>'));
       });
     } else {
       var prices = {};
       cfg.conds.forEach(function(cShort){ prices[cShort] = msvDerive(conds, cShort); });
       rows.push({ num:j.card.num, name:j.card.name, variant:j.variant, prices:prices,
-                  source:(res&&res.source)||null });
+                  org:meta.lbl, orgTip:meta.tip, basis:meta.basis, cmUrl:meta.cmUrl });
+      if(!wasCached){
+        var d0 = prices[cfg.conds[0]];
+        msvFeedPush(
+          '<span class="msv-feed-name">'+(j.card.num?'#'+esc(j.card.num)+' ':'')+esc(j.card.name||'')+' \u00b7 '+esc(j.variant)+'</span>'
+          + (d0 ? '<span class="msv-feed-pr">'+fmtEur(d0.p)+'</span>'+_msvBadge(d0, meta.basis) : '<span class="msv-badge miss">n.d.</span>'));
+      }
     }
 
     var done = i+1;
@@ -3328,24 +3409,36 @@ function _msvFinish(ms, cfg, rows, wasCancelled){
   document.getElementById('msvCsvBtn').style.display = '';
   document.getElementById('msvBackBtn').style.display = '';
 
-  var totals = {}, counts = { reale:0, stima:0, miss:0 };
+  var totals = {}, counts = { listing:0, api:0, stima:0, miss:0 };
   var thead = document.getElementById('msvThead');
   var tbody = document.getElementById('msvTbody');
+
+  // nome carta → link alla pagina CM usata per il prezzo (verifica diretta)
+  function nameCell(r){
+    var nm = esc(r.name||'');
+    if(r.cmUrl) return '<a class="msv-cml" href="'+esc(r.cmUrl)+'" target="_blank" rel="noopener" title="Apri la pagina Cardmarket usata per questo prezzo">'+nm+' <span class="ar">\u2197</span></a>';
+    return nm;
+  }
+  function orgCell(r){
+    return r.org ? '<span class="msv-org" title="'+esc(r.orgTip||'')+'">'+esc(r.org)+'</span>' : '\u2014';
+  }
+  function bump(src){ counts[src === 'listing' ? 'listing' : src === 'api' ? 'api' : 'stima']++; }
 
   if(cfg.mode === 'owned'){
     var tot = 0;
     var html = '';
     rows.forEach(function(r){
       var line = r.unit != null ? r.unit * r.qty : null;
-      if(line != null){ tot += line; counts[r.src === 'reale' ? 'reale' : 'stima']++; }
+      if(line != null){ tot += line; bump(r.src); }
       else counts.miss++;
-      html += '<tr><td class="num">'+esc(r.num)+'</td><td>'+esc(r.name)+'</td><td style="font-size:10.5px;color:var(--text-muted)">'+esc(r.variant)+'</td>'
+      html += '<tr><td class="num">'+esc(r.num)+'</td><td>'+nameCell(r)+'</td><td style="font-size:10.5px;color:var(--text-muted)">'+esc(r.variant)+'</td>'
+        + '<td class="num">'+orgCell(r)+'</td>'
         + '<td class="num">'+esc(r.cond)+'</td><td class="num" style="text-align:center">'+r.qty+'</td>'
-        + '<td class="pr">'+ (r.unit!=null ? fmtEur(r.unit) + _msvBadge(r.src, r.via) : '<span class="msv-badge miss">n.d.</span>') +'</td>'
+        + '<td class="pr">'+ (r.unit!=null ? fmtEur(r.unit) + _msvBadge(r, r.basis) : '<span class="msv-badge miss">n.d.</span>') +'</td>'
         + '<td class="pr">'+ (line!=null ? fmtEur(line) : '\u2014') +'</td></tr>';
     });
     totals.TOT = Math.round(tot*100)/100;
-    thead.innerHTML = '<tr><th>#</th><th>Carta</th><th>Variante</th><th>Cond</th><th>Qt\u00e0</th><th style="text-align:right">Unitario</th><th style="text-align:right">Totale</th></tr>';
+    thead.innerHTML = '<tr><th>#</th><th>Carta</th><th>Variante</th><th>Origine</th><th>Cond</th><th>Qt\u00e0</th><th style="text-align:right">Unitario</th><th style="text-align:right">Totale</th></tr>';
     tbody.innerHTML = html;
   } else {
     var sums = {};
@@ -3353,31 +3446,52 @@ function _msvFinish(ms, cfg, rows, wasCancelled){
     var html2 = '';
     rows.forEach(function(r){
       var tds = '';
-      var anyReal = false, anyEst = false, allMiss = true;
+      var best = null;                         // qualità migliore della riga: listing > api > stima
       cfg.conds.forEach(function(c){
         var d = r.prices[c];
-        if(d){ sums[c] += d.p; allMiss = false; if(d.src==='reale') anyReal = true; else anyEst = true; }
-        tds += '<td class="pr">'+(d ? fmtEur(d.p) + _msvBadge(d.src, d.via||d.from) : '<span class="msv-badge miss">n.d.</span>')+'</td>';
+        if(d){
+          sums[c] += d.p;
+          var rank = d.src === 'listing' ? 0 : d.src === 'api' ? 1 : 2;
+          if(best == null || rank < best) best = rank;
+        }
+        tds += '<td class="pr">'+(d ? fmtEur(d.p) + _msvBadge(d, r.basis) : '<span class="msv-badge miss">n.d.</span>')+'</td>';
       });
-      if(allMiss) counts.miss++; else if(anyEst && !anyReal) counts.stima++; else counts.reale++;
-      html2 += '<tr><td class="num">'+esc(r.num)+'</td><td>'+esc(r.name)+'</td><td style="font-size:10.5px;color:var(--text-muted)">'+esc(r.variant)+'</td>'+tds+'</tr>';
+      if(best == null) counts.miss++;
+      else counts[best === 0 ? 'listing' : best === 1 ? 'api' : 'stima']++;
+      html2 += '<tr><td class="num">'+esc(r.num)+'</td><td>'+nameCell(r)+'</td><td style="font-size:10.5px;color:var(--text-muted)">'+esc(r.variant)+'</td>'
+        + '<td class="num">'+orgCell(r)+'</td>'+tds+'</tr>';
     });
     cfg.conds.forEach(function(c){ totals[c] = Math.round(sums[c]*100)/100; });
-    thead.innerHTML = '<tr><th>#</th><th>Carta</th><th>Variante</th>'
+    thead.innerHTML = '<tr><th>#</th><th>Carta</th><th>Variante</th><th>Origine</th>'
       + cfg.conds.map(function(c){ return '<th style="text-align:right">'+esc(c)+' <span style="color:'+(MS_COND_COLORS[c]||'inherit')+'">\u25cf</span></th>'; }).join('') + '</tr>';
     tbody.innerHTML = html2;
   }
 
-  // riepilogo
+  // riepilogo + barra qualità dati
   var sum = document.getElementById('msvSum');
+  var quoted = counts.listing + counts.api + counts.stima;
+  var allN = quoted + counts.miss || 1;
   var cells = '';
   Object.keys(totals).forEach(function(k){
     cells += '<div class="msv-sum-cell"><div class="msv-sum-val">'+fmtEur(totals[k])+'</div><div class="msv-sum-lbl">'+(k==='TOT'?'Valore posseduto':'Totale min. '+esc(k))+'</div></div>';
   });
-  cells += '<div class="msv-sum-cell"><div class="msv-sum-val dim">'+rows.length+'</div><div class="msv-sum-lbl">Righe quotate</div>'
-        +  '<div class="msv-sum-sub">'+counts.reale+' reali \u00b7 '+counts.stima+' stime \u00b7 '+counts.miss+' n.d.'+(_msv.unquotable?(' \u00b7 '+_msv.unquotable+' escluse'):'')+'</div></div>';
+  cells += '<div class="msv-sum-cell" style="flex:1;min-width:200px"><div class="msv-sum-val dim">'+quoted+'<span style="font-size:11px;color:var(--text-subtle)"> / '+(quoted+counts.miss)+' quotate</span></div>'
+        +  '<div class="msv-qbar">'
+        +    (counts.listing ? '<i class="ql" style="width:'+(counts.listing/allN*100)+'%" title="'+counts.listing+' da listing reali"></i>' : '')
+        +    (counts.api ? '<i class="qa" style="width:'+(counts.api/allN*100)+'%" title="'+counts.api+' da riferimento API"></i>' : '')
+        +    (counts.stima ? '<i class="qs" style="width:'+(counts.stima/allN*100)+'%" title="'+counts.stima+' stime"></i>' : '')
+        +    (counts.miss ? '<i class="qm" style="width:'+(counts.miss/allN*100)+'%" title="'+counts.miss+' n.d."></i>' : '')
+        +  '</div>'
+        +  '<div class="msv-sum-sub">'+counts.listing+' listing \u00b7 '+counts.api+' API \u00b7 '+counts.stima+' stime \u00b7 '+counts.miss+' n.d.'+(_msv.unquotable?(' \u00b7 '+_msv.unquotable+' escluse'):'')+'</div></div>';
   if(wasCancelled) cells += '<div class="msv-sum-cell"><div class="msv-sum-val" style="color:#cf8e44">\u26a0</div><div class="msv-sum-lbl">Interrotta</div><div class="msv-sum-sub">risultati parziali</div></div>';
   sum.innerHTML = cells;
+
+  // legenda fonti: cosa rappresenta ogni prezzo (trasparenza totale)
+  document.getElementById('msvLegend').innerHTML =
+    '<span class="dot" style="background:#3fb950"></span><b>listing</b> = prezzi reali dei venditori sulla pagina CM (Hunter o scraping precedente nel DB) \u00b7 '
+    + '<span class="dot" style="background:#58a6ff"></span><b>API</b> = riferimento dell\u2019API ufficiale CM (min NM venditori IT, o media 7/30gg se assente) \u2014 <b>pu\u00f2 differire dai listing in pagina</b> \u00b7 '
+    + '<span class="dot" style="background:#cf8e44"></span><b>stima</b> = scala condizioni da un dato vicino. '
+    + 'La colonna <b>Origine</b> dice da dove arriva il dato e quanto \u00e8 vecchio; clicca il nome carta per aprire la pagina CM e verificare.';
 
   // confronto prezzo richiesto: solo per la simulazione acquisto
   document.getElementById('msvCmp').style.display = (cfg.mode === 'buy') ? 'flex' : 'none';
@@ -3391,15 +3505,26 @@ function _msvFinish(ms, cfg, rows, wasCancelled){
       at: new Date().toISOString(), mode: cfg.mode, scope: cfg.scope,
       conds: cfg.conds.slice(), lang: ms.lang || 'ITA', source: cfg.source,
       totals: totals, rows: rows.length,
-      reale: counts.reale, stima: counts.stima, missing: counts.miss,
+      listing: counts.listing, api: counts.api, stima: counts.stima, missing: counts.miss,
       unquotable: _msv.unquotable || 0, partial: !!wasCancelled
     };
     msSave(msData).catch(function(e){ console.warn('[msv] salvataggio valutazione fallito:', e && e.message); });
   }catch(e){}
 }
-function _msvBadge(src, via){
-  if(src === 'reale') return '<span class="msv-badge reale" title="Prezzo da listing reali Cardmarket'+(via?(' (condizione '+esc(via)+')'):'')+'">'+(via?('reale '+esc(via)):'reale')+'</span>';
-  return '<span class="msv-badge stima" title="Stima dalla scala condizioni'+(via?(' a partire da '+esc(via)):'')+' \u2014 nessun listing reale per questa condizione">stima'+(via?(' da '+esc(via)):'')+'</span>';
+// Badge fonte prezzo. d = output di msvDerive (o riga owned con .src/.via/.fromApi),
+// basis = refBasis CMAPI della risposta (per etichettare il riferimento API).
+function _msvBadge(d, basis){
+  if(!d || !d.src) return '';
+  var via = d.via || d.from || null;
+  if(d.src === 'listing'){
+    return '<span class="msv-badge reale" title="Prezzo da listing reali Cardmarket'+(via?(' \u2014 listing di condizione migliore ('+esc(via)+') pi\u00f9 economico della stima: \u00e8 il costo vero di acquisizione'):'')+'">'+(via?('listing '+esc(via)):'listing')+'</span>';
+  }
+  if(d.src === 'api'){
+    var bl = MSV_BASIS_LBL[basis] || 'riferimento';
+    return '<span class="msv-badge api" title="Riferimento API ufficiale Cardmarket ('+esc(bl)+') \u2014 non \u00e8 un listing visibile in pagina">API \u00b7 '+esc(bl)+'</span>';
+  }
+  var apiNote = d.fromApi ? ' \u2014 base: riferimento API, non un listing' : '';
+  return '<span class="msv-badge stima" title="Stima dalla scala condizioni'+(via?(' a partire da '+esc(via)):'')+esc(apiNote)+' \u2014 nessun dato reale per questa condizione">stima'+(via?(' da '+esc(via)+(d.fromApi?'\u00b7API':'')):'')+'</span>';
 }
 
 // Confronto col prezzo richiesto del lotto: delta vs ogni totale calcolato.
@@ -3430,15 +3555,16 @@ window.msvExportCSV = function(){
   var cfg = _msv.cfg, rows = _msv.rows, out;
   function q(s){ return '"' + String(s==null?'':s).replace(/"/g,'""') + '"'; }
   if(cfg.mode === 'owned'){
-    out = ['#,Carta,Variante,Condizione,Qta,Unitario EUR,Totale EUR,Fonte'];
+    out = ['#,Carta,Variante,Condizione,Qta,Unitario EUR,Totale EUR,Fonte,Origine,URL CM'];
     rows.forEach(function(r){
       out.push([r.num, q(r.name), q(r.variant), r.cond, r.qty,
         r.unit!=null?r.unit.toFixed(2):'', r.unit!=null?(r.unit*r.qty).toFixed(2):'',
-        r.src ? (r.src + (r.via?(' '+r.via):'')) : 'n.d.'].join(','));
+        r.src ? (r.src + (r.via?(' '+r.via):'')) : 'n.d.', q(r.org||''), q(r.cmUrl||'')].join(','));
     });
   } else {
     var head = ['#','Carta','Variante'];
     cfg.conds.forEach(function(c){ head.push('EUR '+c, 'Fonte '+c); });
+    head.push('Origine','URL CM');
     out = [head.join(',')];
     rows.forEach(function(r){
       var line = [r.num, q(r.name), q(r.variant)];
@@ -3446,10 +3572,12 @@ window.msvExportCSV = function(){
         var d = r.prices[c];
         line.push(d ? d.p.toFixed(2) : '', d ? (d.src + ((d.via||d.from)?(' '+(d.via||d.from)):'')) : 'n.d.');
       });
+      line.push(q(r.org||''), q(r.cmUrl||''));
       out.push(line.join(','));
     });
     var totLine = ['','TOTALE',''];
     cfg.conds.forEach(function(c){ totLine.push((_msv.totals[c]||0).toFixed(2), ''); });
+    totLine.push('','');
     out.push(totLine.join(','));
   }
   var a = document.createElement('a');
