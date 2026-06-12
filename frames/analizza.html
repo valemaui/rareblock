@@ -98,6 +98,14 @@ body{display:flex;flex-direction:column}
 .anl-src.anl-src-dim{opacity:0.62;background:transparent}
 .anl-src-head{display:flex;align-items:center;gap:6px;font-size:9px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:500}
 .anl-src-tag{border:1px solid var(--border);padding:1px 5px;border-radius:2px;font-size:8.5px;letter-spacing:0.06em}
+/* Badge provenienza dati: da dove arriva DAVVERO il numero (HUNTER = IP
+   residenziale via estensione, CMAPI = API ufficiale, TAB = userscript,
+   SERVER = fetch datacenter, TREND = fallback TCG API). Trasparenza totale
+   sulla pipeline = fiducia nel dato. */
+.anl-src-via{margin-left:2px;padding:1px 6px;border-radius:3px;font-size:8px;letter-spacing:0.08em;font-weight:600;font-family:var(--mono);border:1px solid var(--border);color:var(--text-subtle);background:transparent;text-transform:uppercase}
+.anl-src-via:empty{display:none}
+.anl-src-via.live{color:var(--accent);border-color:rgba(201,168,76,0.45);background:rgba(201,168,76,0.08)}
+.anl-src-via.mute{opacity:0.6}
 .anl-src-dot{margin-left:auto;line-height:1;font-size:10px;color:var(--text-subtle)}
 .anl-src-price{font-size:16px;font-family:var(--mono);font-weight:600;color:var(--text);line-height:1.3}
 .anl-src-price.loading{color:var(--text-subtle);font-weight:400;font-size:13px}
@@ -205,8 +213,19 @@ body{display:flex;flex-direction:column}
 /* Riepilogo valore mercato - mezza colonna destra */
 .anl-card-summary{flex:0 0 38%;min-width:200px;padding:14px 18px;background:var(--surface2);border-left:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;gap:4px}
 .anl-card-summary-label{font-size:9px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;font-weight:500}
-.anl-card-summary-price{font-size:30px;font-weight:600;letter-spacing:-0.025em;font-family:var(--mono);color:var(--text);line-height:1;margin-top:2px}
-.anl-card-summary-price.mute{color:var(--text-subtle);font-size:22px}
+.anl-card-summary-price{font-size:30px;font-weight:600;letter-spacing:-0.025em;font-family:var(--mono);line-height:1;margin-top:2px;background:linear-gradient(135deg,var(--text) 55%,var(--accent));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.anl-card-summary-price.mute{font-size:22px;background:none;-webkit-text-fill-color:var(--text-subtle);color:var(--text-subtle)}
+/* Pill di confidenza sotto il metodo: quante fonti vive + dimensione campione.
+   Tier: solid (≥2 fonti, campione ≥10) / fair / thin. */
+.anl-conf-pill{display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:2px 8px;border-radius:10px;font-size:9px;font-family:var(--mono);letter-spacing:0.06em;border:1px solid var(--border);color:var(--text-muted);width:fit-content}
+.anl-conf-pill::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--text-subtle)}
+.anl-conf-pill.solid{color:var(--accent);border-color:rgba(201,168,76,0.4)}
+.anl-conf-pill.solid::before{background:var(--accent);box-shadow:0 0 6px rgba(201,168,76,0.55)}
+.anl-conf-pill.fair{color:var(--text)}
+.anl-conf-pill.fair::before{background:#58a6ff}
+.anl-conf-pill.thin{opacity:0.75}
+.anl-conf-pill.thin::before{background:#e0a857}
+.anl-conf-pill:empty{display:none}
 .anl-card-summary-method{font-size:10px;color:var(--text-muted);font-family:var(--mono);line-height:1.4;margin-top:3px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 
 /* Sources con toggle pill in cima */
@@ -797,6 +816,7 @@ function anlRenderAll(card){
     +  '<div class="anl-card-summary-label">Valore mercato \u00b7 oggi</div>'
     +  '<div class="anl-card-summary-price mute" id="anlTodayPrice">\u2014</div>'
     +  '<div class="anl-card-summary-method" id="anlTodayMethod">caricamento sorgenti\u2026</div>'
+    +  '<div class="anl-conf-pill" id="anlTodayConf"></div>'
     +'</div>'
     +'</div>';
   // NB: la strip TCG (anl-tcg-strip) NON è più qui — spostata in fondo al body
@@ -993,21 +1013,21 @@ function anlSourcesScaffold(card){
 
   return ''
   +'<div class="anl-src'+(anlSourceEnabled.eb?'':' disabled')+'" id="anlSrcEbBox">'
-  +  '<div class="anl-src-head"><span class="anl-src-toggle'+(anlSourceEnabled.eb?' active':'')+'" onclick="anlToggleSource(\'eb\')" title="Includi/escludi nella media"></span><span class="anl-src-tag">EB</span><span>eBay Sold'+(graded?' '+ANL_HOUSES[house].label+' '+score:'')+'</span><span class="anl-src-dot" id="anlSrcEbDot"><span class="anl-spin anl-spin-dot"></span></span></div>'
+  +  '<div class="anl-src-head"><span class="anl-src-toggle'+(anlSourceEnabled.eb?' active':'')+'" onclick="anlToggleSource(\'eb\')" title="Includi/escludi nella media"></span><span class="anl-src-tag">EB</span><span>eBay Sold'+(graded?' '+ANL_HOUSES[house].label+' '+score:'')+'</span><span class="anl-src-via" id="anlSrcEbVia"></span><span class="anl-src-dot" id="anlSrcEbDot"><span class="anl-spin anl-spin-dot"></span></span></div>'
   +  '<div class="anl-src-price loading" id="anlSrcEb">—</div>'
   +  '<div class="anl-src-note" id="anlSrcEbNote">caricamento venduti…</div>'
   +  '<div id="anlSrcEbTable" class="anl-cm-grade-table" style="display:none"></div>'
   +  '<a class="anl-src-link" id="anlSrcEbLink" href="'+ebUrl+'" target="_blank" rel="noopener">apri →</a>'
   +'</div>'
   +'<div class="anl-src'+(anlSourceEnabled.pc?'':' disabled')+'" id="anlSrcPcBox">'
-  +  '<div class="anl-src-head"><span class="anl-src-toggle'+(anlSourceEnabled.pc?' active':'')+'" onclick="anlToggleSource(\'pc\')" title="Includi/escludi nella media"></span><span class="anl-src-tag">PC</span><span>PriceCharting'+(graded?' '+ANL_HOUSES[house].label+' '+score:''  )+'</span><span class="anl-src-dot" id="anlSrcPcDot"><span class="anl-spin anl-spin-dot"></span></span></div>'
+  +  '<div class="anl-src-head"><span class="anl-src-toggle'+(anlSourceEnabled.pc?' active':'')+'" onclick="anlToggleSource(\'pc\')" title="Includi/escludi nella media"></span><span class="anl-src-tag">PC</span><span>PriceCharting'+(graded?' '+ANL_HOUSES[house].label+' '+score:''  )+'</span><span class="anl-src-via" id="anlSrcPcVia"></span><span class="anl-src-dot" id="anlSrcPcDot"><span class="anl-spin anl-spin-dot"></span></span></div>'
   +  '<div class="anl-src-price loading" id="anlSrcPc">—</div>'
   +  '<div class="anl-src-note" id="anlSrcPcNote">caricamento…</div>'
   +  '<div id="anlSrcPcTable" class="anl-cm-grade-table" style="display:none"></div>'
   +  '<a class="anl-src-link" id="anlSrcPcLink" href="'+pcUrl+'" target="_blank" rel="noopener">apri →</a>'
   +'</div>'
   +'<div class="'+cmClass+(anlSourceEnabled.cm?'':' disabled')+'" id="anlSrcCmBox">'
-  +  '<div class="anl-src-head"><span class="anl-src-toggle'+(anlSourceEnabled.cm?' active':'')+'" onclick="anlToggleSource(\'cm\')" title="Includi/escludi nella media"></span><span class="anl-src-tag">'+cmTag+'</span><span>'+cmTitle+'</span><span class="anl-src-dot" id="anlSrcCmDot"><span class="anl-spin anl-spin-dot"></span></span></div>'
+  +  '<div class="anl-src-head"><span class="anl-src-toggle'+(anlSourceEnabled.cm?' active':'')+'" onclick="anlToggleSource(\'cm\')" title="Includi/escludi nella media"></span><span class="anl-src-tag">'+cmTag+'</span><span>'+cmTitle+'</span><span class="anl-src-via" id="anlSrcCmVia"></span><span class="anl-src-dot" id="anlSrcCmDot"><span class="anl-spin anl-spin-dot"></span></span></div>'
   +  '<div class="anl-src-price loading" id="anlSrcCm">'+(function(){
         var p=card.cardmarket&&card.cardmarket.prices;
         var nm=p?(p.trendPrice||p.avg30||null):null;
@@ -1155,7 +1175,22 @@ function anlRenderToday(){
   var res = anlComputeToday();
   var priceEl = document.getElementById('anlTodayPrice');
   var methEl  = document.getElementById('anlTodayMethod');
+  var confEl  = document.getElementById('anlTodayConf');
   if(!priceEl || !methEl) return;
+  // ── Pill di confidenza: quante fonti contribuiscono + campione totale ──
+  if(confEl){
+    if(res.price && res.sources && res.sources.length){
+      var nSrc = res.sources.length;
+      var nSample = res.sources.reduce(function(t,s){ return t + (s.n||0); }, 0);
+      var tier = (nSrc>=2 && nSample>=10) ? 'solid' : ((nSrc>=2 || nSample>=5) ? 'fair' : 'thin');
+      var tierLbl = tier==='solid' ? 'confidenza alta' : (tier==='fair' ? 'confidenza media' : 'campione ridotto');
+      confEl.className = 'anl-conf-pill '+tier;
+      confEl.textContent = tierLbl+' \u00b7 '+nSrc+(nSrc===1?' fonte':' fonti')+(nSample?(' \u00b7 '+nSample+' vendite'):'');
+    } else {
+      confEl.className = 'anl-conf-pill';
+      confEl.textContent = '';
+    }
+  }
   if(res.price){
     priceEl.textContent = '€'+res.price.toFixed(2);
     priceEl.classList.remove('mute');
@@ -1651,11 +1686,21 @@ async function anlFetchSmooth(body){
   // skippa proxy/ScrapingBee. Su eBay è l'unico modo per ottenere dati.
   // Su CM evita di consumare crediti proxy.
   // Fallback automatico se extension assente o fetch fallito.
+  //
+  // PROTOCOLLO COOPERATIVO A 2 ROUND (fix PriceCharting):
+  // il pre-fetch copre solo gli URL noti in anticipo (body.urls). Gli URL
+  // DERIVATI dal server (pagina prodotto PC risolta dalla search,
+  // /recent-sales) venivano fetchati dal datacenter Supabase → blocco.
+  // Round 1: inviamo ext:true; se un fetch derivato fallisce il server
+  // risponde { retry_with_ext:true, need_fetch:[urls] }. Round 2: scarichiamo
+  // quegli URL via Hunter e richiamiamo con extra_html:{url:html} (e ext:false
+  // per impedire un terzo round). Massimo 1 retry, sempre fail-safe.
+  var extFetch = null, extReady = false;
   try {
-    var extFetch = (window.parent && window.parent.rbExtFetch) || window.rbExtFetch;
+    extFetch = (window.parent && window.parent.rbExtFetch) || window.rbExtFetch;
     if (typeof extFetch === 'function' && Array.isArray(body.urls) && body.urls.length){
-      var ready = await extFetch.isReady();
-      if (ready){
+      extReady = await extFetch.isReady();
+      if (extReady){
         var fetched = await Promise.all(body.urls.map(function(u){
           return extFetch(u).catch(function(){ return null; });
         }));
@@ -1673,30 +1718,75 @@ async function anlFetchSmooth(body){
           body = Object.assign({}, body, { provided_html: partial });
         }
       }
+    } else if (typeof extFetch === 'function'){
+      extReady = await extFetch.isReady().catch(function(){ return false; });
     }
   } catch (e){
     console.warn('[anlFetchSmooth] extension fetch error:', e && e.message);
   }
+  // Segnala al server che il client può fare round 2 (URL derivati via Hunter)
+  if (extReady) body = Object.assign({}, body, { ext: true });
 
   var sessionToken=window._rbSession&&window._rbSession.access_token;
   var firstToken=sessionToken||SUPA_KEY;
-  async function doCall(bearer){
+  async function doCall(callBody, bearer){
     return fetch(SUPA_URL+'/functions/v1/smooth-endpoint',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+bearer},
-      body:JSON.stringify(body)
+      body:JSON.stringify(callBody)
     });
   }
-  var res=await doCall(firstToken);
-  if(res.status===401 && sessionToken && firstToken!==SUPA_KEY){
-    res=await doCall(SUPA_KEY);
+  async function callWithAuth(callBody){
+    var res=await doCall(callBody, firstToken);
+    if(res.status===401 && sessionToken && firstToken!==SUPA_KEY){
+      res=await doCall(callBody, SUPA_KEY);
+    }
+    if(!res.ok){
+      var detail='';
+      try{ var t=await res.text(); detail=t?(' — '+t.substring(0,120)):''; }catch(e){}
+      throw new Error('HTTP '+res.status+detail);
+    }
+    return await res.json();
   }
-  if(!res.ok){
-    var detail='';
-    try{ var t=await res.text(); detail=t?(' — '+t.substring(0,120)):''; }catch(e){}
-    throw new Error('HTTP '+res.status+detail);
+
+  var data = await callWithAuth(body);
+
+  // ─── ROUND 2: il server ha risolto URL derivati che non riesce a fetchare ──
+  if (data && data.retry_with_ext && Array.isArray(data.need_fetch) && data.need_fetch.length && extReady && typeof extFetch === 'function'){
+    try{
+      console.log('[anlFetchSmooth] round 2 ext: il server chiede '+data.need_fetch.length+' URL derivati via Hunter');
+      var extra = {};
+      var got = 0;
+      var fetched2 = await Promise.all(data.need_fetch.slice(0,4).map(function(u){
+        return extFetch(u).catch(function(){ return null; });
+      }));
+      data.need_fetch.slice(0,4).forEach(function(u, i){
+        var f = fetched2[i];
+        if (f && f.ok && f.html && f.html.length > 500){ extra[u] = f.html; got++; }
+      });
+      if (got > 0){
+        // ext:false → il server non può chiedere un terzo round: usa quello
+        // che ha (extra_html + cache) e risponde definitivamente.
+        var body2 = Object.assign({}, body, { ext:false, extra_html: extra });
+        data = await callWithAuth(body2);
+        if (data) data._ext_round2 = true;
+      }
+    }catch(e){
+      console.warn('[anlFetchSmooth] round 2 ext fallito:', e && e.message);
+    }
   }
-  return await res.json();
+
+  // Round 2 richiesto ma non eseguito/fallito → normalizza in errore esplicito
+  if (data && data.retry_with_ext && !data._ext_round2 && !data.prices && !data.listings){
+    data.error = data.error || 'pagina derivata bloccata lato server e fetch estensione non riuscito';
+  }
+
+  // Provenienza dei dati — usata dai badge UI delle sorgenti
+  if (data && typeof data === 'object'){
+    data._rb_via = data._ext_round2 ? 'hunter2'
+                 : (body.provided_html ? 'hunter' : 'server');
+  }
+  return data;
 }
 
 // Console helper: diagnostica automatica PC su carte campione
@@ -1874,6 +1964,7 @@ async function anlStartLiveFetches(card){
       // MERGE MODE: combina tutti gli URL, dedup per (titleNormalized, price, currency).
       // Restituisce items[] con titoli — usati dal client per filtri raw/graded e lingua.
       var data=await anlFetchSmooth({source:'ebay_sold', urls:urls, url:urls[0], min_hits:3, merge:true});
+      var ebVia = anlViaFromData(data); if(ebVia) anlSetVia('anlSrcEbVia', ebVia.label, ebVia.cls);
       if(data.error && (!data.items || !data.items.length)){ anlPopEbay(data,data.error,card); return; }
       anlPopEbay(data, null, card);
     }catch(e){ anlPopEbay(null,e.message||'errore rete', card); }
@@ -1945,6 +2036,7 @@ async function anlStartLiveFetches(card){
 
     try{
       var data=await anlFetchSmooth({source:'pricecharting', urls:urls, url:urls[0], card_name:cardNameFull, first_edition:pcFirstEdition});
+      var pcVia = anlViaFromData(data); if(pcVia) anlSetVia('anlSrcPcVia', pcVia.label, pcVia.cls);
       if(data.error){ anlPopPc(null,data.error); return; }
       anlLiveData.pc=data.prices;
       anlLiveData.pcProductUrl=data.url||null;
@@ -1983,27 +2075,70 @@ async function anlStartLiveFetches(card){
     }catch(e){ anlPopPc(null,e.message||'errore rete'); }
   })().finally(function(){ anlEndFetch(sig); });
 
-  // Cardmarket — fetch listings reali, parse commenti per grading
-  // (sostituisce/integra il dato trend dalla TCG API)
+  // Cardmarket — DELEGA alla cascata canonica del parent (fetchCmPriceLive):
+  // L0 memoria URL → L0-DB rb_card_index (URL verificati cross-device) →
+  // fast-path CMAPI → scrape ext-first (Hunter) con retry su blocco →
+  // cascata varianti V1/V2 → L2 search → L3 discovery auto-riparante.
+  // È la STESSA pipeline delle ricerche in inserimento preventivi: i dati
+  // estratti qui e lì sono identici per costruzione (parsing in un solo posto).
+  // Il vecchio percorso (singolo fetch su URL indovinato da buildCMDirectUrl,
+  // zero retry, zero indice) resta solo come fallback se il bridge manca.
   (async function(){
     try{
       var cond = document.getElementById('anlCond').value;
       var lang = document.getElementById('anlLang').value;
       var is1st= document.getElementById('anl1st').value==='yes';
       var setId= card.set?card.set.id:null;
-      var cmUrl = (rbParentFn("buildCMDirectUrl")||function(){return"#"})(card.name, setId, card.number, cond, lang, 'Normal', is1st, setNm, card.rarity||'');
-      // In graded mode forziamo minCondition a MINT (1) per non perdere listings:
-      // CM interpreta minCondition=N come "almeno N", e i venditori di carte
-      // GRADATE (PSA/BGS/CGC) impostano quasi sempre la condizione raw su Mint
-      // — o non la impostano. Se il cond utente è NM/EX/GD l'URL forzerebbe
-      // minCondition=2+ e CM ESCLUDEREBBE lato server molti slab Mint (es. PSA 9).
-      // Costruiamo un URL parallelo (il link "apri →" esterno resta col cond reale).
-      var fetchUrl = cmUrl;
-      if(graded && fetchUrl && fetchUrl.indexOf('minCondition=') >= 0){
-        fetchUrl = fetchUrl.replace(/([?&]minCondition=)\d+/, '$11');
+
+      var fnLive   = rbParentFn('fetchCmPriceLive');
+      var fnAction = rbParentFn('rbCmUserAction');
+      var fnAuth   = rbParentFn('cmAuthoritativeUrl');
+
+      if(typeof fnLive === 'function'){
+        // Estensione pronta? Con Hunter vogliamo i LISTING REALI (servono per
+        // parsare i grading nei commenti e per il ladder condizioni), quindi
+        // extLadder:true salta la fast-lane CMAPI. Senza Hunter, in raw mode,
+        // CMAPI è l'unica fonte non bloccata da Cloudflare: la lasciamo attiva.
+        var extOk = false;
+        try{
+          var extFn = (window.parent && window.parent.rbExtFetch) || window.rbExtFetch;
+          if(typeof extFn === 'function') extOk = await extFn.isReady().catch(function(){ return false; });
+        }catch(e){}
+
+        var optsLive = {
+          name: card.name, setId: setId, number: card.number || '',
+          // In graded mode condizione Mint (minCondition=1): i venditori di
+          // slab impostano quasi sempre la condizione raw su Mint — con
+          // minCondition più severo CM escluderebbe lato server molti slab.
+          condition: graded ? 'MINT' : cond,
+          language: lang, variant: 'Normal', first_edition: is1st,
+          setName: setNm, rarity: card.rarity || '',
+          cmUrl: (typeof fnAuth === 'function' ? fnAuth(card) : null) || null,
+          extLadder: (extOk || graded),
+          silent: true   // mai aprire tab userscript da Analizza
+        };
+        var run = function(){ return fnLive(optsLive); };
+        // rbCmUserAction: il click "Analizza" è un'azione esplicita → sblocca
+        // la policy RB_CM_SCRAPE_ON_CLICK_ONLY nel parent per questa chiamata.
+        var r = await (typeof fnAction === 'function' ? fnAction(run) : run());
+        try{
+          console.group('%c[Analizza] CM cascata canonica — '+((r&&r.attempts)||[]).length+' tentativi','color:#c9a84c;font-weight:bold');
+          ((r&&r.attempts)||[]).forEach(function(a,i){
+            console.log((i+1)+'. '+a.kind+' → '+(a.count||0)+' listing '+(a.error?('('+a.error+')'):'')+' '+(a.url||''));
+          });
+          console.groupEnd();
+        }catch(e){}
+        anlPopCmLive(r, card);
+      } else {
+        // Fallback legacy (bridge parent assente): vecchio percorso diretto
+        var cmUrl = (rbParentFn("buildCMDirectUrl")||function(){return"#"})(card.name, setId, card.number, cond, lang, 'Normal', is1st, setNm, card.rarity||'');
+        var fetchUrl = cmUrl;
+        if(graded && fetchUrl && fetchUrl.indexOf('minCondition=') >= 0){
+          fetchUrl = fetchUrl.replace(/([?&]minCondition=)\d+/, '$11');
+        }
+        var data = await anlFetchSmooth({source:'cardmarket', url:fetchUrl, urls:[fetchUrl], debug:true});
+        anlPopCm(data, card);
       }
-      var data = await anlFetchSmooth({source:'cardmarket', url:fetchUrl, urls:[fetchUrl], debug:true});
-      anlPopCm(data, card);
     }catch(e){ anlPopCm({error:e.message||'errore rete'}, card); }
   })().finally(function(){ anlEndFetch(sig); });
 
@@ -2258,6 +2393,31 @@ function anlSanitizeEbay(data, cmRefEur, rate, graded, userLang){
 }
 
 // Set confidence dot (●) color basato su conteggio/qualità
+// Badge provenienza dati sorgente: HUNTER (ext, IP residenziale), HUNTER×2
+// (round-2 cooperativo su URL derivati), CMAPI (API ufficiale), TAB
+// (userscript), SERVER (fetch datacenter), TREND (fallback TCG API).
+function anlSetVia(id, label, cls){
+  var el = document.getElementById(id); if(!el) return;
+  el.textContent = label || '';
+  el.className = 'anl-src-via'+(cls?' '+cls:'');
+  el.title = {
+    'LIVE':     'listing reali dalla pagina Cardmarket',
+    'HUNTER':   'dati letti via estensione Hunter (IP residenziale)',
+    'HUNTER\u00d72': 'round 2: URL derivati letti via Hunter',
+    'CMAPI':    'prezzo da API ufficiale Cardmarket',
+    'TAB':      'listing letti dallo userscript (tab CM)',
+    'SERVER':   'fetch lato server (datacenter)',
+    'TREND':    'fallback: trend TCG API',
+  }[label] || '';
+}
+// Mappa il marker _rb_via di anlFetchSmooth in label badge
+function anlViaFromData(data){
+  if(!data || !data._rb_via) return null;
+  if(data._rb_via==='hunter2') return { label:'HUNTER\u00d72', cls:'live' };
+  if(data._rb_via==='hunter')  return { label:'HUNTER', cls:'live' };
+  return { label:'SERVER', cls:'' };
+}
+
 function anlSetDot(id, conf){
   var el = document.getElementById(id); if(!el) return;
   el.textContent = '●';
@@ -2710,6 +2870,63 @@ function anlRenderCmGradeTable(gradedListings, targetHouse, targetScore, targetL
   tblEl.style.display = '';
 }
 
+// ─── Adapter cascata canonica → UI Analizza ──────────────────────────────────
+// fetchCmPriceLive (parent) ritorna {ok, price, listings, smart, source, cmUrl,
+// attempts}. Tre casi:
+//  1. listing reali (scrape ext-first / userscript) → logica mediana/grading
+//     esistente di anlPopCm, marcata _live per non riapplicare i fattori
+//     condizione (l'URL era GIÀ filtrato per condizione e 1ª edizione).
+//  2. prezzo CMAPI senza listing (raw NM canonico) → prezzo ufficiale API.
+//  3. fallimento → fallback trend TCG con l'errore della cascata.
+function anlPopCmLive(r, card){
+  var graded = anlMode==='graded';
+
+  if(!r || !r.ok){
+    anlSetVia('anlSrcCmVia', 'TREND', 'mute');
+    anlPopCm({ error:(r && r.error) || 'cascata CM fallita' }, card);
+    return;
+  }
+
+  // Aggiorna il link "apri →" all'URL effettivamente verificato dalla cascata
+  try{
+    var lnk = document.getElementById('anlSrcCmLink');
+    if(lnk && r.cmUrl && /^https?:\/\/(www\.)?cardmarket\.com\//.test(r.cmUrl)) lnk.href = r.cmUrl;
+  }catch(e){}
+
+  if(r.listings && r.listings.length){
+    // 'LIVE' = listing reali letti adesso (ext Hunter, cache recente o scrape):
+    // qualunque sia il trasporto, il dato è la pagina CM vera — distinto da
+    // TAB (userscript) e CMAPI (API ufficiale, niente listing).
+    var via = (r.smart && r.smart.source==='userscript') ? 'TAB'
+            : (r.source==='cmapi') ? 'CMAPI'
+            : 'LIVE';
+    anlSetVia('anlSrcCmVia', via, 'live');
+    anlPopCm({ listings:r.listings, _live:r }, card);
+    return;
+  }
+
+  // Prezzo senza listing = fast-path CMAPI (solo raw NM canonico)
+  if(r.price != null && !graded){
+    anlSetVia('anlSrcCmVia', 'CMAPI', 'live');
+    var priceEl=document.getElementById('anlSrcCm');
+    var noteEl =document.getElementById('anlSrcCmNote');
+    // r.price è GIÀ alla condizione richiesta (NM reale o derivato ×COND_FACTOR
+    // dentro fetchCmPriceLive) — niente doppia applicazione qui.
+    anlLiveData.cm = r.price;
+    if(priceEl){ priceEl.textContent='€'+r.price.toFixed(2); priceEl.classList.remove('loading','na'); }
+    if(noteEl){ noteEl.textContent = (r.smart && r.smart.label) ? r.smart.label : 'CMAPI · prezzo ufficiale'; }
+    anlSetDot('anlSrcCmDot', 'high');
+    anlRenderCmGradeTable(null);
+    anlRenderToday();
+    anlRenderProjection();
+    return;
+  }
+
+  // Graded mode con solo prezzo NM (nessuno slab): il dato non è utilizzabile
+  anlSetVia('anlSrcCmVia', 'TREND', 'mute');
+  anlPopCm({ listings:[] }, card);
+}
+
 function anlPopCm(data, card){
   var priceEl=document.getElementById('anlSrcCm');
   var noteEl =document.getElementById('anlSrcCmNote');
@@ -2759,6 +2976,7 @@ function anlPopCm(data, card){
 
   // Fallback al trend TCG-API se errore o nessun listing
   function fallbackTrend(reason){
+    try{ anlSetVia('anlSrcCmVia', 'TREND', 'mute'); }catch(e){}
     var p = card && card.cardmarket && card.cardmarket.prices;
     var trend = p ? (p.trendPrice || p.avg30 || null) : null;
     if(priceEl){
@@ -2946,10 +3164,20 @@ function anlPopCm(data, card){
   var min = prices[0], max = prices[prices.length-1];
 
   // Aggiorna anlLiveData.cm con il valore filtrato (sostituisce il trend TCG)
-  // Per raw applichiamo condition factor (la mediana CM è in NM Italian per default)
   if(graded){
     anlLiveData.cm = Math.round(median*100)/100;
+  } else if(data._live){
+    // Listing dalla cascata canonica: l'URL era GIÀ filtrato per condizione e
+    // 1ª edizione (minCondition/isFirstEd nei parametri CM) — riapplicare
+    // ANL_COND_FACTOR/ANL_FIRST_ED_MULT qui sconterebbe DUE VOLTE. Usiamo il
+    // prezzo smart-weighted di fetchCmPriceLive (outlier rejection identica al
+    // flusso preventivi) se disponibile, altrimenti la mediana raw pura.
+    var liveP = (data._live.smart && data._live.smart.price > 0) ? data._live.smart.price
+              : (data._live.price > 0 ? data._live.price : median);
+    anlLiveData.cm = Math.round(liveP*100)/100;
   } else {
+    // Percorso legacy (fetch diretto): comportamento storico — la mediana è
+    // trattata come base NM e scalata per condizione/edizione.
     var cf = ANL_COND_FACTOR[document.getElementById('anlCond').value]||1.0;
     var ef = document.getElementById('anl1st').value==='yes' ? ANL_FIRST_ED_MULT : 1.0;
     anlLiveData.cm = Math.round(median*cf*ef*100)/100;
@@ -2959,7 +3187,11 @@ function anlPopCm(data, card){
   var conf = prices.length>=10 ? 'high' : (prices.length>=5 ? 'medium' : (prices.length>=3 ? 'low' : 'very-low'));
 
   if(priceEl){
-    priceEl.textContent = '€'+median.toFixed(2);
+    // Mostra il valore effettivamente usato nel calcolo: per raw da cascata
+    // canonica è lo smart-weighted (coerente col flusso preventivi), altrimenti
+    // la mediana dei listing selezionati.
+    var shownP = (!graded && data._live && anlLiveData.cm) ? anlLiveData.cm : median;
+    priceEl.textContent = '€'+shownP.toFixed(2);
     priceEl.classList.remove('loading','na');
     // Se siamo in graded e abbiamo dati reali, rimuovi la classe dim dal wrapper
     var wrapper = priceEl.closest('.anl-src');

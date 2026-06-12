@@ -422,12 +422,32 @@ Deno.serve(async (req) => {
       if (injected > 0) console.log(`[smooth-endpoint] extension pre-fetch: ${injected}/${urls.length} HTML injected in cache`);
     }
 
+    // ─── EXTRA HTML map (round-2 del protocollo cooperativo ext) ──────────
+    // provided_html copre solo gli URL che il client CONOSCE in anticipo
+    // (body.urls). Gli URL DERIVATI dal server (es. pagina prodotto
+    // PriceCharting risolta dalla search, /recent-sales) non possono essere
+    // pre-fetchati al round 1. Quando un fetch derivato fallisce e il client
+    // ha l'estensione Hunter (body.ext===true), il server risponde con
+    // need_fetch:[urls]; il client li scarica via IP residenziale e richiama
+    // con extra_html: { url: html }. Qui li iniettiamo in cache così ogni
+    // fetchWithRetry successiva trova hit immediato (zero network IO).
+    if (body?.extra_html && typeof body.extra_html === 'object' && !Array.isArray(body.extra_html)) {
+      let injectedX = 0;
+      for (const [xUrl, xHtml] of Object.entries(body.extra_html)) {
+        if (typeof xUrl === 'string' && xUrl.startsWith('http') && typeof xHtml === 'string' && (xHtml as string).length > 500) {
+          await cachePut(xUrl, xHtml as string, 200, 'extension').catch(() => {});
+          injectedX++;
+        }
+      }
+      if (injectedX > 0) console.log(`[smooth-endpoint] extra_html round-2: ${injectedX} HTML injected in cache`);
+    }
+
     if (source === 'cardmarket')      return body?.mode === 'discover'
                                         ? await handleCardmarketDiscover(firstUrl, body?.debug === true)
                                         : body?.mode === 'meta'
                                         ? await handleCardmarketMeta(firstUrl, body?.debug === true)
                                         : await handleCardmarket(firstUrl, body?.debug === true);
-    if (source === 'pricecharting')   return await handlePriceChartingCascade(urls, body?.card_name, body?.debug === true, { firstEdition: body?.first_edition === true });
+    if (source === 'pricecharting')   return await handlePriceChartingCascade(urls, body?.card_name, body?.debug === true, { firstEdition: body?.first_edition === true, ext: body?.ext === true });
     if (source === 'ebay_sold')       return await handleEbaySoldCascade(urls, Number(body?.min_hits ?? 3), body?.merge === true);
     if (source === 'catawiki_search') return await handleCatawikiSearch(firstUrl, body?.debug === true);
     if (source === 'ebay_search')     return await handleEbaySearch(firstUrl, body?.debug === true);
@@ -1673,7 +1693,7 @@ interface PCPrices {
   currency?: string;
 }
 
-async function handlePriceChartingCascade(urls: string[], cardName?: string, debug?: boolean, options?: { firstEdition?: boolean }): Promise<Response> {
+async function handlePriceChartingCascade(urls: string[], cardName?: string, debug?: boolean, options?: { firstEdition?: boolean; ext?: boolean }): Promise<Response> {
   const attempts: Array<{ url: string; ok: boolean; found?: string; error?: string; html_len?: number; snippet?: string; candidates?: number; sample_links?: string[] }> = [];
 
   for (let i = 0; i < urls.length; i++) {
@@ -1725,6 +1745,19 @@ async function handlePriceChartingCascade(urls: string[], cardName?: string, deb
     const { html, ok, status } = await fetchWithRetry(productUrl, 1, 'https://www.pricecharting.com/');
     if (!ok) {
       attempts.push({ url, ok: false, error: `product HTTP ${status}` });
+      // ── ROUND-2 EXT ── il client ha l'estensione Hunter (body.ext=true) ma
+      // NON poteva pre-fetchare la pagina PRODOTTO: l'URL è stato risolto solo
+      // ora dalla search. Invece di fallire (PC blocca gli IP datacenter),
+      // chiediamo al client di scaricare gli URL derivati via IP residenziale
+      // e richiamare con extra_html — al round 2 ogni fetch è cache hit.
+      if (options?.ext) {
+        return json({
+          source: 'pricecharting',
+          retry_with_ext: true,
+          need_fetch: [productUrl, productUrl.replace(/\/$/, '') + '/recent-sales'],
+          attempts,
+        });
+      }
       continue;
     }
 
@@ -1750,6 +1783,17 @@ async function handlePriceChartingCascade(urls: string[], cardName?: string, deb
           }
         }
       }
+    } else if (options?.ext && Object.keys(prices.grades_from_listings || {}).length === 0) {
+      // /recent-sales bloccata E la pagina prodotto non ha sold-listing per
+      // grade: per le carte gradate quei dati SONO il dato. Round 2 via Hunter
+      // — la pagina prodotto è già in cache, quindi il retry costa solo il
+      // fetch residenziale di recent-sales.
+      return json({
+        source: 'pricecharting',
+        retry_with_ext: true,
+        need_fetch: [recentSalesUrl],
+        attempts,
+      });
     }
 
     prices.currency = detectDominantCurrency(prices);
