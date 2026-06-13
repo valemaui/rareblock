@@ -3128,6 +3128,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
       <div class="rb-acct-sep"></div>
       <button class="rb-acct-item" role="menuitem" type="button" onclick="openAccount()"><span class="rb-i rb-i-gear"></span> Profilo &amp; impostazioni</button>
       <a class="rb-acct-item" id="userAdminLink" href="rareblock-admin-users.html" style="display:none" role="menuitem"><span class="rb-i rb-i-tools"></span> Gestione utenti</a>
+      <button class="rb-acct-item" id="userCensusLink" style="display:none" role="menuitem" type="button" onclick="rbCensusOpenPanel()"><span class="rb-i rb-i-trend-up"></span> Censimento prezzi</button>
       <div class="rb-acct-sep"></div>
       <button class="rb-acct-item danger" role="menuitem" type="button" onclick="authLogout()"><span class="rb-i rb-i-x"></span> Esci</button>
     </div>
@@ -4550,6 +4551,8 @@ function applyProfileToUI(){
   // Admin link → pagina gestione utenti
   var adminLink=document.getElementById('userAdminLink');
   if(adminLink) adminLink.style.display = (p.role==='admin') ? '' : 'none';
+  var censusLink=document.getElementById('userCensusLink');
+  if(censusLink) censusLink.style.display = (p.role==='admin') ? '' : 'none';
 }
 
 function showAccessDenied(reason){
@@ -12494,7 +12497,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-13-census-v1';
+var RB_BUILD = '2026-06-13-scheduler-v1';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -21972,6 +21975,139 @@ function rbCensusOpenLauncher(presetSetId){
   })();
 }
 window.rbCensusOpenLauncher = rbCensusOpenLauncher;
+
+/* Rilegge UNA carta gia' indicizzata partendo dall'URL salvato (no
+   ri-risoluzione), persiste buckets + indice, marca rinfrescata. */
+async function _rbCensusRefreshOne(row, lang){
+  lang = lang || 'ITA';
+  var url = row && row.cm_url;
+  if(!url) return { ok:false, reason:'no-url' };
+  var aligned = url;
+  try{ if(typeof cmAppendParams==='function'){ var a=cmAppendParams(url.split('?')[0],'PO',lang,'Normal',false); if(a) aligned=a; } }catch(e){}
+  var opts={ name:row.name, setId:row.set_id, setName:row.set_name, number:row.number, rarity:row.rarity };
+  var srv=null;
+  try{ srv=await _vpServerSideCMScrape(aligned); }catch(e){}
+  if(!srv) return { ok:false, reason:'no-response' };
+  if(srv.blocked) return { ok:false, reason:'blocked' };
+  if(srv.wrong_product){ try{ rbIndexReportFailure(opts, aligned); }catch(e){} return { ok:false, reason:'wrong-product' }; }
+  var listings=srv.listings||[];
+  try{ if(listings.length && typeof _rbPersistConditionPrices==='function'){ _rbPersistConditionPrices({ name:opts.name, set_id:opts.setId, number:opts.number, language:lang, variant:'Normal', first_edition:false }, listings, aligned); } }catch(e){}
+  var canonical=/^(ITA|IT)$/i.test(lang);
+  try{ rbIndexRemember(opts, aligned, 'census', { listings:(listings.length&&canonical)?listings:null, priceSource:(listings.length&&canonical)?'census-sweep':null, imageUrl:srv.image||null }); }catch(e){}
+  try{ await supa('POST','rpc/cm_census_mark_refreshed', { p_product_key: row.product_key }); }catch(e){}
+  return { ok:true, n:listings.length };
+}
+
+/* Drena le carte scadute (fasce marcate dal cron) via Hunter. host = elemento
+   in cui scrivere il progresso; se assente apre un overlay dedicato. */
+async function rbCensusDrainDue(opts){
+  opts = opts || {};
+  var lang = opts.lang || 'ITA';
+  var delayMs = +opts.delayMs || 1500;
+  if(RB_CENSUS.running){ alert('Operazione gi\u00e0 in corso.'); return; }
+  var ready=false; try{ ready=!!(window.rbExtFetch && await window.rbExtFetch.isReady()); }catch(e){}
+  if(!ready){ alert('Estensione Hunter non attiva: serve per leggere i prezzi reali da Cardmarket.'); return; }
+
+  _rbCensusInjectStyles();
+  var host=opts.host;
+  if(!host){ var ov=document.createElement('div'); ov.className='rbcc-ov'; var cd=document.createElement('div'); cd.className='rbcc-card'; ov.appendChild(cd); document.body.appendChild(ov); host=cd; host._ov=ov; }
+  host.innerHTML =
+    '<div class="rbcs-cur" id="rbcd-cur"><div><div class="nm" id="rbcd-nm">Drenaggio fasce scadute\u2026</div><div class="st" id="rbcd-st">\u2014</div></div></div>'
+   +'<div class="rbcs-prog"><div class="rbcs-bar" id="rbcd-bar"></div></div>'
+   +'<div class="rbcs-meta"><span id="rbcd-count">0</span><span id="rbcd-eta"></span></div>'
+   +'<div class="rbcs-log" id="rbcd-log"></div>'
+   +'<div style="display:flex;gap:8px;margin-top:12px"><button class="rbcc-btn" id="rbcd-stop">Interrompi</button></div>';
+  var $=function(id){ return document.getElementById(id); };
+  function log(m,c){ var d=document.createElement('div'); if(c)d.className=c; d.textContent=m; $('rbcd-log').appendChild(d); $('rbcd-log').scrollTop=$('rbcd-log').scrollHeight; }
+  $('rbcd-stop').onclick=function(){ RB_CENSUS.abort=true; $('rbcd-st').textContent='Interruzione\u2026'; };
+
+  // Totale scadute (per ETA)
+  var total=0;
+  try{ var st=await supa('POST','rpc/cm_census_settings_get',{}); total=(st&&st.due_now)||0; }catch(e){}
+  if(!total){ $('rbcd-nm').textContent='Nessuna carta scaduta'; $('rbcd-st').textContent='Tutte le fasce sono aggiornate.'; var b=$('rbcd-stop'); if(b){ b.textContent='Chiudi'; b.onclick=function(){ if(host._ov) host._ov.remove(); }; } return; }
+
+  RB_CENSUS.running=true; RB_CENSUS.abort=false;
+  var done=0, ok=0, fail=0, t0=Date.now(), guard=0;
+  while(!RB_CENSUS.abort && guard++ < 500){
+    var due=null;
+    try{ due=await supa('POST','rpc/cm_census_due_cards',{ p_limit:40 }); }catch(e){ due=null; }
+    if(!due || !due.length) break;
+    for(var i=0;i<due.length;i++){
+      if(RB_CENSUS.abort) break;
+      var row=due[i];
+      $('rbcd-nm').textContent=(row.name||'?')+'  \u00b7  #'+((row.number||'')+'');
+      $('rbcd-st').textContent='Fascia '+row.bucket+' \u2014 rilettura prezzi\u2026';
+      var r=null; try{ r=await _rbCensusRefreshOne(row, lang); }catch(e){ r={ok:false,reason:'error'}; }
+      done++;
+      if(r&&r.ok){ ok++; log('\u2713 '+(row.name||'?')+' #'+row.number+' \u2014 '+r.n+' listing', 'ok'); }
+      else { fail++; log('\u2716 '+(row.name||'?')+' #'+row.number+' \u2014 '+((r&&r.reason)||'?'), 'wr'); }
+      $('rbcd-count').textContent=done+' / ~'+total+(fail?'  ('+fail+' ko)':'');
+      $('rbcd-bar').style.width=Math.min(100,Math.round(done/total*100))+'%';
+      var per=(Date.now()-t0)/done, rem=Math.max(0,Math.round(per*(total-done)/1000)), mm=Math.floor(rem/60), ss=rem%60;
+      $('rbcd-eta').textContent='ETA ~'+mm+':'+(ss<10?'0':'')+ss;
+      if(!RB_CENSUS.abort) await _rbCensusSleep(delayMs + Math.floor(Math.random()*300));
+    }
+  }
+  RB_CENSUS.running=false;
+  $('rbcd-nm').textContent=RB_CENSUS.abort?'Drenaggio interrotto':'Drenaggio completato';
+  $('rbcd-st').textContent=ok+' carte aggiornate'+(fail?' \u00b7 '+fail+' non riuscite':'')+'.';
+  var sb=$('rbcd-stop'); if(sb){ sb.textContent='Chiudi'; sb.onclick=function(){ if(host._ov) host._ov.remove(); else if(typeof rbCensusOpenPanel==='function') rbCensusOpenPanel(); }; }
+}
+window.rbCensusDrainDue = rbCensusDrainDue;
+
+/* Pannello admin "Censimento prezzi": ora di rotazione, stato delle 7 fasce,
+   Esegui ora (drena), censimento set manuale. */
+async function rbCensusOpenPanel(){
+  _rbCensusInjectStyles();
+  var ov=document.createElement('div'); ov.className='rbcc-ov'; ov.id='rbcp-ov';
+  var card=document.createElement('div'); card.className='rbcc-card'; ov.appendChild(card);
+  document.body.appendChild(ov);
+  card.innerHTML='<div class="rbcc-h"><h3>Censimento prezzi \u00b7 scheduler</h3><button class="rbcc-x" id="rbcp-x">\u00d7</button></div><div class="rbcc-hint">Caricamento\u2026</div>';
+  document.getElementById('rbcp-x').onclick=function(){ ov.remove(); };
+
+  var data=null;
+  try{ data=await supa('POST','rpc/cm_census_settings_get',{}); }catch(e){ data=null; }
+  if(!data){ card.querySelector('.rbcc-hint').textContent='Accesso negato o errore (solo admin).'; return; }
+  var cfg=data.config||{};
+  var hours=''; for(var h=0;h<24;h++){ hours+='<option value="'+h+'"'+((+cfg.hour_utc===h)?' selected':'')+'>'+(h<10?'0':'')+h+':15 UTC</option>'; }
+  var buckets=data.buckets||[];
+  var cursor=(cfg.cursor!=null)?+cfg.cursor:-1;
+  var grid='';
+  for(var b=0;b<7;b++){
+    var bd=null; for(var k=0;k<buckets.length;k++){ if(+buckets[k].bucket===b){ bd=buckets[k]; break; } }
+    var tot=bd?bd.total:0, due=bd?bd.due:0;
+    var isCur=(b===cursor);
+    grid+='<div class="rbcs-chip" style="flex:1;min-width:84px;text-align:center;'+(isCur?'border-color:rgba(201,168,76,.6);color:#c9a84c':'')+'">'
+        +'fascia '+b+(isCur?' \u25c0':'')+'<br><span style="color:var(--text,#ece7db)">'+tot+'</span> carte'+(due?'<br><span style="color:#d9b36a">'+due+' scad.</span>':'')+'</div>';
+  }
+  card.innerHTML=
+    '<div class="rbcc-h"><h3>Censimento prezzi \u00b7 scheduler</h3><button class="rbcc-x" id="rbcp-x2">\u00d7</button></div>'
+   +'<div class="rbcc-hint">Rinfresco settimanale del catalogo, spalmato su 7 fasce (1/giorno). Il cron marca scadute le carte della fascia del giorno; il drenaggio legge i prezzi reali via Hunter quando l\u2019app admin \u00e8 aperta.</div>'
+   +'<div class="rbcc-row" style="align-items:center;gap:10px">'
+     +'<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text,#ece7db)"><input type="checkbox" id="rbcp-en"'+(cfg.enabled?' checked':'')+'> Schedulazione attiva</label>'
+     +'<select class="rbcs-sel" id="rbcp-hour" style="max-width:160px">'+hours+'</select>'
+     +'<button class="rbcc-btn" id="rbcp-save">Salva</button>'
+   +'</div>'
+   +'<div class="rbcs-chips" id="rbcp-grid" style="margin-top:12px">'+grid+'</div>'
+   +'<div class="rbcs-meta" style="margin-top:2px"><span>Totale carte con URL: '+(data.total||0)+'</span><span>Scadute ora: '+(data.due_now||0)+'</span></div>'
+   +'<div id="rbcp-host"></div>'
+   +'<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">'
+     +'<button class="rbcc-btn" id="rbcp-run">Esegui ora ('+(data.due_now||0)+' scadute)</button>'
+     +'<button class="rbcc-btn" id="rbcp-manual" style="background:rgba(201,169,97,.06)">Censimento set manuale</button>'
+   +'</div>';
+  document.getElementById('rbcp-x2').onclick=function(){ ov.remove(); };
+  document.getElementById('rbcp-save').onclick=async function(){
+    var en=document.getElementById('rbcp-en').checked;
+    var hr=+document.getElementById('rbcp-hour').value;
+    var btn=this; btn.textContent='Salvo\u2026'; btn.disabled=true;
+    try{ await supa('POST','rpc/cm_census_settings_set',{ p_enabled:en, p_hour:hr }); btn.textContent='Salvato \u2713'; }
+    catch(e){ btn.textContent='Errore'; }
+    setTimeout(function(){ btn.textContent='Salva'; btn.disabled=false; }, 1400);
+  };
+  document.getElementById('rbcp-run').onclick=function(){ rbCensusDrainDue({ host:document.getElementById('rbcp-host') }); };
+  document.getElementById('rbcp-manual').onclick=function(){ ov.remove(); rbCensusOpenLauncher(); };
+}
+window.rbCensusOpenPanel = rbCensusOpenPanel;
 
 </script>
 
