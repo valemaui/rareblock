@@ -1034,7 +1034,17 @@ function anlSourcesScaffold(card){
   // (es. rarity 'Rare Holo' su e-Card \u2192 no-V, su Fossil \u2192 V1).
   // rbCmSafeHref (parent) evita gli slug a indovino sui set ambigui:
   // URL verificato dall'indice rb_card_index oppure ricerca-set sicura.
-  var cmUrl=(rbParentFn("rbCmSafeHref")||rbParentFn("buildCMDirectUrl")||function(){return"#"})(card.name,setId,card.number,cond,lang,'Normal',is1st,setNm,card.rarity||'');
+  // URL autoritativo TCG API (card.cardmarket.url) passato come OVERRIDE: per i
+  // set NON mappati in CM_SET_SLUG (es. swsh45sv Shining Fates Shiny Vault →
+  // "Charizard VMAX SV107") è l'UNICA fonte della pagina prodotto esatta. Senza
+  // override, rbCmSafeHref/buildCMDirectUrl ricadono sulla ricerca globale anche
+  // quando la carta è stata individuata con precisione nel set picker — proprio
+  // il sintomo dell'href /Products/Search?searchString=. cmAuthoritativeUrl
+  // filtra agli URL prodotto cardmarket.com (scarta set-level/mirror): se non
+  // valido ritorna null e rbCmSafeHref usa la sua cascata sicura.
+  var _fnAuthHref = rbParentFn('cmAuthoritativeUrl');
+  var _cmAuthHref = (typeof _fnAuthHref==='function') ? _fnAuthHref(card) : ((card.cardmarket&&card.cardmarket.url)||null);
+  var cmUrl=(rbParentFn("rbCmSafeHref")||rbParentFn("buildCMDirectUrl")||function(){return"#"})(card.name,setId,card.number,cond,lang,'Normal',is1st,setNm,card.rarity||'',_cmAuthHref);
 
   // Tag/titolo CM neutri — ora il box mostra dati gradati reali se disponibili,
   // quindi non ha senso dire "riferimento raw" anche in mode graded.
