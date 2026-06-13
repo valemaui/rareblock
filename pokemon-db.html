@@ -21759,16 +21759,17 @@ function _rbCensusInjectStyles(){
   if(document.getElementById('rbcs-styles')) return;
   var s=document.createElement('style'); s.id='rbcs-styles';
   s.textContent =
-    '.rbcs-prog{height:10px;border-radius:6px;background:var(--surface2,#16130d);border:1px solid var(--border,#2a2620);overflow:hidden;margin:12px 0 6px}'
-   +'.rbcs-bar{height:100%;width:0;background:linear-gradient(90deg,#9c7d33,#c9a84c);transition:width .25s ease}'
-   +'.rbcs-meta{display:flex;justify-content:space-between;font-family:var(--mono,monospace);font-size:11.5px;color:var(--text-subtle,#8a857a)}'
-   +'.rbcs-cur{display:flex;gap:10px;align-items:center;margin:12px 0;padding:8px;border-radius:10px;background:var(--surface2,#16130d);border:1px solid var(--border,#2a2620)}'
-   +'.rbcs-cur img{width:42px;height:58px;object-fit:contain;border-radius:5px;background:#0a0907;flex:0 0 42px}'
-   +'.rbcs-cur .nm{font-size:13px;color:var(--text,#ece7db);font-weight:600}'
-   +'.rbcs-cur .st{font-size:11px;font-family:var(--mono,monospace);color:var(--text-subtle,#8a857a);margin-top:2px}'
-   +'.rbcs-chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px}'
-   +'.rbcs-chip{font-family:var(--mono,monospace);font-size:11px;padding:3px 9px;border-radius:20px;background:var(--surface2,#16130d);border:1px solid var(--border,#2a2620);color:var(--text-muted,#999)}'
-   +'.rbcs-log{max-height:150px;overflow:auto;font-family:var(--mono,monospace);font-size:11px;line-height:1.55;color:var(--text-subtle,#8a857a);background:#0a0907;border:1px solid var(--border,#2a2620);border-radius:8px;padding:8px;margin-top:8px}'
+    '.rbcs-prog{position:relative;height:8px;border-radius:6px;background:var(--surface2,#16130d);border:1px solid var(--border,#2a2620);overflow:hidden;margin:16px 0 7px}'
+   +'.rbcs-bar{height:100%;width:0;background:linear-gradient(90deg,#9c7d33,#c9a84c);border-radius:6px;transition:width .3s ease}'
+   +'.rbcs-meta{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono,monospace);font-size:11px;letter-spacing:.2px;color:var(--text-subtle,#8a857a)}'
+   +'.rbcs-cur{display:flex;gap:12px;align-items:center;margin:16px 0 2px;padding:11px 12px;border-radius:12px;background:var(--surface2,#16130d);border:1px solid var(--border,#2a2620)}'
+   +'.rbcs-cur img,.rbcs-cur .rbcs-img{width:44px;height:60px;object-fit:contain;border-radius:6px;background:#0a0907;border:1px solid var(--border,#2a2620);flex:0 0 44px;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--text-muted,#888)}'
+   +'.rbcs-cur .nm{font-size:13.5px;color:var(--text,#ece7db);font-weight:600;line-height:1.2}'
+   +'.rbcs-cur .st{font-size:11px;font-family:var(--mono,monospace);color:var(--text-subtle,#8a857a);margin-top:4px}'
+   +'.rbcs-chips{display:flex;flex-wrap:wrap;gap:7px;margin:14px 0 2px}'
+   +'.rbcs-chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono,monospace);font-size:11px;padding:4px 11px;border-radius:9px;background:var(--surface2,#16130d);border:1px solid var(--border,#2a2620);color:var(--text-muted,#bdb6a8)}'
+   +'.rbcs-chip .d{width:6px;height:6px;border-radius:50%;flex:0 0 6px;background:var(--text-subtle,#6b6459)}'
+   +'.rbcs-log{max-height:160px;overflow:auto;font-family:var(--mono,monospace);font-size:11px;line-height:1.6;color:var(--text-subtle,#8a857a);background:#0a0907;border:1px solid var(--border,#2a2620);border-radius:10px;padding:10px 11px;margin-top:10px}'
    +'.rbcs-log .ok{color:#7bbf6a}.rbcs-log .wr{color:#d98b8b}.rbcs-log .bl{color:#d9b36a}.rbcs-log .em{color:#8a857a}'
    +'.rbcs-sel{flex:1;padding:8px 10px;border-radius:8px;background:var(--surface2,#16130d);border:1px solid var(--border,#2a2620);color:var(--text,#ece7db);font-size:13px}'
    /* ── Pannello admin · Censimento (namespace .rbadm-*) ───────────────── */
@@ -21913,15 +21914,16 @@ async function rbCensusRunSet(setId, opts){
   var ov = opts.ov;
   if(!ov || !ov.parentNode){ ov=document.createElement('div'); ov.className='rbcc-ov'; ov.id='rbcs-ov'; document.body.appendChild(ov); }
   var card = ov.querySelector('.rbcc-card');
-  if(!card){ card=document.createElement('div'); card.className='rbcc-card'; ov.appendChild(card); }
+  if(!card){ card=document.createElement('div'); card.className='rbcc-card rbadm'; ov.appendChild(card); }
+  else { card.classList.add('rbadm'); }
   card.innerHTML =
-    '<div class="rbcc-h"><h3>Censimento set \u00b7 '+ (setId) +'</h3><button class="rbcc-x" id="rbcs-x2">\u00d7</button></div>'
+    '<div class="rbadm-head"><div><h3>Censimento set</h3><div class="sub">'+esc(setId)+' \u00b7 lettura completa Mint\u2192Poor via Hunter</div></div><button class="rbadm-x" id="rbcs-x2">\u00d7</button></div>'
    +'<div class="rbcs-cur" id="rbcs-cur"><div class="rbcs-img" style="width:42px;height:58px"></div><div><div class="nm" id="rbcs-cur-nm">\u2014</div><div class="st" id="rbcs-cur-st">Preparazione\u2026</div></div></div>'
    +'<div class="rbcs-prog"><div class="rbcs-bar" id="rbcs-bar"></div></div>'
    +'<div class="rbcs-meta"><span id="rbcs-count">0 / 0</span><span id="rbcs-eta"></span></div>'
    +'<div class="rbcs-chips" id="rbcs-chips"></div>'
    +'<div class="rbcs-log" id="rbcs-log"></div>'
-   +'<div style="display:flex;gap:8px;margin-top:12px"><button class="rbcc-btn" id="rbcs-stop">Interrompi</button></div>';
+   +'<div style="display:flex;gap:8px;margin-top:16px"><button class="rbadm-btn" id="rbcs-stop">Interrompi</button></div>';
 
   var $=function(id){ return document.getElementById(id); };
   var logEl=$('rbcs-log');
@@ -21935,11 +21937,11 @@ async function rbCensusRunSet(setId, opts){
   }
   function chips(s){
     $('rbcs-chips').innerHTML =
-      '<span class="rbcs-chip" style="color:#7bbf6a">\u2713 '+s.ok+' censite</span>'
-     +'<span class="rbcs-chip">\u25f7 '+s.empty+' senza listing</span>'
-     +'<span class="rbcs-chip" style="color:#d98b8b">\u2716 '+s.wrong+' prodotto sbagliato</span>'
-     +'<span class="rbcs-chip" style="color:#d9b36a">\u26d4 '+s.blocked+' bloccate</span>'
-     +(s.other?'<span class="rbcs-chip">\u2026 '+s.other+' non risolte</span>':'');
+      '<span class="rbcs-chip"><span class="d" style="background:#7bbf6a"></span>'+s.ok+' censite</span>'
+     +'<span class="rbcs-chip"><span class="d"></span>'+s.empty+' senza listing</span>'
+     +'<span class="rbcs-chip"><span class="d" style="background:#d98b8b"></span>'+s.wrong+' prodotto sbagliato</span>'
+     +'<span class="rbcs-chip"><span class="d" style="background:#d9b36a"></span>'+s.blocked+' bloccate</span>'
+     +(s.other?'<span class="rbcs-chip"><span class="d"></span>'+s.other+' non risolte</span>':'');
   }
   function prog(done, tot, t0){
     $('rbcs-bar').style.width=(tot?Math.round(done/tot*100):0)+'%';
@@ -22072,7 +22074,7 @@ async function rbCensusDrainDue(opts){
    +'<div class="rbcs-prog"><div class="rbcs-bar" id="rbcd-bar"></div></div>'
    +'<div class="rbcs-meta"><span id="rbcd-count">0</span><span id="rbcd-eta"></span></div>'
    +'<div class="rbcs-log" id="rbcd-log"></div>'
-   +'<div style="display:flex;gap:8px;margin-top:12px"><button class="rbcc-btn" id="rbcd-stop">Interrompi</button></div>';
+   +'<div style="display:flex;gap:8px;margin-top:14px"><button class="rbadm-btn" id="rbcd-stop">Interrompi</button></div>';
   var $=function(id){ return document.getElementById(id); };
   function log(m,c){ var d=document.createElement('div'); if(c)d.className=c; d.textContent=m; $('rbcd-log').appendChild(d); $('rbcd-log').scrollTop=$('rbcd-log').scrollHeight; }
   $('rbcd-stop').onclick=function(){ RB_CENSUS.abort=true; $('rbcd-st').textContent='Interruzione\u2026'; };
