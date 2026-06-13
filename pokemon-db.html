@@ -12494,7 +12494,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-13-cmbuckets-v1';
+var RB_BUILD = '2026-06-13-census-v1';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -21730,6 +21730,248 @@ function rbOpenCmResolved(card, cond, lang, variant, first1st){
   });
 }
 window.rbOpenCmResolved = rbOpenCmResolved;
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   RB-CM-CENSUS-SET · censimento di un SET intero da Cardmarket
+   ───────────────────────────────────────────────────────────────────────
+   Per ogni carta del set:
+     1. risolve l'URL prodotto ESATTO (cascata rbCmResolveProductUrl: indice
+        DB → diretto → verifica varianti V1/V2 via Hunter → ricerca);
+     2. scrape via Hunter a minCondition=PO → ladder COMPLETO Mint→Poor in
+        una sola lettura;
+     3. persiste i prezzi per condizione E per tipologia venditore (buckets
+        all/photo/pro, mig 089) in cm_price_by_condition;
+     4. registra URL verificato + foto + NM canonico in rb_card_index.
+   È il "mega elenco" (step ①) e l'estrazione prezzi (step ②) in un'unica
+   passata. Richiede l'estensione Hunter (IP residenziale): SOLO dati reali,
+   nessun fallback CMAPI. Ritmo gentile + delay fra carte per non martellare CM.
+   ═══════════════════════════════════════════════════════════════════════ */
+var RB_CENSUS = { running:false, abort:false };
+
+function _rbCensusSleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+function _rbCensusInjectStyles(){
+  if(typeof _rbCmCensusInjectStyles === 'function') _rbCmCensusInjectStyles(); // riusa .rbcc-*
+  if(document.getElementById('rbcs-styles')) return;
+  var s=document.createElement('style'); s.id='rbcs-styles';
+  s.textContent =
+    '.rbcs-prog{height:10px;border-radius:6px;background:var(--surface2,#16130d);border:1px solid var(--border,#2a2620);overflow:hidden;margin:12px 0 6px}'
+   +'.rbcs-bar{height:100%;width:0;background:linear-gradient(90deg,#9c7d33,#c9a84c);transition:width .25s ease}'
+   +'.rbcs-meta{display:flex;justify-content:space-between;font-family:var(--mono,monospace);font-size:11.5px;color:var(--text-subtle,#8a857a)}'
+   +'.rbcs-cur{display:flex;gap:10px;align-items:center;margin:12px 0;padding:8px;border-radius:10px;background:var(--surface2,#16130d);border:1px solid var(--border,#2a2620)}'
+   +'.rbcs-cur img{width:42px;height:58px;object-fit:contain;border-radius:5px;background:#0a0907;flex:0 0 42px}'
+   +'.rbcs-cur .nm{font-size:13px;color:var(--text,#ece7db);font-weight:600}'
+   +'.rbcs-cur .st{font-size:11px;font-family:var(--mono,monospace);color:var(--text-subtle,#8a857a);margin-top:2px}'
+   +'.rbcs-chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px}'
+   +'.rbcs-chip{font-family:var(--mono,monospace);font-size:11px;padding:3px 9px;border-radius:20px;background:var(--surface2,#16130d);border:1px solid var(--border,#2a2620);color:var(--text-muted,#999)}'
+   +'.rbcs-log{max-height:150px;overflow:auto;font-family:var(--mono,monospace);font-size:11px;line-height:1.55;color:var(--text-subtle,#8a857a);background:#0a0907;border:1px solid var(--border,#2a2620);border-radius:8px;padding:8px;margin-top:8px}'
+   +'.rbcs-log .ok{color:#7bbf6a}.rbcs-log .wr{color:#d98b8b}.rbcs-log .bl{color:#d9b36a}.rbcs-log .em{color:#8a857a}'
+   +'.rbcs-sel{flex:1;padding:8px 10px;border-radius:8px;background:var(--surface2,#16130d);border:1px solid var(--border,#2a2620);color:var(--text,#ece7db);font-size:13px}';
+  document.head.appendChild(s);
+}
+
+/* Recupera TUTTE le carte del set dalla TCG API (proxy hyper-endpoint), con
+   paginazione (sicurezza per set > 250 carte). Ordinate per numero. */
+async function _rbCensusFetchSetCards(setId){
+  var all=[], page=1, PAGE=250, guard=0;
+  while(guard++ < 20){
+    var q='set.id:'+setId;
+    var u=SUPA_URL+'/functions/v1/hyper-endpoint?q='+encodeURIComponent(q)+'&pageSize='+PAGE+'&page='+page;
+    var r=null;
+    try{ r=await fetch(u,{headers:{'Authorization':'Bearer '+((window._rbSession&&window._rbSession.access_token)||SUPA_KEY)}}); }
+    catch(e){ break; }
+    if(!r||!r.ok) break;
+    var d=await r.json().catch(function(){return null;});
+    var batch=(d&&d.data)?d.data:[];
+    all=all.concat(batch);
+    if(batch.length < PAGE) break;
+    page++;
+  }
+  all.sort(function(a,b){
+    var na=parseInt(((a.number||'')+'').replace(/\D/g,''),10)||0;
+    var nb=parseInt(((b.number||'')+'').replace(/\D/g,''),10)||0;
+    return na-nb || ((a.number||'')+'').localeCompare((b.number||'')+'');
+  });
+  return all;
+}
+
+function _rbCensusCountConds(listings){
+  var seen={}; for(var i=0;i<(listings||[]).length;i++){ var c=listings[i]&&listings[i].condition; if(c) seen[c]=1; }
+  return Object.keys(seen).length;
+}
+
+/* Censisce UNA carta: risolve URL prodotto, scrape PO via Hunter, persiste
+   buckets per-condizione + indice. Ritorna {ok, reason, url, n, conds, opts}. */
+async function _rbCensusHarvestOne(card, lang){
+  lang = lang || 'ITA';
+  var opts={
+    name: card.name || '',
+    setId: (card.set&&card.set.id) || card.set_id || null,
+    setName: (card.set&&card.set.name) || card.set_name || '',
+    number: (((card.number||'')+'').split('/')[0]) || null,
+    rarity: card.rarity || ''
+  };
+  // 1) URL prodotto esatto, già allineato a PO (ladder completo Mint→Poor)
+  var res=null;
+  try{ res=await rbCmResolveProductUrl(card, 'PO', lang, 'Normal', false); }catch(e){}
+  if(!res || !res.url) return { ok:false, reason:'no-url', opts:opts };
+  var url=res.url;
+  var isProduct = url.indexOf('/Products/Singles/')>=0 && url.indexOf('searchString=')<0;
+  if(!isProduct){
+    // Solo pagina di ricerca: nessun ladder pulito → segnaliamo "non risolta"
+    return { ok:false, reason:'search-only', url:url, opts:opts };
+  }
+  // 2) Scrape via Hunter
+  var srv=null;
+  try{ srv=await _vpServerSideCMScrape(url); }catch(e){}
+  if(!srv) return { ok:false, reason:'no-response', url:url, opts:opts };
+  if(srv.blocked) return { ok:false, reason:'blocked', url:url, opts:opts };
+  if(srv.wrong_product){ try{ rbIndexReportFailure(opts, url); }catch(e){} return { ok:false, reason:'wrong-product', url:url, opts:opts }; }
+  var listings = srv.listings || [];
+  // 3) Persisti ladder per-condizione + buckets (mig 089)
+  try{
+    if(listings.length && typeof _rbPersistConditionPrices==='function'){
+      _rbPersistConditionPrices({ name:opts.name, set_id:opts.setId, number:opts.number, language:lang, variant:'Normal', first_edition:false }, listings, url);
+    }
+  }catch(e){}
+  // 4) Indice rb_card_index: URL verificato + foto + NM canonico (ITA/Normal)
+  try{
+    var canonical = /^(ITA|IT)$/i.test(lang);
+    rbIndexRemember(opts, url, 'census', {
+      listings: (listings.length && canonical) ? listings : null,
+      priceSource: (listings.length && canonical) ? 'census' : null,
+      imageUrl: srv.image || null
+    });
+  }catch(e){}
+  return { ok:true, url:url, n:listings.length, conds:_rbCensusCountConds(listings), opts:opts };
+}
+
+/* Orchestratore: censisce un set intero con overlay di avanzamento. */
+async function rbCensusRunSet(setId, opts){
+  opts = opts || {};
+  setId = (setId||'').trim().toLowerCase();
+  var lang = opts.lang || 'ITA';
+  var delayMs = +opts.delayMs || 1500;
+  if(RB_CENSUS.running){ alert('Censimento già in corso.'); return; }
+  if(!setId){ alert('Set id mancante.'); return; }
+
+  // Hunter OBBLIGATORIO: dati reali per-condizione, nessun fallback CMAPI
+  var ready=false; try{ ready=!!(window.rbExtFetch && await window.rbExtFetch.isReady()); }catch(e){}
+  if(!ready){ alert('Estensione Hunter non attiva: serve l\u2019IP residenziale per leggere i prezzi reali da Cardmarket. Attivala e riprova.'); return; }
+
+  _rbCensusInjectStyles();
+  var ov = opts.ov;
+  if(!ov || !ov.parentNode){ ov=document.createElement('div'); ov.className='rbcc-ov'; ov.id='rbcs-ov'; document.body.appendChild(ov); }
+  var card = ov.querySelector('.rbcc-card');
+  if(!card){ card=document.createElement('div'); card.className='rbcc-card'; ov.appendChild(card); }
+  card.innerHTML =
+    '<div class="rbcc-h"><h3>Censimento set \u00b7 '+ (setId) +'</h3><button class="rbcc-x" id="rbcs-x2">\u00d7</button></div>'
+   +'<div class="rbcs-cur" id="rbcs-cur"><div class="rbcs-img" style="width:42px;height:58px"></div><div><div class="nm" id="rbcs-cur-nm">\u2014</div><div class="st" id="rbcs-cur-st">Preparazione\u2026</div></div></div>'
+   +'<div class="rbcs-prog"><div class="rbcs-bar" id="rbcs-bar"></div></div>'
+   +'<div class="rbcs-meta"><span id="rbcs-count">0 / 0</span><span id="rbcs-eta"></span></div>'
+   +'<div class="rbcs-chips" id="rbcs-chips"></div>'
+   +'<div class="rbcs-log" id="rbcs-log"></div>'
+   +'<div style="display:flex;gap:8px;margin-top:12px"><button class="rbcc-btn" id="rbcs-stop">Interrompi</button></div>';
+
+  var $=function(id){ return document.getElementById(id); };
+  var logEl=$('rbcs-log');
+  function log(msg, cls){ var d=document.createElement('div'); if(cls) d.className=cls; d.textContent=msg; logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight; }
+  function setCur(c, i, tot){
+    $('rbcs-cur-nm').textContent=(c.name||'?')+'  \u00b7  #'+((c.number||'')+'');
+    $('rbcs-cur-st').textContent='Carta '+i+' di '+tot+' \u2014 risolvo e leggo i prezzi\u2026';
+    var img=(c.images&&(c.images.small||c.images.large))||'';
+    var holder=$('rbcs-cur').querySelector('.rbcs-img, img');
+    if(img){ if(holder && holder.tagName!=='IMG'){ var im=document.createElement('img'); im.src=img; im.alt=''; holder.replaceWith(im); } else if(holder){ holder.src=img; } }
+  }
+  function chips(s){
+    $('rbcs-chips').innerHTML =
+      '<span class="rbcs-chip" style="color:#7bbf6a">\u2713 '+s.ok+' censite</span>'
+     +'<span class="rbcs-chip">\u25f7 '+s.empty+' senza listing</span>'
+     +'<span class="rbcs-chip" style="color:#d98b8b">\u2716 '+s.wrong+' prodotto sbagliato</span>'
+     +'<span class="rbcs-chip" style="color:#d9b36a">\u26d4 '+s.blocked+' bloccate</span>'
+     +(s.other?'<span class="rbcs-chip">\u2026 '+s.other+' non risolte</span>':'');
+  }
+  function prog(done, tot, t0){
+    $('rbcs-bar').style.width=(tot?Math.round(done/tot*100):0)+'%';
+    $('rbcs-count').textContent=done+' / '+tot;
+    if(done>0){
+      var per=(Date.now()-t0)/done, rem=Math.max(0,Math.round(per*(tot-done)/1000));
+      var mm=Math.floor(rem/60), ss=rem%60;
+      $('rbcs-eta').textContent='ETA ~'+mm+':'+(ss<10?'0':'')+ss;
+    }
+  }
+  function enableClose(){ var b=$('rbcs-stop'); if(b){ b.textContent='Chiudi'; b.onclick=function(){ ov.remove(); }; } }
+  $('rbcs-x2').onclick=function(){ RB_CENSUS.abort=true; ov.remove(); };
+  $('rbcs-stop').onclick=function(){ RB_CENSUS.abort=true; $('rbcs-cur-st').textContent='Interruzione in corso\u2026'; };
+
+  // Elenco carte
+  $('rbcs-cur-st').textContent='Recupero elenco carte del set\u2026';
+  var cards=await _rbCensusFetchSetCards(setId);
+  if(!cards.length){ $('rbcs-cur-nm').textContent='Set "'+setId+'" non trovato'; $('rbcs-cur-st').textContent='Controlla l\u2019ID set (TCG API).'; enableClose(); return; }
+  log(cards.length+' carte trovate nel set '+setId+'.', 'em');
+
+  RB_CENSUS.running=true; RB_CENSUS.abort=false;
+  var s={ok:0,empty:0,wrong:0,blocked:0,other:0}; chips(s);
+  var t0=Date.now();
+  for(var i=0;i<cards.length;i++){
+    if(RB_CENSUS.abort) break;
+    var c=cards[i];
+    setCur(c, i+1, cards.length);
+    var r=null;
+    try{ r=await _rbCensusHarvestOne(c, lang); }catch(e){ r={ok:false, reason:'error'}; }
+    var nm=(c.name||'?')+' #'+((c.number||'')+'');
+    if(r&&r.ok){ s.ok++; log('\u2713 '+nm+' \u2014 '+r.n+' listing, '+r.conds+' condizioni', 'ok'); }
+    else if(r&&r.reason==='wrong-product'){ s.wrong++; log('\u2716 '+nm+' \u2014 prodotto sbagliato (segnalato)', 'wr'); }
+    else if(r&&r.reason==='blocked'){ s.blocked++; log('\u26d4 '+nm+' \u2014 bloccata da Cardmarket', 'bl'); }
+    else if(r&&(r.reason==='no-response'||(r.ok&&r.n===0))){ s.empty++; log('\u25f7 '+nm+' \u2014 nessun listing', 'em'); }
+    else { s.other++; log('\u2026 '+nm+' \u2014 non risolta ('+((r&&r.reason)||'?')+')', 'em'); }
+    chips(s); prog(i+1, cards.length, t0);
+    if(i<cards.length-1 && !RB_CENSUS.abort) await _rbCensusSleep(delayMs + Math.floor(Math.random()*300));
+  }
+  RB_CENSUS.running=false;
+  $('rbcs-cur-nm').textContent=RB_CENSUS.abort?'Censimento interrotto':'Censimento completato';
+  $('rbcs-cur-st').textContent=s.ok+' carte censite su '+cards.length+' \u2014 indice e prezzi aggiornati.';
+  log('\u2500\u2500 fine: '+s.ok+' ok \u00b7 '+s.empty+' vuote \u00b7 '+s.wrong+' sbagliate \u00b7 '+s.blocked+' bloccate \u00b7 '+s.other+' altre', 'em');
+  enableClose();
+}
+window.rbCensusRunSet = rbCensusRunSet;
+
+/* Launcher: overlay con input set id (datalist dei set diretti) + opzioni. */
+function rbCensusOpenLauncher(presetSetId){
+  _rbCensusInjectStyles();
+  var ov=document.createElement('div'); ov.className='rbcc-ov'; ov.id='rbcs-launch';
+  var directList=(typeof CM_DIRECT_SETS!=='undefined')?Array.from(CM_DIRECT_SETS):[];
+  var dl=directList.map(function(id){ return '<option value="'+id+'">'; }).join('');
+  ov.innerHTML =
+    '<div class="rbcc-card">'
+    +'<div class="rbcc-h"><h3>Censimento set \u00b7 Cardmarket</h3><button class="rbcc-x" id="rbcs-lx">\u00d7</button></div>'
+    +'<div class="rbcc-hint">ID set TCG API (es. <b>base1</b>, <b>swsh1</b>, <b>sv1</b>). Per ogni carta risolvo l\u2019URL prodotto esatto, leggo i prezzi reali per <b>condizione</b> e <b>tipologia venditore</b> (foto / professionale) via Hunter e li salvo nell\u2019indice RareBlock.</div>'
+    +'<div class="rbcc-row"><input class="rbcc-in" id="rbcs-setid" list="rbcs-dl" placeholder="set id (es. base1)" value="'+(presetSetId||'')+'"><datalist id="rbcs-dl">'+dl+'</datalist></div>'
+    +'<div class="rbcc-row" style="gap:8px">'
+      +'<select class="rbcs-sel" id="rbcs-lang"><option value="ITA">Italiano</option><option value="ENG">Inglese</option><option value="JPN">Giapponese</option></select>'
+      +'<select class="rbcs-sel" id="rbcs-delay"><option value="1500">Ritmo gentile (1.5s)</option><option value="2500">Molto gentile (2.5s)</option><option value="900">Veloce (0.9s)</option></select>'
+    +'</div>'
+    +'<div class="rbcc-hint" id="rbcs-extwarn" style="color:#d9b36a;min-height:14px"></div>'
+    +'<div style="display:flex;gap:8px;margin-top:6px"><button class="rbcc-btn" id="rbcs-go">Avvia censimento</button></div>'
+    +'</div>';
+  document.body.appendChild(ov);
+  document.getElementById('rbcs-lx').onclick=function(){ ov.remove(); };
+  document.getElementById('rbcs-go').onclick=function(){
+    var setId=(document.getElementById('rbcs-setid').value||'').trim().toLowerCase();
+    if(!setId){ alert('Inserisci un set id.'); return; }
+    var lang=document.getElementById('rbcs-lang').value;
+    var delay=+document.getElementById('rbcs-delay').value||1500;
+    rbCensusRunSet(setId, { lang:lang, delayMs:delay, ov:ov });
+  };
+  (async function(){
+    var ready=false; try{ ready=!!(window.rbExtFetch && await window.rbExtFetch.isReady()); }catch(e){}
+    var w=document.getElementById('rbcs-extwarn');
+    if(w) w.textContent = ready ? '\u2713 Hunter attiva \u2014 pronta a leggere da Cardmarket.' : '\u26a0 Estensione Hunter non rilevata: senza IP residenziale Cardmarket blocca la lettura. Attivala prima di avviare.';
+    if(w&&ready) w.style.color='#7bbf6a';
+  })();
+}
+window.rbCensusOpenLauncher = rbCensusOpenLauncher;
 
 </script>
 
