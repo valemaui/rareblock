@@ -639,6 +639,67 @@ document.addEventListener('click', function(ev){
   catch(e){ try{ window.open(a.href, '_blank'); }catch(_){} }
 }, true);
 
+// ─── CORREZIONE MANUALE URL CARDMARKET (feedback persistente) ────────────────
+// Per le carte che l'automazione non sa risolvere (nessun cardmarket.url
+// autoritativo dalla TCG API + set non mappato + numero assente dallo slug CM,
+// es. Shiny Vault "SV107" → CM usa /Shining-Fates/Charizard-VMAX senza numero),
+// l'utente incolla una volta l'URL prodotto corretto: viene salvato in
+// rb_card_index come 'manual' (confidenza massima, vince su ogni euristica) e
+// riusato OVUNQUE e su tutti i dispositivi tramite l'indice — è il "dopo i miei
+// feedback" del resolver unico.
+document.addEventListener('click', function(ev){
+  var a = ev.target && ev.target.closest ? ev.target.closest('#anlSrcCmFix') : null;
+  if(!a) return;
+  ev.preventDefault();
+  var card = anlCurrentCard;
+  if(!card){ return; }
+  var curHref = (document.getElementById('anlSrcCmLink')||{}).href || '';
+  // Prefill solo se l'attuale è già una pagina prodotto (non una ricerca)
+  var prefill = (/\/Products\/Singles\//.test(curHref) && curHref.indexOf('searchString=') < 0) ? curHref.split('?')[0] : '';
+  var url = window.prompt(
+    'Incolla l\u2019URL ESATTO della pagina prodotto Cardmarket per "' + (card.name||'') + '" #' + (card.number||'') + '\n'
+    + '(formato: https://www.cardmarket.com/it/Pokemon/Products/Singles/Set/Carta)\n'
+    + 'Verr\u00e0 salvato nell\u2019indice e riusato ovunque.', prefill);
+  if(url == null) return;            // annullato
+  url = (url||'').trim();
+  if(!url){ return; }
+  // Validazione: deve essere una pagina PRODOTTO cardmarket.com (≥3 segmenti
+  // dopo /Products/). Usa il filtro autoritativo del parent quando disponibile.
+  var fnAuthChk = rbParentFn('_isAuthoritativeCMUrl');
+  var valid = (typeof fnAuthChk === 'function')
+    ? fnAuthChk(url)
+    : (/^https?:\/\/(www\.)?cardmarket\.com\/.+\/Products\/Singles\/[^\/?#]+\/[^\/?#]+/i.test(url));
+  if(!valid){
+    alert('URL non valido. Dev\u2019essere una pagina PRODOTTO su cardmarket.com, es.\nhttps://www.cardmarket.com/it/Pokemon/Products/Singles/Shining-Fates/Charizard-VMAX');
+    return;
+  }
+  var base = url.split('?')[0];
+  var fnRemember = rbParentFn('rbIndexRemember');
+  if(typeof fnRemember !== 'function'){ alert('Indice non disponibile in questa sessione.'); return; }
+  var opts = {
+    name: card.name || '',
+    setId: (card.set && card.set.id) || card.set_id || null,
+    setName: (card.set && card.set.name) || card.set_name || '',
+    number: card.number || '',
+    rarity: card.rarity || ''
+  };
+  try{ fnRemember(opts, base, 'manual', {}); }
+  catch(e){ alert('Salvataggio fallito: ' + (e && e.message || e)); return; }
+  // Aggiorna subito l'href visibile (allineato a lingua/condizione correnti)
+  try{
+    var cond = (document.getElementById('anlCond')||{}).value || 'NM';
+    var lang = (document.getElementById('anlLang')||{}).value || 'ITA';
+    var is1st = ((document.getElementById('anl1st')||{}).value === 'yes');
+    var fnAlign = rbParentFn('cmAppendParams');
+    var aligned = (typeof fnAlign === 'function') ? fnAlign(base, cond, lang, 'Normal', is1st) : base;
+    var lnk = document.getElementById('anlSrcCmLink');
+    if(lnk) lnk.href = aligned || base;
+  }catch(e){}
+  // Anche la carta in memoria porta ora l'URL autoritativo: click e re-render lo usano.
+  try{ card.cardmarket = card.cardmarket || {}; card.cardmarket.url = base; }catch(e){}
+  alert('URL salvato nell\u2019indice RareBlock. Da ora questa carta atterra sulla pagina giusta ovunque.');
+}, true);
+
 function anlRerender(){
   if(!anlCurrentCard) return;
   anlRenderAll(anlCurrentCard);
@@ -1083,6 +1144,7 @@ function anlSourcesScaffold(card){
      })()+'</div>'
   +  '<div id="anlSrcCmTable" class="anl-cm-grade-table" style="display:none"></div>'
   +  '<a class="anl-src-link" id="anlSrcCmLink" href="'+cmUrl+'" target="_blank" rel="noopener" title="DEBUG: name=&quot;'+anlEsc(card.name)+'&quot; setId=&quot;'+anlEsc(setId||'')+'&quot; number=&quot;'+anlEsc(card.number||'')+'&quot; rarity=&quot;'+anlEsc(card.rarity||'')+'&quot;">apri →</a>'
+  +  '<a class="anl-src-link" id="anlSrcCmFix" href="#" title="Imposta l\'URL prodotto Cardmarket corretto per questa carta: viene salvato nell\'indice RareBlock (confermato a mano) e riusato ovunque, su tutti i dispositivi." style="margin-left:10px;opacity:.7">correggi URL</a>'
   +'</div>';
 }
 
