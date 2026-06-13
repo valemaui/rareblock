@@ -12503,7 +12503,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-13-census-policy-fix-v3';
+var RB_BUILD = '2026-06-13-census-preflight-v4';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -14822,7 +14822,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.38';
+const APP_VERSION='6.39';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -22005,6 +22005,21 @@ async function rbCensusRunSet(setId, opts){
   if(!cards.length){ $('rbcs-cur-nm').textContent='Set "'+setId+'" non trovato'; $('rbcs-cur-st').textContent='Controlla l\u2019ID set (TCG API).'; enableClose(); return; }
   log(cards.length+' carte trovate nel set '+setId+'.', 'em');
 
+  // Pre-flight Cloudflare: una lettura di prova via Hunter. Se CM ci sfida
+  // (cf_clearance assente nel profilo), inutile macinare l'intero set → stop
+  // con istruzione chiara invece di N righe "variants-blocked".
+  $('rbcs-cur-st').textContent='Verifico l\u2019accesso a Cardmarket via Hunter\u2026';
+  var _pf=null;
+  try{ _pf=await ((typeof rbCmUserAction==='function') ? rbCmUserAction(function(){ return _vpExtFetchCmHtml('https://www.cardmarket.com/it/Pokemon'); }) : _vpExtFetchCmHtml('https://www.cardmarket.com/it/Pokemon')); }catch(e){}
+  if(!_pf){
+    $('rbcs-cur-nm').textContent='Cardmarket non leggibile via Hunter';
+    $('rbcs-cur-st').textContent='Cloudflare sta sfidando le richieste: l\u2019estensione \u00e8 attiva ma manca una sessione CM sbloccata.';
+    log('\u26d4 Pre-flight CM fallito: nessun HTML da Hunter (challenge Cloudflare).', 'bl');
+    log('\u2192 Apri e sblocca una scheda cardmarket.com nello stesso browser (supera \u201cVerifica che sei umano\u201d, accetta i cookie, idealmente fai login), poi riprova.', 'em');
+    enableClose(); return;
+  }
+  log('\u2713 Accesso CM via Hunter ok \u2014 avvio censimento.', 'ok');
+
   RB_CENSUS.running=true; RB_CENSUS.abort=false;
   var s={ok:0,empty:0,wrong:0,blocked:0,other:0}; chips(s);
   var t0=Date.now();
@@ -22017,7 +22032,7 @@ async function rbCensusRunSet(setId, opts){
     var nm=(c.name||'?')+' #'+((c.number||'')+'');
     if(r&&r.ok){ s.ok++; log('\u2713 '+nm+' \u2014 '+r.n+' listing, '+r.conds+' condizioni', 'ok'); }
     else if(r&&r.reason==='wrong-product'){ s.wrong++; log('\u2716 '+nm+' \u2014 prodotto sbagliato (segnalato)', 'wr'); }
-    else if(r&&r.reason==='blocked'){ s.blocked++; log('\u26d4 '+nm+' \u2014 bloccata da Cardmarket', 'bl'); }
+    else if(r&&(r.reason==='blocked'||r.reason==='variants-blocked'||r.reason==='variants-error')){ s.blocked++; log('\u26d4 '+nm+' \u2014 bloccata da Cardmarket (Hunter respinta \u2014 sblocca una scheda CM)', 'bl'); }
     else if(r&&(r.reason==='no-response'||(r.ok&&r.n===0))){ s.empty++; log('\u25f7 '+nm+' \u2014 nessun listing', 'em'); }
     else { s.other++; log('\u2026 '+nm+' \u2014 non risolta ('+((r&&r.reason)||'?')+')', 'em'); }
     chips(s); prog(i+1, cards.length, t0);
