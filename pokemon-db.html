@@ -13103,6 +13103,10 @@ async function fetchCmPriceLive(opts){
   var setName   = (opts && opts.setName) || '';
   var rarity    = (opts && opts.rarity) || '';
   var cmUrlAuth = (opts && (opts.cmUrl || opts.cm_url)) || null;
+  // Vogliamo leggere il LADDER reale (tutte le condizioni) via estensione/
+  // userscript? In tal caso lo scrape va fatto a minCondition=PO, non al cond
+  // selezionato — altrimenti CM filtra lato server e torna solo quella rung.
+  var _wantExtLadder = !!(opts && (opts.extLadder === true || opts.useUserscript === true));
 
   if(!name) return {ok:false, error:'nome carta mancante', attempts:[]};
 
@@ -13137,7 +13141,14 @@ async function fetchCmPriceLive(opts){
     }catch(e){}
   }
 
-  var cmUrl = buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, setName, rarity, cmUrlAuth);
+  // Ladder reale via estensione → scrape a minCondition=PO (TUTTE le condizioni).
+  // Con il cond selezionato (es. MINT) CM filtra lato server e tornerebbero SOLO
+  // i listing di quella rung: pochi, prezzo non rappresentativo, NM esclusi. A PO
+  // raccogliamo Mint→Poor, costruiamo il ladder completo e il prezzo di
+  // riferimento (NM) è corretto. Senza estensione si resta sul cond richiesto
+  // (CMAPI/fallback non leggono comunque il ladder).
+  var _scrapeCond = _wantExtLadder ? 'PO' : cond;
+  var cmUrl = buildCMDirectUrl(name, setId, number, _scrapeCond, lang, variant, first1st, setName, rarity, cmUrlAuth);
   // Se l'URL deriva dall'URL autoritativo TCG API, è già esatto: niente cascata di
   // varianti V1/V2 (che genererebbe PRODOTTI DIVERSI). Su 403 si ritenta solo lo
   // stesso URL.
@@ -13192,7 +13203,7 @@ async function fetchCmPriceLive(opts){
   // CMAPI dà solo l'NM, mentre l'ext-scrape legge l'intera scala Mint→Poor
   // dalla pagina CM reale (sessione utente, IP residenziale) e popola
   // cm_price_by_condition con il ladder completo. Senza estensione resta CMAPI.
-  var _wantExtLadder = !!(opts && (opts.extLadder === true || opts.useUserscript === true));
+  // (_wantExtLadder è già calcolato in cima alla funzione.)
   // Prezzo CMAPI "incoerente" per richieste ITA (basis globale): messo da
   // parte e usato SOLO se anche tutta la cascata scrape fallisce.
   var _cmaStash = null;
