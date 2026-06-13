@@ -12503,7 +12503,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-13-cmresolve-reason';
+var RB_BUILD = '2026-06-13-census-policy-fix-v3';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -14822,7 +14822,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.37';
+const APP_VERSION='6.38';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -22013,7 +22013,7 @@ async function rbCensusRunSet(setId, opts){
     var c=cards[i];
     setCur(c, i+1, cards.length);
     var r=null;
-    try{ r=await _rbCensusHarvestOne(c, lang); }catch(e){ r={ok:false, reason:'error'}; }
+    try{ r=await ((typeof rbCmUserAction==='function') ? rbCmUserAction(function(){ return _rbCensusHarvestOne(c, lang); }) : _rbCensusHarvestOne(c, lang)); }catch(e){ r={ok:false, reason:'error'}; }
     var nm=(c.name||'?')+' #'+((c.number||'')+'');
     if(r&&r.ok){ s.ok++; log('\u2713 '+nm+' \u2014 '+r.n+' listing, '+r.conds+' condizioni', 'ok'); }
     else if(r&&r.reason==='wrong-product'){ s.wrong++; log('\u2716 '+nm+' \u2014 prodotto sbagliato (segnalato)', 'wr'); }
@@ -22143,7 +22143,7 @@ async function rbCensusDrainDue(opts){
       var row=due[i];
       $('rbcd-nm').textContent=(row.name||'?')+'  \u00b7  #'+((row.number||'')+'');
       $('rbcd-st').textContent='Fascia '+row.bucket+' \u2014 rilettura prezzi\u2026';
-      var r=null; try{ r=await _rbCensusRefreshOne(row, lang); }catch(e){ r={ok:false,reason:'error'}; }
+      var r=null; try{ r=await ((typeof rbCmUserAction==='function') ? rbCmUserAction(function(){ return _rbCensusRefreshOne(row, lang); }) : _rbCensusRefreshOne(row, lang)); }catch(e){ r={ok:false,reason:'error'}; }
       done++;
       if(r&&r.ok){ ok++; log('\u2713 '+(row.name||'?')+' #'+row.number+' \u2014 '+r.n+' listing', 'ok'); }
       else { fail++; log('\u2716 '+(row.name||'?')+' #'+row.number+' \u2014 '+((r&&r.reason)||'?'), 'wr'); }
