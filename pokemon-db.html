@@ -12503,7 +12503,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-13-admin-census-v2';
+var RB_BUILD = '2026-06-13-cmresolve-reason';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -21666,47 +21666,69 @@ async function rbCmResolveProductUrl(card, cond, lang, variant, first1st){
   }
   // 1) Autoritativo (TCG API / record salvato)
   var auth = (typeof cmAuthoritativeUrl === 'function') ? cmAuthoritativeUrl(card) : null;
-  if(auth) return { url: align(auth), verified: true };
+  if(auth) return { url: align(auth), verified: true, reason: 'authoritative' };
   // 2) Indice DB (cross-device)
   try{
     var idxUrl = await rbIndexCmUrl({ setId:setId, setName:setName, number:number, name:name });
-    if(idxUrl) return { url: align(idxUrl), verified: true };
+    if(idxUrl) return { url: align(idxUrl), verified: true, reason: 'index' };
   }catch(e){}
   // 3) Costruzione client
   var primary = buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, setName, rarity, null);
   var isDirect = primary.indexOf('/Singles/') >= 0 && primary.indexOf('searchString=') < 0;
-  if(!isDirect) return { url: primary, verified: false };  // già ricerca → sicuro
+  // 'no-direct' = nessun mapping slug/abbrev per il set (DP/PL/XY/SM/SWSH/SV…):
+  // buildCMDirectUrl produce già una pagina di ricerca, non un guess. Sicuro.
+  if(!isDirect) return { url: primary, verified: false, reason: 'no-direct' };
   var resolvedSetId = setId || (typeof CM_SET_NAME_TO_ID !== 'undefined' && CM_SET_NAME_TO_ID[setName||'']) || null;
   var ambiguous = (typeof CM_AMBIGUOUS_VERSION_SETS !== 'undefined') && CM_AMBIGUOUS_VERSION_SETS.has(resolvedSetId);
-  if(!ambiguous) return { url: primary, verified: false };  // pattern stabile
-  // 4) Set ambiguo: verifica VERA via estensione (primario + max 2 varianti)
+  // Set a pattern stabile (WotC/EX non ambigui): lo slug diretto è affidabile.
+  if(!ambiguous) return { url: primary, verified: false, reason: 'direct-stable' };
+  // 4) Set ambiguo: verifica VERA via estensione (primario + max 2 varianti).
+  //    Tracciamo l'esito di OGNI candidato per diagnosticare il fallback: se
+  //    tutto va in ricerca vogliamo sapere se è Hunter spenta, pagine vuote in
+  //    quella lingua, blocchi Cloudflare o prodotto-sbagliato (slug errato).
   var extReady = false;
   try{ extReady = !!(window.rbExtFetch && await window.rbExtFetch.isReady()); }catch(e){}
-  if(extReady && typeof _vpServerSideCMScrape === 'function'){
-    var candidates = [primary];
-    try{
-      var vars = buildCMDirectUrlVariants(name, setId, number, cond, lang, variant, first1st, setName, rarity) || [];
-      vars.forEach(function(u){ if(candidates.indexOf(u) < 0) candidates.push(u); });
-    }catch(e){}
-    candidates = candidates.slice(0, 3);
-    var idxOpts = { name:name, setId:setId, setName:setName, number:number, rarity:rarity };
-    for(var i=0; i<candidates.length; i++){
-      try{
-        var srv = await _vpServerSideCMScrape(candidates[i]);
-        if(srv && srv.listings && srv.listings.length && !srv.wrong_product && !srv.blocked){
-          // Verificato: persisti per tutti (URL + ladder + foto) e naviga esatto
-          rbIndexRemember(idxOpts, candidates[i],
-                          (i === 0 ? 'direct' : 'variant-cascade'),
-                          { listings: srv.listings, priceSource:'ext-resolve', imageUrl: srv.image || null });
-          return { url: candidates[i], verified: true };
-        }
-      }catch(e){}
-    }
+  if(!(extReady && typeof _vpServerSideCMScrape === 'function')){
+    var su0 = (typeof buildCMSearchUrl === 'function')
+      ? buildCMSearchUrl(name, setId, number, cond, lang, variant, first1st, setName) : null;
+    return { url: su0 || primary, verified: false, reason: 'ext-not-ready' };
   }
-  // 5) Ripiego garantito: ricerca nel set (carta in lista, mai errore)
+  var candidates = [primary];
+  try{
+    var vars = buildCMDirectUrlVariants(name, setId, number, cond, lang, variant, first1st, setName, rarity) || [];
+    vars.forEach(function(u){ if(candidates.indexOf(u) < 0) candidates.push(u); });
+  }catch(e){}
+  candidates = candidates.slice(0, 3);
+  var idxOpts = { name:name, setId:setId, setName:setName, number:number, rarity:rarity };
+  var outcome = { blocked:0, wrong:0, empty:0, error:0 };
+  for(var i=0; i<candidates.length; i++){
+    try{
+      var srv = await _vpServerSideCMScrape(candidates[i]);
+      if(!srv){ outcome.error++; continue; }
+      if(srv.blocked){ outcome.blocked++; continue; }
+      if(srv.wrong_product){ outcome.wrong++; continue; }
+      if(srv.listings && srv.listings.length){
+        // Verificato: persisti per tutti (URL + ladder + foto) e naviga esatto
+        rbIndexRemember(idxOpts, candidates[i],
+                        (i === 0 ? 'direct' : 'variant-cascade'),
+                        { listings: srv.listings, priceSource:'ext-resolve', imageUrl: srv.image || null });
+        return { url: candidates[i], verified: true, reason: (i === 0 ? 'variant-primary' : 'variant-cascade') };
+      }
+      outcome.empty++;
+    }catch(e){ outcome.error++; }
+  }
+  // 5) Ripiego garantito: ricerca nel set (carta in lista, mai errore). La
+  //    reason riflette PERCHÉ la verifica varianti non ha prodotto un prodotto:
+  //    blocked (Cloudflare) / wrong (slug errato, da estendere mapping) /
+  //    empty (nessun listing in quella lingua) / error (rete/estensione).
+  var failReason = outcome.blocked ? 'variants-blocked'
+                 : outcome.wrong   ? 'variants-wrong'
+                 : outcome.empty   ? 'variants-empty'
+                 : outcome.error   ? 'variants-error'
+                 : 'variants-none';
   var su = (typeof buildCMSearchUrl === 'function')
     ? buildCMSearchUrl(name, setId, number, cond, lang, variant, first1st, setName) : null;
-  return { url: su || primary, verified: false };
+  return { url: su || primary, verified: false, reason: failReason, outcome: outcome };
 }
 window.rbCmResolveProductUrl = rbCmResolveProductUrl;
 
@@ -21887,8 +21909,11 @@ async function _rbCensusHarvestOne(card, lang){
   var url=res.url;
   var isProduct = url.indexOf('/Products/Singles/')>=0 && url.indexOf('searchString=')<0;
   if(!isProduct){
-    // Solo pagina di ricerca: nessun ladder pulito → segnaliamo "non risolta"
-    return { ok:false, reason:'search-only', url:url, opts:opts };
+    // Nessuna pagina prodotto risolta → niente ladder. Riportiamo il MOTIVO
+    // esatto dal resolver (no-direct / ext-not-ready / variants-blocked /
+    // variants-wrong / variants-empty / variants-error) così il log dice
+    // perché, invece del generico "search-only".
+    return { ok:false, reason:(res.reason || 'search-only'), url:url, opts:opts };
   }
   // 2) Scrape via Hunter
   var srv=null;
