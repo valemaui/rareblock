@@ -12494,7 +12494,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-12-msval-v2';
+var RB_BUILD = '2026-06-13-cmbuckets-v1';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -13548,7 +13548,7 @@ function _rbPersistConditionPrices(c, listings, cmUrl){
     if(!cardKey) return;
     var clean = listings
       .filter(function(l){ return l && typeof l.price === 'number' && l.price > 0 && l.condition && l.condition !== 'Unknown'; })
-      .map(function(l){ return { price: l.price, condition: l.condition, condRank: l.condRank || null, isFoil: !!l.isFoil }; });
+      .map(function(l){ return { price: l.price, condition: l.condition, condRank: l.condRank || null, isFoil: !!l.isFoil, has_photo: !!(l.has_photo || l.hasPhoto), is_professional: !!(l.is_professional || l.isPro) }; });
     if(!clean.length) return;
     var meta = { cardName: c.name || null, cmUrl: cmUrl || null, source: 'verifyPrice' };
     // fire-and-forget: nessun await, errori solo in console
