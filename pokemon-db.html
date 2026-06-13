@@ -12503,7 +12503,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-13-scheduler-v1';
+var RB_BUILD = '2026-06-13-admin-census-v2';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -14822,7 +14822,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.36';
+const APP_VERSION='6.37';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -21823,7 +21823,19 @@ function _rbCensusInjectStyles(){
    +'.rbadm-btn.primary:hover{background:linear-gradient(180deg,rgba(201,168,76,.3),rgba(201,168,76,.15))}'
    +'.rbadm-btn:disabled{opacity:.5;cursor:default}'
    +'.rbadm-host:not(:empty){margin-top:18px;padding-top:18px;border-top:1px solid var(--border,#2a2620)}'
-   +'.rbadm-note{font-family:var(--mono,monospace);font-size:11px;color:var(--text-subtle,#8a857a);margin-top:10px;line-height:1.5}';
+   +'.rbadm-note{font-family:var(--mono,monospace);font-size:11px;color:var(--text-subtle,#8a857a);margin-top:10px;line-height:1.5}'
+   +'.rbadm-cov-list{display:flex;flex-direction:column;gap:8px;max-height:236px;overflow:auto;padding-right:3px}'
+   +'.rbadm-cov-list::-webkit-scrollbar{width:6px}.rbadm-cov-list::-webkit-scrollbar-thumb{background:var(--border,#2a2620);border-radius:3px}'
+   +'.rbadm-cov-row{background:var(--surface2,#16130d);border:1px solid var(--border,#2a2620);border-radius:10px;padding:10px 12px}'
+   +'.rbadm-cov-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}'
+   +'.rbadm-cov-name{font-size:13px;color:var(--text,#ece7db);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+   +'.rbadm-cov-name span{font-family:var(--mono,monospace);font-size:10px;color:var(--text-subtle,#8a857a);font-weight:400;margin-left:7px}'
+   +'.rbadm-cov-pct{font-family:var(--mono,monospace);font-size:11.5px;color:var(--accent,#c9a961);flex:0 0 auto}'
+   +'.rbadm-cov-pct.part{color:#d9b36a}'
+   +'.rbadm-cov-bar{height:5px;border-radius:4px;background:#0a0907;border:1px solid var(--border,#2a2620);overflow:hidden;margin:8px 0 7px}'
+   +'.rbadm-cov-bar i{display:block;height:100%;background:linear-gradient(90deg,#9c7d33,#c9a84c)}'
+   +'.rbadm-cov-meta{display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mono,monospace);font-size:10px;color:var(--text-subtle,#8a857a)}'
+   +'.rbadm-cov-meta b{color:var(--text-muted,#bdb6a8);font-weight:400}';
   document.head.appendChild(s);
 }
 
@@ -22136,6 +22148,69 @@ function _rbAdmDayLabel(daysFromNow){
   return wd+' '+d.getDate();
 }
 
+/* Tempo relativo conciso in italiano (mai / Nm fa / Nh fa / Ng fa). */
+function _rbAdmFmtAgo(iso){
+  if(!iso) return 'mai';
+  var t=Date.parse(iso); if(isNaN(t)) return '\u2014';
+  var s=Math.max(0,(Date.now()-t)/1000);
+  if(s<90) return 'ora';
+  if(s<3600) return Math.round(s/60)+'m fa';
+  if(s<86400) return Math.round(s/3600)+'h fa';
+  return Math.round(s/86400)+'g fa';
+}
+
+/* Totali carte per set dalla TCG API (proxy hyper-endpoint, modo sets=1).
+   Mappa set_id → printedTotal|total. Cache su window. Degrada a {} se fallisce. */
+function _rbAdmLoadSetTotals(){
+  if(window._rbSetTotalsMap) return Promise.resolve(window._rbSetTotalsMap);
+  var u=SUPA_URL+'/functions/v1/hyper-endpoint?sets=1&pageSize=250';
+  var tok=(window._rbSession&&window._rbSession.access_token)||SUPA_KEY;
+  return fetch(u,{ headers:{ 'Authorization':'Bearer '+tok } })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      var m={};
+      if(d&&d.data){ d.data.forEach(function(s){ if(s&&s.id) m[s.id]=+(s.printedTotal||s.total||0)||0; }); }
+      window._rbSetTotalsMap=m; return m;
+    })
+    .catch(function(){ return {}; });
+}
+
+/* Riempie la sezione "Copertura per set": una riga per set indicizzato, con
+   barra indicizzate/totale (TCG), conteggio prezzi e freschezza. */
+function _rbAdmRenderCoverage(){
+  var box=document.getElementById('rbadm-cov'); if(!box) return;
+  var hdr=document.getElementById('rbadm-cov-h');
+  Promise.all([
+    supa('POST','rpc/rb_card_index_set_coverage',{}).catch(function(){ return null; }),
+    _rbAdmLoadSetTotals()
+  ]).then(function(res){
+    var data=res[0]||{}, totals=res[1]||{};
+    var sets=data.sets||[];
+    if(hdr) hdr.textContent = sets.length ? ('Copertura per set \u00b7 '+sets.length) : 'Copertura per set';
+    if(!sets.length){
+      box.innerHTML='<div class="rbadm-note" style="margin-top:0">Nessun set ancora indicizzato. Usa \u201cCensimento set manuale\u201d per popolare l\u2019indice.</div>';
+      return;
+    }
+    var rows=sets.map(function(s){
+      var tot=totals[s.set_id]||0;
+      var pct=(tot>0)?Math.min(100,Math.round(s.indexed/tot*100)):null;
+      var pctLbl=(pct!=null)?(pct+'%'):(s.indexed+' carte');
+      var pctCls=(pct!=null&&pct<100)?' part':'';
+      var bar=(pct!=null)
+        ? '<div class="rbadm-cov-bar"><i style="width:'+pct+'%"></i></div>'
+        : '';
+      var idxMeta=(tot>0)?('<b>'+s.indexed+'</b>/'+tot+' indicizzate'):('<b>'+s.indexed+'</b> indicizzate');
+      return '<div class="rbadm-cov-row">'
+        +'<div class="rbadm-cov-top"><div class="rbadm-cov-name">'+esc(s.set_name||s.set_id)+'<span>'+esc(s.set_id)+'</span></div>'
+        +'<div class="rbadm-cov-pct'+pctCls+'">'+pctLbl+'</div></div>'
+        +bar
+        +'<div class="rbadm-cov-meta"><span>'+idxMeta+'</span><span><b>'+s.priced+'</b> con prezzo</span><span>agg. '+_rbAdmFmtAgo(s.last_at)+'</span></div>'
+        +'</div>';
+    }).join('');
+    box.innerHTML='<div class="rbadm-cov-list">'+rows+'</div>';
+  });
+}
+
 /* Pannello admin "Censimento prezzi": stato di salute a colpo d'occhio, ora di
    rotazione, timeline settimanale delle 7 fasce con date reali, esecuzione
    immediata (drena) e censimento set manuale. Ridisegnato (namespace .rbadm-*). */
@@ -22208,6 +22283,10 @@ async function rbCensusOpenPanel(){
        +'<div class="rbadm-week" id="rbadm-week">'+week+'</div>'
        +'<div class="rbadm-note">Il catalogo (<b>'+total+'</b> carte con URL verificato) viene rinfrescato su 7 fasce, una al giorno. Il cron marca scadute le carte della fascia odierna; il drenaggio legge i prezzi reali via Hunter quando questo pannello \u00e8 aperto.</div>'
      +'</div>'
+     +'<div class="rbadm-sec">'
+       +'<div class="rbadm-sec-h" id="rbadm-cov-h">Copertura per set</div>'
+       +'<div id="rbadm-cov"><div class="rbadm-note" style="margin-top:0">Carico la copertura\u2026</div></div>'
+     +'</div>'
      +'<div class="rbadm-host" id="rbadm-host"></div>'
      +'<div class="rbadm-actions">'
        +'<button class="rbadm-btn primary" id="rbadm-run"'+(dueNow?'':' disabled')+'>Esegui ora<span class="ct">'+(dueNow?dueNow+' scadute':'nessuna scadenza')+'</span></button>'
@@ -22231,6 +22310,8 @@ async function rbCensusOpenPanel(){
     };
 
     document.getElementById('rbadm-manual').onclick=function(){ close(); rbCensusOpenLauncher(); };
+
+    _rbAdmRenderCoverage();
   }
 
   load().then(paint);
@@ -22240,4 +22321,4 @@ window.rbCensusOpenPanel = rbCensusOpenPanel;
 </script>
 
 </body>
-</html><!-- v20260424 -->
+</html><!-- v20260613 -->
