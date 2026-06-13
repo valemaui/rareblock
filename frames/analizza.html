@@ -608,6 +608,37 @@ document.addEventListener('keydown', function(e){
   }
 });
 
+// ─── PROCEDURA UNICA URL CARDMARKET ──────────────────────────────────────────
+// Il click sul link CM "apri →" instrada SEMPRE attraverso l'UNICO resolver
+// autoritativo del parent: rbOpenCmResolved → rbCmResolveProductUrl
+//   1. URL autoritativo (TCG API / record)  2. indice rb_card_index (cross-device,
+//   con fail_count e invalidazione "prodotto sbagliato")  3. slug diretto su set a
+//   pattern stabile  4. verifica varianti V1/V2 via Hunter con persistenza nell'indice
+//   5. ripiego ricerca-set (carta in lista, mai una pagina d'errore).
+// È la STESSA pipeline usata dai link/pulsanti CM nel resto dell'app: Analizza non
+// ha più una sua risoluzione separata. Così il link riflette sempre la versione più
+// affidabile DOPO i feedback, anche quando la fetch prezzi è stata bloctata da
+// Cloudflare o ha restituito solo un prezzo CMAPI. L'href statico resta rbCmSafeHref
+// come ripiego per middle-click / apri-in-nuova-scheda / no-JS.
+document.addEventListener('click', function(ev){
+  var a = ev.target && ev.target.closest ? ev.target.closest('#anlSrcCmLink') : null;
+  if(!a) return;
+  // Solo click sinistro semplice: middle/ctrl/cmd/shift-click aprono l'href
+  // statico sicuro in background; il tasto destro apre il menu contestuale.
+  if(ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+  var card = anlCurrentCard;
+  var fnOpen = rbParentFn('rbOpenCmResolved');
+  if(!card || typeof fnOpen !== 'function') return;  // ripiego: lascia l'href statico
+  ev.preventDefault();
+  var cond = (document.getElementById('anlCond')||{}).value || 'NM';
+  var lang = (document.getElementById('anlLang')||{}).value || 'ITA';
+  var is1st = ((document.getElementById('anl1st')||{}).value === 'yes');
+  // Analizza tratta sempre la stampa canonica (variant Normal) per il trend CM;
+  // in graded la condizione raw di riferimento è Mint.
+  try{ fnOpen(card, (anlMode==='graded'?'MINT':cond), lang, 'Normal', is1st); }
+  catch(e){ try{ window.open(a.href, '_blank'); }catch(_){} }
+}, true);
+
 function anlRerender(){
   if(!anlCurrentCard) return;
   anlRenderAll(anlCurrentCard);
@@ -2887,10 +2918,21 @@ function anlPopCmLive(r, card){
     return;
   }
 
-  // Aggiorna il link "apri →" all'URL effettivamente verificato dalla cascata
+  // Aggiorna l'href "apri →" SOLO con una pagina prodotto REALMENTE verificata:
+  // listing veri appena letti (ext Hunter / userscript / cascata varianti) da
+  // una pagina /Products/Singles/ concreta. NON sovrascriviamo mai l'href con
+  // r.cmUrl quando la cascata è stata bloccata da Cloudflare o ha prodotto solo
+  // un prezzo CMAPI su slug indovinato (listings vuoto): in quel caso resta il
+  // rbCmSafeHref impostato al render (indice locale o ricerca-set), e il click
+  // passa comunque dal resolver unico rbOpenCmResolved (vedi listener delegato).
+  // Bug Feraligatr-EX12 lato Analizza: prima qui un guess bloccato clobberava
+  // l'href sicuro e l'utente atterrava su una pagina intermedia/sbagliata.
   try{
     var lnk = document.getElementById('anlSrcCmLink');
-    if(lnk && r.cmUrl && /^https?:\/\/(www\.)?cardmarket\.com\//.test(r.cmUrl)) lnk.href = r.cmUrl;
+    var verified = !!(r.listings && r.listings.length) && r.cmUrl
+      && /^https?:\/\/(www\.)?cardmarket\.com\/[a-z]{2}\/Pokemon\/Products\/Singles\//i.test(r.cmUrl)
+      && r.cmUrl.indexOf('searchString=') < 0;
+    if(lnk && verified) lnk.href = r.cmUrl;
   }catch(e){}
 
   if(r.listings && r.listings.length){
