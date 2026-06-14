@@ -12835,6 +12835,7 @@ async function _vpServerSideCMScrape(cmUrl){
     //    passaggi manuali. smooth-endpoint inietta l'HTML in cache e il parser
     //    listings lavora come sempre (logica di parsing in UN solo posto).
     var _extPage = await _vpExtFetchCmHtml(cmUrl);
+    if(!_extPage){ try{ console.warn('[RB-HUNTER] pagina NON letta via estensione \u2192', _rbHunterReason || 'motivo sconosciuto', '\u2014 URL:', cmUrl); }catch(e){} }
 
     var controller = new AbortController();
     var timer = setTimeout(function(){ controller.abort(); }, _extPage ? 20000 : 10000);
@@ -13505,7 +13506,7 @@ async function fetchCmPriceLive(opts){
     }
     var _hr = (typeof _rbHunterReason !== 'undefined' && _rbHunterReason) ? _rbHunterReason : 'sconosciuto';
     var finalErr = primaryBlocked
-      ? ('Pagina CM letta dal DATACENTER (403 Cloudflare), non via Hunter \u2014 per questo il prezzo cade su CMAPI/trend invece dei listing reali. Motivo Hunter: ' + _hr + '. Senza Hunter lo scrape CM resta bloccato.')
+      ? ('Hunter non ha letto la pagina \u2192 ' + _hr + '. (Cos\u00ec CM \u00e8 stato letto dal datacenter \u2192 403 Cloudflare \u2192 prezzo da trend, non dai listing reali.)')
       : sawWrongProduct
       ? 'tutte le varianti slug danno "Prodotto sbagliato" su CM \u2014 nessuna pagina prodotto valida trovata'
       : (srv.error || (isDirect ? 'nessun listing trovato' : 'set non supportato per CM diretto'));
@@ -16526,7 +16527,7 @@ function scReset(){
      TAB ANALIZZA — Valutazione carta (v4 data-driven)
      ═══════════════════════════════════════════════════════════ -->
 <div class="tab" id="tab-anl" style="display:none;flex-direction:column;overflow:hidden">
-  <iframe id="anlFrame" src="frames/analizza.html?v=20260613-anl-v5.7-hunterdiag"
+  <iframe id="anlFrame" src="frames/analizza.html?v=20260613-anl-v5.8-hreason"
           title="Analizza"
           style="flex:1;width:100%;border:0;background:var(--bg);display:block"></iframe>
 </div>
