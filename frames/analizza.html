@@ -3422,42 +3422,57 @@ function anlPopEbay(data, err, card){
         return false;
       }
 
-      var filteredItems = data.items.filter(function(it){
+      // Match per NOME completo (tutte le parole del nome carta) e per
+      // NOME+NUMERO (preciso). Il numero è un di più: per molte carte eBay NON
+      // lo riporta nel titolo (Shiny Vault "SV107", promo, alt-art).
+      var nameMatched = data.items.filter(function(it){
         var t = (it.title||'').toLowerCase();
-        // (1) nome carta obbligatorio
-        if(t.indexOf(primary) === -1) return false;
-        // (2) numero carta come numeratore (esclude denominatori "X/106")
-        if(num && !numberMatches(t, num)) return false;
-        return true;
+        return nameKeywords.every(function(w){ return t.indexOf(w) !== -1; });
+      });
+      var filteredItems = nameMatched.filter(function(it){
+        return !num || numberMatches((it.title||'').toLowerCase(), num);
       });
       var ratio = filteredItems.length / before;
+      var nameRatio = nameMatched.length / before;
 
       if(filteredItems.length >= 3){
+        // Preciso: nome + numero. Caso normale.
         if(filteredItems.length < before){
-          console.warn(
-            '[anl eBay] sanity filter: '+(before-filteredItems.length)+'/'+before+
-            ' listings scartati (filtri: nome="'+primary+'"' +
-            (num ? ', numero="'+num+'"' : '') + ')'
-          );
+          console.warn('[anl eBay] sanity filter: '+(before-filteredItems.length)+'/'+before+
+            ' listings scartati (filtri: nome="'+primary+'"'+(num ? ', numero="'+num+'"' : '')+')');
         }
         data.items = filteredItems;
-        if(Array.isArray(data.prices)){
-          data.prices = filteredItems.map(function(it){ return it.price; });
-        }
+        if(Array.isArray(data.prices)) data.prices = filteredItems.map(function(it){ return it.price; });
         if(typeof data.count === 'number') data.count = filteredItems.length;
-      } else if(before >= 5 && ratio < 0.05){
-        console.error('[anl eBay] BLOCK DETECTED: '+before+' listings ricevuti ma solo '+filteredItems.length+' coerenti → scarto tutto');
+      } else if(num && nameMatched.length >= 3){
+        // NUMERO assente dai titoli ma NOME presente in molti listing: NON è un
+        // blocco. Usiamo i match per nome (filtro numero rilassato per questa
+        // carta — es. Shiny Vault SV107, dove eBay non scrive il numero).
+        console.warn('[anl eBay] numero "'+num+'" assente dai titoli ma nome ok su '+nameMatched.length+'/'+before+' → uso i match per NOME (nessun blocco)');
+        data.items = nameMatched;
+        if(Array.isArray(data.prices)) data.prices = nameMatched.map(function(it){ return it.price; });
+        if(typeof data.count === 'number') data.count = nameMatched.length;
+      } else if(before >= 5 && nameRatio < 0.05){
+        // Nemmeno il NOME combacia → pagina-blocco/captcha vera → scarto.
+        console.error('[anl eBay] BLOCK DETECTED: '+before+' listings ma solo '+nameMatched.length+' col nome "'+primary+'" → scarto tutto');
         data.items = [];
         data.prices = [];
         data.count = 0;
         err = 'troppi listing non correlati · pagina sospetta';
-      } else if(filteredItems.length === 0 && before > 0){
-        console.warn('[anl eBay] sanity filter ha rimosso TUTTI i listing → mantengo dato non filtrato. Filtri: name="'+primary+'", num="'+num+'"');
-      } else if(filteredItems.length > 0 && filteredItems.length < 3){
+      } else if(filteredItems.length > 0){
+        // Subset piccolo nome+numero: alta confidenza.
         data.items = filteredItems;
         if(Array.isArray(data.prices)) data.prices = filteredItems.map(function(it){ return it.price; });
         if(typeof data.count === 'number') data.count = filteredItems.length;
-        console.warn('[anl eBay] sanity filter: subset piccolo ('+filteredItems.length+' listing) ma alta confidenza · '+(before-filteredItems.length)+' scartati');
+        console.warn('[anl eBay] sanity filter: subset piccolo ('+filteredItems.length+' listing) · '+(before-filteredItems.length)+' scartati');
+      } else if(nameMatched.length > 0){
+        // Pochi match per nome, numero assente: meglio i match per nome che niente.
+        data.items = nameMatched;
+        if(Array.isArray(data.prices)) data.prices = nameMatched.map(function(it){ return it.price; });
+        if(typeof data.count === 'number') data.count = nameMatched.length;
+        console.warn('[anl eBay] pochi match nome ('+nameMatched.length+'), numero assente → uso match per nome');
+      } else {
+        console.warn('[anl eBay] sanity filter ha rimosso TUTTI i listing → mantengo dato non filtrato. Filtri: name="'+primary+'", num="'+num+'"');
       }
     }
   }

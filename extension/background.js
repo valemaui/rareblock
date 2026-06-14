@@ -116,6 +116,16 @@ async function fetchHtmlThrottled(url, host, customHeaders) {
       mode: 'cors',
     });
     const html = await r.text();
+    // ── Fallback challenge Cloudflare ──
+    // Il fetch SW NON esegue il JS di verifica di Cloudflare → 403 / pagina
+    // "Just a moment" (tipico Cardmarket, WAF Enterprise). In quel caso carico
+    // la pagina in una TAB NASCOSTA: Cloudflare esegue il suo challenge, imposta
+    // cf_clearance e mostra la pagina vera; ne leggo l'HTML. Bonus: il cookie
+    // cf_clearance resta nel browser → i fetch SW successivi passano da soli.
+    if (r.status === 403 || /Just a moment|cf-browser-verification|Checking your browser|challenge-platform/i.test(html)) {
+      const viaTab = await fetchHtmlViaTab(url);
+      if (viaTab && viaTab.ok && viaTab.html && viaTab.html.length > 500) return viaTab;
+    }
     return {
       ok: r.ok,
       status: r.status,
@@ -131,6 +141,46 @@ async function fetchHtmlThrottled(url, host, customHeaders) {
       error: String(e?.message || e),
       duration_ms: Date.now() - startedAt,
     };
+  }
+}
+
+// ── Carica la pagina in una tab nascosta ed estrai l'HTML dopo che Cloudflare
+//    ha risolto il suo challenge JS. È il fallback per i 403 del fetch SW.
+async function fetchHtmlViaTab(url) {
+  const startedAt = Date.now();
+  let tabId = null;
+  try {
+    const tab = await chrome.tabs.create({ url, active: false });
+    tabId = tab.id;
+    await waitForTabComplete(tabId, TAB_TIMEOUT_MS);
+    // Poll dell'HTML: aspetto che sparisca il challenge ("Just a moment") prima
+    // di accettare la pagina. Cloudflare può ricaricare un paio di volte.
+    let html = '';
+    const deadline = Date.now() + 20000;
+    while (Date.now() < deadline) {
+      await sleep(1500);
+      const res = await chrome.scripting.executeScript({
+        target: { tabId, allFrames: false },
+        func: () => document.documentElement.outerHTML,
+      }).catch(() => null);
+      html = (res && res[0] && res[0].result) || '';
+      const stillChallenge = /Just a moment|cf-browser-verification|Checking your browser|challenge-platform/i.test(html);
+      if (html && !stillChallenge && html.length > 1000) break;
+    }
+    const challenged = /Just a moment|cf-browser-verification|Checking your browser/i.test(html);
+    return {
+      ok: !!html && html.length > 500 && !challenged,
+      status: challenged ? 403 : 200,
+      html,
+      url,
+      length: html.length,
+      duration_ms: Date.now() - startedAt,
+      source: 'extension/tab-fetch',
+    };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e), duration_ms: Date.now() - startedAt };
+  } finally {
+    if (tabId != null) chrome.tabs.remove(tabId).catch(() => {});
   }
 }
 
