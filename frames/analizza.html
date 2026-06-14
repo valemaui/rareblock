@@ -635,7 +635,8 @@ document.addEventListener('click', function(ev){
   var is1st = ((document.getElementById('anl1st')||{}).value === 'yes');
   // Analizza tratta sempre la stampa canonica (variant Normal) per il trend CM;
   // in graded la condizione raw di riferimento è Mint.
-  try{ fnOpen(card, (anlMode==='graded'?'MINT':cond), lang, 'Normal', is1st); }
+  // Graded → NM (minCondition=2, Mint+NM) come la valutazione; raw → cond scelto.
+  try{ fnOpen(card, (anlMode==='graded'?'NM':cond), lang, 'Normal', is1st); }
   catch(e){ try{ window.open(a.href, '_blank'); }catch(_){} }
 }, true);
 
@@ -2210,11 +2211,10 @@ async function anlStartLiveFetches(card){
 
         var optsLive = {
           name: card.name, setId: setId, number: card.number || '',
-          // In graded mode condizione Mint (minCondition=1): i venditori di
-          // slab impostano quasi sempre la condizione raw su Mint — con
-          // minCondition più severo CM escluderebbe lato server molti slab.
-          condition: graded ? 'MINT' : cond,
-          gradedMode: graded,
+          // Graded → 'NM' (minCondition=2): CM include sia gli slab catalogati
+          // Mint sia quelli NM (es. PSA10 listati in entrambe le condizioni).
+          // Raw → la condizione scelta dall'utente, senza floor aggiunti.
+          condition: graded ? 'NM' : cond,
           language: lang, variant: 'Normal', first_edition: is1st,
           setName: setNm, rarity: card.rarity || '',
           cmUrl: (typeof fnAuth === 'function' ? fnAuth(card) : null) || null,
