@@ -12544,7 +12544,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-13-census-preflight-v4';
+var RB_BUILD = '2026-06-14-census-preflight-v5';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -22067,13 +22067,42 @@ async function rbCensusRunSet(setId, opts){
   // (cf_clearance assente nel profilo), inutile macinare l'intero set → stop
   // con istruzione chiara invece di N righe "variants-blocked".
   $('rbcs-cur-st').textContent='Verifico l\u2019accesso a Cardmarket via Hunter\u2026';
+  // Diagnostica stato Hunter pre-flight
+  var _pfExtOk = false;
+  try{
+    if(typeof window.rbExtFetch === 'function'){
+      _pfExtOk = !!(await window.rbExtFetch.isReady().catch(function(){ return false; }));
+    }
+  }catch(e){}
+  if(!_pfExtOk){
+    var _pfExtMsg = (typeof window.rbExtFetch !== 'function') ? 'Hunter non installata/caricata' : 'Hunter non pronta (tab non agganciata)';
+    $('rbcs-cur-nm').textContent='Estensione Hunter non disponibile';
+    $('rbcs-cur-st').textContent=_pfExtMsg;
+    log('\u26d4 Pre-flight fallito: ' + _pfExtMsg, 'bl');
+    log('\u2192 Assicurati che l\u2019estensione RareBlock Hunter sia attiva e che la pagina sia ricaricata.', 'em');
+    enableClose(); return;
+  }
+  log('\u2139 Hunter pronta \u2014 test connessione CM in corso\u2026', 'em');
   var _pf=null;
-  try{ _pf=await ((typeof rbCmUserAction==='function') ? rbCmUserAction(function(){ return _vpExtFetchCmHtml('https://www.cardmarket.com/it/Pokemon'); }) : _vpExtFetchCmHtml('https://www.cardmarket.com/it/Pokemon')); }catch(e){}
+  try{ _pf=await ((typeof rbCmUserAction==='function') ? rbCmUserAction(function(){ return _vpExtFetchCmHtml('https://www.cardmarket.com/it/Pokemon'); }) : _vpExtFetchCmHtml('https://www.cardmarket.com/it/Pokemon')); }catch(e){ console.warn('[RB-CENSUS] pre-flight exception', e); }
   if(!_pf){
+    var _pfReason = (typeof _rbHunterReason !== 'undefined' && _rbHunterReason) ? _rbHunterReason : 'risposta nulla';
     $('rbcs-cur-nm').textContent='Cardmarket non leggibile via Hunter';
-    $('rbcs-cur-st').textContent='Cloudflare sta sfidando le richieste: l\u2019estensione \u00e8 attiva ma manca una sessione CM sbloccata.';
-    log('\u26d4 Pre-flight CM fallito: nessun HTML da Hunter (challenge Cloudflare).', 'bl');
-    log('\u2192 Apri e sblocca una scheda cardmarket.com nello stesso browser (supera \u201cVerifica che sei umano\u201d, accetta i cookie, idealmente fai login), poi riprova.', 'em');
+    $('rbcs-cur-st').textContent='Pre-flight fallito: ' + _pfReason;
+    log('\u26d4 Pre-flight CM fallito: ' + _pfReason, 'bl');
+    if(_pfReason.indexOf('policy') !== -1){
+      log('\u2192 Errore interno: il pre-flight non era avvolto in rbCmUserAction. Segnala questo bug.', 'em');
+    } else if(_pfReason.indexOf('Hunter installata ma NON pronta') !== -1){
+      log('\u2192 Hunter \u00e8 installata ma non agganciata a nessuna tab. Ricarica la pagina o riattiva l\u2019estensione.', 'em');
+    } else if(_pfReason.indexOf('non installata') !== -1){
+      log('\u2192 Installa l\u2019estensione RareBlock Hunter e ricarica la pagina.', 'em');
+    } else if(_pfReason.indexOf('challenge Cloudflare') !== -1 || _pfReason.indexOf('Just a moment') !== -1){
+      log('\u2192 Apri cardmarket.com nel browser, supera il challenge "Verifica che sei umano", poi riprova.', 'em');
+    } else if(_pfReason.indexOf('vuota') !== -1 || _pfReason.indexOf('corta') !== -1){
+      log('\u2192 Hunter ha letto una pagina anomala. Prova a ricaricare cardmarket.com e riprova.', 'em');
+    } else {
+      log('\u2192 Apri e sblocca una scheda cardmarket.com nello stesso browser, poi riprova.', 'em');
+    }
     enableClose(); return;
   }
   log('\u2713 Accesso CM via Hunter ok \u2014 avvio censimento.', 'ok');
