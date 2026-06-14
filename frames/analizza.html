@@ -3129,11 +3129,14 @@ function anlPopCm(data, card){
     }
     if(noteEl){
       var bits = [];
-      if(reason) bits.push(reason);
+      // Valori di ripiego PRIMA: non devono essere nascosti da un motivo lungo
+      // (es. blocco Hunter/CM). Il dettaglio completo va in coda + nel title.
       if(p && p.trendPrice) bits.push('trend €'+p.trendPrice.toFixed(2));
       if(p && p.avg30)      bits.push('30gg €'+p.avg30.toFixed(2));
       if(p && p.lowPrice)   bits.push('low €'+p.lowPrice.toFixed(2));
+      if(reason) bits.push(reason);
       noteEl.textContent = bits.length ? bits.join(' · ') : 'nessun dato';
+      try{ noteEl.title = reason || ''; }catch(e){}   // messaggio completo nel tooltip
     }
     anlSetDot('anlSrcCmDot','low');
     // Pulisci tabella gradate (caso fallback = nessun graded utile)
