@@ -11623,6 +11623,44 @@ function _cmPrimaryVersionFor(setId, variant, rarity, name){
     return '';  // Common/Uncommon
   }
 
+  // ── Neo sets (neo1-neo4: Neo Genesis, Discovery, Revelation, Destiny) ──
+  // Stesso pattern WotC non-Base verificato su CM:
+  //   Lugia #9 Neo Genesis Rare Holo → /Neo-Genesis/Lugia-V1-NG9
+  //   Sneasel #28 Neo Genesis Rare   → /Neo-Genesis/Sneasel-V2-NG28
+  //   Common/Uncommon                → no-V
+  if(setId === 'neo1' || setId === 'neo2' || setId === 'neo3' || setId === 'neo4'){
+    if(v === 'holo' || v === 'reverse holo') return 'V1';
+    if(r.indexOf('rare holo') >= 0) return 'V1';
+    if(r === 'rare' || (r.indexOf('rare') >= 0 && r.indexOf('holo') < 0)) return 'V2';
+    return '';  // Common/Uncommon
+  }
+
+  // ── HGSS (hgss1-hgss4, col1) ──
+  // CM usa V1 per Prime e Legend (rarità premium HGSS), V2 per Rare non-holo.
+  //   Gengar Prime → /HeartGold-SoulSilver/Gengar-V1-HS94
+  //   Rare (non-holo) → V2  |  Common/Uncommon → no-V
+  if(setId === 'hgss1' || setId === 'hgss2' || setId === 'hgss3' || setId === 'hgss4'
+     || setId === 'col1'){
+    if(v === 'holo' || v === 'reverse holo') return 'V1';
+    if(r.indexOf('rare holo') >= 0 || r.indexOf('prime') >= 0 || r.indexOf('legend') >= 0) return 'V1';
+    if(r === 'rare' || (r.indexOf('rare') >= 0 && r.indexOf('holo') < 0)) return 'V2';
+    return '';  // Common/Uncommon
+  }
+
+  // ── BW (bw1-bw11: Black & White → Legendary Treasures) ──
+  // Reshiram BLW26 è no-V (verificato). Rare Holo standard BW = no-V.
+  // Full Art / Rare Ultra → V1. Secret Rare / Reverse Holo → V2.
+  if(setId === 'bw1'  || setId === 'bw2'  || setId === 'bw3'  || setId === 'bw4'
+     || setId === 'bw5' || setId === 'bw6' || setId === 'bw7'  || setId === 'bw8'
+     || setId === 'bw9' || setId === 'bw10'|| setId === 'bw11'){
+    if(v === 'full art') return 'V1';
+    if(v === 'reverse holo') return 'V2';
+    if(r.indexOf('ultra') >= 0 || r.indexOf('full art') >= 0) return 'V1';
+    if(r.indexOf('secret') >= 0) return 'V2';
+    // Rare Holo BW → no-V (verificato: Reshiram-BLW26)
+    return '';
+  }
+
   return '';
 }
 
@@ -11933,6 +11971,9 @@ const CM_AMBIGUOUS_VERSION_SETS = new Set([
   'ex9','ex10','ex11','ex12','ex13','ex14','ex15','ex16',
   // HGSS series: stessa logica
   'hgss1','hgss2','hgss3','hgss4','col1',
+  // BW: Full Art e Secret Rare hanno pattern V1/V2 su CM. Rare Holo standard = no-V.
+  // Senza questa entry rbCmSafeHref costruirebbe slug diretto → pagina errata per FA/SR.
+  'bw1','bw2','bw3','bw4','bw5','bw6','bw7','bw8','bw9','bw10','bw11',
 ]);
 
 // Costruisce TUTTE le varianti di URL diretto (no-V, V1, V2) per set ambigui.
