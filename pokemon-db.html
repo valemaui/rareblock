@@ -12796,17 +12796,21 @@ async function rbCmUserAction(fn){
 window.rbCmScrapeAllowed = rbCmScrapeAllowed;
 window.rbCmUserAction = rbCmUserAction;
 
+var _rbHunterReason = null;   // ultimo motivo per cui Hunter non ha letto la pagina
 async function _vpExtFetchCmHtml(url){
+  _rbHunterReason = null;
   try{
     // Policy: nessuna lettura CM dall'IP residenziale fuori da azioni esplicite
-    if(!rbCmScrapeAllowed()) return null;
+    if(!rbCmScrapeAllowed()){ _rbHunterReason = 'policy (azione non esplicita)'; return null; }
     var ext = window.rbExtFetch;
-    if(typeof ext !== 'function') return null;
+    if(typeof ext !== 'function'){ _rbHunterReason = 'estensione Hunter non installata/caricata in questa pagina'; return null; }
     var ready = await ext.isReady().catch(function(){ return false; });
-    if(!ready) return null;
-    var f = await ext(url).catch(function(){ return null; });
-    if(!f || !f.ok || !f.html || f.html.length < 500) return null;
-    if(/Just a moment|cf-browser-verification/i.test(f.html)) return null;
+    if(!ready){ _rbHunterReason = 'Hunter installata ma NON pronta (estensione disconnessa o nessuna tab Hunter agganciata)'; return null; }
+    var f = await ext(url).catch(function(e){ _rbHunterReason = 'errore fetch Hunter: ' + ((e&&e.message)||e); return null; });
+    if(!f){ if(!_rbHunterReason) _rbHunterReason = 'Hunter non ha restituito risposta'; return null; }
+    if(!f.ok){ _rbHunterReason = 'Hunter fetch non ok (status ' + (f.status||'?') + ')'; return null; }
+    if(!f.html || f.html.length < 500){ _rbHunterReason = 'Hunter ha letto una pagina vuota/troppo corta (' + ((f.html&&f.html.length)||0) + ' char)'; return null; }
+    if(/Just a moment|cf-browser-verification/i.test(f.html)){ _rbHunterReason = 'Cardmarket ha servito un challenge Cloudflare ANCHE a Hunter — apri CM nel browser e supera la verifica, poi riprova'; return null; }
     // og:image / twitter:image: la foto reale della carta, gratis dallo
     // stesso HTML → alimenta cm-image-cache senza passaggi aggiuntivi.
     var image = null;
@@ -13499,8 +13503,9 @@ async function fetchCmPriceLive(opts){
       _cmaStash.attempts = attempts;
       return _cmaStash;
     }
+    var _hr = (typeof _rbHunterReason !== 'undefined' && _rbHunterReason) ? _rbHunterReason : 'sconosciuto';
     var finalErr = primaryBlocked
-      ? 'Cloudflare ha bloccato la pagina CM corretta (HTTP 403) dopo i retry \u2014 riprova tra poco o usa lo userscript Tampermonkey. Non applico prezzi da slug alternativi per evitare un prodotto sbagliato.'
+      ? ('Pagina CM letta dal DATACENTER (403 Cloudflare), non via Hunter \u2014 per questo il prezzo cade su CMAPI/trend invece dei listing reali. Motivo Hunter: ' + _hr + '. Senza Hunter lo scrape CM resta bloccato.')
       : sawWrongProduct
       ? 'tutte le varianti slug danno "Prodotto sbagliato" su CM \u2014 nessuna pagina prodotto valida trovata'
       : (srv.error || (isDirect ? 'nessun listing trovato' : 'set non supportato per CM diretto'));
@@ -16521,7 +16526,7 @@ function scReset(){
      TAB ANALIZZA — Valutazione carta (v4 data-driven)
      ═══════════════════════════════════════════════════════════ -->
 <div class="tab" id="tab-anl" style="display:none;flex-direction:column;overflow:hidden">
-  <iframe id="anlFrame" src="frames/analizza.html?v=20260613-anl-v5.6-cond"
+  <iframe id="anlFrame" src="frames/analizza.html?v=20260613-anl-v5.7-hunterdiag"
           title="Analizza"
           style="flex:1;width:100%;border:0;background:var(--bg);display:block"></iframe>
 </div>
