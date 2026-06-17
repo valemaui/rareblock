@@ -201,6 +201,33 @@ body{display:flex;flex-direction:column}
 .ms-gear-row.off{opacity:.55}
 .ms-gear-row .ct{font-size:10px;font-family:var(--mono);color:var(--text-subtle)}
 
+/* — Barra progresso miniatura in sidebar — */
+.ms-item-prog-wrap{height:2px;border-radius:1px;background:var(--surface3);margin-top:5px;overflow:hidden}
+.ms-item-prog-fill{height:100%;border-radius:1px;background:var(--accent);transition:width .3s}
+.ms-item-prog-fill.complete{background:var(--success,#3fb950)}
+
+/* — Dropdown strumenti (···) — */
+.ms-tools-menu{position:relative;display:inline-block}
+.ms-tools-menu-pop{display:none;position:absolute;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.5);z-index:50;min-width:230px;overflow:hidden}
+.ms-tools-menu-pop.show{display:block}
+.ms-tools-menu-pop button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:9px 12px;font-size:12px;cursor:pointer;font-family:inherit}
+.ms-tools-menu-pop button:hover{background:var(--surface2)}
+.ms-tools-menu-pop .sep{height:1px;background:var(--border);margin:2px 0}
+.ms-tools-menu-pop button.active-label{color:var(--accent)}
+
+/* — Sezione "Aggiungi variante" nel gear panel — */
+.ms-gear-add-section{border-top:1px solid var(--border);padding-top:11px;margin-top:4px;display:flex;flex-direction:column;gap:8px}
+.ms-gear-add-row{display:flex;gap:7px}
+.ms-gear-add-row select{flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:6px;font-size:12px;font-family:inherit}
+.ms-gear-add-hint{font-size:10.5px;color:var(--text-subtle);line-height:1.4}
+
+/* — Preset chip varianti nel modal nuovo masterset — */
+.ms-var-presets{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+.ms-var-presets .lbl{font-size:10px;color:var(--text-subtle);font-family:var(--mono);white-space:nowrap}
+.ms-var-preset-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);border-radius:var(--r);font-size:11px;padding:4px 10px;cursor:pointer;font-family:inherit;transition:all .1s}
+.ms-var-preset-btn:hover{border-color:var(--border-focus);color:var(--text)}
+.ms-var-preset-btn.accent{color:var(--accent);border-color:rgba(201,169,110,.4)}
+
 /* — Modal CARICAMENTO SEQUENZIALE (foto grande a sx + frecce) — */
 .ms-load-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:2200;align-items:center;justify-content:center;padding:24px}
 .ms-load-bg.show{display:flex}
@@ -410,10 +437,16 @@ body{display:flex;flex-direction:column}
           <button class="btn btn-primary" onclick="msLoadOpen()" id="msLoadBtn" title="Caricamento sequenziale carte con foto grande e frecce">&#9654; Carica</button>
           <button class="btn" onclick="msVaultBulk()" id="msVaultBulkBtn" title="Carica nel Caveau (collezione) tutte le copie possedute non ancora caricate" style="color:var(--gold,#c9a84c);border-color:rgba(201,168,76,.38)">&#11014; Caveau</button>
           <button class="btn" onclick="msvOpen()" id="msValuateBtn" title="Valutazione di mercato: prezzo del masterset carta per carta (acquisto o posseduto)" style="color:var(--gold,#c9a84c);border-color:rgba(201,168,76,.38)">&euro; Valuta</button>
-          <button class="btn" onclick="msShareOpen()" id="msShareBtn" title="Crea un link pubblico (sola lettura) della mancolista">&#128279; Condividi</button>
-          <button class="btn" onclick="msToggleConditions()" id="msToggleCondBtn" title="Attiva/Disattiva tracciamento per condizione (NM/EX/GD/LP/PL/PO)">Condizioni</button>
-          <button class="btn" onclick="msDupesOpen()" title="Lista delle carte in eccesso da scambiare">⇄ Doppie</button>
-          <button class="btn-icon" onclick="msGearOpen()" id="msGearBtn" title="Mostra/nascondi colonne varianti" style="font-size:15px;line-height:1;padding:6px 9px">&#9881;</button>
+          <div class="ms-tools-menu">
+            <button class="btn" onclick="msToolsMenuToggle(event)" title="Strumenti">&#8943; <span style="font-size:9px">&#9662;</span></button>
+            <div class="ms-tools-menu-pop" id="msToolsMenu">
+              <button onclick="msToolsMenuClose();msShareOpen()" id="msShareBtn">&#128279; Condivisione / mancolista</button>
+              <button onclick="msToolsMenuClose();msDupesOpen()">&#8646; Doppie da scambiare</button>
+              <div class="sep"></div>
+              <button onclick="msToolsMenuClose();msToggleConditions()" id="msToggleCondBtn">&#9898; Condizioni NM/EX/GD...</button>
+            </div>
+          </div>
+          <button class="btn-icon" onclick="msGearOpen()" id="msGearBtn" title="Varianti: mostra/nascondi colonne, aggiungi variante" style="font-size:15px;line-height:1;padding:6px 9px">&#9881;</button>
           <div class="ms-menu">
             <button class="btn" onclick="msExportMenuToggle(event)" id="msExportBtn" title="Esporta">&#8595; Esporta &#9662;</button>
             <div class="ms-menu-pop" id="msExportMenu">
@@ -487,6 +520,12 @@ body{display:flex;flex-direction:column}
         <div class="ms-lang" data-lang="POR" onclick="msPickLang(this)">POR</div>
       </div>
       <div class="rb-pseudo-label">Varianti da tracciare</div>
+      <div class="ms-var-presets">
+        <span class="lbl">Preset:</span>
+        <button type="button" class="ms-var-preset-btn" onclick="msRenderChips(['Normal','Holo'])" title="Solo Normal e Holo (set base WotC, Zenit del Re...)">Base</button>
+        <button type="button" class="ms-var-preset-btn" onclick="msRenderChips(['Normal','Holo','Reverse Holo'])" title="Normal + Holo + Reverse Holo (serie moderne)">Con Reverse</button>
+        <button type="button" class="ms-var-preset-btn accent" onclick="msRenderChips(['Normal','Holo','1\u00aa Edizione'])" title="Traccia Normal, Holo e 1ª Edizione (Base Set ITA/ENG, Jungle, Fossil, Team Rocket...)">&#127941; 1ª Edizione</button>
+      </div>
       <div class="ms-var-chips" id="msVarChips"></div>
       <div class="rb-pseudo-label" style="font-size:10px;margin-top:10px">Nome del masterset (opzionale)</div>
       <input type="text" id="msLabel" maxlength="40" placeholder="es. Base Set 1ª Ed · Collezione papà · Sealed" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:6px;font-size:12px;font-family:inherit"/>
@@ -561,6 +600,14 @@ body{display:flex;flex-direction:column}
     <h3>Colonne varianti visibili</h3>
     <div class="ms-gear-hint">Nascondi le colonne impostate per errore in fase di setup. I dati eventualmente inseriti restano salvati: riattivando la colonna ricompaiono.</div>
     <div id="msGearRows" style="display:flex;flex-direction:column;gap:6px"></div>
+    <div class="ms-gear-add-section" id="msGearAddSection">
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted)">Aggiungi variante al masterset</div>
+      <div class="ms-gear-add-row">
+        <select id="msGearAddSel"></select>
+        <button class="btn btn-primary" style="font-size:12px;padding:6px 12px" onclick="msGearAddVariant()">+ Aggiungi</button>
+      </div>
+      <div class="ms-gear-add-hint">La variante viene aggiunta a tutte le carte. I conteggi già inseriti per questa variante (se presenti) vengono ripristinati.</div>
+    </div>
     <div class="ms-modal-foot" style="margin-top:12px">
       <button class="btn" onclick="msGearClose()">Chiudi</button>
     </div>
@@ -1164,7 +1211,8 @@ function msRenderList(filter){
       '<div class="ms-item-name">'+esc(m.setName)+'</div>'+
       '<div class="ms-item-meta"><span>'+esc(m.lang)+'</span>'+
       '<span style="color:'+okCol+'">'+owned+'/'+total+' &middot; '+pct+'%</span></div>'+
-      labelHtml;
+      labelHtml+
+      '<div class="ms-item-prog-wrap"><div class="ms-item-prog-fill'+(pct===100?' complete':'')+'" style="width:'+pct+'%"></div></div>';
     div.addEventListener('click',(function(id){ return function(){ msOpen(id); }; })(m.id));
     el.appendChild(div);
   });
@@ -1198,8 +1246,8 @@ window.msOpen = function(id){
   // bottone condizioni: stato visivo
   var tcb = document.getElementById('msToggleCondBtn');
   if(tcb){
-    if(ms.trackConditions){ tcb.classList.add('btn-primary'); tcb.textContent='Condizioni: ON'; }
-    else { tcb.classList.remove('btn-primary'); tcb.textContent='Condizioni: OFF'; }
+    if(ms.trackConditions){ tcb.classList.add('active-label'); tcb.innerHTML='&#9898; Condizioni: <b>ON</b>'; }
+    else { tcb.classList.remove('active-label'); tcb.innerHTML='&#9898; Condizioni NM/EX/GD...'; }
   }
   var rars = [];
   ms.cards.forEach(function(c){ if(c.rarity&&rars.indexOf(c.rarity)<0) rars.push(c.rarity); });
@@ -1399,8 +1447,8 @@ window.msToggleConditions = function(){
   // aggiorna UI
   var tcb = document.getElementById('msToggleCondBtn');
   if(tcb){
-    if(ms.trackConditions){ tcb.classList.add('btn-primary'); tcb.textContent='Condizioni: ON'; }
-    else { tcb.classList.remove('btn-primary'); tcb.textContent='Condizioni: OFF'; }
+    if(ms.trackConditions){ tcb.classList.add('active-label'); tcb.innerHTML='&#9898; Condizioni: <b>ON</b>'; }
+    else { tcb.classList.remove('active-label'); tcb.innerHTML='&#9898; Condizioni NM/EX/GD...'; }
   }
   msUpdateStats(ms);
   msRenderTable();
@@ -1626,6 +1674,13 @@ function msUpdateStats(ms){
   var pct   = all.length ? Math.round(owned/all.length*100) : 0;
   document.getElementById('msProgFill').style.width = pct+'%';
   var condBadge = ms.trackConditions ? '<div class="ms-stat"><div class="ms-stat-val" style="color:var(--accent)">ON</div><div class="ms-stat-lbl">Condizioni</div></div>' : '';
+  // badge 1ª Edizione se tracciata nel masterset
+  var edBadge = '';
+  if((ms.variants||[]).indexOf('1\u00aa Edizione')>=0){
+    var edOwned = ms.cards.filter(function(c){ return qtyTotal(c,'1\u00aa Edizione')>0; }).length;
+    var edTotal = ms.cards.filter(function(c){ return cardApplicableVariants(c,ms).indexOf('1\u00aa Edizione')>=0; }).length || ms.cards.length;
+    edBadge = '<div class="ms-stat"><div class="ms-stat-val" style="color:var(--accent)">'+edOwned+'/'+edTotal+'</div><div class="ms-stat-lbl">1ª Edizione</div></div>';
+  }
   // breakdown base/fuoriserie (#4) solo se il set ha carte speciali
   var tierBadge='';
   if(msSetHasSpecial(ms)){
@@ -1641,6 +1696,7 @@ function msUpdateStats(ms){
     '<div class="ms-stat"><div class="ms-stat-val">'+owned+'/'+all.length+'</div><div class="ms-stat-lbl">Carte possedute</div></div>'+
     '<div class="ms-stat"><div class="ms-stat-val">'+pct+'%</div><div class="ms-stat-lbl">Completamento</div></div>'+
     tierBadge+
+    edBadge+
     '<div class="ms-stat"><div class="ms-stat-val">'+pcs+'</div><div class="ms-stat-lbl">Pezzi totali</div></div>'+
     '<div class="ms-stat"><div class="ms-stat-val">'+msVisibleVariants(ms).length+'</div><div class="ms-stat-lbl">Varianti</div></div>'+
     condBadge;
@@ -2312,9 +2368,62 @@ window.msGearOpen = function(){
     })(v));
     rows.appendChild(row);
   });
+  // Sezione "Aggiungi variante": mostra solo le varianti non già tracciate
+  var addSec = document.getElementById('msGearAddSection');
+  var addSel = document.getElementById('msGearAddSel');
+  var missing = ALL_VARS.filter(function(v){ return (ms.variants||[]).indexOf(v.id)<0; });
+  if(missing.length && addSec && addSel){
+    addSel.innerHTML = missing.map(function(v){ return '<option value="'+esc(v.id)+'">'+esc(v.label)+'</option>'; }).join('');
+    addSec.style.display='';
+  } else if(addSec){
+    addSec.style.display='none';
+  }
   document.getElementById('msGearBg').classList.add('show');
 };
 window.msGearClose=function(){ document.getElementById('msGearBg').classList.remove('show'); };
+window.msGearAddVariant=async function(){
+  var ms=msData.find(function(m){return m.id===msActive;});
+  if(!ms) return;
+  var sel=document.getElementById('msGearAddSel');
+  var v=sel&&sel.value;
+  if(!v){ alert('Seleziona una variante da aggiungere.'); return; }
+  if((ms.variants||[]).indexOf(v)>=0){ alert('Variante già presente nel masterset.'); return; }
+  if(!confirm('Aggiungere la variante "'+v+'" al masterset "'+esc(ms.setName)+'"?\n\nSarà tracciabile su tutte le carte. Le quantità eventualmente già inserite per questa variante saranno ripristinate.')) return;
+  if(!Array.isArray(ms.variants)) ms.variants=[];
+  ms.variants.push(v);
+  // Rimuovi dalla hiddenVars se presente (per sicurezza)
+  if(Array.isArray(ms.hiddenVars)){ ms.hiddenVars=ms.hiddenVars.filter(function(hv){return hv!==v;}); }
+  try{
+    await msSave(msData);
+    msSetupFilters(ms);
+    msRenderTable();
+    msUpdateStats(ms);
+    msGearOpen(); // ridisegna con la nuova variante
+    msToast('Variante "'+v+'" aggiunta', 'ok');
+  }catch(e){
+    // rollback
+    ms.variants=ms.variants.filter(function(vv){return vv!==v;});
+    alert('Errore salvataggio: '+e.message);
+  }
+};
+
+// ─── Dropdown strumenti (···) ───
+window.msToolsMenuToggle=function(ev){
+  ev.stopPropagation();
+  var m=document.getElementById('msToolsMenu');
+  if(m) m.classList.toggle('show');
+};
+window.msToolsMenuClose=function(){
+  var m=document.getElementById('msToolsMenu');
+  if(m) m.classList.remove('show');
+};
+// Chiudi tools menu cliccando fuori
+document.addEventListener('click', function(ev){
+  var m=document.getElementById('msToolsMenu');
+  if(m && m.classList.contains('show') && !m.closest('.ms-tools-menu').contains(ev.target)){
+    m.classList.remove('show');
+  }
+});
 window.msGearToggleVar=async function(v){
   var ms=msData.find(function(m){return m.id===msActive;});
   if(!ms) return;
