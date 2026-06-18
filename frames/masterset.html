@@ -16,16 +16,29 @@ body{display:flex;flex-direction:column}
 /* ── MASTERSET ─────────────────────────────────────────── */
 #tab-ms{display:none;flex-direction:column;height:100%;overflow:hidden}
 #tab-ms.active{display:flex}
-.ms-layout{display:grid;grid-template-columns:220px 1fr;height:100%;overflow:hidden;min-height:0}
+.ms-layout{display:grid;grid-template-columns:240px 1fr;height:100%;overflow:hidden;min-height:0}
 .ms-sidebar{border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--surface);overflow:hidden}
 .ms-sidebar-top{padding:12px;border-bottom:1px solid var(--border);flex-shrink:0}
 .ms-sidebar-top h3{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
 .ms-list{flex:1;overflow-y:auto;padding:6px}
-.ms-item{padding:8px 10px;border-radius:var(--r);cursor:pointer;border:1px solid transparent;margin-bottom:3px;transition:background .1s}
+
+/* — Item sidebar redesign — */
+.ms-item{display:flex;align-items:flex-start;gap:7px;padding:8px 8px 6px;border-radius:var(--r);cursor:pointer;border:1px solid transparent;margin-bottom:4px;transition:background .1s;position:relative}
 .ms-item:hover{background:var(--surface2)}
 .ms-item.active{background:rgba(201,169,110,.08);border-color:rgba(201,169,110,.2)}
-.ms-item-name{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ms-item-meta{font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:2px;display:flex;justify-content:space-between}
+.ms-item.dragging{opacity:.35;pointer-events:none}
+.ms-item.drag-over-top{border-top:2px solid var(--accent)}
+.ms-item.drag-over-bot{border-bottom:2px solid var(--accent)}
+.ms-item-handle{color:var(--text-subtle);cursor:grab;font-size:11px;padding-top:3px;flex-shrink:0;opacity:0;transition:opacity .15s;line-height:1;user-select:none}
+.ms-item:hover .ms-item-handle{opacity:.6}
+.ms-item.active .ms-item-handle{opacity:.5}
+.ms-item-symbol{width:30px;height:26px;object-fit:contain;flex-shrink:0;filter:brightness(.85) saturate(.9);margin-top:1px}
+.ms-item-symbol-ph{width:30px;height:26px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;opacity:.25;margin-top:1px}
+.ms-item-body{flex:1;min-width:0}
+.ms-item-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px}
+.ms-item-1ed{display:inline-block;background:rgba(201,169,110,.15);border:1px solid rgba(201,169,110,.4);color:var(--accent);border-radius:8px;font-size:9px;font-weight:700;padding:0px 5px;font-family:var(--mono);flex-shrink:0}
+.ms-item-series{font-size:10px;color:var(--text-subtle);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ms-item-meta{font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:3px;display:flex;justify-content:space-between}
 .ms-sidebar-bottom{padding:10px;border-top:1px solid var(--border);flex-shrink:0}
 .ms-main{display:flex;flex-direction:column;overflow:hidden;min-width:0}
 .ms-topbar{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;background:var(--surface)}
@@ -1211,24 +1224,33 @@ function addZoom(el, lgSrc){
   el.addEventListener('mouseleave',function(){ _msZoomEl.style.display='none'; });
 }
 
+var _msDragSrcId = null;
+
 function msRenderList(filter){
   filter = (filter||'').toLowerCase();
   var el = document.getElementById('msList');
   var items = msData.filter(function(m){
     if(!filter) return true;
-    var hay = (m.setName||'')+' '+(m.label||'');
+    var hay = (m.setName||'')+' '+(m.label||'')+(m.setSeries||'');
     return hay.toLowerCase().indexOf(filter)>=0;
   });
-  // Ordine: più recente in cima. I nuovi masterset vengono pushati in coda a
-  // msData; senza questo sort finivano in fondo alla sidebar e l'utente non
-  // li vedeva (sintomo: "non vedo l'ultimo masterset caricato"). Il sort è
-  // sui results filtrati, non muta msData (l'ordine originale di salvataggio
-  // resta intatto per CSV/cloud/etc).
-  items.sort(function(a,b){
-    var ta = a.created ? Date.parse(a.created) : 0;
-    var tb = b.created ? Date.parse(b.created) : 0;
-    return tb - ta; // DESC
-  });
+  // Ordine: se almeno un item ha sortOrder esplicito usa quello (ASC),
+  // altrimenti fallback a created DESC (comportamento storico).
+  var hasCustomOrder = msData.some(function(m){ return typeof m.sortOrder === 'number'; });
+  if(hasCustomOrder){
+    items.sort(function(a,b){
+      var oa = typeof a.sortOrder==='number' ? a.sortOrder : 999999;
+      var ob = typeof b.sortOrder==='number' ? b.sortOrder : 999999;
+      if(oa!==ob) return oa-ob;
+      var ta=a.created?Date.parse(a.created):0, tb=b.created?Date.parse(b.created):0;
+      return tb-ta;
+    });
+  } else {
+    items.sort(function(a,b){
+      var ta=a.created?Date.parse(a.created):0, tb=b.created?Date.parse(b.created):0;
+      return tb-ta;
+    });
+  }
   if(!items.length){
     el.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text-subtle)">Nessun masterset</div>';
     return;
@@ -1239,16 +1261,94 @@ function msRenderList(filter){
     var owned = m.cards.filter(function(c){ return qtyAnyOwned(c); }).length;
     var pct = total ? Math.round(owned/total*100) : 0;
     var okCol = pct===100 ? 'var(--success)' : 'inherit';
+
     var div = document.createElement('div');
     div.className = 'ms-item'+(m.id===msActive?' active':'');
-    var labelHtml = m.label ? '<div class="ms-item-meta" style="color:var(--accent);font-size:10px;margin-top:2px"><span>'+esc(m.label)+'</span></div>' : '';
+    div.setAttribute('data-id', m.id);
+    div.draggable = true;
+
+    // Simbolo set: usa setSymbol (icona piccola) o placeholder
+    var symbolHtml = m.setSymbol
+      ? '<img class="ms-item-symbol" src="'+esc(m.setSymbol)+'" alt="" loading="lazy" onerror="this.remove()">'
+      : '<div class="ms-item-symbol-ph">&#x26C1;</div>';
+
+    // Badge 1ª Ed. inline nel nome
+    var edPill = m.firstEdition ? '<span class="ms-item-1ed">1ª</span>' : '';
+
+    // Label custom come riga serie (se presente sovrascrive la serie TCG)
+    var seriesText = m.label ? esc(m.label) : esc(m.setSeries||'');
+
     div.innerHTML =
-      '<div class="ms-item-name">'+esc(m.setName)+'</div>'+
-      '<div class="ms-item-meta"><span>'+esc(m.lang)+'</span>'+
-      '<span style="color:'+okCol+'">'+owned+'/'+total+' &middot; '+pct+'%</span></div>'+
-      labelHtml+
-      '<div class="ms-item-prog-wrap"><div class="ms-item-prog-fill'+(pct===100?' complete':'')+'" style="width:'+pct+'%"></div></div>';
-    div.addEventListener('click',(function(id){ return function(){ msOpen(id); }; })(m.id));
+      '<div class="ms-item-handle">&#x2807;</div>'+
+      symbolHtml+
+      '<div class="ms-item-body">'+
+        '<div class="ms-item-name">'+esc(m.setName)+edPill+'</div>'+
+        (seriesText ? '<div class="ms-item-series">'+seriesText+'</div>' : '')+
+        '<div class="ms-item-meta">'+
+          '<span>'+esc(m.lang)+'</span>'+
+          '<span style="color:'+okCol+'">'+owned+'/'+total+' &middot; '+pct+'%</span>'+
+        '</div>'+
+        '<div class="ms-item-prog-wrap"><div class="ms-item-prog-fill'+(pct===100?' complete':'')+'" style="width:'+pct+'%"></div></div>'+
+      '</div>';
+
+    // ── Drag events ──
+    div.addEventListener('dragstart', function(ev){
+      _msDragSrcId = m.id;
+      ev.dataTransfer.effectAllowed = 'move';
+      setTimeout(function(){ div.classList.add('dragging'); }, 0);
+    });
+    div.addEventListener('dragend', function(){
+      div.classList.remove('dragging');
+      el.querySelectorAll('.ms-item').forEach(function(e){
+        e.classList.remove('drag-over-top','drag-over-bot');
+      });
+    });
+    div.addEventListener('dragover', function(ev){
+      ev.preventDefault();
+      if(_msDragSrcId === m.id) return;
+      ev.dataTransfer.dropEffect = 'move';
+      el.querySelectorAll('.ms-item').forEach(function(e){
+        e.classList.remove('drag-over-top','drag-over-bot');
+      });
+      var rect = div.getBoundingClientRect();
+      div.classList.add(ev.clientY < (rect.top + rect.height/2) ? 'drag-over-top' : 'drag-over-bot');
+    });
+    div.addEventListener('dragleave', function(ev){
+      if(!div.contains(ev.relatedTarget)){
+        div.classList.remove('drag-over-top','drag-over-bot');
+      }
+    });
+    div.addEventListener('drop', async function(ev){
+      ev.preventDefault(); ev.stopPropagation();
+      if(!_msDragSrcId || _msDragSrcId === m.id){ _msDragSrcId = null; return; }
+      var allEls = Array.from(el.querySelectorAll('.ms-item[data-id]'));
+      var ids = allEls.map(function(e){ return e.dataset.id; });
+      var srcIdx = ids.indexOf(_msDragSrcId);
+      var tgtIdx = ids.indexOf(m.id);
+      if(srcIdx < 0 || tgtIdx < 0){ _msDragSrcId = null; return; }
+      var rect = div.getBoundingClientRect();
+      var insertAfter = ev.clientY >= (rect.top + rect.height/2);
+      ids.splice(srcIdx, 1);
+      var insertAt = ids.indexOf(m.id) + (insertAfter ? 1 : 0);
+      ids.splice(insertAt, 0, _msDragSrcId);
+      // Assegna sortOrder a tutti gli item visibili
+      ids.forEach(function(id, i){
+        var ms2 = msData.find(function(x){ return x.id === id; });
+        if(ms2) ms2.sortOrder = i;
+      });
+      // Item non visibili nel filtro corrente: assegna sortOrder in coda
+      var maxSo = ids.length;
+      msData.forEach(function(ms2){
+        if(typeof ms2.sortOrder !== 'number') ms2.sortOrder = maxSo++;
+      });
+      _msDragSrcId = null;
+      try{ await msSave(msData); }catch(e){ console.warn('[RB] sortOrder save error', e); }
+      msRenderList(document.getElementById('msListSearch').value);
+    });
+
+    // ── Click per aprire il masterset ──
+    div.addEventListener('click', function(){ msOpen(m.id); });
+
     el.appendChild(div);
   });
 }
@@ -2313,6 +2413,8 @@ window.msCreateMasterset = function(){
     var id='ms_'+Date.now();
     var ms={
       id:id, setId:msSetSel.id, setName:msSetSel.name, setSeries:msSetSel.series||'',
+      setSymbol: (msSetSel.images&&msSetSel.images.symbol)||'',
+      setLogo:   (msSetSel.images&&msSetSel.images.logo)||'',
       lang:msLangSel, variants:msVarSel.slice(),
       trackConditions: trackCond,
       firstEdition: firstEdFlag,
