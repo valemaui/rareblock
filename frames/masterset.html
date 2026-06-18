@@ -228,6 +228,18 @@ body{display:flex;flex-direction:column}
 .ms-var-preset-btn:hover{border-color:var(--border-focus);color:var(--text)}
 .ms-var-preset-btn.accent{color:var(--accent);border-color:rgba(201,169,110,.4)}
 
+/* — Pill "1ª Ed." nel topbar — */
+.ms-1ed-pill{display:inline-flex;align-items:center;gap:3px;background:rgba(201,169,110,.15);border:1px solid rgba(201,169,110,.45);color:var(--accent);border-radius:10px;font-size:10px;font-weight:700;letter-spacing:.3px;padding:1px 7px;vertical-align:2px;font-family:var(--mono);margin-left:4px}
+
+/* — Riga firstEdition nel gear panel — */
+.ms-gear-1ed-row{display:flex;align-items:flex-start;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);cursor:pointer;user-select:none}
+.ms-gear-1ed-row:hover{border-color:var(--border-focus)}
+.ms-gear-1ed-row.on{border-color:rgba(201,169,110,.4);background:rgba(201,169,110,.06)}
+.ms-gear-1ed-row input{accent-color:var(--accent);width:14px;height:14px;cursor:pointer;flex-shrink:0;margin-top:1px}
+.ms-gear-1ed-row .ms-track-titl{font-size:12px;font-weight:600;color:var(--text)}
+.ms-gear-1ed-row.on .ms-track-titl{color:var(--accent)}
+.ms-gear-1ed-row .ms-track-hint{font-size:10px;color:var(--text-muted);margin-top:2px;line-height:1.4}
+
 /* — Modal CARICAMENTO SEQUENZIALE (foto grande a sx + frecce) — */
 .ms-load-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:2200;align-items:center;justify-content:center;padding:24px}
 .ms-load-bg.show{display:flex}
@@ -537,6 +549,13 @@ body{display:flex;flex-direction:column}
           <div class="ms-track-hint">Consigliato per set vintage (Base, Jungle, Fossil...). Per set moderni dove tutte le carte sono fresh-pack lascia disattivato.</div>
         </div>
       </div>
+      <div class="ms-track-row" id="ms1EdRow" onclick="msToggle1Ed(event)" style="margin-bottom:0">
+        <input type="checkbox" id="ms1EdCheck" onclick="event.stopPropagation();msSync1EdUI()"/>
+        <div style="flex:1">
+          <div class="ms-track-titl">&#127941; Tutto il set è 1ª Edizione</div>
+          <div class="ms-track-hint">Attiva quando stai censendo un intero set in stampa Prima Edizione (Base Set, Jungle, Fossil, Team Rocket, Neo...). Tutti i prezzi CM vengono cercati con il filtro Prima Edizione. <b>Non usare per set misti</b> unlimited/1ª Ed — in quel caso aggiungi la variante "1ª Edizione" per singola carta.</div>
+        </div>
+      </div>
     </div>
       <div id="msCreateProg" style="display:none;padding:10px 2px 2px">
         <div id="msCreateProgTxt" style="font-size:11px;color:var(--text-subtle);margin-bottom:6px">Caricamento carte...</div>
@@ -600,6 +619,16 @@ body{display:flex;flex-direction:column}
     <h3>Colonne varianti visibili</h3>
     <div class="ms-gear-hint">Nascondi le colonne impostate per errore in fase di setup. I dati eventualmente inseriti restano salvati: riattivando la colonna ricompaiono.</div>
     <div id="msGearRows" style="display:flex;flex-direction:column;gap:6px"></div>
+    <div id="msGearFedSection" style="border-top:1px solid var(--border);padding-top:11px;margin-top:4px">
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);margin-bottom:7px">Impostazione set</div>
+      <div class="ms-gear-1ed-row" id="msGearFedRow" onclick="msGearToggle1EdRow(event)">
+        <input type="checkbox" id="msGearFedCheck" onclick="event.stopPropagation();msGearToggle1Ed()"/>
+        <div>
+          <div class="ms-track-titl">&#127941; Tutto il set è 1ª Edizione</div>
+          <div class="ms-track-hint">Tutti i prezzi CM usano il filtro Prima Edizione su ogni carta. Modificabile dopo la creazione.</div>
+        </div>
+      </div>
+    </div>
     <div class="ms-gear-add-section" id="msGearAddSection">
       <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted)">Aggiungi variante al masterset</div>
       <div class="ms-gear-add-row">
@@ -952,6 +981,12 @@ function guessTrackConditions(set){
   var yr = parseInt((set.releaseDate||'').slice(0,4))||0;
   return yr>0 && yr<2010;
 }
+// Default firstEdition: ON per set WotC (pre-2003) se lingua è ITA o ENG.
+// Solo queste stampe hanno avuto una tiratura Prima Edizione documentata su CM.
+function guessFirstEdition(set){
+  var yr = parseInt((set.releaseDate||'').slice(0,4))||0;
+  return yr>0 && yr<=2002 && (msLangSel==='ITA'||msLangSel==='ENG');
+}
 
 // msLoad/msSave: Supabase come storage principale, localStorage come cache isolata per utente
 // La cache localStorage è scopata per user_id per evitare contaminazione cross-account.
@@ -1238,7 +1273,7 @@ window.msOpen = function(id){
     }
   }
   var topTitleEl = document.getElementById('msTopTitle');
-  topTitleEl.textContent = ms.setName+' · '+ms.lang;
+  topTitleEl.innerHTML = esc(ms.setName)+' \u00b7 '+esc(ms.lang)+(ms.firstEdition ? ' <span class="ms-1ed-pill">1\u00aa Ed.</span>' : '');
   topTitleEl.title = '';
   topTitleEl.style.cursor = 'default';
   topTitleEl.onclick = null;
@@ -1674,13 +1709,10 @@ function msUpdateStats(ms){
   var pct   = all.length ? Math.round(owned/all.length*100) : 0;
   document.getElementById('msProgFill').style.width = pct+'%';
   var condBadge = ms.trackConditions ? '<div class="ms-stat"><div class="ms-stat-val" style="color:var(--accent)">ON</div><div class="ms-stat-lbl">Condizioni</div></div>' : '';
-  // badge 1ª Edizione se tracciata nel masterset
-  var edBadge = '';
-  if((ms.variants||[]).indexOf('1\u00aa Edizione')>=0){
-    var edOwned = ms.cards.filter(function(c){ return qtyTotal(c,'1\u00aa Edizione')>0; }).length;
-    var edTotal = ms.cards.filter(function(c){ return cardApplicableVariants(c,ms).indexOf('1\u00aa Edizione')>=0; }).length || ms.cards.length;
-    edBadge = '<div class="ms-stat"><div class="ms-stat-val" style="color:var(--accent)">'+edOwned+'/'+edTotal+'</div><div class="ms-stat-lbl">1ª Edizione</div></div>';
-  }
+  // badge set-level 1ª Edizione
+  var edBadge = ms.firstEdition
+    ? '<div class="ms-stat" title="Tutti i prezzi CM vengono cercati con filtro Prima Edizione"><div class="ms-stat-val" style="color:var(--accent)">1\u00aa Ed.</div><div class="ms-stat-lbl">Set completo</div></div>'
+    : '';
   // breakdown base/fuoriserie (#4) solo se il set ha carte speciali
   var tierBadge='';
   if(msSetHasSpecial(ms)){
@@ -2226,6 +2258,12 @@ window.msPickSet = function(i){
     tc.checked = guessTrackConditions(msSetSel);
     document.getElementById('msTrackRow').classList.toggle('on', tc.checked);
   }
+  // Default firstEdition: ON per WotC vintage ITA/ENG (pre-2003)
+  var oe=document.getElementById('ms1EdCheck');
+  if(oe){
+    oe.checked = guessFirstEdition(msSetSel);
+    document.getElementById('ms1EdRow').classList.toggle('on', oe.checked);
+  }
 };
 
 window.msToggleTrack = function(ev){
@@ -2240,6 +2278,15 @@ window.msSyncTrackUI = function(){
   var tc=document.getElementById('msTrackCond');
   document.getElementById('msTrackRow').classList.toggle('on', tc.checked);
 };
+window.msToggle1Ed = function(ev){
+  var oe=document.getElementById('ms1EdCheck');
+  if(ev && ev.target && ev.target.tagName!=='INPUT') oe.checked = !oe.checked;
+  document.getElementById('ms1EdRow').classList.toggle('on', oe.checked);
+};
+window.msSync1EdUI = function(){
+  var oe=document.getElementById('ms1EdCheck');
+  document.getElementById('ms1EdRow').classList.toggle('on', oe.checked);
+};
 
 window.msCreateMasterset = function(){
   if(!msSetSel||!msVarSel.length){ alert('Seleziona un set e almeno una variante'); return; }
@@ -2253,6 +2300,7 @@ window.msCreateMasterset = function(){
   if(prog) prog.style.display='block';
   setProg(8,'Recupero carte da Pokémon TCG...');
   var trackCond = !!(document.getElementById('msTrackCond')&&document.getElementById('msTrackCond').checked);
+  var firstEdFlag = !!(document.getElementById('ms1EdCheck')&&document.getElementById('ms1EdCheck').checked);
   var labelEl   = document.getElementById('msLabel');
   var labelVal  = labelEl ? labelEl.value.trim().slice(0,40) : '';
   msFetchSetCards(msSetSel.id,1,[],async function(cards){
@@ -2267,6 +2315,7 @@ window.msCreateMasterset = function(){
       id:id, setId:msSetSel.id, setName:msSetSel.name, setSeries:msSetSel.series||'',
       lang:msLangSel, variants:msVarSel.slice(),
       trackConditions: trackCond,
+      firstEdition: firstEdFlag,
       label: labelVal,
       location: '',
       containerId: '',
@@ -2368,6 +2417,13 @@ window.msGearOpen = function(){
     })(v));
     rows.appendChild(row);
   });
+  // Toggle firstEdition nel gear panel
+  var fedRow = document.getElementById('msGearFedRow');
+  var fedCb  = document.getElementById('msGearFedCheck');
+  if(fedRow && fedCb){
+    fedCb.checked = !!ms.firstEdition;
+    fedRow.classList.toggle('on', !!ms.firstEdition);
+  }
   // Sezione "Aggiungi variante": mostra solo le varianti non già tracciate
   var addSec = document.getElementById('msGearAddSection');
   var addSel = document.getElementById('msGearAddSel');
@@ -2403,6 +2459,37 @@ window.msGearAddVariant=async function(){
   }catch(e){
     // rollback
     ms.variants=ms.variants.filter(function(vv){return vv!==v;});
+    alert('Errore salvataggio: '+e.message);
+  }
+};
+// ─── Gear: toggle firstEdition (set-level) ───
+window.msGearToggle1EdRow = function(ev){
+  // click sulla row (non sull'input): fa toggle manuale del checkbox
+  var cb=document.getElementById('msGearFedCheck');
+  if(ev && ev.target && ev.target.tagName!=='INPUT') cb.checked = !cb.checked;
+  document.getElementById('msGearFedRow').classList.toggle('on', cb.checked);
+  // non salva ancora — il salvataggio avviene su msGearToggle1Ed (change dell'input)
+};
+window.msGearToggle1Ed = async function(){
+  var ms=msData.find(function(m){return m.id===msActive;});
+  if(!ms) return;
+  var cb=document.getElementById('msGearFedCheck');
+  var newVal = !!(cb&&cb.checked);
+  var prev = !!ms.firstEdition;
+  ms.firstEdition = newVal;
+  var fedRow=document.getElementById('msGearFedRow');
+  if(fedRow) fedRow.classList.toggle('on', newVal);
+  try{
+    await msSave(msData);
+    // Aggiorna topbar + stats senza chiudere il gear
+    var topTitleEl = document.getElementById('msTopTitle');
+    if(topTitleEl) topTitleEl.innerHTML = esc(ms.setName)+' \u00b7 '+esc(ms.lang)+(ms.firstEdition?' <span class="ms-1ed-pill">1\u00aa Ed.</span>':'');
+    msUpdateStats(ms);
+    msToast(newVal ? '&#127941; Set impostato come 1\u00aa Edizione' : 'Flag 1\u00aa Edizione rimosso', 'ok');
+  }catch(e){
+    ms.firstEdition = prev; // rollback
+    if(cb) cb.checked = prev;
+    if(fedRow) fedRow.classList.toggle('on', prev);
     alert('Errore salvataggio: '+e.message);
   }
 };
@@ -3091,8 +3178,8 @@ function msvPrimaryVariant(card, ms){
 // 'Holo'/'Cosmo Holo' → canonicalHolo: il prodotto CM del tcgid È la holo,
 // quindi la fast-lane CMAPI è corretta (gate esteso lato parent).
 function msvPricingOpts(ms, card, variant){
-  var v = variant || 'Normal', fe = false;
-  if(v === '1ª Edizione'){ fe = true; v = msvPrimaryVariant(card, ms); }
+  var v = variant || 'Normal', fe = !!(ms.firstEdition);   // flag a livello set
+  if(v === '1ª Edizione'){ fe = true; v = msvPrimaryVariant(card, ms); }   // variante esplicita override
   var holoCanon = (v === 'Holo' || v === 'Cosmo Holo');
   return {
     name: card.name, setId: ms.setId, number: card.num,
