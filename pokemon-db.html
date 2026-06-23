@@ -12544,7 +12544,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-17-masterset-improvements-v4';
+var RB_BUILD = '2026-06-22-cmapi-link-index-seed-v1';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -14876,7 +14876,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.41';
+const APP_VERSION='6.42';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -20388,6 +20388,22 @@ async function rbGetConditionPrices(opts, flags){
     var cm = _cmaEligible ? await _rbPcFetchCmapi(opts) : { ok:false, error:'fuori dal canone CMAPI (variante/1ª ed./lingua)' };
     if(cm && cm.ok){
       var ncm = _rbPcNormalizeCmapi(cardKey, opts, cm.cmapi);
+      // PR-1 · Persistenza IMMEDIATA del link CM esatto in rb_card_index, SENZA
+      // dipendere dallo scrape Hunter. cmLink è il redirect ufficiale tcggo→CM
+      // restituito da CMAPI: URL prodotto autoritativo, non uno slug indovinato.
+      // Così l'indice ottiene subito l'URL verificato anche quando l'estensione
+      // non è pronta o la policy click-only blocca l'harvest. Lo scrape (sotto)
+      // resta SOLO per il ladder per-condizione e la foto reale.
+      try{
+        if(typeof rbIndexRemember === 'function' && ncm && ncm.cmUrl &&
+           typeof _isAuthoritativeCMUrl === 'function' && _isAuthoritativeCMUrl(ncm.cmUrl)){
+          rbIndexRemember(opts, ncm.cmUrl, 'cmapi_link', {
+            priceNm: (cm.cmapi && cm.cmapi.refPrice != null) ? +cm.cmapi.refPrice : null,
+            priceSource: 'cmapi',
+            cmProductId: (cm.cmapi && cm.cmapi.cardmarketId) || null
+          });
+        }
+      }catch(e){}
       // Raccolta in background (estensione, throttle 24h): completa ladder
       // reale, URL verificato e foto senza rallentare questa risposta.
       try{
@@ -21210,7 +21226,7 @@ var RB_IDX_CONFIDENCE = {
   // sopra ogni euristica automatica (deve vincere su rbIndexMerge soglia 70 e
   // su qualunque slug indovinato).
   'manual': 99,
-  'userscript': 92, 'authoritative': 90, 'discover': 85,
+  'userscript': 92, 'authoritative': 90, 'cmapi_link': 88, 'discover': 85,
   'direct': 80, 'variant-cascade': 75, 'census': 70
 };
 
@@ -21498,6 +21514,137 @@ function rbIndexBackgroundHarvest(opts, cmUrl){
   }catch(e){}
 }
 window.rbIndexBackgroundHarvest = rbIndexBackgroundHarvest;
+
+/* ── PR-2 · Backfill indice link CM esatti (rbSeedCmIndex) ───────────────
+   Popola rb_card_index con i link CardMarket ESATTI (cmLink) + cardmarketId
+   + prezzo NM di riferimento, interrogando SOLO CMAPI (RapidAPI, fonte
+   legittima a pagamento). NESSUNA lettura di cardmarket.com → zero rischio
+   ban. Idempotente e ripartibile: salta le carte già in indice con URL
+   autoritativo (fail<2) salvo opts.force. Deduplica per chiave prodotto
+   (set+numero): una sola chiamata copre tutte condizioni/varianti, perché la
+   PAGINA prodotto CM è la stessa (lingua/variante sono solo filtri query).
+
+   Uso (console):
+     await rbSeedCmIndex({ onProgress:(d,t,m)=>console.log(d+'/'+t, m) })
+   Opzioni:
+     cards      array card-like esplicito (override, es. per set) — default colData
+     force      true → riprova anche le carte già indicizzate
+     delayMin/delayMax  pausa anti rate-limit tra chiamate CMAPI (ms)
+     onProgress (done,total,msg) callback non bloccante
+   Stop: window._rbSeedAbort = true (controllato a ogni iterazione).
+   Ritorna { ok, total, seeded, skipped, noLink, failed, aborted }. */
+var _rbSeedRunning = false;
+async function rbSeedCmIndex(opts){
+  opts = opts || {};
+  if(_rbSeedRunning) return { error:'seed già in corso' };
+  _rbSeedRunning = true;
+  window._rbSeedAbort = false;
+  var onProgress = (typeof opts.onProgress === 'function') ? opts.onProgress : function(){};
+  var delayMin = (opts.delayMin != null) ? opts.delayMin : 450;
+  var delayMax = (opts.delayMax != null) ? opts.delayMax : 950;
+  var force = !!opts.force;
+  function rnd(a,b){ return a + Math.floor(Math.random() * Math.max(1, b - a)); }
+  function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+  // Risolve set_id dal nome set (la collezione spesso non ha set_id) — stessa
+  // mappa della generazione URL CM, con match case-insensitive di sicurezza.
+  function resolveSetId(row){
+    if(row.set_id) return row.set_id;
+    if(row.setId) return row.setId;
+    if(typeof CM_SET_NAME_TO_ID === 'object' && row.set_name){
+      var direct = CM_SET_NAME_TO_ID[row.set_name];
+      if(direct) return direct;
+      var keys = Object.keys(CM_SET_NAME_TO_ID);
+      for(var i=0;i<keys.length;i++){
+        if(keys[i].toLowerCase() === String(row.set_name).toLowerCase()) return CM_SET_NAME_TO_ID[keys[i]];
+      }
+    }
+    return null;
+  }
+
+  try{
+    // Sorgente carte: override esplicito → colData
+    var rows = Array.isArray(opts.cards) ? opts.cards
+             : (Array.isArray(window.colData) ? window.colData : null);
+    if(!rows){
+      if(typeof loadCollection === 'function'){ try{ await loadCollection(); }catch(e){} }
+      rows = Array.isArray(window.colData) ? window.colData : [];
+    }
+
+    // Deduplica per chiave prodotto (set+numero). Normalizziamo a Normal/IT per
+    // massimizzare il match canonico CMAPI: il cmLink è lo stesso per ogni
+    // variante/lingua della stessa carta.
+    var seen = {}, jobs = [];
+    rows.forEach(function(r){
+      var setId = resolveSetId(r);
+      var num   = r.card_number || r.number;
+      if(!setId || !num) return;
+      var card = {
+        name: r.name, setId: setId, set_id: setId,
+        number: (num + '').split('/')[0],
+        set_name: r.set_name || (r.set && r.set.name) || null,
+        rarity: r.rarity || null,
+        language: 'IT', variant: 'Normal', first_edition: false
+      };
+      var key = (typeof rbProductKey === 'function') ? rbProductKey(card) : (setId + '|' + num);
+      if(!key || seen[key]) return;
+      seen[key] = 1;
+      jobs.push({ key: key, card: card });
+    });
+
+    var total = jobs.length, seeded = 0, skipped = 0, noLink = 0, failed = 0, aborted = false;
+    onProgress(0, total, 'Avvio seed · ' + total + ' carte uniche · CMAPI (no scraping)');
+
+    for(var i=0;i<jobs.length;i++){
+      if(window._rbSeedAbort){ aborted = true; break; }
+      var job = jobs[i];
+
+      // Ripartibile: salta se già in indice con URL autoritativo — salvo force.
+      if(!force){
+        try{
+          var existing = await rbIndexCmUrl(job.card);
+          if(existing){ skipped++; onProgress(i+1, total, 'skip (già in indice): ' + (job.card.name || job.key)); await sleep(20); continue; }
+        }catch(e){}
+      }
+
+      try{
+        var cmres = await _rbPcFetchCmapi(job.card);
+        if(cmres && cmres.ok && cmres.cmapi){
+          var m = cmres.cmapi;
+          var url = m.cmLink || null;
+          if(url && typeof _isAuthoritativeCMUrl === 'function' && _isAuthoritativeCMUrl(url)){
+            rbIndexRemember(job.card, url, 'cmapi_link', {
+              priceNm: (m.refPrice != null) ? +m.refPrice : null,
+              priceSource: 'cmapi',
+              cmProductId: m.cardmarketId || null
+            });
+            seeded++;
+            onProgress(i+1, total, 'ok: ' + (job.card.name || job.key));
+          } else {
+            noLink++;   // CMAPI risponde ma senza link CM autoritativo → resta al fallback builder
+            onProgress(i+1, total, 'no-link: ' + (job.card.name || job.key));
+          }
+        } else {
+          failed++;
+          onProgress(i+1, total, 'fail CMAPI: ' + (job.card.name || job.key));
+        }
+      }catch(e){
+        failed++;
+        try{ console.warn('[RB-SEED]', job.key, e && e.message); }catch(_){}
+      }
+
+      await sleep(rnd(delayMin, delayMax));   // anti rate-limit CMAPI
+    }
+
+    var summary = { ok: !aborted, total: total, seeded: seeded, skipped: skipped, noLink: noLink, failed: failed, aborted: aborted };
+    try{ console.log('[RB-SEED] completato', JSON.stringify(summary)); }catch(e){}
+    onProgress(total, total, 'Fatto · ' + seeded + ' link · ' + skipped + ' skip · ' + noLink + ' no-link · ' + failed + ' fail' + (aborted ? ' · INTERROTTO' : ''));
+    return summary;
+  } finally {
+    _rbSeedRunning = false;
+  }
+}
+window.rbSeedCmIndex = rbSeedCmIndex;
 
 /* ══════════════════════════════════════════════════════════════════════
    PREZZI PESATI PER CONDIZIONE — rbWeightedConditions(conditions)
