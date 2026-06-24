@@ -11912,11 +11912,14 @@ function buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, se
   }
 
   // Livello 2: browse set + ricerca per nome
-  // Se abbiamo il numero, cercarlo nel nome migliora la precisione (es "Charizard 4/102")
+  // Browse dentro al set: la searchString va SOLO col nome. Su /Singles/{set}
+  // CardMarket interpreta searchString come lookup di prodotto esatto: appendere
+  // il numero (es. "Chikorita 99") non è un nome valido → CM risponde
+  // "Invalid product!" e mostra l'intero set non filtrato (verificato 2026-06-24
+  // su Expedition-Base-Set). Col solo nome la carta resta in lista (atterraggio
+  // garantito, intento documentato). Il numero NON filtra qui: è veleno.
   if(setSlug && nameSlug){
-    const searchStr = number
-      ? name + ' ' + (number+'').split('/')[0]  // "Charizard 4" → trova più facilmente
-      : name;
+    const searchStr = name;
     return 'https://www.cardmarket.com/it/Pokemon/Products/Singles/'+setSlug
       +'?searchString='+encodeURIComponent(searchStr)+'&'+qs;
   }
@@ -11943,7 +11946,9 @@ function buildCMSearchUrl(name, setId, number, cond, lang, variant, first1st, se
   if(variant==='Reverse Holo') params.set('isReverseHolo','Y');
   params.set('isFirstEd', first1st ? 'Y' : 'N');
 
-  const searchStr = number ? name+' '+(number+'').split('/')[0] : name;
+  // SOLO nome nella searchString (vedi nota in buildCMDirectUrl L2): col numero
+  // appeso CM dà "Invalid product!" e non filtra. Col nome la carta resta in lista.
+  const searchStr = name;
   return 'https://www.cardmarket.com/it/Pokemon/Products/Singles/'+setSlug
     +'?searchString='+encodeURIComponent(searchStr)+'&'+params.toString();
 }
@@ -12544,7 +12549,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-22-cmapi-link-index-seed-v1';
+var RB_BUILD = '2026-06-24-cm-inset-search-name-only-v1';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -14876,7 +14881,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.42';
+const APP_VERSION='6.43';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
