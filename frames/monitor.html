@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Aste</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../shared/rareblock-shared.css"/>
+<style>
+html,body{height:100%;overflow:hidden;margin:0}
+body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);font-family:var(--font)}
+
+/* ═══ MONITOR ASTE ═══ */
+.mon-stats{display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)}
+.mon-stat{flex:1;padding:10px 12px;text-align:center;border-right:1px solid var(--border)}
+.mon-stat:last-child{border-right:none}
+.mon-stat-val{font-size:17px;font-weight:600;font-family:var(--mono)}
+.mon-stat-lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+
+.mon-layout{display:flex;flex:1;overflow:hidden;min-height:0}
+.mon-sidebar{width:320px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);overflow-y:auto;display:flex;flex-direction:column}
+.mon-sb-block{padding:14px;border-bottom:1px solid var(--border)}
+.mon-sb-block h3{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.14em;margin:0 0 12px 0;font-family:var(--mono);display:flex;align-items:center;gap:8px}
+.mon-sb-block h3::before{content:"";display:inline-block;width:12px;height:1px;background:var(--accent);opacity:.7}
+
+.mon-list{display:flex;flex-direction:column;gap:6px}
+.mon-list-item{border:1px solid var(--border);border-radius:var(--r);padding:9px 11px;cursor:pointer;transition:border-color .12s,background .12s;background:var(--surface2)}
+.mon-list-item:hover{border-color:var(--accent)}
+.mon-list-item.active{border-color:var(--accent);background:rgba(88,166,255,.08)}
+.mon-list-item .mli-name{font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px;justify-content:space-between}
+.mon-list-item .mli-meta{font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:3px;line-height:1.5}
+.mli-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;display:inline-block}
+.mli-dot.on{background:var(--success)}
+.mli-dot.off{background:var(--text-muted);opacity:.5}
+
+/* form */
+.mon-field{margin-bottom:10px}
+.mon-field label{display:block;font-size:9.5px;color:var(--text-muted);margin-bottom:4px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em}
+.mon-field input[type=text],.mon-field input[type=number],.mon-field select,.mon-field textarea{width:100%;font-size:12px;padding:7px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);outline:none;box-sizing:border-box;font-family:var(--font)}
+.mon-field input:focus,.mon-field select:focus,.mon-field textarea:focus{border-color:var(--accent)}
+.mon-field .hint{font-size:9.5px;color:var(--text-muted);margin-top:3px;line-height:1.4}
+.mon-row2{display:flex;gap:8px}
+.mon-row2>div{flex:1}
+.mon-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;min-height:0}
+.mon-chip{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:11px;border:1px solid var(--border);background:var(--surface)}
+.mon-chip.pos{color:var(--success);border-color:rgba(63,185,80,.4)}
+.mon-chip.neg{color:var(--danger);border-color:rgba(248,81,73,.4)}
+.mon-check{display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;color:var(--text)}
+.mon-adv-toggle{font-size:10px;color:var(--text-muted);font-family:var(--mono);cursor:pointer;text-decoration:underline dotted;user-select:none}
+.mon-adv{display:none;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)}
+.mon-adv.open{display:block}
+
+/* buttons */
+.mon-btn{background:transparent;border:1px solid var(--border);color:var(--text);padding:7px 13px;border-radius:var(--r);font-size:12px;cursor:pointer;font-family:var(--font);transition:.12s;display:inline-flex;align-items:center;gap:6px;justify-content:center}
+.mon-btn:hover{border-color:var(--accent)}
+.mon-btn.primary{background:var(--accent);border-color:var(--accent);color:var(--bg);font-weight:600}
+.mon-btn.primary:hover{filter:brightness(1.08)}
+.mon-btn.danger{color:var(--danger);border-color:rgba(248,81,73,.35)}
+.mon-btn.danger:hover{background:var(--danger-soft);border-color:var(--danger)}
+.mon-btn.full{width:100%}
+.mon-btn:disabled{opacity:.45;cursor:not-allowed}
+.mon-btn-row{display:flex;gap:8px;margin-top:6px}
+
+/* main */
+.mon-main{flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.mon-toolbar{padding:11px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:var(--surface);flex-shrink:0;flex-wrap:wrap}
+.mon-tb-title{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;min-width:0}
+.mon-tb-title b{color:var(--accent)}
+.mon-tb-spacer{flex:1}
+.mon-ext{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-family:var(--mono);color:var(--text-muted)}
+.mon-ext .dot{width:7px;height:7px;border-radius:50%}
+.mon-ext .dot.ok{background:var(--success);box-shadow:0 0 5px rgba(63,185,80,.5)}
+.mon-ext .dot.no{background:var(--danger)}
+.mon-ext .dot.wait{background:var(--warning)}
+.mon-sort{font-size:11px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);outline:none}
+
+.mon-results{flex:1;overflow-y:auto;padding:16px;min-height:0}
+.mon-empty{text-align:center;padding:56px 24px;color:var(--text-muted);max-width:520px;margin:0 auto}
+.mon-empty .big{font-size:15px;color:var(--text);margin-bottom:8px}
+.mon-ob{max-width:560px;margin:18px auto 0;text-align:left;display:flex;flex-direction:column;gap:9px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.mon-ob-step{display:flex;gap:11px;align-items:flex-start;font-size:12.5px;line-height:1.5}
+.mon-ob-num{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--bg);font-weight:600;display:flex;align-items:center;justify-content:center;font-size:11px;font-family:var(--mono)}
+
+/* result card */
+.mon-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:11px;display:flex;gap:14px;align-items:stretch;position:relative;transition:border-color .15s}
+.mon-card:hover{border-color:var(--accent)}
+.mon-card.urgent{border-left:3px solid var(--danger)}
+.mon-thumb{width:84px;height:84px;flex-shrink:0;border-radius:var(--r);background:var(--surface2) center/cover no-repeat;border:1px solid var(--border)}
+.mon-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+.mon-c-title{font-size:13.5px;font-weight:600;line-height:1.35;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mon-c-chips{display:flex;flex-wrap:wrap;gap:5px}
+.mon-tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;padding:2px 7px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);color:var(--text-muted)}
+.mon-tag.grade{color:var(--gold);border-color:rgba(201,168,76,.4)}
+.mon-tag.flag{color:var(--text)}
+.mon-c-foot{display:flex;align-items:center;gap:16px;margin-top:auto;flex-wrap:wrap}
+.mon-price{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text)}
+.mon-price small{font-size:10px;color:var(--text-muted);font-weight:400}
+.mon-ref{font-family:var(--mono);font-size:10px;color:var(--text-muted)}
+.mon-ref b.lo{color:var(--success)}.mon-ref b.hi{color:var(--danger)}
+.mon-countdown{font-family:var(--mono);font-size:12px;display:inline-flex;align-items:center;gap:5px;color:var(--text-muted)}
+.mon-countdown.soon{color:var(--warning)}
+.mon-countdown.imminent{color:var(--danger);font-weight:600}
+.mon-countdown.ended{color:var(--text-muted);opacity:.6}
+.mon-side{flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:8px}
+.mon-badge{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.03em;padding:4px 9px;border-radius:12px;white-space:nowrap;text-align:center}
+.mon-badge.deal{background:var(--gold);color:var(--bg)}
+.mon-badge.good{background:var(--success-soft);color:var(--success);border:1px solid rgba(63,185,80,.4)}
+.mon-badge.watch{background:rgba(210,153,34,.12);color:var(--warning);border:1px solid rgba(210,153,34,.4)}
+.mon-badge.over{background:var(--danger-soft);color:var(--danger);border:1px solid rgba(248,81,73,.35)}
+.mon-badge.neutral{background:var(--surface2);color:var(--text-muted);border:1px solid var(--border)}
+.mon-reasons{font-size:9.5px;color:var(--text-muted);font-family:var(--mono);text-align:right;line-height:1.5;max-width:150px}
+.mon-open{font-size:11px;color:var(--accent);text-decoration:none;font-family:var(--mono);white-space:nowrap}
+.mon-open:hover{text-decoration:underline}
+
+.mon-spin{display:inline-block;width:13px;height:13px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:monspin .7s linear infinite}
+@keyframes monspin{to{transform:rotate(360deg)}}
+.mon-disclaimer{font-size:9.5px;color:var(--text-muted);text-align:center;padding:10px 16px;border-top:1px solid var(--border);background:var(--surface);line-height:1.5}
+
+@media(max-width:760px){
+  .mon-layout{flex-direction:column}
+  .mon-sidebar{width:100%;max-height:46%;border-right:none;border-bottom:1px solid var(--border)}
+  .mon-card{flex-wrap:wrap}
+  .mon-side{flex-direction:row;width:100%;align-items:center;justify-content:space-between}
+  .mon-reasons{text-align:left;max-width:none}
+}
+</style>
+</head>
+<body>
+
+<div class="mon-stats">
+  <div class="mon-stat"><div class="mon-stat-val" id="monStTotal">—</div><div class="mon-stat-lbl">Lot trovati</div></div>
+  <div class="mon-stat"><div class="mon-stat-val" id="monStEnding">—</div><div class="mon-stat-lbl">In scadenza &lt;24h</div></div>
+  <div class="mon-stat"><div class="mon-stat-val" id="monStDeals">—</div><div class="mon-stat-lbl">Possibili affari</div></div>
+  <div class="mon-stat"><div class="mon-stat-val" id="monStMonitors">—</div><div class="mon-stat-lbl">Monitor attivi</div></div>
+</div>
+
+<div class="mon-layout">
+
+  <!-- ── SIDEBAR ── -->
+  <div class="mon-sidebar">
+    <div class="mon-sb-block">
+      <h3><span class="rb-i rb-i-list"></span> I miei monitor</h3>
+      <div class="mon-list" id="monListEl"><div style="font-size:11px;color:var(--text-muted)">Caricamento…</div></div>
+      <button class="mon-btn full primary" id="monNewBtn" style="margin-top:10px"><span class="rb-i rb-i-target"></span> Nuovo monitor</button>
+    </div>
+
+    <!-- form (hidden by default) -->
+    <div class="mon-sb-block" id="monFormBlock" style="display:none">
+      <h3><span class="rb-i rb-i-edit"></span> <span id="monFormTitle">Nuovo monitor</span></h3>
+
+      <div class="mon-field">
+        <label>Nome monitor</label>
+        <input type="text" id="fName" placeholder="es. PSA 10 in scadenza oggi"/>
+      </div>
+
+      <div class="mon-field">
+        <label>Ricerca (parole chiave)</label>
+        <input type="text" id="fQuery" placeholder="es. charizard psa"/>
+        <div class="hint">Va nella query Catawiki (campo q=). Lascia vuoto per esplorare l'intera categoria.</div>
+      </div>
+
+      <div class="mon-field">
+        <label>Deve contenere <span style="color:var(--success)">(tutte)</span></label>
+        <input type="text" id="fInclKw" placeholder="es. PSA, 1st edition"/>
+        <div class="mon-chips" id="fInclKwChips"></div>
+        <div class="hint">Separate da virgola. Filtro sul titolo del lot (AND).</div>
+      </div>
+
+      <div class="mon-field">
+        <label>NON deve contenere <span style="color:var(--danger)">(nessuna)</span></label>
+        <input type="text" id="fExclKw" placeholder="es. mistery, mystery, lotto, bundle"/>
+        <div class="mon-chips" id="fExclKwChips"></div>
+      </div>
+
+      <div class="mon-row2">
+        <div class="mon-field">
+          <label>Grading house</label>
+          <select id="fGrading">
+            <option value="">Qualsiasi</option>
+            <option value="PSA">PSA</option>
+            <option value="BGS">BGS</option>
+            <option value="CGC">CGC</option>
+            <option value="ACE">ACE</option>
+            <option value="SGC">SGC</option>
+          </select>
+        </div>
+        <div class="mon-field">
+          <label>Scadenza</label>
+          <select id="fEnding">
+            <option value="">Qualsiasi</option>
+            <option value="6">Entro 6 ore</option>
+            <option value="12">Entro 12 ore</option>
+            <option value="24">Oggi / 24 ore</option>
+            <option value="72">Entro 3 giorni</option>
+          </select>
+        </div>
+      </div>
+
+      <label class="mon-check" style="margin-bottom:10px">
+        <input type="checkbox" id="fReqGraded"/> Solo lot gradati
+      </label>
+
+      <div class="mon-row2">
+        <div class="mon-field">
+          <label>Prezzo min €</label>
+          <input type="number" id="fMinPrice" min="0" step="1" placeholder="—"/>
+        </div>
+        <div class="mon-field">
+          <label>Prezzo max €</label>
+          <input type="number" id="fMaxPrice" min="0" step="1" placeholder="—"/>
+        </div>
+      </div>
+
+      <div class="mon-field">
+        <label>Prezzo di riferimento € <span style="color:var(--gold)">(opzionale)</span></label>
+        <input type="number" id="fRefPrice" min="0" step="1" placeholder="es. 350"/>
+        <div class="hint">Se impostato, l'indicatore "affare / super affare" è calcolato su questa ancora.</div>
+      </div>
+
+      <div class="mon-adv-toggle" id="fAdvToggle">▸ Opzioni avanzate (paesi, URL diretto)</div>
+      <div class="mon-adv" id="fAdvBlock">
+        <div class="mon-field">
+          <label>Solo dai paesi</label>
+          <input type="text" id="fInclCountries" placeholder="es. Italia, Germania"/>
+          <div class="mon-chips" id="fInclCountriesChips"></div>
+        </div>
+        <div class="mon-field">
+          <label>Escludi paesi</label>
+          <input type="text" id="fExclCountries" placeholder="es. Giappone, Hong Kong"/>
+          <div class="mon-chips" id="fExclCountriesChips"></div>
+        </div>
+        <div class="mon-field">
+          <label>Categoria Catawiki (ID)</label>
+          <input type="text" id="fCategory" inputmode="numeric" placeholder="321"/>
+          <div class="hint">Default 321 = carte singole. Lo trovi nell'URL di ricerca Catawiki.</div>
+        </div>
+        <div class="mon-field">
+          <label>URL Catawiki già filtrato (override)</label>
+          <input type="text" id="fBaseUrl" placeholder="https://www.catawiki.com/it/..."/>
+          <div class="hint">Se incolli un URL Catawiki con i tuoi filtri (paese, sort, fascia prezzo già applicati), ha priorità sulla ricerca qui sopra.</div>
+        </div>
+      </div>
+
+      <div class="mon-btn-row">
+        <button class="mon-btn primary" id="fSaveBtn" style="flex:1"><span class="rb-i rb-i-save"></span> Salva</button>
+        <button class="mon-btn" id="fCancelBtn">Annulla</button>
+      </div>
+      <button class="mon-btn danger full" id="fDeleteBtn" style="margin-top:8px;display:none"><span class="rb-i rb-i-trash"></span> Elimina monitor</button>
+    </div>
+  </div>
+
+  <!-- ── MAIN ── -->
+  <div class="mon-main">
+    <div class="mon-toolbar">
+      <div class="mon-tb-title" id="monTbTitle"><span class="rb-i rb-i-clock"></span> Aste</div>
+      <div class="mon-tb-spacer"></div>
+      <select class="mon-sort" id="monSortSel">
+        <option value="ending_soon">Scade prima</option>
+        <option value="interest">Più interessanti</option>
+        <option value="price_asc">Prezzo crescente</option>
+        <option value="price_desc">Prezzo decrescente</option>
+      </select>
+      <button class="mon-btn primary" id="monRunBtn" disabled><span class="rb-i rb-i-refresh"></span> Aggiorna</button>
+      <span class="mon-ext" id="monExtStatus"><span class="dot wait"></span> estensione…</span>
+    </div>
+
+    <div class="mon-results" id="monResultsEl"></div>
+
+    <div class="mon-disclaimer">
+      L'indicatore di interesse è un'euristica trasparente basata su scadenza, offerte e prezzo di riferimento — non è una consulenza finanziaria né una valutazione ufficiale del bene.
+    </div>
+  </div>
+</div>
+
+<script src="../shared/rareblock-shared.js" defer></script>
+<script defer>
+// ════════════════════════════════════════════════════════════════════
+//  MONITOR ASTE — feed per filtri su Catawiki via estensione Hunter
+//  Solo var/function a top-level (regola architetturale RareBlock).
+// ════════════════════════════════════════════════════════════════════
+
+var MON_STATE = {
+  monitors: [],          // definizioni da auction_monitors
+  activeId: null,        // monitor selezionato
+  rawItems: [],          // lot grezzi dall'ultimo scrape
+  filtered: [],          // lot dopo i filtri
+  running: false,
+  editingId: null        // id in modifica nel form (null = nuovo)
+};
+
+var MON_EXT = { available: false, version: null, caps: [] };
+
+// ── Dizionario paesi (nome IT/EN → ISO2) ────────────────────────────
+var MON_COUNTRIES = {
+  'italia':'IT','italy':'IT','it':'IT',
+  'giappone':'JP','japan':'JP','jp':'JP','jpn':'JP',
+  'hong kong':'HK','hongkong':'HK','hk':'HK',
+  'germania':'DE','germany':'DE','de':'DE','deutschland':'DE',
+  'francia':'FR','france':'FR','fr':'FR',
+  'spagna':'ES','spain':'ES','es':'ES',
+  'regno unito':'GB','uk':'GB','gb':'GB','united kingdom':'GB','inghilterra':'GB','england':'GB',
+  'stati uniti':'US','usa':'US','us':'US','united states':'US','america':'US',
+  'paesi bassi':'NL','olanda':'NL','netherlands':'NL','nl':'NL','holland':'NL',
+  'belgio':'BE','belgium':'BE','be':'BE',
+  'austria':'AT','at':'AT',
+  'svizzera':'CH','switzerland':'CH','ch':'CH',
+  'polonia':'PL','poland':'PL','pl':'PL',
+  'portogallo':'PT','portugal':'PT','pt':'PT',
+  'cina':'CN','china':'CN','cn':'CN',
+  'corea':'KR','korea':'KR','kr':'KR','south korea':'KR',
+  'singapore':'SG','sg':'SG',
+  'canada':'CA','ca':'CA',
+  'australia':'AU','au':'AU'
+};
+function monCountryToIso(s){
+  if(!s) return null;
+  var k = String(s).trim().toLowerCase();
+  if(MON_COUNTRIES[k]) return MON_COUNTRIES[k];
+  if(/^[a-z]{2}$/.test(k)) return k.toUpperCase();
+  return k.toUpperCase().slice(0,2);
+}
+function monNormLotCountry(loc){
+  if(!loc) return null;
+  var s = String(loc).trim();
+  if(/^[A-Za-z]{2}$/.test(s)) return s.toUpperCase();
+  return monCountryToIso(s);
+}
+
+// ── Parsing CSV chips ───────────────────────────────────────────────
+function monParseList(str){
+  if(!str) return [];
+  return String(str).split(',').map(function(x){return x.trim();}).filter(Boolean);
+}
+function monParseCountryList(str){
+  var out = [];
+  monParseList(str).forEach(function(x){ var c = monCountryToIso(x); if(c && out.indexOf(c)<0) out.push(c); });
+  return out;
+}
+
+// ── Parsing titolo lot ──────────────────────────────────────────────
+function monParseTitle(title){
+  var t = String(title||'');
+  var up = t.toUpperCase();
+  var house = null;
+  var m1 = up.match(/\b(PSA|BGS|CGC|ACE|SGC)\b/);
+  if(m1) house = m1[1];
+  var grade = null;
+  if(house){
+    var gm = t.match(new RegExp(house+'\\s*([0-9]{1,2}(?:\\.[05])?)','i'));
+    if(gm) grade = parseFloat(gm[1]);
+  }
+  if(grade===null){
+    var gm2 = up.match(/\bGEM\s*MT?\s*10\b/) || up.match(/\bGRADE\s*([0-9]{1,2}(?:\.[05])?)/);
+    if(gm2) grade = gm2[1] ? parseFloat(gm2[1]) : 10;
+  }
+  var lang = null;
+  if(/\b(JAP|JPN|JAPANESE|GIAPPONESE|JAPAN)\b/.test(up)) lang='JPN';
+  else if(/\b(ITA|ITALIAN|ITALIANO|ITALIANA)\b/.test(up)) lang='ITA';
+  else if(/\b(ENG|ENGLISH|INGLESE)\b/.test(up)) lang='ENG';
+  var is1st = /\b(1ST\s*ED|FIRST\s*ED|1A\s*EDIZIONE|PRIMA\s*EDIZIONE|1ED)\b/.test(up);
+  var graded = !!house || grade!==null;
+  return { house:house, grade:grade, lang:lang, is1st:is1st, graded:graded };
+}
+
+// ── Builder URL Catawiki dal monitor ────────────────────────────────
+function monBuildUrl(mon){
+  if(mon.base_url && /catawiki\./i.test(mon.base_url)) return mon.base_url.trim();
+  var cat = mon.category_id || 321;
+  var terms = [];
+  if(mon.query) terms.push(mon.query);
+  // grading house come hint nella query (riduce il rumore lato Catawiki)
+  if(mon.grading_house && !(mon.query||'').toUpperCase().includes(mon.grading_house)) terms.push(mon.grading_house);
+  var q = terms.join(' ').trim();
+  var url = 'https://www.catawiki.com/it/s?q=' + encodeURIComponent(q) + '&category_id=' + encodeURIComponent(cat);
+  // sort scade-prima quando il monitor lo chiede (param osservato su Catawiki)
+  if(mon.sort_mode === 'ending_soon') url += '&sort=closing_soon';
+  return url;
+}
+
+// ── Filtro client-side ──────────────────────────────────────────────
+function monApplyFilters(items, mon){
+  var inclKw = (mon.include_keywords||[]).map(function(x){return x.toLowerCase();});
+  var exclKw = (mon.exclude_keywords||[]).map(function(x){return x.toLowerCase();});
+  var inclC  = (mon.include_countries||[]);
+  var exclC  = (mon.exclude_countries||[]);
+  var now = Date.now();
+  var maxEnd = mon.ending_within_hours ? now + mon.ending_within_hours*3600000 : null;
+
+  return items.filter(function(it){
+    var title = String(it.title||'').toLowerCase();
+    for(var i=0;i<inclKw.length;i++){ if(title.indexOf(inclKw[i])<0) return false; }
+    for(var j=0;j<exclKw.length;j++){ if(title.indexOf(exclKw[j])>=0) return false; }
+
+    var c = monNormLotCountry(it.location);
+    if(inclC.length){ if(!c || inclC.indexOf(c)<0) return false; }
+    if(exclC.length){ if(c && exclC.indexOf(c)>=0) return false; }
+
+    if(mon.min_price!=null && it.price!=null && it.price < mon.min_price) return false;
+    if(mon.max_price!=null && it.price!=null && it.price > mon.max_price) return false;
+
+    var parsed = monParseTitle(it.title);
+    it._parsed = parsed;
+    if(mon.grading_house && parsed.house !== mon.grading_house) return false;
+    if(mon.require_graded && !parsed.graded) return false;
+
+    if(maxEnd!=null){
+      if(!it.end_time) return false;
+      var t = new Date(it.end_time).getTime();
+      if(isNaN(t) || t > maxEnd) return false;
+    }
+    // escludi scaduti / non disponibili
+    if(it.is_unavailable) return false;
+    if(it.end_time){
+      var te = new Date(it.end_time).getTime();
+      if(!isNaN(te) && te < now - 60000) return false;
+    }
+    return true;
+  });
+}
+
+// ── Scoring interesse (euristica trasparente) ───────────────────────
+function monScore(it, mon){
+  var reasons = [];
+  var score = 0;
+  var parsed = it._parsed || monParseTitle(it.title);
+  var now = Date.now();
+  var hoursLeft = null;
+  if(it.end_time){
+    var t = new Date(it.end_time).getTime();
+    if(!isNaN(t)) hoursLeft = (t - now)/3600000;
+  }
+  var bids = (typeof it.bids === 'number') ? it.bids : null;
+
+  // urgenza
+  if(hoursLeft!=null && hoursLeft<=1){ score+=10; reasons.push('scade tra <1h'); }
+  else if(hoursLeft!=null && hoursLeft<=6){ score+=6; reasons.push('scade tra <6h'); }
+  else if(hoursLeft!=null && hoursLeft<=24){ score+=3; }
+
+  // poche offerte vicino alla fine = possibile occasione
+  if(bids===0 && hoursLeft!=null && hoursLeft<=12){ score+=10; reasons.push('0 offerte, scade presto'); }
+  else if(bids!=null && bids<=2 && hoursLeft!=null && hoursLeft<=12){ score+=5; reasons.push('poche offerte'); }
+
+  // prezzo vs riferimento (solo se ancora disponibile)
+  var ratio = null;
+  if(mon.ref_price && it.price!=null && mon.ref_price>0){
+    ratio = it.price / mon.ref_price;
+    if(ratio <= 0.6){ score+=30; reasons.push('-'+Math.round((1-ratio)*100)+'% vs rif.'); }
+    else if(ratio <= 0.8){ score+=18; reasons.push('-'+Math.round((1-ratio)*100)+'% vs rif.'); }
+    else if(ratio <= 1.05){ score+=4; reasons.push('in linea col rif.'); }
+    else { score-=10; reasons.push('+'+Math.round((ratio-1)*100)+'% vs rif.'); }
+  }
+
+  // domanda (favorite count alto = bene desiderato; contesto, non affare)
+  if(typeof it.favorite_count==='number' && it.favorite_count>=15){ reasons.push(it.favorite_count+' preferiti'); }
+
+  // label
+  var label='—', tone='neutral';
+  if(ratio!=null && ratio<=0.6 && (bids===0 || (hoursLeft!=null&&hoursLeft<=6))){ label='SUPER AFFARE'; tone='deal'; }
+  else if(ratio!=null && ratio<=0.8){ label='AFFARE'; tone='good'; }
+  else if(bids===0 && hoursLeft!=null && hoursLeft<=6){ label='OCCASIONE?'; tone='watch'; }
+  else if(ratio!=null && ratio>1.1){ label='SOPRA RIF.'; tone='over'; }
+  else if(hoursLeft!=null && hoursLeft<=6){ label='IN SCADENZA'; tone='watch'; }
+
+  it._score = score;
+  it._hoursLeft = hoursLeft;
+  return { score:score, label:label, tone:tone, reasons:reasons.slice(0,3) };
+}
+
+// ── Ordinamento ─────────────────────────────────────────────────────
+function monSort(items, mode){
+  var arr = items.slice();
+  if(mode==='price_asc') arr.sort(function(a,b){ return (a.price==null?1e12:a.price)-(b.price==null?1e12:b.price); });
+  else if(mode==='price_desc') arr.sort(function(a,b){ return (b.price==null?-1:b.price)-(a.price==null?-1:a.price); });
+  else if(mode==='interest') arr.sort(function(a,b){ return (b._score||0)-(a._score||0); });
+  else arr.sort(function(a,b){ // ending_soon
+    var ta = a._hoursLeft==null?1e9:a._hoursLeft;
+    var tb = b._hoursLeft==null?1e9:b._hoursLeft;
+    return ta-tb;
+  });
+  return arr;
+}
+
+// ── Countdown formatting ────────────────────────────────────────────
+function monFmtCountdown(hoursLeft){
+  if(hoursLeft==null) return {txt:'scadenza ignota', cls:''};
+  if(hoursLeft<=0) return {txt:'terminata', cls:'ended'};
+  var totMin = Math.round(hoursLeft*60);
+  var d = Math.floor(totMin/1440), h = Math.floor((totMin%1440)/60), m = totMin%60;
+  var txt;
+  if(d>0) txt = d+'g '+h+'h';
+  else if(h>0) txt = h+'h '+m+'m';
+  else txt = m+'m';
+  var cls = hoursLeft<=1 ? 'imminent' : (hoursLeft<=6 ? 'soon' : '');
+  return {txt:txt, cls:cls};
+}
+function monFmtPrice(p, cur){
+  if(p==null) return '—';
+  var sym = cur==='USD'?'$':(cur==='GBP'?'£':'€');
+  return sym+' '+Number(p).toLocaleString('it-IT',{minimumFractionDigits:0,maximumFractionDigits:0});
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  ESTENSIONE — bridge ping/scrape (stesso protocollo del Radar)
+// ════════════════════════════════════════════════════════════════════
+function monExtPing(){
+  return new Promise(function(resolve){
+    var done=false;
+    function onMsg(ev){
+      if(done||ev.source!==window) return;
+      if(!ev.data||ev.data.type!=='rb-extension-ready') return;
+      done=true; window.removeEventListener('message',onMsg);
+      MON_EXT.available=true; MON_EXT.version=ev.data.version||null; MON_EXT.caps=ev.data.capabilities||[];
+      resolve(true);
+    }
+    window.addEventListener('message',onMsg);
+    window.postMessage({type:'rb-ext-ping'},'*');
+    setTimeout(function(){ if(!done){done=true;window.removeEventListener('message',onMsg);resolve(MON_EXT.available);} }, 2500);
+  });
+}
+function monExtScrape(url){
+  return new Promise(function(resolve){
+    var requestId='mon_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+    var t0=Date.now();
+    var timer=setTimeout(function(){
+      window.removeEventListener('message',onMsg);
+      resolve({items:[],error:'timeout estensione (60s)',search_url:url});
+    },60000);
+    function onMsg(ev){
+      if(ev.source!==window) return;
+      var d=ev.data;
+      if(!d||d.type!=='rb-scrape-response'||d.requestId!==requestId) return;
+      clearTimeout(timer); window.removeEventListener('message',onMsg);
+      resolve({items:d.items||[],error:d.error||null,search_url:d.search_url||url,duration_ms:d.duration_ms||(Date.now()-t0)});
+    }
+    window.addEventListener('message',onMsg);
+    window.postMessage({type:'rb-scrape-request',requestId:requestId,site:'catawiki',url:url,job:{}},'*');
+  });
+}
+function monUpdateExtStatus(){
+  var el=document.getElementById('monExtStatus');
+  if(!el) return;
+  if(MON_EXT.available && MON_EXT.caps.indexOf('catawiki')>=0){
+    el.innerHTML='<span class="dot ok"></span> estensione attiva';
+  } else if(MON_EXT.available){
+    el.innerHTML='<span class="dot no"></span> estensione: Catawiki non supportato';
+  } else {
+    el.innerHTML='<span class="dot no"></span> estensione non rilevata';
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  SUPABASE CRUD — auction_monitors
+// ════════════════════════════════════════════════════════════════════
+function monRest(path, opts){
+  opts = opts||{};
+  var method = opts.method||'GET';
+  // PostgREST: Prefer su GET può dare 400/412 → ometti (passa null a getHDR).
+  var prefer = (method==='GET') ? null : (opts.prefer || 'return=representation');
+  var headers = (typeof getHDR==='function') ? getHDR(prefer) : {'apikey':window.SUPA_KEY,'Content-Type':'application/json'};
+  return fetch(window.SUPA_URL+'/rest/v1/'+path, {
+    method: method,
+    headers: headers,
+    body: opts.body?JSON.stringify(opts.body):undefined
+  });
+}
+async function monLoadMonitors(){
+  var uid = (typeof getCurrentUserId==='function')?getCurrentUserId():null;
+  if(!uid){ MON_STATE.monitors=[]; return; }
+  try{
+    var r = await monRest('auction_monitors?user_id=eq.'+uid+'&order=created_at.desc');
+    if(r.ok){ MON_STATE.monitors = await r.json(); }
+  }catch(e){ console.warn('[Monitor] load err', e); }
+}
+async function monSaveMonitor(payload, id){
+  payload.updated_at = new Date().toISOString();
+  if(id){
+    var r = await monRest('auction_monitors?id=eq.'+id, {method:'PATCH', body:payload, prefer:'return=representation'});
+    return r.ok ? (await r.json())[0] : null;
+  } else {
+    payload.user_id = (typeof getCurrentUserId==='function')?getCurrentUserId():null;
+    payload.created_at = new Date().toISOString();
+    var r2 = await monRest('auction_monitors', {method:'POST', body:payload, prefer:'return=representation'});
+    return r2.ok ? (await r2.json())[0] : null;
+  }
+}
+async function monDeleteMonitor(id){
+  var r = await monRest('auction_monitors?id=eq.'+id, {method:'DELETE'});
+  return r.ok;
+}
+async function monMarkRun(id, found){
+  try{ await monRest('auction_monitors?id=eq.'+id, {method:'PATCH', body:{last_run_at:new Date().toISOString(), total_found:found}}); }catch(e){}
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  RENDER
+// ════════════════════════════════════════════════════════════════════
+function monEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+function monRenderList(){
+  var el = document.getElementById('monListEl');
+  if(!MON_STATE.monitors.length){
+    el.innerHTML='<div style="font-size:11px;color:var(--text-muted);line-height:1.5">Nessun monitor.<br>Creane uno per iniziare a seguire le aste.</div>';
+    return;
+  }
+  el.innerHTML = MON_STATE.monitors.map(function(m){
+    var active = m.id===MON_STATE.activeId ? ' active' : '';
+    var bits=[];
+    if(m.grading_house) bits.push(m.grading_house);
+    if(m.ending_within_hours) bits.push('≤'+m.ending_within_hours+'h');
+    if(m.exclude_countries && m.exclude_countries.length) bits.push('no '+m.exclude_countries.join('/'));
+    if(m.ref_price) bits.push('rif €'+m.ref_price);
+    var last = m.last_run_at ? ('ultimo: '+new Date(m.last_run_at).toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})) : 'mai eseguito';
+    return '<div class="mon-list-item'+active+'" data-id="'+m.id+'">'
+      + '<div class="mli-name"><span style="display:flex;align-items:center;gap:7px;min-width:0"><span class="mli-dot '+(m.is_active?'on':'off')+'"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+monEsc(m.name)+'</span></span></div>'
+      + '<div class="mli-meta">'+(bits.length?monEsc(bits.join(' · ')):'tutti i lot')+'<br>'+last+'</div>'
+      + '</div>';
+  }).join('');
+  el.querySelectorAll('.mon-list-item').forEach(function(node){
+    node.addEventListener('click', function(){ monSelect(node.getAttribute('data-id')); });
+  });
+}
+
+function monRenderResults(){
+  var el = document.getElementById('monResultsEl');
+  var mon = monActive();
+  if(!mon){
+    el.innerHTML = monOnboardingHTML();
+    return;
+  }
+  if(MON_STATE.running){
+    el.innerHTML = '<div class="mon-empty"><div class="mon-spin"></div><div style="margin-top:12px">Scansione Catawiki in corso…</div></div>';
+    return;
+  }
+  if(!MON_STATE.rawItems.length && mon._ran){
+    el.innerHTML = '<div class="mon-empty"><div class="big">Nessun lot restituito</div>Catawiki non ha restituito risultati per questi filtri di ricerca, oppure l\'estensione è stata bloccata. Prova ad allargare la ricerca o incolla un URL Catawiki già filtrato nelle opzioni avanzate.</div>';
+    return;
+  }
+  if(!mon._ran){
+    el.innerHTML = '<div class="mon-empty"><div class="big">Pronto</div>Premi <b>Aggiorna</b> per scaricare le aste correnti da Catawiki applicando i filtri di questo monitor.</div>';
+    return;
+  }
+  var sorted = monSort(MON_STATE.filtered, document.getElementById('monSortSel').value);
+  if(!sorted.length){
+    el.innerHTML = '<div class="mon-empty"><div class="big">'+MON_STATE.rawItems.length+' lot scaricati, 0 dopo i filtri</div>I filtri di questo monitor hanno escluso tutti i lot. Rilassa qualche criterio (keyword, paesi, scadenza).</div>';
+    return;
+  }
+  el.innerHTML = sorted.map(function(it){
+    var sc = monScore(it, mon);
+    var cd = monFmtCountdown(it._hoursLeft);
+    var parsed = it._parsed||{};
+    var chips=[];
+    if(parsed.house) chips.push('<span class="mon-tag grade">'+parsed.house+(parsed.grade!=null?' '+parsed.grade:'')+'</span>');
+    if(parsed.lang) chips.push('<span class="mon-tag">'+parsed.lang+'</span>');
+    if(parsed.is1st) chips.push('<span class="mon-tag flag">1ª ED</span>');
+    var c = monNormLotCountry(it.location);
+    if(c) chips.push('<span class="mon-tag">'+c+'</span>');
+    if(typeof it.bids==='number') chips.push('<span class="mon-tag">'+it.bids+' offerte</span>');
+
+    var refHtml='';
+    if(mon.ref_price && it.price!=null){
+      var r = it.price/mon.ref_price;
+      var cls = r<=0.9?'lo':(r>=1.1?'hi':'');
+      var pct = Math.round((r-1)*100);
+      refHtml = '<span class="mon-ref">vs rif: <b class="'+cls+'">'+(pct>0?'+':'')+pct+'%</b></span>';
+    }
+    var thumb = it.image_url ? ' style="background-image:url('+monEsc(it.image_url)+')"' : '';
+    var urgent = (it._hoursLeft!=null && it._hoursLeft<=1) ? ' urgent' : '';
+    var reasons = sc.reasons.length ? '<div class="mon-reasons">'+sc.reasons.map(monEsc).join('<br>')+'</div>' : '';
+
+    return '<div class="mon-card'+urgent+'">'
+      + '<div class="mon-thumb"'+thumb+'></div>'
+      + '<div class="mon-body">'
+        + '<div class="mon-c-title">'+monEsc(it.title||'(senza titolo)')+'</div>'
+        + '<div class="mon-c-chips">'+chips.join('')+'</div>'
+        + '<div class="mon-c-foot">'
+          + '<span class="mon-price">'+monFmtPrice(it.price,it.currency)+' <small>'+(it.bids?'offerta':'partenza')+'</small></span>'
+          + refHtml
+          + '<span class="mon-countdown '+cd.cls+'"><span class="rb-i rb-i-clock"></span> '+cd.txt+'</span>'
+        + '</div>'
+      + '</div>'
+      + '<div class="mon-side">'
+        + '<span class="mon-badge '+sc.tone+'">'+sc.label+'</span>'
+        + reasons
+        + '<a class="mon-open" href="'+monEsc(it.url)+'" target="_blank" rel="noopener">Apri <span class="rb-i rb-i-link"></span></a>'
+      + '</div>'
+    + '</div>';
+  }).join('');
+}
+
+function monOnboardingHTML(){
+  return '<div class="mon-empty"><div class="big">Monitor Aste</div>'
+    + 'Tieni d\'occhio le offerte del giorno su Catawiki con i tuoi filtri — positivi e negativi.'
+    + '<div class="mon-ob">'
+    + '<div class="mon-ob-step"><span class="mon-ob-num">1</span><div>Crea un <b>monitor</b>: imposta cosa cercare, cosa deve/non deve contenere, da quali paesi, entro quando scade e (opzionale) un prezzo di riferimento.</div></div>'
+    + '<div class="mon-ob-step"><span class="mon-ob-num">2</span><div>Premi <b>Aggiorna</b>: l\'estensione Hunter scarica le aste correnti da Catawiki (IP residenziale) e applica i tuoi filtri.</div></div>'
+    + '<div class="mon-ob-step"><span class="mon-ob-num">3</span><div>Ottieni la lista ordinata per <b>scadenza</b> con prezzo, scadenza e un <b>indicatore di interesse</b> trasparente.</div></div>'
+    + '</div></div>';
+}
+
+function monRenderStats(){
+  var f = MON_STATE.filtered;
+  var ending = f.filter(function(it){ return it._hoursLeft!=null && it._hoursLeft<=24 && it._hoursLeft>0; }).length;
+  var deals = f.filter(function(it){ var m=monActive(); if(!m||!m.ref_price||it.price==null) return false; return it.price/m.ref_price<=0.8; }).length;
+  document.getElementById('monStTotal').textContent = MON_STATE.rawItems.length || '—';
+  document.getElementById('monStEnding').textContent = ending || (f.length?'0':'—');
+  document.getElementById('monStDeals').textContent = (monActive()&&monActive().ref_price)?deals:'—';
+  document.getElementById('monStMonitors').textContent = MON_STATE.monitors.filter(function(m){return m.is_active;}).length;
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  AZIONI
+// ════════════════════════════════════════════════════════════════════
+function monActive(){ return MON_STATE.monitors.filter(function(m){return m.id===MON_STATE.activeId;})[0]||null; }
+
+function monSelect(id){
+  MON_STATE.activeId = id;
+  MON_STATE.rawItems = [];
+  MON_STATE.filtered = [];
+  var mon = monActive();
+  if(mon){ mon._ran=false; document.getElementById('monSortSel').value = mon.sort_mode||'ending_soon'; }
+  document.getElementById('monTbTitle').innerHTML = '<span class="rb-i rb-i-clock"></span> '+monEsc(mon?mon.name:'Aste');
+  document.getElementById('monRunBtn').disabled = !mon;
+  monCloseForm();
+  monRenderList();
+  monRenderResults();
+  monRenderStats();
+}
+
+async function monRun(){
+  var mon = monActive();
+  if(!mon || MON_STATE.running) return;
+  if(!(MON_EXT.available && MON_EXT.caps.indexOf('catawiki')>=0)){
+    await monExtPing(); monUpdateExtStatus();
+    if(!(MON_EXT.available && MON_EXT.caps.indexOf('catawiki')>=0)){
+      alert('Estensione RareBlock Hunter non rilevata (o Catawiki non abilitato).\n\nLo scraping di Catawiki richiede l\'estensione attiva nel browser per usare l\'IP residenziale ed evitare il blocco Cloudflare.');
+      return;
+    }
+  }
+  MON_STATE.running=true; mon._ran=true;
+  document.getElementById('monRunBtn').disabled=true;
+  monRenderResults();
+  var url = monBuildUrl(mon);
+  var res = await monExtScrape(url);
+  MON_STATE.running=false;
+  document.getElementById('monRunBtn').disabled=false;
+  if(res.error){
+    document.getElementById('monResultsEl').innerHTML =
+      '<div class="mon-empty"><div class="big">Errore scansione</div>'+monEsc(res.error)+'<br><br><span style="font-size:11px">URL: <a class="mon-open" href="'+monEsc(url)+'" target="_blank" rel="noopener">'+monEsc(url)+'</a></span></div>';
+    return;
+  }
+  MON_STATE.rawItems = (res.items||[]).filter(function(it){ return it && it.source==='catawiki'; });
+  MON_STATE.filtered = monApplyFilters(MON_STATE.rawItems, mon);
+  // pre-calcola score per ordinamento "interesse"
+  MON_STATE.filtered.forEach(function(it){ monScore(it, mon); });
+  monMarkRun(mon.id, MON_STATE.filtered.length);
+  mon.last_run_at = new Date().toISOString();
+  mon.total_found = MON_STATE.filtered.length;
+  monRenderList();
+  monRenderResults();
+  monRenderStats();
+}
+
+// ── FORM ────────────────────────────────────────────────────────────
+function monOpenForm(mon){
+  MON_STATE.editingId = mon ? mon.id : null;
+  document.getElementById('monFormBlock').style.display='block';
+  document.getElementById('monFormTitle').textContent = mon ? 'Modifica monitor' : 'Nuovo monitor';
+  document.getElementById('fDeleteBtn').style.display = mon ? 'flex' : 'none';
+  var g = function(id){ return document.getElementById(id); };
+  g('fName').value = mon?mon.name||'':'';
+  g('fQuery').value = mon?mon.query||'':'';
+  g('fInclKw').value = mon?(mon.include_keywords||[]).join(', '):'';
+  g('fExclKw').value = mon?(mon.exclude_keywords||[]).join(', '):'';
+  g('fGrading').value = mon?mon.grading_house||'':'';
+  g('fEnding').value = mon&&mon.ending_within_hours?String(mon.ending_within_hours):'';
+  g('fReqGraded').checked = mon?!!mon.require_graded:false;
+  g('fMinPrice').value = mon&&mon.min_price!=null?mon.min_price:'';
+  g('fMaxPrice').value = mon&&mon.max_price!=null?mon.max_price:'';
+  g('fRefPrice').value = mon&&mon.ref_price!=null?mon.ref_price:'';
+  g('fInclCountries').value = mon?(mon.include_countries||[]).join(', '):'';
+  g('fExclCountries').value = mon?(mon.exclude_countries||[]).join(', '):'';
+  g('fCategory').value = mon&&mon.category_id?String(mon.category_id):'';
+  g('fBaseUrl').value = mon?mon.base_url||'':'';
+  monRefreshChips();
+  g('fName').focus();
+}
+function monCloseForm(){
+  MON_STATE.editingId=null;
+  document.getElementById('monFormBlock').style.display='none';
+}
+function monRefreshChips(){
+  function chipHtml(list, cls){ return list.map(function(x){return '<span class="mon-chip '+cls+'">'+monEsc(x)+'</span>';}).join(''); }
+  document.getElementById('fInclKwChips').innerHTML = chipHtml(monParseList(document.getElementById('fInclKw').value),'pos');
+  document.getElementById('fExclKwChips').innerHTML = chipHtml(monParseList(document.getElementById('fExclKw').value),'neg');
+  document.getElementById('fInclCountriesChips').innerHTML = chipHtml(monParseCountryList(document.getElementById('fInclCountries').value),'pos');
+  document.getElementById('fExclCountriesChips').innerHTML = chipHtml(monParseCountryList(document.getElementById('fExclCountries').value),'neg');
+}
+function monCollectForm(){
+  var g = function(id){ return document.getElementById(id); };
+  var name = g('fName').value.trim();
+  if(!name){ alert('Dai un nome al monitor.'); return null; }
+  var num = function(id){ var v=g(id).value.trim(); return v===''?null:Number(v); };
+  return {
+    name: name,
+    query: g('fQuery').value.trim()||null,
+    category_id: num('fCategory')||321,
+    include_keywords: monParseList(g('fInclKw').value),
+    exclude_keywords: monParseList(g('fExclKw').value),
+    include_countries: monParseCountryList(g('fInclCountries').value),
+    exclude_countries: monParseCountryList(g('fExclCountries').value),
+    grading_house: g('fGrading').value||null,
+    require_graded: g('fReqGraded').checked,
+    min_price: num('fMinPrice'),
+    max_price: num('fMaxPrice'),
+    ending_within_hours: g('fEnding').value?Number(g('fEnding').value):null,
+    ref_price: num('fRefPrice'),
+    sort_mode: document.getElementById('monSortSel').value||'ending_soon',
+    base_url: g('fBaseUrl').value.trim()||null,
+    is_active: true
+  };
+}
+async function monSaveForm(){
+  var payload = monCollectForm();
+  if(!payload) return;
+  var btn = document.getElementById('fSaveBtn');
+  btn.disabled=true; btn.innerHTML='<span class="mon-spin"></span> Salvataggio…';
+  var saved = await monSaveMonitor(payload, MON_STATE.editingId);
+  btn.disabled=false; btn.innerHTML='<span class="rb-i rb-i-save"></span> Salva';
+  if(!saved){ alert('Errore nel salvataggio. Verifica di essere loggato e che la migration 091 sia applicata.'); return; }
+  await monLoadMonitors();
+  monCloseForm();
+  monSelect(saved.id);
+}
+async function monDeleteActive(){
+  if(!MON_STATE.editingId) return;
+  if(!confirm('Eliminare definitivamente questo monitor?')) return;
+  var ok = await monDeleteMonitor(MON_STATE.editingId);
+  if(!ok){ alert('Errore eliminazione.'); return; }
+  MON_STATE.activeId=null;
+  await monLoadMonitors();
+  monCloseForm();
+  monRenderList();
+  monRenderResults();
+  monRenderStats();
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════════════════
+function monWire(){
+  document.getElementById('monNewBtn').addEventListener('click', function(){ monOpenForm(null); });
+  document.getElementById('fCancelBtn').addEventListener('click', monCloseForm);
+  document.getElementById('fSaveBtn').addEventListener('click', monSaveForm);
+  document.getElementById('fDeleteBtn').addEventListener('click', monDeleteActive);
+  document.getElementById('monRunBtn').addEventListener('click', monRun);
+  document.getElementById('monSortSel').addEventListener('change', function(){ if(monActive()&&monActive()._ran) monRenderResults(); });
+  document.getElementById('fAdvToggle').addEventListener('click', function(){
+    var b=document.getElementById('fAdvBlock');
+    b.classList.toggle('open');
+    this.textContent = (b.classList.contains('open')?'▾':'▸')+' Opzioni avanzate (paesi, URL diretto)';
+  });
+  ['fInclKw','fExclKw','fInclCountries','fExclCountries'].forEach(function(id){
+    document.getElementById(id).addEventListener('input', monRefreshChips);
+  });
+  // se l'utente clicca su un monitor già attivo apre la modifica via doppio-uso: pulsante nuovo apre form;
+  // aggiungiamo modifica con long-press? Più semplice: tasto Modifica nel toolbar? Lo gestiamo col click sull'item attivo.
+  document.getElementById('monTbTitle').addEventListener('click', function(){ var m=monActive(); if(m) monOpenForm(m); });
+  document.getElementById('monTbTitle').style.cursor='pointer';
+  document.getElementById('monTbTitle').title='Clicca per modificare i filtri di questo monitor';
+}
+
+async function monInit(){
+  monWire();
+  monExtPing().then(monUpdateExtStatus);
+  await monLoadMonitors();
+  monRenderList();
+  monRenderStats();
+  if(MON_STATE.monitors.length){ monSelect(MON_STATE.monitors[0].id); }
+  else { monRenderResults(); }
+}
+
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', monInit);
+else monInit();
+</script>
+</body>
+</html>
