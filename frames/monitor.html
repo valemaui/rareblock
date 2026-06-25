@@ -256,6 +256,9 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);f
     <div class="mon-toolbar">
       <div class="mon-tb-title" id="monTbTitle"><span class="rb-i rb-i-clock"></span> Aste</div>
       <div class="mon-tb-spacer"></div>
+      <label class="mon-check" style="font-size:11px;white-space:nowrap" title="Stima il prezzo raw CardMarket di ogni carta dal titolo del lot">
+        <input type="checkbox" id="monAutoVal"/> Valuta auto
+      </label>
       <select class="mon-sort" id="monSortSel">
         <option value="ending_soon">Scade prima</option>
         <option value="interest">Più interessanti</option>
@@ -269,7 +272,7 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);f
     <div class="mon-results" id="monResultsEl"></div>
 
     <div class="mon-disclaimer">
-      L'indicatore di interesse è un'euristica trasparente basata su scadenza, offerte e prezzo di riferimento — non è una consulenza finanziaria né una valutazione ufficiale del bene.
+      Indicatore euristico basato su scadenza, offerte e prezzo di riferimento. La valutazione automatica stima il prezzo <b>raw</b> CardMarket della carta (carta non gradata): sui lot gradati è solo contesto, non un verdetto. Non è una consulenza finanziaria né una valutazione ufficiale del bene.
     </div>
   </div>
 </div>
@@ -359,9 +362,137 @@ function monParseTitle(title){
   if(/\b(JAP|JPN|JAPANESE|GIAPPONESE|JAPAN)\b/.test(up)) lang='JPN';
   else if(/\b(ITA|ITALIAN|ITALIANO|ITALIANA)\b/.test(up)) lang='ITA';
   else if(/\b(ENG|ENGLISH|INGLESE)\b/.test(up)) lang='ENG';
-  var is1st = /\b(1ST\s*ED|FIRST\s*ED|1A\s*EDIZIONE|PRIMA\s*EDIZIONE|1ED)\b/.test(up);
+  var is1st = /\b(1ST|FIRST)\s*ED(ITION)?\b/.test(up) || /\b(1A|PRIMA)\s*EDIZIONE\b/.test(up) || /\b1ED\b/.test(up);
   var graded = !!house || grade!==null;
   return { house:house, grade:grade, lang:lang, is1st:is1st, graded:graded };
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  VALUTAZIONE AUTOMATICA (v2)
+//  Titolo lot → carta TCG (via hyper-endpoint) → prezzo raw NM CardMarket.
+//  Onesto by-design: il prezzo è RAW (carta non gradata). Sui lot gradati
+//  serve solo da contesto; il verdetto "affare" lo dà monScore solo su raw.
+// ════════════════════════════════════════════════════════════════════
+var MON_VAL_CACHE = {};      // key → {price, name, number, setName, confidence, ts}
+var MON_VAL_TTL = 24*3600000;
+var MON_AUTO_VAL = true;     // toggle (persistito in localStorage)
+try{ MON_AUTO_VAL = localStorage.getItem('mon_auto_valuation') !== '0'; }catch(e){}
+try{ MON_VAL_CACHE = JSON.parse(localStorage.getItem('mon_val_cache')||'{}')||{}; }catch(e){ MON_VAL_CACHE={}; }
+
+var MON_STOP = ['pokemon','pokémon','carta','carte','card','cards','psa','bgs','cgc','ace','sgc','gem','mint','nm','holo','reverse','foil','rare','promo','vintage','lotto','bundle','set','box','booster','italiano','italiana','english','inglese','japanese','giapponese','jap','jpn','ita','eng','first','edition','edizione','1st','1a','prima','graded','gradata','gradato','wotc','swsh','base','jungle','fossil','team','rocket','neo','ex','gx','vmax','vstar','full','art','secret','rainbow','alt','near','sealed','new','nuovo','condition','condizioni','grade','the','del','della','di','da','con','per','und','mit'];
+
+// Estrae nome carta + numero collezionabile dal titolo libero
+function monExtractCard(title){
+  var t = String(title||'');
+  var num = null, setSize = null;
+  var mNum = t.match(/(\d{1,3})\s*\/\s*(\d{1,3})/);
+  if(mNum){ num = parseInt(mNum[1],10); setSize = parseInt(mNum[2],10); }
+  else { var mh = t.match(/#\s*(\d{1,3})\b/); if(mh) num = parseInt(mh[1],10); }
+  // candidato nome: primo token alfabetico "pulito" non-stopword, len>=3
+  var tokens = t.replace(/[^A-Za-zÀ-ÿ'\s-]/g,' ').split(/\s+/).filter(Boolean);
+  var name = null;
+  for(var i=0;i<tokens.length;i++){
+    var tk = tokens[i].toLowerCase().replace(/['-]/g,'');
+    if(tk.length<3) continue;
+    if(MON_STOP.indexOf(tk)>=0) continue;
+    name = tokens[i].replace(/[^A-Za-zÀ-ÿ'-]/g,'');
+    break;
+  }
+  if(!name) return null;
+  var key = name.toLowerCase()+'|'+(num!=null?num:'');
+  return { name:name, number:num, setSize:setSize, key:key };
+}
+
+// Prezzo raw NM dai cardmarket.prices (replica compatta di calcBaseNMPrice)
+function monRawBase(prices){
+  if(!prices) return null;
+  var cand = [
+    {v:prices.trendPrice, w:40},
+    {v:prices.avg7,       w:35},
+    {v:prices.avg1,       w:15},
+    {v:prices.lowPrice,   w:10},
+    {v:prices.avg30,      w:15}
+  ].filter(function(c){ return c.v && c.v>0; });
+  if(!cand.length) return null;
+  var tot=0, sum=0;
+  cand.forEach(function(c){ tot+=c.w; sum+=c.v*c.w; });
+  var base = sum/tot;
+  if(prices.avg30 && prices.avg30>0){
+    var r = base/prices.avg30;
+    if(r>3 || r<0.1) base = prices.avg30;
+  }
+  return Math.round(base*100)/100;
+}
+
+function monValToken(){ return 'Bearer ' + ((window._rbSession && window._rbSession.access_token) || window.SUPA_KEY); }
+
+// Interroga hyper-endpoint per la carta e calcola il riferimento raw
+async function monValuateCard(parsed){
+  var cached = MON_VAL_CACHE[parsed.key];
+  if(cached && (Date.now()-cached.ts) < MON_VAL_TTL) return cached;
+  var q = 'name:"'+parsed.name.replace(/"/g,'')+'"';
+  if(parsed.number!=null) q += ' number:'+parsed.number;
+  var result = { price:null, nomatch:true, name:parsed.name, number:parsed.number, confidence:'none', ts:Date.now() };
+  try{
+    var url = window.SUPA_URL+'/functions/v1/hyper-endpoint?q='+encodeURIComponent(q)+'&pageSize=20';
+    var r = await fetch(url, { headers:{ 'Authorization': monValToken() } });
+    if(r.ok){
+      var d = await r.json();
+      var cards = (d && d.data) || [];
+      // filtro numero (string match, no zeri iniziali)
+      var pick = null;
+      if(parsed.number!=null){
+        cards.forEach(function(c){
+          if(pick) return;
+          var cn = String(c.number||'').replace(/^0+/,'');
+          if(cn === String(parsed.number) && c.cardmarket && c.cardmarket.prices) pick = c;
+        });
+      }
+      if(!pick){
+        // nessun match per numero → prendi la prima con prezzo (confidence bassa)
+        for(var i=0;i<cards.length;i++){ if(cards[i].cardmarket && cards[i].cardmarket.prices){ pick = cards[i]; break; } }
+      }
+      if(pick){
+        var base = monRawBase(pick.cardmarket.prices);
+        if(base!=null){
+          result = {
+            price: base, nomatch:false,
+            name: pick.name, number: pick.number,
+            setName: (pick.set && pick.set.name) || null,
+            confidence: (parsed.number!=null && String(pick.number||'').replace(/^0+/,'')===String(parsed.number)) ? 'alta' : 'media',
+            ts: Date.now()
+          };
+        }
+      }
+    }
+  }catch(e){ /* rete ko → nomatch */ }
+  MON_VAL_CACHE[parsed.key] = result;
+  try{ localStorage.setItem('mon_val_cache', JSON.stringify(MON_VAL_CACHE)); }catch(e){}
+  return result;
+}
+
+// Valuta i lot (sequenziale, cap, dedupe per key) con callback progresso
+async function monValuateLots(items, onProgress){
+  var byKey = {};
+  items.forEach(function(it){
+    var p = monExtractCard(it.title);
+    it._cardKey = p ? p.key : null;
+    it._cardParsed = p;
+    if(p && !byKey[p.key]) byKey[p.key] = p;
+  });
+  var keys = Object.keys(byKey).slice(0, 24);   // cap per run
+  var done = 0;
+  for(var i=0;i<keys.length;i++){
+    var res = await monValuateCard(byKey[keys[i]]);
+    done++;
+    if(onProgress) onProgress(done, keys.length);
+    if(i < keys.length-1) await new Promise(function(r){ setTimeout(r, 180); });
+  }
+  // attacca il risultato a ciascun lot
+  items.forEach(function(it){
+    if(it._cardKey && MON_VAL_CACHE[it._cardKey]) it._autoRef = MON_VAL_CACHE[it._cardKey];
+  });
+  return items;
 }
 
 // ── Builder URL Catawiki dal monitor ────────────────────────────────
@@ -442,20 +573,36 @@ function monScore(it, mon){
   if(bids===0 && hoursLeft!=null && hoursLeft<=12){ score+=10; reasons.push('0 offerte, scade presto'); }
   else if(bids!=null && bids<=2 && hoursLeft!=null && hoursLeft<=12){ score+=5; reasons.push('poche offerte'); }
 
-  // prezzo vs riferimento (solo se ancora disponibile)
+  // ── Riferimento prezzo EFFETTIVO ──────────────────────────────────
+  // Gerarchia (come rb_card_index: manuale > automazione):
+  //   1. mon.ref_price (manuale)           → sempre comparabile (scelta utente)
+  //   2. it._autoRef (auto raw CM)         → comparabile SOLO su lot raw.
+  //      Sui gradati il prezzo raw è contesto, NON un verdetto (un PSA 10
+  //      vale un multiplo del raw → confrontarlo darebbe "sopra rif." falso).
+  var graded = !!(parsed && parsed.graded);
+  var refVal = null, refSource = null, refComparable = false;
+  if(mon.ref_price && mon.ref_price>0){
+    refVal = mon.ref_price; refSource = 'manuale'; refComparable = true;
+  } else if(it._autoRef && it._autoRef.price>0 && !it._autoRef.nomatch){
+    refVal = it._autoRef.price; refSource = 'auto-raw';
+    refComparable = !graded;          // raw → confrontabile; gradato → solo contesto
+  }
+
   var ratio = null;
-  if(mon.ref_price && it.price!=null && mon.ref_price>0){
-    ratio = it.price / mon.ref_price;
+  if(refComparable && refVal && it.price!=null){
+    ratio = it.price / refVal;
     if(ratio <= 0.6){ score+=30; reasons.push('-'+Math.round((1-ratio)*100)+'% vs rif.'); }
     else if(ratio <= 0.8){ score+=18; reasons.push('-'+Math.round((1-ratio)*100)+'% vs rif.'); }
     else if(ratio <= 1.05){ score+=4; reasons.push('in linea col rif.'); }
     else { score-=10; reasons.push('+'+Math.round((ratio-1)*100)+'% vs rif.'); }
+  } else if(graded && it._autoRef && it._autoRef.price>0 && !it._autoRef.nomatch){
+    reasons.push('gradato — raw ref. solo contesto');
   }
 
   // domanda (favorite count alto = bene desiderato; contesto, non affare)
   if(typeof it.favorite_count==='number' && it.favorite_count>=15){ reasons.push(it.favorite_count+' preferiti'); }
 
-  // label
+  // label (verdetto affare solo con riferimento comparabile)
   var label='—', tone='neutral';
   if(ratio!=null && ratio<=0.6 && (bids===0 || (hoursLeft!=null&&hoursLeft<=6))){ label='SUPER AFFARE'; tone='deal'; }
   else if(ratio!=null && ratio<=0.8){ label='AFFARE'; tone='good'; }
@@ -465,6 +612,7 @@ function monScore(it, mon){
 
   it._score = score;
   it._hoursLeft = hoursLeft;
+  it._refInfo = { value:refVal, source:refSource, comparable:refComparable, ratio:ratio };
   return { score:score, label:label, tone:tone, reasons:reasons.slice(0,3) };
 }
 
@@ -659,11 +807,19 @@ function monRenderResults(){
     if(typeof it.bids==='number') chips.push('<span class="mon-tag">'+it.bids+' offerte</span>');
 
     var refHtml='';
-    if(mon.ref_price && it.price!=null){
-      var r = it.price/mon.ref_price;
+    var ri = it._refInfo || {};
+    var ar = it._autoRef;
+    if(ri.comparable && ri.value && it.price!=null){
+      var r = it.price/ri.value;
       var cls = r<=0.9?'lo':(r>=1.1?'hi':'');
       var pct = Math.round((r-1)*100);
-      refHtml = '<span class="mon-ref">vs rif: <b class="'+cls+'">'+(pct>0?'+':'')+pct+'%</b></span>';
+      var srcLbl = ri.source==='manuale' ? 'rif' : 'rif raw';
+      refHtml = '<span class="mon-ref">vs '+srcLbl+': <b class="'+cls+'">'+(pct>0?'+':'')+pct+'%</b> (€'+Math.round(ri.value)+')</span>';
+    } else if(ar && !ar.nomatch && ar.price>0){
+      // gradato o senza confronto → mostra il raw come contesto, senza %
+      refHtml = '<span class="mon-ref" title="Prezzo raw CardMarket — non comparabile con un esemplare gradato">raw CM ~€'+Math.round(ar.price)+(ar.confidence==='media'?' ·?':'')+'</span>';
+    } else if(MON_AUTO_VAL && ar && ar.nomatch){
+      refHtml = '<span class="mon-ref" style="opacity:.6">non valutato</span>';
     }
     var thumb = it.image_url ? ' style="background-image:url('+monEsc(it.image_url)+')"' : '';
     var urgent = (it._hoursLeft!=null && it._hoursLeft<=1) ? ' urgent' : '';
@@ -702,10 +858,13 @@ function monOnboardingHTML(){
 function monRenderStats(){
   var f = MON_STATE.filtered;
   var ending = f.filter(function(it){ return it._hoursLeft!=null && it._hoursLeft<=24 && it._hoursLeft>0; }).length;
-  var deals = f.filter(function(it){ var m=monActive(); if(!m||!m.ref_price||it.price==null) return false; return it.price/m.ref_price<=0.8; }).length;
+  var deals = f.filter(function(it){
+    var ri = it._refInfo;
+    return ri && ri.comparable && ri.ratio!=null && ri.ratio<=0.8;
+  }).length;
   document.getElementById('monStTotal').textContent = MON_STATE.rawItems.length || '—';
   document.getElementById('monStEnding').textContent = ending || (f.length?'0':'—');
-  document.getElementById('monStDeals').textContent = (monActive()&&monActive().ref_price)?deals:'—';
+  document.getElementById('monStDeals').textContent = f.length ? deals : '—';
   document.getElementById('monStMonitors').textContent = MON_STATE.monitors.filter(function(m){return m.is_active;}).length;
 }
 
@@ -752,6 +911,15 @@ async function monRun(){
   }
   MON_STATE.rawItems = (res.items||[]).filter(function(it){ return it && it.source==='catawiki'; });
   MON_STATE.filtered = monApplyFilters(MON_STATE.rawItems, mon);
+
+  // valutazione automatica (raw CardMarket) — se attiva e nessun rif. manuale
+  if(MON_AUTO_VAL && !mon.ref_price && MON_STATE.filtered.length){
+    var resEl = document.getElementById('monResultsEl');
+    await monValuateLots(MON_STATE.filtered, function(done,total){
+      if(resEl) resEl.innerHTML = '<div class="mon-empty"><div class="mon-spin"></div><div style="margin-top:12px">Valutazione carte… '+done+'/'+total+'</div></div>';
+    });
+  }
+
   // pre-calcola score per ordinamento "interesse"
   MON_STATE.filtered.forEach(function(it){ monScore(it, mon); });
   monMarkRun(mon.id, MON_STATE.filtered.length);
@@ -856,6 +1024,12 @@ function monWire(){
   document.getElementById('fDeleteBtn').addEventListener('click', monDeleteActive);
   document.getElementById('monRunBtn').addEventListener('click', monRun);
   document.getElementById('monSortSel').addEventListener('change', function(){ if(monActive()&&monActive()._ran) monRenderResults(); });
+  var avEl = document.getElementById('monAutoVal');
+  avEl.checked = MON_AUTO_VAL;
+  avEl.addEventListener('change', function(){
+    MON_AUTO_VAL = avEl.checked;
+    try{ localStorage.setItem('mon_auto_valuation', MON_AUTO_VAL?'1':'0'); }catch(e){}
+  });
   document.getElementById('fAdvToggle').addEventListener('click', function(){
     var b=document.getElementById('fAdvBlock');
     b.classList.toggle('open');
