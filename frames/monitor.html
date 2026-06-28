@@ -117,6 +117,15 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);f
 .mon-spin{display:inline-block;width:13px;height:13px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:monspin .7s linear infinite}
 @keyframes monspin{to{transform:rotate(360deg)}}
 .mon-disclaimer{font-size:9.5px;color:var(--text-muted);text-align:center;padding:10px 16px;border-top:1px solid var(--border);background:var(--surface);line-height:1.5}
+/* install panel */
+.mon-install{max-width:600px;margin:24px auto;text-align:left}
+.mon-install h2{font-size:17px;margin:0 0 6px 0;display:flex;align-items:center;gap:9px}
+.mon-install .lead{font-size:12.5px;color:var(--text-muted);line-height:1.55;margin-bottom:18px}
+.mon-install .dl{display:flex;justify-content:center;margin-bottom:18px}
+.mon-code{font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:2px 7px;color:var(--accent);user-select:all}
+.mon-copy{cursor:pointer;border:1px solid var(--border);background:var(--surface2);border-radius:4px;padding:2px 8px;font-size:10px;font-family:var(--mono);color:var(--text-muted)}
+.mon-copy:hover{border-color:var(--accent);color:var(--text)}
+.mon-install .recheck{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:20px;padding-top:16px;border-top:1px dashed var(--border);flex-wrap:wrap}
 
 @media(max-width:760px){
   .mon-layout{flex-direction:column}
@@ -696,6 +705,71 @@ function monUpdateExtStatus(){
   } else {
     el.innerHTML='<span class="dot no"></span> estensione non rilevata';
   }
+  el.style.cursor = (MON_EXT.available && MON_EXT.caps.indexOf('catawiki')>=0) ? 'default' : 'pointer';
+  el.title = (MON_EXT.available && MON_EXT.caps.indexOf('catawiki')>=0) ? '' : 'Clicca per la procedura di installazione';
+}
+
+// Pannello d'installazione/aggiornamento estensione (sostituisce il vecchio alert)
+function monShowInstall(){
+  var el = document.getElementById('monResultsEl');
+  if(!el) return;
+  var outdated = MON_EXT.available && MON_EXT.caps.indexOf('catawiki')<0;
+  var html = '<div class="mon-install">';
+  if(outdated){
+    html += '<h2><span class="rb-i rb-i-refresh"></span> Aggiorna RareBlock Hunter</h2>'
+      + '<div class="lead">L\'estensione è installata ma questa versione non supporta lo scraping di Catawiki. Aggiornala alla v2.7.0.</div>'
+      + '<div class="dl"><a class="mon-btn primary" href="../assets/rareblock-hunter.zip" download="rareblock-hunter.zip"><span class="rb-i rb-i-package"></span> Scarica l\'ultima versione (v2.7.0)</a></div>'
+      + '<div class="mon-ob">'
+      + '<div class="mon-ob-step"><span class="mon-ob-num">1</span><div>Scompatta lo zip <b>sovrascrivendo</b> la cartella dell\'estensione esistente.</div></div>'
+      + '<div class="mon-ob-step"><span class="mon-ob-num">2</span><div>Apri <span class="mon-code">chrome://extensions</span> <button class="mon-copy" data-copy="chrome://extensions">copia</button>, trova <b>RareBlock Hunter</b> e premi <b>⟳ ricarica</b>.</div></div>'
+      + '<div class="mon-ob-step"><span class="mon-ob-num">3</span><div>Torna qui e premi <b>Ricontrolla</b>.</div></div>'
+      + '</div>';
+  } else {
+    html += '<h2><span class="rb-i rb-i-package"></span> Installa RareBlock Hunter</h2>'
+      + '<div class="lead">Lo scraping di Catawiki gira tramite l\'estensione RareBlock Hunter, che usa il tuo IP residenziale per evitare il blocco Cloudflare (i server non possono farlo). Si installa una volta sola, in un minuto.</div>'
+      + '<div class="dl"><a class="mon-btn primary" href="../assets/rareblock-hunter.zip" download="rareblock-hunter.zip"><span class="rb-i rb-i-package"></span> Scarica estensione (v2.7.0)</a></div>'
+      + '<div class="mon-ob">'
+      + '<div class="mon-ob-step"><span class="mon-ob-num">1</span><div>Scompatta lo zip scaricato in una cartella stabile (es. Documenti). La cartella contiene <span class="mon-code">manifest.json</span>.</div></div>'
+      + '<div class="mon-ob-step"><span class="mon-ob-num">2</span><div>Apri <span class="mon-code">chrome://extensions</span> <button class="mon-copy" data-copy="chrome://extensions">copia</button> (incolla nella barra indirizzi: i link <span class="mon-code">chrome://</span> non sono cliccabili).</div></div>'
+      + '<div class="mon-ob-step"><span class="mon-ob-num">3</span><div>Attiva in alto a destra la <b>Modalità sviluppatore</b>.</div></div>'
+      + '<div class="mon-ob-step"><span class="mon-ob-num">4</span><div>Premi <b>Carica estensione non pacchettizzata</b> e seleziona la cartella scompattata (quella con <span class="mon-code">manifest.json</span>).</div></div>'
+      + '<div class="mon-ob-step"><span class="mon-ob-num">5</span><div><b>Ricarica questa pagina</b>, poi torna qui e premi <b>Ricontrolla</b>.</div></div>'
+      + '</div>';
+  }
+  html += '<div class="recheck">'
+    + '<button class="mon-btn primary" id="monRecheckBtn"><span class="rb-i rb-i-refresh"></span> Ricontrolla</button>'
+    + '<button class="mon-btn" id="monReloadBtn">Ricarica la pagina</button>'
+    + '<span id="monRecheckMsg" style="font-size:11px;color:var(--text-muted)"></span>'
+    + '</div></div>';
+  el.innerHTML = html;
+
+  el.querySelectorAll('.mon-copy').forEach(function(b){
+    b.addEventListener('click', function(){
+      var txt=b.getAttribute('data-copy');
+      try{ navigator.clipboard.writeText(txt); b.textContent='copiato ✓'; setTimeout(function(){b.textContent='copia';},1500); }catch(e){}
+    });
+  });
+  document.getElementById('monRecheckBtn').addEventListener('click', monRecheckExt);
+  document.getElementById('monReloadBtn').addEventListener('click', function(){
+    try{ window.parent.location.reload(); }catch(e){ window.location.reload(); }
+  });
+}
+
+async function monRecheckExt(){
+  var btn=document.getElementById('monRecheckBtn');
+  var msg=document.getElementById('monRecheckMsg');
+  if(btn){ btn.disabled=true; btn.innerHTML='<span class="mon-spin"></span> Controllo…'; }
+  MON_EXT.available=false; MON_EXT.caps=[];
+  await monExtPing();
+  monUpdateExtStatus();
+  if(MON_EXT.available && MON_EXT.caps.indexOf('catawiki')>=0){
+    if(msg) msg.textContent='Estensione rilevata!';
+    var mon=monActive();
+    if(mon){ monRenderResults(); }   // torna allo stato "premi Aggiorna"
+  } else {
+    if(btn){ btn.disabled=false; btn.innerHTML='<span class="rb-i rb-i-refresh"></span> Ricontrolla'; }
+    if(msg) msg.textContent = MON_EXT.available ? 'Rilevata ma Catawiki non attivo — aggiorna l\'estensione.' : 'Ancora non rilevata. Se l\'hai appena installata, ricarica la pagina.';
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -893,7 +967,7 @@ async function monRun(){
   if(!(MON_EXT.available && MON_EXT.caps.indexOf('catawiki')>=0)){
     await monExtPing(); monUpdateExtStatus();
     if(!(MON_EXT.available && MON_EXT.caps.indexOf('catawiki')>=0)){
-      alert('Estensione RareBlock Hunter non rilevata (o Catawiki non abilitato).\n\nLo scraping di Catawiki richiede l\'estensione attiva nel browser per usare l\'IP residenziale ed evitare il blocco Cloudflare.');
+      monShowInstall();
       return;
     }
   }
@@ -1029,6 +1103,9 @@ function monWire(){
   avEl.addEventListener('change', function(){
     MON_AUTO_VAL = avEl.checked;
     try{ localStorage.setItem('mon_auto_valuation', MON_AUTO_VAL?'1':'0'); }catch(e){}
+  });
+  document.getElementById('monExtStatus').addEventListener('click', function(){
+    if(!(MON_EXT.available && MON_EXT.caps.indexOf('catawiki')>=0)) monShowInstall();
   });
   document.getElementById('fAdvToggle').addEventListener('click', function(){
     var b=document.getElementById('fAdvBlock');
