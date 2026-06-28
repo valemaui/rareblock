@@ -11162,7 +11162,8 @@ async function _verifyPriceEditCore(opts){
       first_edition: first1st,
       setName:     c.set || '',
       rarity:      c.rarity || '',
-      cmUrl:       c.cm_url || null,
+      cmUrl:       (opts && opts.forcedCmUrl) || c.cm_url || null,
+      allowChooser: !silent,
       silent:      silent,
     });
     const elapsed = Date.now()-t0;
@@ -11170,6 +11171,16 @@ async function _verifyPriceEditCore(opts){
     if(log){
       _logCmAttempts(log, res.attempts);
       log.log('Totale '+((res.attempts||[]).length)+' tentativ' + ((res.attempts||[]).length===1?'o':'i')+' \u00b7 '+elapsed+'ms', 'data');
+    }
+
+    // ── Più varianti CardMarket → chooser (scelta ricordata) ───────────────
+    if(res && res.ambiguous && res.variants && res.variants.length){
+      if(btn){ btn.classList.remove('loading'); btn.textContent='\u20ac';
+               btn.title='Pi\u00f9 varianti \u2014 scegli nel pannello'; }
+      if(log) log.log('<span class="rb-i rb-i-warn"></span> Pi\u00f9 varianti CardMarket \u2014 scegli quella corretta nel pannello sotto.', 'warn');
+      try{ rbShowCmChooser('em', res.variants,
+        { name:c.name, setId:c.set_id, setName:c.set, number:c.number, rarity:c.rarity }); }catch(e){}
+      return;
     }
 
     const _stashTitle = (c.name||'')+(c.number?' \u00b7 #'+c.number:'');
@@ -11223,6 +11234,7 @@ async function _verifyPriceEditCore(opts){
     if(typeof showAddVerifyFeedback === 'function'){
       showAddVerifyFeedback('em', res.listings, res.price, cond, lang, res.source);
     }
+    try{ await rbMaybeAppendHunterNote('em', res); }catch(e){}
 
     if(log) setTimeout(function(){var ov=document.getElementById('cmLogOverlay');if(ov)ov.remove();}, 2000);
   }catch(e){
@@ -12550,7 +12562,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-25-monitor-aste-install-panel-v2.1';
+var RB_BUILD = '2026-06-28-cm-resolver-unico';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -13144,6 +13156,107 @@ async function _vpDiscoverCmProduct(name, number, cond, lang, variant, first1st)
   }catch(e){ out.error = (e && e.message) || String(e); return out; }
 }
 
+// ─── RISOLUTORE CANONICO CardMarket via CMAPI (cmapi-sync) ─────────────────
+// Fonte di VERITÀ per la pagina prodotto: ritorna il cmLink ufficiale CM
+// (card.links.cardmarket) + cardmarketId, MAI uno slug indovinato. Modi:
+//   • esatto: setId+number → tcgid (o number+episodeCode)
+//   • nome:   se manca il numero → ricerca per nome + filtro per set
+// Ambiguità (Shadowless/Unlimited, holo/reverse, V1/V2): se CMAPI segnala più
+// varianti e non c'è una scelta memorizzata, ritorna {ambiguous, variants} per
+// il chooser. La scelta, una volta fatta, è persistita nell'indice (cm_product_id)
+// → al giro dopo è L0, niente chooser. Fail-safe totale: errore → {ok:false}.
+function _rbCmNorm(s){ return (s||'').toString().toLowerCase().replace(/[^a-z0-9]+/g,''); }
+function _rbCmFinalize(out, m){
+  out.ok = true; out.match = m;
+  out.cmLink = m.cmLink || null;
+  out.cardmarketId = (m.cardmarketId != null) ? m.cardmarketId : null;
+  out.cmapiId = (m.cmapiId != null) ? m.cmapiId : null;
+  out.slug = m.slug || null;
+  return out;
+}
+async function rbCmapiResolve(opts){
+  opts = opts || {};
+  var out = { ok:false, cmLink:null, cardmarketId:null, cmapiId:null, slug:null, match:null, ambiguous:false, variants:[] };
+  try{
+    if(typeof SUPA_URL !== 'string' || typeof getHDR !== 'function') return out;
+    var name = (opts.name||'').toString().trim();
+    if(!name) return out;
+    var setId   = opts.setId || opts.set_id || (opts.set && opts.set.id) || null;
+    var setName = opts.setName || opts.set_name || (opts.set && opts.set.name) || '';
+    var number  = ((opts.number || opts.card_number) || '').toString().split('/')[0].trim();
+    var lang    = (opts.language || 'ITA');
+    var variant = (opts.variant || 'Normal');
+
+    // Scelta variante già memorizzata (chooser risolto in passato) → niente ambiguità
+    var chosenId = null;
+    try{
+      var key = (typeof rbProductKey === 'function')
+        ? rbProductKey({ setId:setId, set_name:setName, number:number, name:name }) : null;
+      if(key && typeof _rbIdxCacheGet === 'function'){
+        var cc = _rbIdxCacheGet(key);
+        if(cc && cc.row && cc.row.cm_product_id) chosenId = +cc.row.cm_product_id;
+      }
+    }catch(e){}
+
+    var payload = { name:name, language:lang };
+    if(variant && variant !== 'Normal') payload.variant = variant;
+    if(setId && number){ payload.tcgid = (setId + '-' + number).toLowerCase(); }
+    if(number) payload.cardNumber = number;
+    if(opts.episodeCode) payload.episodeCode = opts.episodeCode;
+    if(!payload.tcgid){ payload.search = name; payload.persist = false; } // modo nome: niente persist di massa
+    if(chosenId) payload.cmapiId = chosenId;
+
+    var ctrl  = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, 15000) : null;
+    var resp  = await fetch(SUPA_URL + '/functions/v1/cmapi-sync', {
+      method:'POST', headers:getHDR(), body:JSON.stringify(payload), signal: ctrl ? ctrl.signal : undefined
+    });
+    if(timer) clearTimeout(timer);
+    var j = await resp.json().catch(function(){ return null; });
+    if(!j || !j.ok) return out;
+
+    // Ambiguità esplicita dall'edge (tcgid con più prodotti CM: Shadowless/Unlimited…)
+    if(j.ambiguous && j.variants && j.variants.length){
+      out.ok = true; out.ambiguous = true; out.variants = j.variants; return out;
+    }
+    // Match singolo risolto (tcgid / number+episode)
+    if(j.match) return _rbCmFinalize(out, j.match);
+    // Modo nome: lista risultati → filtra per set, poi scegli o segnala ambiguità
+    if(j.results && j.results.length){
+      var list = j.results;
+      var filtered = list;
+      if(setName){
+        var sn = _rbCmNorm(setName);
+        var byName = list.filter(function(r){
+          var rs = _rbCmNorm(r.set);
+          return rs && sn && (rs.indexOf(sn) >= 0 || sn.indexOf(rs) >= 0);
+        });
+        if(byName.length) filtered = byName;
+      }
+      var nn = _rbCmNorm(name);
+      var exact = filtered.filter(function(r){ return _rbCmNorm(r.name) === nn; });
+      if(exact.length) filtered = exact;
+      if(filtered.length === 1) return _rbCmFinalize(out, filtered[0]);
+      if(filtered.length > 1){ out.ok = true; out.ambiguous = true; out.variants = filtered.slice(0,12); return out; }
+    }
+  }catch(e){}
+  return out;
+}
+window.rbCmapiResolve = rbCmapiResolve;
+
+// Stato estensione Hunter: 'ready' (pronta, IP residenziale) | 'installed'
+// (installata ma non agganciata) | 'absent' (non installata in questa pagina).
+async function rbHunterStatus(){
+  try{
+    var ext = window.rbExtFetch;
+    if(typeof ext !== 'function') return { state:'absent', ready:false };
+    var ready = false;
+    try{ ready = await ext.isReady(); }catch(e){ ready = false; }
+    return { state: ready ? 'ready' : 'installed', ready: !!ready };
+  }catch(e){ return { state:'absent', ready:false }; }
+}
+window.rbHunterStatus = rbHunterStatus;
+
 async function fetchCmPriceLive(opts){
   var name      = (opts && opts.name) || '';
   var setId     = (opts && opts.setId) || null;
@@ -13193,6 +13306,40 @@ async function fetchCmPriceLive(opts){
     }catch(e){}
   }
 
+  // ── L1-RESOLVE: URL CANONICO via CMAPI (cmLink ufficiale) ───────────────
+  //    Fonte di verità per la PAGINA prodotto: niente slug indovinato. Funziona
+  //    anche SENZA numero (ricerca per nome + filtro set). Se CMAPI segnala più
+  //    varianti (Shadowless/Unlimited, holo/reverse) e non c'è scelta memorizzata
+  //    → ritorna ambiguous per il chooser. Match → cmUrlAuth = cmLink.
+  var _resolved = null;
+  var _cmProductId = null;
+  var _cmapiUrlNote = null;
+  if(!cmUrlAuth && typeof rbCmapiResolve === 'function'){
+    try{
+      _resolved = await rbCmapiResolve({ name:name, setId:setId, setName:setName, number:number,
+        language:lang, variant:variant, episodeCode:(opts && opts.episodeCode) || undefined,
+        first_edition:first1st });
+    }catch(e){ _resolved = null; }
+    if(_resolved && _resolved.ambiguous && opts && opts.allowChooser){
+      return { ok:false, ambiguous:true, variants:_resolved.variants, cmUrl:null,
+               error:'Più varianti CardMarket per questa carta — scegli quella corretta.',
+               attempts:[{ url:'(CMAPI)', kind:'AMBIGUOUS', count:_resolved.variants.length,
+                           error:'CMAPI ha trovato più prodotti per questa carta' }] };
+    }
+    if(_resolved && _resolved.cmLink && typeof _isAuthoritativeCMUrl === 'function' && _isAuthoritativeCMUrl(_resolved.cmLink)){
+      cmUrlAuth = _resolved.cmLink;
+      _cmProductId = _resolved.cardmarketId || _resolved.cmapiId || null;
+      _cmapiUrlNote = cmUrlAuth;
+      // Persisti subito l'URL canonico nell'indice (cmapi_link) → L0 al prossimo giro
+      try{ if(typeof rbIndexRemember === 'function'){
+        rbIndexRemember({ name:name, setId:setId, setName:setName, number:number, rarity:rarity },
+                        cmUrlAuth, 'cmapi_link', { cmProductId:_cmProductId });
+      } }catch(e){}
+    } else if(_resolved && (_resolved.cardmarketId || _resolved.cmapiId)){
+      _cmProductId = _resolved.cardmarketId || _resolved.cmapiId || null;
+    }
+  }
+
   // minCondition = condizione richiesta dal chiamante, senza widening inventato:
   //  • raw → la condizione scelta nel menu (il floor segue la richiesta);
   //  • graded → Analizza passa 'NM' (minCondition=2) così CM include Mint+NM.
@@ -13215,6 +13362,10 @@ async function fetchCmPriceLive(opts){
   if(_idxFromDb){
     attempts.push({ url: cmUrlAuth, kind: 'L0-INDEX', count: 0,
                     error: 'URL verificato dall\u2019indice RareBlock (rb_card_index)' });
+  }
+  if(_cmapiUrlNote){
+    attempts.push({ url: _cmapiUrlNote, kind: 'L1-CMAPI-URL', count: 0,
+                    error: 'URL canonico CMAPI (cmLink ufficiale) \u2014 niente slug indovinato' });
   }
 
   // ── FAST-PATH CMAPI (cardmarket-api via edge function, NIENTE Cloudflare) ──
@@ -13255,21 +13406,11 @@ async function fetchCmPriceLive(opts){
   // Prezzo CMAPI "incoerente" per richieste ITA (basis globale): messo da
   // parte e usato SOLO se anche tutta la cascata scrape fallisce.
   var _cmaStash = null;
-  if(setId && number && _cmaCondKnown && _cmaVariantOk && _cmaLangOk && !_wantExtLadder && typeof SUPA_URL === 'string' && typeof getHDR === 'function'){
+  var _cmaMatch = (_resolved && _resolved.match) ? _resolved.match : null;
+  if(_cmaCondKnown && _cmaVariantOk && _cmaLangOk && !_wantExtLadder && _cmaMatch && _cmaMatch.refPrice != null){
     try{
-      var _tcgid = (setId + '-' + number).toString().toLowerCase();
-      var _cmaCtrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-      var _cmaTimer = _cmaCtrl ? setTimeout(function(){ try{ _cmaCtrl.abort(); }catch(e){} }, 15000) : null;
-      var _cmaResp = await fetch(SUPA_URL + '/functions/v1/cmapi-sync', {
-        method:'POST', headers:getHDR(),
-        body:JSON.stringify({ tcgid:_tcgid, name:name, cardNumber:number,
-                              episodeCode:(opts && opts.episodeCode) || undefined, language:lang }),
-        signal: _cmaCtrl ? _cmaCtrl.signal : undefined
-      });
-      if(_cmaTimer) clearTimeout(_cmaTimer);
-      var _cma = await _cmaResp.json().catch(function(){ return null; });
-      if(_cma && _cma.ok && _cma.match && _cma.match.refPrice != null){
-        var _m = _cma.match;
+      {
+        var _m = _cmaMatch;
         var _cmaNm = Math.round((+_m.refPrice) * 100) / 100;
         // ── GATE DI COERENZA LINGUA (bug Groudon-EX FA €95 vs pagina ITA €250) ──
         // Per richieste ITA il fast-path è autoritativo SOLO con basis 'IT'
@@ -13326,7 +13467,7 @@ async function fetchCmPriceLive(opts){
                   avg30:_m.avg_30d, avg7:_m.avg_7d, label:_cmaLabel,
                   nmPrice:_cmaNm, condEstimated:!_cmaIsNm, condFactor:_cmaCondFactor,
                   global_basis:!_cmaItaCoherent },
-          isDirect:isDirect, cmUrl:(cmUrl || _m.cmLink || _m.tcggoUrl), source:'cmapi', cmapi:_m, attempts:attempts
+          isDirect:isDirect, cmUrl:(_m.cmLink || cmUrl || _m.tcggoUrl), source:'cmapi', cmapi:_m, attempts:attempts
         };
         if(_cmaItaCoherent) return _cmaResult;
         _cmaStash = _cmaResult;   // fallthrough allo scrape dei listing reali
@@ -13550,6 +13691,40 @@ async function fetchCmPriceLive(opts){
         error:'cascata listing fallita → uso prezzo CMAPI globale come ultima spiaggia' });
       _cmaStash.attempts = attempts;
       return _cmaStash;
+    }
+    // ── 2A: niente triangolo se abbiamo un refPrice CMAPI ───────────────────
+    //    La cascata listing è fallita (Hunter assente / CM bloccato dal datacenter),
+    //    ma CMAPI ci ha dato il prezzo NM di riferimento. Meglio una STIMA
+    //    etichettata + link canonico che un errore. Con Hunter attiva l'harvest in
+    //    background la sostituirà col ladder reale. Vale anche per Reverse/1ª-ed/
+    //    lingua: lì il refPrice è quello della regular → etichettato "non confermata".
+    if(_resolved && _resolved.match && _resolved.match.refPrice != null && typeof COND_FACTOR === 'object'){
+      var _fbFactor = COND_FACTOR[(cond||'NM').toString().toUpperCase()];
+      if(_fbFactor !== undefined && _fbFactor > 0){
+        var _fbM = _resolved.match;
+        var _fbNm = Math.round((+_fbM.refPrice) * 100) / 100;
+        var _fbPrice = Math.round(_fbNm * _fbFactor * 100) / 100;
+        var _fbVariantMismatch = (variant && variant !== 'Normal') || first1st;
+        var _fbBasis = _fbM.refBasis === 'IT' ? 'NM Italia'
+                     : _fbM.refBasis === '30d' ? 'media 30g'
+                     : _fbM.refBasis === '7d' ? 'media 7g' : 'NM globale';
+        var _fbLabel = 'CMAPI \u00b7 ' + _fbBasis
+          + (_fbFactor === 1 ? '' : (' \u00d7 ' + cond + ' (stima)'))
+          + (_fbVariantMismatch ? ' \u00b7 \u26a0 variante non confermata' : '')
+          + ' \u00b7 ladder reale: serve Hunter';
+        var _fbUrl = (typeof cmAppendParams === 'function' && _resolved.cmLink)
+          ? cmAppendParams(_resolved.cmLink, cond, lang, variant, first1st)
+          : (cmUrl || _resolved.cmLink || null);
+        attempts.push({ url:'(CMAPI)', kind:'CMAPI-fallback', count:1,
+          error:'cascata listing fallita → stima da refPrice CMAPI (' + _fbBasis + ')' });
+        return {
+          ok:true, price:_fbPrice, listings:[],
+          smart:{ price:_fbPrice, source:'cmapi', basis:_fbM.refBasis, label:_fbLabel,
+                  nmPrice:_fbNm, condEstimated:(_fbFactor !== 1), condFactor:_fbFactor,
+                  variantUnconfirmed:_fbVariantMismatch, needsHunter:true },
+          isDirect:false, cmUrl:_fbUrl, source:'cmapi', cmapi:_fbM, attempts:attempts
+        };
+      }
     }
     var _hr = (typeof _rbHunterReason !== 'undefined' && _rbHunterReason) ? _rbHunterReason : 'sconosciuto';
     var finalErr = primaryBlocked
@@ -14262,10 +14437,21 @@ async function _verifyPriceAddCore(prefix, opts){
       name: name, setId: setId, number: number,
       condition: cond, language: lang, variant: variant,
       first_edition: first1st, setName: setName, rarity: rarity,
-      cmUrl: (typeof cmAuthoritativeUrl==='function' && card) ? cmAuthoritativeUrl(card) : null,
+      cmUrl: (opts && opts.forcedCmUrl) || ((typeof cmAuthoritativeUrl==='function' && card) ? cmAuthoritativeUrl(card) : null),
+      allowChooser: !silent,
       silent: silent,
     });
     const elapsed = Date.now()-t0;
+
+    // ── Più varianti CardMarket → chooser (la scelta viene ricordata) ──────
+    if(res && res.ambiguous && res.variants && res.variants.length){
+      if(btn){ btn.classList.remove('loading'); btn.textContent='\u20ac';
+               btn.title='Pi\u00f9 varianti \u2014 scegli nel pannello'; }
+      if(log){ log.log('<span class="rb-i rb-i-warn"></span> Pi\u00f9 varianti CardMarket \u2014 scegli quella corretta nel pannello sotto.', 'warn'); }
+      try{ rbShowCmChooser(prefix, res.variants, { name:name, setId:setId, setName:setName, number:number, rarity:rarity }); }catch(e){}
+      try{ var _ov=document.getElementById('cmLogOverlay'); if(_ov && !log) _ov.remove(); }catch(e){}
+      return;
+    }
 
     // Logga tutti i tentativi (L1-base, L1-V1, L1-V2, L2-search) solo se log presente
     if(log){
@@ -14368,6 +14554,7 @@ async function _verifyPriceAddCore(prefix, opts){
       else pcp.dataset.manual = '1';
     }
     showAddVerifyFeedback(prefix, listings, bestPrice, cond, lang, res.source);
+    try{ await rbMaybeAppendHunterNote(prefix, res); }catch(e){}
 
     // Auto-close overlay dopo successo (solo se log esiste e non ci sono
     // alternate-versioni/avvisi cliccabili da mostrare).
@@ -14550,6 +14737,152 @@ function showAddVerifyFeedback(prefix, listingsOrPrices, applied, cond, lang, so
     + '<span style="font-size:10px;color:var(--text-subtle);margin-left:auto">'+(isCmapi?'prezzo NM API':'Clicca per applicare')+' \u00b7 <span style="cursor:pointer;color:var(--accent)" onclick="document.getElementById(\''+feedbackId+'\').remove()"><span class="rb-i rb-i-x"></span></span></span>'
     + _anomHtml;
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   CHOOSER VARIANTI CARDMARKET + NOTA HUNTER (risolutore unico)
+   Quando CMAPI segnala più prodotti per la stessa carta (Shadowless/Unlimited,
+   holo/reverse, V1/V2) mostriamo un mini-picker. La scelta è persistita
+   nell'indice (cm_product_id) → al giro dopo niente chooser, atterro dritto.
+   ══════════════════════════════════════════════════════════════════════ */
+function _rbEnsureChooserStyles(){
+  if(document.getElementById('rb-cmchooser-styles')) return;
+  var s = document.createElement('style');
+  s.id = 'rb-cmchooser-styles';
+  s.textContent =
+    '.rb-cmchooser{display:flex;flex-direction:column;gap:6px;margin:8px 0}'
+   +'.rb-cmchooser-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;'
+     +'padding:8px 10px;border-radius:8px;cursor:pointer;'
+     +'background:rgba(201,168,76,.06);border:1px solid rgba(201,168,76,.22);'
+     +'color:var(--text,#e6e3da);font-family:inherit;transition:background .12s,border-color .12s}'
+   +'.rb-cmchooser-row:hover{background:rgba(201,168,76,.14);border-color:rgba(201,168,76,.5)}'
+   +'.rb-cmchooser-img{width:34px;height:47px;object-fit:cover;border-radius:4px;flex:0 0 auto;'
+     +'display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.04);font-size:18px}'
+   +'.rb-cmchooser-txt{display:flex;flex-direction:column;gap:2px;flex:1 1 auto;min-width:0}'
+   +'.rb-cmchooser-txt b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+   +'.rb-cmchooser-txt small{font-size:11px;color:var(--text-subtle,#9a958a)}'
+   +'.rb-cmchooser-price{font-family:var(--mono,monospace);font-weight:700;font-size:13px;color:#c9a84c;flex:0 0 auto}'
+   +'.rb-hunter-note{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;'
+     +'padding:8px 10px;border-radius:8px;background:rgba(201,168,76,.07);'
+     +'border:1px solid rgba(201,168,76,.28);font-size:11.5px;color:var(--text,#e6e3da)}'
+   +'.rb-hunter-ico{font-size:14px}'
+   +'.rb-hunter-msg{flex:1 1 180px;line-height:1.35}'
+   +'.rb-hunter-actions{display:flex;gap:6px;flex:0 0 auto;flex-wrap:wrap}'
+   +'.rb-hunter-btn{font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;'
+     +'background:#c9a84c;color:#0d1117;text-decoration:none;white-space:nowrap}'
+   +'.rb-hunter-btn.ghost{background:transparent;color:#c9a84c;border:1px solid rgba(201,168,76,.5)}';
+  document.head.appendChild(s);
+}
+function _rbVerifyFeedbackHost(prefix){
+  if(prefix === 'em') return document.querySelector('#editModalBg .pq-add-wrap');
+  if(prefix === 'p')  return document.querySelector('#prevQuickAdd .pq-add-wrap');
+  if(prefix === 'q')  return document.getElementById('quickAddForm');
+  if(prefix === 's')  return document.getElementById('selAddForm');
+  if(prefix === 'm')  return document.getElementById('mform');
+  return null;
+}
+function _rbVerifyFeedbackEl(prefix){
+  var id = prefix + 'VerifyFeedback';
+  var old = document.getElementById(id);
+  if(old) old.remove();
+  var el = document.createElement('div');
+  el.id = id;
+  el.className = 'pq-cm-banner';
+  var host = _rbVerifyFeedbackHost(prefix);
+  if(host) host.appendChild(el);
+  return el;
+}
+// Persiste la scelta variante (id CMAPI) per questa carta + cache locale sincrona
+function rbPersistCmChoice(ctx, v){
+  try{
+    var cmLink = v.cmLink || null;
+    var pid = (v.cmapiId != null) ? v.cmapiId : null;   // id CMAPI per disambiguare
+    try{
+      var key = (typeof rbProductKey==='function')
+        ? rbProductKey({ setId:ctx.setId, set_name:ctx.setName, number:ctx.number, name:ctx.name }) : null;
+      if(key && typeof _rbIdxCacheSet==='function'){
+        _rbIdxCacheSet(key, { product_key:key,
+          cm_url: (cmLink && typeof _isAuthoritativeCMUrl==='function' && _isAuthoritativeCMUrl(cmLink)) ? cmLink : null,
+          cm_product_id: pid, fail_count:0, confidence:88, method:'cmapi_link' });
+      }
+    }catch(e){}
+    if(typeof rbIndexRemember==='function'){
+      rbIndexRemember({ name:ctx.name, setId:ctx.setId, setName:ctx.setName, number:ctx.number, rarity:ctx.rarity },
+                      cmLink, 'cmapi_link', { cmProductId: pid });
+    }
+  }catch(e){}
+}
+window.rbPersistCmChoice = rbPersistCmChoice;
+// Mostra il chooser; alla scelta: persiste + richiama il verify col forcedCmUrl.
+function rbShowCmChooser(prefix, variants, ctx){
+  _rbEnsureChooserStyles();
+  var el = _rbVerifyFeedbackEl(prefix);
+  if(!el) return;
+  var head = document.createElement('div');
+  head.className = 'pq-cm-header';
+  head.innerHTML = '<span>\u26a0 Pi\u00f9 varianti CardMarket \u2014 scegli quella giusta</span>'
+    + '<div class="pq-cm-head-actions"><button class="pq-cm-close" title="Chiudi">'
+    + '<span class="rb-i rb-i-x"></span></button></div>';
+  var closeBtn = head.querySelector('.pq-cm-close');
+  if(closeBtn) closeBtn.addEventListener('click', function(){ el.remove(); });
+  el.appendChild(head);
+  var listWrap = document.createElement('div');
+  listWrap.className = 'rb-cmchooser';
+  (variants||[]).slice(0,12).forEach(function(v){
+    var row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'rb-cmchooser-row';
+    var img = (v.image && (''+v.image).indexOf('http')===0)
+      ? '<img src="'+v.image+'" loading="lazy" class="rb-cmchooser-img"/>'
+      : '<span class="rb-cmchooser-img ph">\u{1F0CF}</span>';
+    var price = (v.refPrice != null) ? ('\u20ac'+(+v.refPrice).toFixed(2)) : '\u2014';
+    var meta = [v.set, v.rarity].filter(Boolean).join(' \u00b7 ');
+    row.innerHTML = img
+      + '<span class="rb-cmchooser-txt"><b>'+escapeHtml(v.name||'?')+'</b>'
+      + '<small>'+escapeHtml(meta||'')+(v.number?(' \u00b7 #'+escapeHtml(''+v.number)):'')+'</small></span>'
+      + '<span class="rb-cmchooser-price">'+price+'</span>';
+    row.addEventListener('click', function(){
+      rbPersistCmChoice(ctx, v);
+      el.remove();
+      var forced = v.cmLink || null;
+      if(prefix === 'em'){ if(typeof verifyPriceEdit==='function') verifyPriceEdit({ forcedCmUrl:forced }); }
+      else { if(typeof verifyPriceAdd==='function') verifyPriceAdd(prefix, { forcedCmUrl:forced }); }
+    });
+    listWrap.appendChild(row);
+  });
+  el.appendChild(listWrap);
+  var foot = document.createElement('div');
+  foot.className = 'pq-cm-footer';
+  foot.textContent = 'La scelta viene ricordata: la prossima volta atterro dritto sul prodotto giusto.';
+  el.appendChild(foot);
+}
+window.rbShowCmChooser = rbShowCmChooser;
+// Nota Hunter: appesa al banner quando il prezzo è STIMA e Hunter non è pronta.
+async function rbMaybeAppendHunterNote(prefix, res){
+  try{
+    if(!res || !res.smart) return;
+    if(!(res.smart.needsHunter || res.smart.condEstimated || res.smart.variantUnconfirmed)) return;
+    var st = (typeof rbHunterStatus==='function') ? await rbHunterStatus() : { state:'absent', ready:false };
+    if(st.ready) return;   // ladder reale disponibile, nessuna nota necessaria
+    var host = document.getElementById(prefix + 'VerifyFeedback');
+    if(!host || host.querySelector('.rb-hunter-note')) return;
+    _rbEnsureChooserStyles();
+    var note = document.createElement('div');
+    note.className = 'rb-hunter-note';
+    var msg, action;
+    if(st.state === 'installed'){
+      msg = 'Hunter \u00e8 installata ma non agganciata: apri una scheda Cardmarket per leggere il prezzo reale per-condizione.';
+      action = '<a href="https://www.cardmarket.com/it/Pokemon" target="_blank" rel="noopener" class="rb-hunter-btn">Apri Cardmarket</a>';
+    } else {
+      msg = 'Prezzo stimato. Per il prezzo reale per-condizione (Mint\u2192Poor) attiva l\u2019estensione Hunter (IP residenziale).';
+      action = '<a href="assets/rareblock-hunter.zip" class="rb-hunter-btn">Scarica Hunter</a>'
+             + '<a href="https://www.cardmarket.com/it/Pokemon" target="_blank" rel="noopener" class="rb-hunter-btn ghost">Apri Cardmarket</a>';
+    }
+    note.innerHTML = '<span class="rb-hunter-ico">\u26a1</span><span class="rb-hunter-msg">'+msg+'</span>'
+                   + '<span class="rb-hunter-actions">'+action+'</span>';
+    host.appendChild(note);
+  }catch(e){}
+}
+window.rbMaybeAppendHunterNote = rbMaybeAppendHunterNote;
 
 // Toggle "solo venditori professionali" nel banner CM. Persiste la scelta e
 // re-renderizza il banner del prefix corrente riusando l'ultimo verify (stash):
@@ -14882,7 +15215,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.46';
+const APP_VERSION='6.47';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -21893,6 +22226,22 @@ async function rbCmResolveProductUrl(card, cond, lang, variant, first1st){
   try{
     var idxUrl = await rbIndexCmUrl({ setId:setId, setName:setName, number:number, name:name });
     if(idxUrl) return { url: align(idxUrl), verified: true, reason: 'index' };
+  }catch(e){}
+  // 2b) CMAPI: link prodotto CANONICO (cmLink ufficiale) — niente slug indovinato,
+  //     funziona anche senza numero. Lo persistiamo così l'href sincrono futuro
+  //     (rbCmSafeHref) lo trova in cache e atterra dritto.
+  try{
+    if(typeof rbCmapiResolve === 'function'){
+      var cr = await rbCmapiResolve({ name:name, setId:setId, setName:setName, number:number,
+        language:lang, variant:variant, first_edition:first1st });
+      if(cr && cr.cmLink && typeof _isAuthoritativeCMUrl === 'function' && _isAuthoritativeCMUrl(cr.cmLink)){
+        try{ if(typeof rbIndexRemember === 'function'){
+          rbIndexRemember({ name:name, setId:setId, setName:setName, number:number, rarity:rarity },
+                          cr.cmLink, 'cmapi_link', { cmProductId: cr.cardmarketId || cr.cmapiId || null });
+        } }catch(e){}
+        return { url: align(cr.cmLink), verified: true, reason: 'cmapi' };
+      }
+    }
   }catch(e){}
   // 3) Costruzione client
   var primary = buildCMDirectUrl(name, setId, number, cond, lang, variant, first1st, setName, rarity, null);
