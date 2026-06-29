@@ -12562,7 +12562,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-28-cm-resolver-unico';
+var RB_BUILD = '2026-06-28-cm-resolver-noV-fix';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -13198,46 +13198,78 @@ async function rbCmapiResolve(opts){
       }
     }catch(e){}
 
-    var payload = { name:name, language:lang };
-    if(variant && variant !== 'Normal') payload.variant = variant;
-    if(setId && number){ payload.tcgid = (setId + '-' + number).toLowerCase(); }
-    if(number) payload.cardNumber = number;
-    if(opts.episodeCode) payload.episodeCode = opts.episodeCode;
-    if(!payload.tcgid){ payload.search = name; payload.persist = false; } // modo nome: niente persist di massa
-    if(chosenId) payload.cmapiId = chosenId;
-
-    var ctrl  = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-    var timer = ctrl ? setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, 15000) : null;
-    var resp  = await fetch(SUPA_URL + '/functions/v1/cmapi-sync', {
-      method:'POST', headers:getHDR(), body:JSON.stringify(payload), signal: ctrl ? ctrl.signal : undefined
-    });
-    if(timer) clearTimeout(timer);
-    var j = await resp.json().catch(function(){ return null; });
-    if(!j || !j.ok) return out;
-
-    // Ambiguità esplicita dall'edge (tcgid con più prodotti CM: Shadowless/Unlimited…)
-    if(j.ambiguous && j.variants && j.variants.length){
-      out.ok = true; out.ambiguous = true; out.variants = j.variants; return out;
+    // Helper: una chiamata a cmapi-sync (ritorna j o null)
+    async function _rbCmQuery(payload){
+      try{
+        var ctrl  = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        var timer = ctrl ? setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, 15000) : null;
+        var resp  = await fetch(SUPA_URL + '/functions/v1/cmapi-sync', {
+          method:'POST', headers:getHDR(), body:JSON.stringify(payload), signal: ctrl ? ctrl.signal : undefined
+        });
+        if(timer) clearTimeout(timer);
+        return await resp.json().catch(function(){ return null; });
+      }catch(e){ return null; }
     }
-    // Match singolo risolto (tcgid / number+episode)
-    if(j.match) return _rbCmFinalize(out, j.match);
-    // Modo nome: lista risultati → filtra per set, poi scegli o segnala ambiguità
-    if(j.results && j.results.length){
-      var list = j.results;
-      var filtered = list;
+    // Helper: da j.results (modo nome) → match singolo o ambiguità.
+    // Filtra per SET poi per NUMERO poi per NOME esatto: così "Dark Charizard 21"
+    // su Team Rocket isola TR21 (non-holo) da TR4 (holo) senza chooser inutile.
+    function _rbCmFromResults(results){
+      var filtered = results;
       if(setName){
         var sn = _rbCmNorm(setName);
-        var byName = list.filter(function(r){
+        var bySet = results.filter(function(r){
           var rs = _rbCmNorm(r.set);
           return rs && sn && (rs.indexOf(sn) >= 0 || sn.indexOf(rs) >= 0);
         });
-        if(byName.length) filtered = byName;
+        if(bySet.length) filtered = bySet;
+      }
+      if(number){
+        var nq = ('' + number).toLowerCase();
+        var byNum = filtered.filter(function(r){
+          var rn = ('' + (r.number||'')).split('/')[0].toLowerCase();
+          return rn && (rn === nq || rn.indexOf(nq) >= 0 || nq.indexOf(rn) >= 0);
+        });
+        if(byNum.length) filtered = byNum;
       }
       var nn = _rbCmNorm(name);
-      var exact = filtered.filter(function(r){ return _rbCmNorm(r.name) === nn; });
-      if(exact.length) filtered = exact;
-      if(filtered.length === 1) return _rbCmFinalize(out, filtered[0]);
-      if(filtered.length > 1){ out.ok = true; out.ambiguous = true; out.variants = filtered.slice(0,12); return out; }
+      var ex = filtered.filter(function(r){ return _rbCmNorm(r.name) === nn; });
+      if(ex.length) filtered = ex;
+      if(filtered.length === 1) return { match: filtered[0] };
+      if(filtered.length > 1) return { variants: filtered.slice(0,12) };
+      return null;
+    }
+    function _rbAuth(u){ return !!u && typeof _isAuthoritativeCMUrl === 'function' && _isAuthoritativeCMUrl(u); }
+
+    // ── Tentativo 1: ESATTO (tcgid) quando abbiamo set+numero ──────────────
+    if(setId && number){
+      var pe = { name:name, language:lang, tcgid:(setId + '-' + number).toLowerCase(), cardNumber:number };
+      if(variant && variant !== 'Normal') pe.variant = variant;
+      if(opts.episodeCode) pe.episodeCode = opts.episodeCode;
+      if(chosenId) pe.cmapiId = chosenId;
+      var je = await _rbCmQuery(pe);
+      if(je && je.ok){
+        if(je.ambiguous && je.variants && je.variants.length){
+          out.ok = true; out.ambiguous = true; out.variants = je.variants; return out;
+        }
+        // Accetta l'esatto SOLO se porta un cmLink autoritativo: altrimenti l'URL
+        // canonico non c'è → si tenta il modo NOME (più affidabile sui set ambigui
+        // dove il numero TCG non combacia col prodotto CM).
+        if(je.match && _rbAuth(je.match.cmLink)) return _rbCmFinalize(out, je.match);
+        if(je.match) _rbCmFinalize(out, je.match);  // popola refPrice/id come ripiego dati
+      }
+    }
+
+    // ── Tentativo 2: NOME (ricerca) — risolve l'URL canonico anche quando
+    //    l'esatto fallisce o non dà cmLink (caso Dark Charizard 21 Team Rocket).
+    var jn = await _rbCmQuery({ name:name, search:name, language:lang, persist:false });
+    if(jn && jn.ok){
+      if(jn.match && _rbAuth(jn.match.cmLink)) return _rbCmFinalize(out, jn.match);
+      if(jn.results && jn.results.length){
+        var picked = _rbCmFromResults(jn.results);
+        if(picked && picked.match && _rbAuth(picked.match.cmLink)) return _rbCmFinalize(out, picked.match);
+        if(picked && picked.variants){ out.ok = true; out.ambiguous = true; out.variants = picked.variants; return out; }
+        if(picked && picked.match) return _rbCmFinalize(out, picked.match);
+      }
     }
   }catch(e){}
   return out;
@@ -13299,22 +13331,40 @@ async function fetchCmPriceLive(opts){
   //    contiene solo URL che hanno restituito listing reali, con contatore
   //    fallimenti (2 wrong-product → invalidato e si riparte da capo).
   var _idxFromDb = false;
-  if(!cmUrlAuth && typeof rbIndexCmUrl === 'function'){
+  var _idxMethod = null;
+  var _idxUrlRaw = null;
+  if(!cmUrlAuth && typeof rbIndexGet === 'function' && typeof rbProductKey === 'function'){
     try{
-      var _idxUrl = await rbIndexCmUrl({ setId:setId, setName:setName, number:number, name:name });
-      if(_idxUrl){ cmUrlAuth = _idxUrl; _idxFromDb = true; }
+      var _idxKey = rbProductKey({ setId:setId, setName:setName, number:number, name:name });
+      if(_idxKey){
+        var _idxRows = await rbIndexGet([_idxKey]);
+        var _idxRow = _idxRows && _idxRows[_idxKey];
+        if(_idxRow && _idxRow.cm_url && (+_idxRow.fail_count || 0) < 2 &&
+           typeof _isAuthoritativeCMUrl === 'function' && _isAuthoritativeCMUrl(_idxRow.cm_url)){
+          _idxUrlRaw = _idxRow.cm_url.split('?')[0];
+          _idxMethod = _idxRow.method || null;
+          cmUrlAuth = _idxUrlRaw;
+          _idxFromDb = true;
+        }
+      }
     }catch(e){}
   }
+  // Voci VERIFICATE = ground-truth, non si toccano. Voci INDOVINATE
+  // (direct/variant-cascade/discover/census) possono essere avvelenate (slug
+  // V1/V2 sbagliato che però ha restituito listing) → CMAPI le può scavalcare.
+  var _idxLocked = _idxMethod === 'manual' || _idxMethod === 'userscript'
+                || _idxMethod === 'authoritative' || _idxMethod === 'cmapi_link';
 
   // ── L1-RESOLVE: URL CANONICO via CMAPI (cmLink ufficiale) ───────────────
   //    Fonte di verità per la PAGINA prodotto: niente slug indovinato. Funziona
-  //    anche SENZA numero (ricerca per nome + filtro set). Se CMAPI segnala più
-  //    varianti (Shadowless/Unlimited, holo/reverse) e non c'è scelta memorizzata
-  //    → ritorna ambiguous per il chooser. Match → cmUrlAuth = cmLink.
+  //    anche SENZA numero (ricerca per nome + filtro set). Gira ANCHE se l'indice
+  //    ha già un URL, purché quell'URL sia "indovinato" (non locked): in tal caso
+  //    il cmLink autoritativo lo scavalca e ripara l'indice. Ambiguità → chooser.
   var _resolved = null;
   var _cmProductId = null;
   var _cmapiUrlNote = null;
-  if(!cmUrlAuth && typeof rbCmapiResolve === 'function'){
+  var _idxOverrideNote = null;
+  if((!cmUrlAuth || !_idxLocked) && typeof rbCmapiResolve === 'function'){
     try{
       _resolved = await rbCmapiResolve({ name:name, setId:setId, setName:setName, number:number,
         language:lang, variant:variant, episodeCode:(opts && opts.episodeCode) || undefined,
@@ -13327,14 +13377,24 @@ async function fetchCmPriceLive(opts){
                            error:'CMAPI ha trovato più prodotti per questa carta' }] };
     }
     if(_resolved && _resolved.cmLink && typeof _isAuthoritativeCMUrl === 'function' && _isAuthoritativeCMUrl(_resolved.cmLink)){
+      var _cmLinkBase = _resolved.cmLink.split('?')[0];
+      var _overrides = _idxFromDb && _idxUrlRaw && _idxUrlRaw.toLowerCase() !== _cmLinkBase.toLowerCase();
       cmUrlAuth = _resolved.cmLink;
       _cmProductId = _resolved.cardmarketId || _resolved.cmapiId || null;
       _cmapiUrlNote = cmUrlAuth;
-      // Persisti subito l'URL canonico nell'indice (cmapi_link) → L0 al prossimo giro
+      // Persisti l'URL canonico (cmapi_link, conf 88) → scavalca le voci indovinate (75/80)
       try{ if(typeof rbIndexRemember === 'function'){
         rbIndexRemember({ name:name, setId:setId, setName:setName, number:number, rarity:rarity },
                         cmUrlAuth, 'cmapi_link', { cmProductId:_cmProductId });
       } }catch(e){}
+      if(_overrides){
+        _idxOverrideNote = { old:_idxUrlRaw, method:(_idxMethod||'?') };
+        // invalida la cache locale: il prossimo giro rilegge il valore riparato
+        try{ if(typeof _rbIdxCacheInvalidate === 'function' && typeof rbProductKey === 'function'){
+          var _rk = rbProductKey({ setId:setId, setName:setName, number:number, name:name });
+          if(_rk) _rbIdxCacheInvalidate(_rk);
+        } }catch(e){}
+      }
     } else if(_resolved && (_resolved.cardmarketId || _resolved.cmapiId)){
       _cmProductId = _resolved.cardmarketId || _resolved.cmapiId || null;
     }
@@ -13366,6 +13426,10 @@ async function fetchCmPriceLive(opts){
   if(_cmapiUrlNote){
     attempts.push({ url: _cmapiUrlNote, kind: 'L1-CMAPI-URL', count: 0,
                     error: 'URL canonico CMAPI (cmLink ufficiale) \u2014 niente slug indovinato' });
+  }
+  if(_idxOverrideNote){
+    attempts.push({ url: _idxOverrideNote.old, kind: 'IDX-OVERRIDE', count: 0,
+                    error: 'URL indovinato (' + _idxOverrideNote.method + ') scavalcato dal cmLink CMAPI autoritativo' });
   }
 
   // ── FAST-PATH CMAPI (cardmarket-api via edge function, NIENTE Cloudflare) ──
@@ -15215,7 +15279,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.47';
+const APP_VERSION='6.48';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
