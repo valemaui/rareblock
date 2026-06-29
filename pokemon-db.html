@@ -876,7 +876,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
 .pq-cm-header{display:flex;justify-content:space-between;align-items:center;font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--success)}
 .pq-cm-close{cursor:pointer;color:var(--text-subtle);font-size:11px;padding:0;background:none;border:none;line-height:1}
 .pq-cm-close:hover{color:var(--text)}
-.pq-cm-prices{display:flex;gap:5px;align-items:center;flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}
+.pq-cm-prices{display:flex;gap:5px;align-items:center;flex-wrap:wrap;padding-bottom:2px}
 .pq-cm-prices::-webkit-scrollbar{height:3px}
 .pq-cm-prices::-webkit-scrollbar-thumb{background:rgba(122,154,110,.3);border-radius:2px}
 .pq-cm-chip{font-size:12px;font-family:var(--mono);font-weight:600;padding:3px 9px;border-radius:4px;background:rgba(122,154,110,.12);color:var(--success);cursor:pointer;border:1px solid rgba(122,154,110,.3);transition:all .12s;white-space:nowrap;flex-shrink:0}
@@ -11430,20 +11430,26 @@ function _scheduleAutoVerify(prefix, delayMs){
   if(_autoVerifyTimer){ clearTimeout(_autoVerifyTimer); _autoVerifyTimer = null; }
   _autoVerifyTimer = setTimeout(function(){
     _autoVerifyTimer = null;
-    // 'em' = edit modal (uses verifyPriceEdit). Others use verifyPriceAdd.
-    if(prefix === 'em'){
-      if(typeof editIdx === 'undefined' || editIdx === null) return;
-      try { verifyPriceEdit({silent: true}); }
-      catch(e){ console.warn('[autoVerify em] errore:', e); }
-      return;
-    }
-    // Prefix add ('p', 'q', 's', 'm'). Per 'p' richiede prevCard.
-    if(prefix === 'p' && !prevCard) return;
-    try {
-      verifyPriceAdd(prefix, {silent: true});
-    } catch(e){
-      console.warn('[autoVerify] errore:', e);
-    }
+    // Gli auto-verify partono SOLO da interazioni esplicite dell'utente
+    // (selezione carta, cambio Lingua/Condizione/Variante, toggle 1ª ed):
+    // sono "azioni esplicite" ai fini della policy click-only, quindi
+    // avvolgiamo in rbCmUserAction → lo scraping CM è permesso (come l'€).
+    // I sweep/harvest in background NON passano da qui e restano bloccati.
+    var _run = function(){
+      if(prefix === 'em'){
+        if(typeof editIdx === 'undefined' || editIdx === null) return;
+        return verifyPriceEdit({silent: true});
+      }
+      if(prefix === 'p' && !prevCard) return;
+      return verifyPriceAdd(prefix, {silent: true});
+    };
+    try{
+      if(typeof rbCmUserAction === 'function'){
+        rbCmUserAction(_run).catch(function(e){ console.warn('[autoVerify] errore:', e); });
+      } else {
+        var _r = _run(); if(_r && _r.catch) _r.catch(function(e){ console.warn('[autoVerify] errore:', e); });
+      }
+    }catch(e){ console.warn('[autoVerify] errore:', e); }
   }, delayMs);
 }
 window._scheduleAutoVerify = _scheduleAutoVerify;
@@ -12569,7 +12575,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-28-cm-teamrocket-noV';
+var RB_BUILD = '2026-06-28-cm-autoverify-proflt-fix';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -14700,10 +14706,23 @@ function showAddVerifyFeedback(prefix, listingsOrPrices, applied, cond, lang, so
     // banner, persistito in localStorage. Ha senso solo sui dati scrapati.
     var proOnly = false;
     try{ proOnly = localStorage.getItem('rb_cm_pro_only') === '1'; }catch(e){}
-    var proCount = topUnique.filter(function(u){ return u.is_professional; }).length;
-    var chipPool = (proOnly && !isCmapi && proCount > 0)
-      ? topUnique.filter(function(u){ return u.is_professional; })
-      : topUnique;
+    // proCount sui listing GREZZI (non sul dedup): quanti annunci sono di un pro.
+    var proCount = hasObjects ? (listingsOrPrices||[]).filter(function(l){ return l && l.is_professional; }).length : 0;
+    // Filtro "solo pro": NON basta deduplicare e tenere i prezzi con flag pro
+    // (un prezzo verrebbe marcato pro anche se un solo venditore su tanti privati
+    // è pro). Si deduplica SOLO sui listing professionali → un prezzo appare
+    // nella vista pro-only solo se un venditore PRO lo offre davvero.
+    var chipPool = topUnique;
+    if(proOnly && !isCmapi && hasObjects && proCount > 0){
+      var _seenP = {}, _proUnique = [];
+      (listingsOrPrices||[]).forEach(function(item){
+        if(!item || !item.is_professional) return;
+        var pk = Math.round(item.price*100)/100;
+        if(!_seenP[pk]){ _seenP[pk] = { price:pk, has_photo:!!item.has_photo, is_professional:true }; _proUnique.push(_seenP[pk]); }
+        else if(item.has_photo) _seenP[pk].has_photo = true;
+      });
+      chipPool = _proUnique.slice(0, 6);
+    }
     chipsHtml += chipPool.map(function(u){
       var isApplied = (u.price === appliedRounded) && !smartChip;
       var bits = [];
@@ -15247,7 +15266,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.50';
+const APP_VERSION='6.51';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
