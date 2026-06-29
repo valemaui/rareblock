@@ -11616,7 +11616,14 @@ function _cmPrimaryVersionFor(setId, variant, rarity, name){
     return 'V1';
   }
 
-  // ── WotC non-Base (Jungle, Fossil, Team Rocket, Legendary Coll, Gym H&C) ──
+  // ── Team Rocket (base5): prodotti distinti per NUMERO, non per prefisso V ──
+  // Verificato: Dark-Charizard-TR4 (holo) e Dark-Charizard-TR21 (non-holo) sono
+  // ENTRAMBI no-V. Mettere V2 sui Rare non-holo faceva atterrare sul prodotto
+  // sbagliato (un altro Charizard con listing). Default no-V → il cascade
+  // (buildCMDirectUrlVariants) prova V1/V2 SOLO se il no-V non ha listing.
+  if(setId === 'base5') return '';
+
+  // ── WotC non-Base (Jungle, Fossil, Legendary Coll, Gym H&C) ──
   // Verificato empiricamente su CM (2026-05-15):
   //   Gengar #5 Fossil Rare Holo  \u2192 /Fossil/Gengar-V1-FO5  (256 listings, trend \u20ac157)
   //   Gengar #20 Fossil Rare      \u2192 /Fossil/Gengar-V2-FO20 (391 listings, trend \u20ac33)
@@ -11628,7 +11635,7 @@ function _cmPrimaryVersionFor(setId, variant, rarity, name){
   //   Rare Holo / Rare Holo LV.X / Rare Holo ex   \u2192 V1
   //   Rare (no holo) / Rare Secret / Rare Shining \u2192 V2
   //   Common / Uncommon                            \u2192 no-V
-  if(setId === 'base2' || setId === 'base3' || setId === 'base5' || setId === 'base6'
+  if(setId === 'base2' || setId === 'base3' || setId === 'base6'
      || setId === 'gym1' || setId === 'gym2'){
     if(v === 'holo' || v === 'reverse holo') return 'V1';
     if(r.indexOf('rare holo') >= 0) return 'V1';
@@ -12562,7 +12569,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-28-cm-tcggo-regress-fix';
+var RB_BUILD = '2026-06-28-cm-teamrocket-noV';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -15240,7 +15247,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.49';
+const APP_VERSION='6.50';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
