@@ -12562,7 +12562,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-28-cm-resolver-noV-fix';
+var RB_BUILD = '2026-06-28-cm-tcggo-regress-fix';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -13168,7 +13168,10 @@ async function _vpDiscoverCmProduct(name, number, cond, lang, variant, first1st)
 function _rbCmNorm(s){ return (s||'').toString().toLowerCase().replace(/[^a-z0-9]+/g,''); }
 function _rbCmFinalize(out, m){
   out.ok = true; out.match = m;
-  out.cmLink = m.cmLink || null;
+  // cmLink di CMAPI è un redirect tcggo.com/external/cm/{id}, NON un URL
+  // cardmarket.com diretto: lo surfacchiamo SOLO se per caso è già un link
+  // cardmarket.com autoritativo, altrimenti null (niente tcggo nei link/scrape).
+  out.cmLink = (m.cmLink && typeof _isAuthoritativeCMUrl === 'function' && _isAuthoritativeCMUrl(m.cmLink)) ? m.cmLink : null;
   out.cardmarketId = (m.cardmarketId != null) ? m.cardmarketId : null;
   out.cmapiId = (m.cmapiId != null) ? m.cmapiId : null;
   out.slug = m.slug || null;
@@ -13210,37 +13213,12 @@ async function rbCmapiResolve(opts){
         return await resp.json().catch(function(){ return null; });
       }catch(e){ return null; }
     }
-    // Helper: da j.results (modo nome) → match singolo o ambiguità.
-    // Filtra per SET poi per NUMERO poi per NOME esatto: così "Dark Charizard 21"
-    // su Team Rocket isola TR21 (non-holo) da TR4 (holo) senza chooser inutile.
-    function _rbCmFromResults(results){
-      var filtered = results;
-      if(setName){
-        var sn = _rbCmNorm(setName);
-        var bySet = results.filter(function(r){
-          var rs = _rbCmNorm(r.set);
-          return rs && sn && (rs.indexOf(sn) >= 0 || sn.indexOf(rs) >= 0);
-        });
-        if(bySet.length) filtered = bySet;
-      }
-      if(number){
-        var nq = ('' + number).toLowerCase();
-        var byNum = filtered.filter(function(r){
-          var rn = ('' + (r.number||'')).split('/')[0].toLowerCase();
-          return rn && (rn === nq || rn.indexOf(nq) >= 0 || nq.indexOf(rn) >= 0);
-        });
-        if(byNum.length) filtered = byNum;
-      }
-      var nn = _rbCmNorm(name);
-      var ex = filtered.filter(function(r){ return _rbCmNorm(r.name) === nn; });
-      if(ex.length) filtered = ex;
-      if(filtered.length === 1) return { match: filtered[0] };
-      if(filtered.length > 1) return { variants: filtered.slice(0,12) };
-      return null;
-    }
-    function _rbAuth(u){ return !!u && typeof _isAuthoritativeCMUrl === 'function' && _isAuthoritativeCMUrl(u); }
 
-    // ── Tentativo 1: ESATTO (tcgid) quando abbiamo set+numero ──────────────
+    // ── ESATTO (tcgid): l'edge filtra la ricerca per tcgid esatto → un match È
+    //    la carta giusta. Lo accettiamo per identità (cardmarketId) + refPrice.
+    //    NIENTE fallback per nome: la ricerca CMAPI è sort=price_highest e
+    //    pescherebbe il "Dark Charizard" più caro (prodotto sbagliato). Senza
+    //    set+numero NON tiriamo a indovinare: ok:false → resta lo slug/scrape.
     if(setId && number){
       var pe = { name:name, language:lang, tcgid:(setId + '-' + number).toLowerCase(), cardNumber:number };
       if(variant && variant !== 'Normal') pe.variant = variant;
@@ -13251,24 +13229,7 @@ async function rbCmapiResolve(opts){
         if(je.ambiguous && je.variants && je.variants.length){
           out.ok = true; out.ambiguous = true; out.variants = je.variants; return out;
         }
-        // Accetta l'esatto SOLO se porta un cmLink autoritativo: altrimenti l'URL
-        // canonico non c'è → si tenta il modo NOME (più affidabile sui set ambigui
-        // dove il numero TCG non combacia col prodotto CM).
-        if(je.match && _rbAuth(je.match.cmLink)) return _rbCmFinalize(out, je.match);
-        if(je.match) _rbCmFinalize(out, je.match);  // popola refPrice/id come ripiego dati
-      }
-    }
-
-    // ── Tentativo 2: NOME (ricerca) — risolve l'URL canonico anche quando
-    //    l'esatto fallisce o non dà cmLink (caso Dark Charizard 21 Team Rocket).
-    var jn = await _rbCmQuery({ name:name, search:name, language:lang, persist:false });
-    if(jn && jn.ok){
-      if(jn.match && _rbAuth(jn.match.cmLink)) return _rbCmFinalize(out, jn.match);
-      if(jn.results && jn.results.length){
-        var picked = _rbCmFromResults(jn.results);
-        if(picked && picked.match && _rbAuth(picked.match.cmLink)) return _rbCmFinalize(out, picked.match);
-        if(picked && picked.variants){ out.ok = true; out.ambiguous = true; out.variants = picked.variants; return out; }
-        if(picked && picked.match) return _rbCmFinalize(out, picked.match);
+        if(je.match) return _rbCmFinalize(out, je.match);  // cmLink tcggo → nullato in finalize
       }
     }
   }catch(e){}
@@ -13776,9 +13737,9 @@ async function fetchCmPriceLive(opts){
           + (_fbFactor === 1 ? '' : (' \u00d7 ' + cond + ' (stima)'))
           + (_fbVariantMismatch ? ' \u00b7 \u26a0 variante non confermata' : '')
           + ' \u00b7 ladder reale: serve Hunter';
-        var _fbUrl = (typeof cmAppendParams === 'function' && _resolved.cmLink)
-          ? cmAppendParams(_resolved.cmLink, cond, lang, variant, first1st)
-          : (cmUrl || _resolved.cmLink || null);
+        var _fbUrl = (typeof cmAppendParams === 'function' && cmUrl && typeof _isAuthoritativeCMUrl === 'function' && _isAuthoritativeCMUrl(cmUrl))
+          ? cmAppendParams(cmUrl, cond, lang, variant, first1st)
+          : (cmUrl || null);
         attempts.push({ url:'(CMAPI)', kind:'CMAPI-fallback', count:1,
           error:'cascata listing fallita → stima da refPrice CMAPI (' + _fbBasis + ')' });
         return {
@@ -15279,7 +15240,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.48';
+const APP_VERSION='6.49';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
