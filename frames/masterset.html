@@ -1344,21 +1344,23 @@ var _msDragSrcId = null;
 // (fallback per nome) e lo backfilliamo in memoria, così l'icona compare subito
 // e persiste al prossimo salvataggio del masterset.
 function _msSetSymbol(m){
-  if(!m) return '';
-  if(m.setSymbol) return m.setSymbol;
-  if(!Array.isArray(msSetsAll) || !msSetsAll.length) return '';
-  var found = null;
-  if(m.setId){
-    var sid = (''+m.setId).toLowerCase();
-    found = msSetsAll.find(function(s){ return s && (''+s.id).toLowerCase() === sid; });
-  }
-  if(!found && m.setName){
-    var sn = (''+m.setName).toLowerCase().trim();
-    found = msSetsAll.find(function(s){ return s && (''+s.name).toLowerCase().trim() === sn; });
-  }
-  var sym = (found && found.images && found.images.symbol) || '';
-  if(sym) m.setSymbol = sym;   // backfill in memoria
-  return sym;
+  try{
+    if(!m) return '';
+    if(m.setSymbol) return m.setSymbol;
+    if(!Array.isArray(msSetsAll) || !msSetsAll.length) return '';
+    var found = null;
+    if(m.setId){
+      var sid = (''+m.setId).toLowerCase();
+      found = msSetsAll.find(function(s){ return s && (''+s.id).toLowerCase() === sid; });
+    }
+    if(!found && m.setName){
+      var sn = (''+m.setName).toLowerCase().trim();
+      found = msSetsAll.find(function(s){ return s && (''+s.name).toLowerCase().trim() === sn; });
+    }
+    var sym = (found && found.images && found.images.symbol) || '';
+    if(sym) m.setSymbol = sym;   // backfill in memoria
+    return sym;
+  }catch(e){ return (m && m.setSymbol) || ''; }
 }
 // Quando il catalogo set finisce di caricare (async), ridisegna la lista: i
 // master set senza setSymbol salvato recuperano l'icona senza bisogno di
