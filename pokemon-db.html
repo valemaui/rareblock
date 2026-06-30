@@ -12590,7 +12590,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-28-cm-cond-filter';
+var RB_BUILD = '2026-06-28-cm-proflt-diag';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -14968,15 +14968,28 @@ window.rbMaybeAppendHunterNote = rbMaybeAppendHunterNote;
 // re-renderizza il banner del prefix corrente riusando l'ultimo verify (stash):
 // nessuna nuova chiamata a Cardmarket, filtra solo i chip gia' in memoria.
 function rbToggleCmProOnly(prefix){
+  var nv = '?';
   try{
     var cur = localStorage.getItem('rb_cm_pro_only') === '1';
-    localStorage.setItem('rb_cm_pro_only', cur ? '0' : '1');
+    nv = cur ? '0' : '1';
+    localStorage.setItem('rb_cm_pro_only', nv);
   }catch(e){}
-  // Re-render dal verify gia' fatto (stash) — zero scraping.
   try{
     var st = _cmStash && _cmStash[prefix];
-    if(st && st.listings && st.listings.length){
+    var n = (st && st.listings && st.listings.length) || 0;
+    var pros = n ? st.listings.filter(function(l){ return l && l.is_professional; }).length : 0;
+    try{ console.log('[CM pro-only] toggle', prefix, '→', nv, '| listing in stash:', n, '| di cui pro:', pros); }catch(_){}
+    if(n){
       showAddVerifyFeedback(prefix, st.listings, st.finalPrice, st.cond, st.lang, st.source);
+    } else {
+      // Nessuno stash (es. banner da un render precedente o resettato): rifaccio
+      // la verify così il banner si ripopola e il filtro pro fa effetto.
+      try{ console.warn('[CM pro-only] nessuno stash per', prefix, '\u2014 rieseguo la verify'); }catch(_){}
+      var _r = function(){
+        if(prefix === 'em'){ return (typeof verifyPriceEdit==='function') ? verifyPriceEdit({silent:true}) : null; }
+        return (typeof verifyPriceAdd==='function') ? verifyPriceAdd(prefix, {silent:true}) : null;
+      };
+      if(typeof rbCmUserAction === 'function') rbCmUserAction(_r); else _r();
     }
   }catch(e){ try{ console.warn('[CM pro-only] re-render:', e && e.message); }catch(_){} }
 }
@@ -15295,7 +15308,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.53';
+const APP_VERSION='6.54';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
