@@ -459,6 +459,7 @@ body{display:flex;flex-direction:column}
 .msv-last{margin-top:12px;font-size:11px;color:var(--text-subtle);font-family:var(--mono);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .msv-last a{color:var(--accent);cursor:pointer;text-decoration:underline}
 .msv-badge.api{background:rgba(88,166,255,.1);color:#58a6ff;border:1px solid rgba(88,166,255,.3)}
+.msv-badge.rif{background:rgba(167,139,250,.12);color:#a78bfa;border:1px solid rgba(167,139,250,.32)}
 .msv-org{display:inline-block;font-size:8.5px;font-family:var(--mono);padding:1px 5px;border-radius:4px;background:var(--surface3);color:var(--text-subtle);border:1px solid var(--border);white-space:nowrap;letter-spacing:.3px}
 .msv-cml{color:var(--text);text-decoration:none;border-bottom:1px dotted rgba(201,168,76,.45)}
 .msv-cml:hover{color:var(--gold,#c9a84c)}
@@ -471,7 +472,7 @@ body{display:flex;flex-direction:column}
 @keyframes msvIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
 .msv-qbar{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--surface3);margin:8px 0 4px}
 .msv-qbar i{display:block;height:100%}
-.msv-qbar .ql{background:#3fb950}.msv-qbar .qa{background:#58a6ff}.msv-qbar .qs{background:#cf8e44}.msv-qbar .qm{background:rgba(248,81,73,.55)}
+.msv-qbar .ql{background:#3fb950}.msv-qbar .qa{background:#58a6ff}.msv-qbar .qr{background:#a78bfa}.msv-qbar .qs{background:#cf8e44}.msv-qbar .qm{background:rgba(248,81,73,.55)}
 .msv-legend{font-size:10.5px;color:var(--text-subtle);line-height:1.6;padding:8px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);margin-bottom:10px}
 .msv-legend b{color:var(--text);font-weight:600}
 .msv-legend .dot{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:4px;vertical-align:0}
@@ -3793,6 +3794,17 @@ function msvPricingOpts(ms, card, variant){
     canonicalHolo: holoCanon
   };
 }
+// Mirror della gate _cmaEligible del parent (rbGetConditionPrices): dice se
+// la variante/lingua/1ª-ed di questo job è quotabile DIRETTAMENTE via CMAPI.
+// Se torna false e il risultato è vuoto, in modalità API ripieghiamo sul
+// prezzo del prodotto regular (riferimento), invece di lasciare 'n.d.'.
+function _msvCmapiCanon(o){
+  o = o || {};
+  var v = o.variant;
+  var okVar = (!v || v === 'Normal' || o.canonicalHolo === true);
+  return okVar && !o.first_edition
+      && /^(ITA|ENG|JPN|IT|EN|JP)$/i.test((o.language || 'ITA').toString().trim());
+}
 // card_key locale (mirror di _rbBuildCardKey del parent) — serve per dedup
 // dei fetch nella run e per il bust cache su "forza aggiornamento".
 function msvCardKey(o){
@@ -3836,7 +3848,8 @@ function msvResMeta(res){
           : '';
   if(age != null && age > 0) tip += ' \u00b7 rilevato ' + age + ' giorn' + (age===1?'o':'i') + ' fa';
   return { lbl: lbl, age: age, cmUrl: res.cmUrl || null,
-           basis: (res.cmapi && res.cmapi.refBasis) || null, tip: tip };
+           basis: (res.cmapi && res.cmapi.refBasis) || null, tip: tip,
+           refRegular: !!res._refRegular };
 }
 
 // Feed live in fase run: ultime righe quotate (trasparenza durante l'estrazione)
@@ -4159,6 +4172,25 @@ async function _msvWork(ms, cfg, getCP){
           // (force:true salterebbe la fast-lane CMAPI di rbGetConditionPrices e
           //  finirebbe sul live scrape → bloccato dalla policy in modalità API).
           res = await getCP(pOpts, { force:false });
+          // ── FALLBACK "riferimento regular" ──────────────────────────────
+          // CMAPI prezza solo il prodotto regular/unlimited IT-EN-JP. Per
+          // Reverse Holo / 1ª Edizione / lingue fuori canone la fast-lane
+          // viene saltata nel parent, il DB è quasi sempre vuoto e il live è
+          // bloccato dalla policy click-only in modalità API → la riga restava
+          // 'n.d.'. Era la causa del "quasi tutto n.d." su un master set.
+          // Soluzione onesta: ripiego sul prezzo del prodotto REGULAR (che
+          // CMAPI sa quotare) e marchio le righe come 'rif' (riferimento
+          // regular). Non è il prezzo esatto della variante — per quello c'è
+          // Hunter — ma è un numero tracciabile invece del vuoto.
+          if((!res || !res.ok || !(res.conditions||[]).length) && !_msvCmapiCanon(pOpts)){
+            try{
+              var canonOpts = Object.assign({}, pOpts, { variant:'Normal', first_edition:false, canonicalHolo:false });
+              var rr = await getCP(canonOpts, { force:false });
+              if(rr && rr.ok && (rr.conditions||[]).length){
+                res = Object.assign({}, rr, { _refRegular:true });
+              }
+            }catch(eRR){}
+          }
         }
       }catch(e){ res = { ok:false, error:(e&&e.message)||'errore', conditions:[] }; }
       fetchCache[key] = res || null;
@@ -4172,21 +4204,21 @@ async function _msvWork(ms, cfg, getCP){
         var d = msvDerive(conds, cShort);
         rows.push({ num:j.card.num, name:j.card.name, variant:j.variant, cond:cShort,
                     qty:j.owned[cShort], unit:d?d.p:null, src:d?d.src:null, via:(d&&(d.via||d.from))||null,
-                    fromApi:!!(d&&d.fromApi), org:meta.lbl, orgTip:meta.tip, basis:meta.basis, cmUrl:meta.cmUrl });
+                    fromApi:!!(d&&d.fromApi), refReg:meta.refRegular, org:meta.lbl, orgTip:meta.tip, basis:meta.basis, cmUrl:meta.cmUrl });
         if(!wasCached) msvFeedPush(
           '<span class="msv-feed-name">'+(j.card.num?'#'+esc(j.card.num)+' ':'')+esc(j.card.name||'')+' \u00b7 '+esc(cShort)+'</span>'
-          + (d ? '<span class="msv-feed-pr">'+fmtEur(d.p)+'</span>'+_msvBadge(d, meta.basis) : '<span class="msv-badge miss">n.d.</span>'));
+          + (d ? '<span class="msv-feed-pr">'+fmtEur(d.p)+'</span>'+_msvBadge(d, meta.basis, meta.refRegular) : '<span class="msv-badge miss">n.d.</span>'));
       });
     } else {
       var prices = {};
       cfg.conds.forEach(function(cShort){ prices[cShort] = msvDerive(conds, cShort); });
       rows.push({ num:j.card.num, name:j.card.name, variant:j.variant, prices:prices,
-                  org:meta.lbl, orgTip:meta.tip, basis:meta.basis, cmUrl:meta.cmUrl });
+                  refReg:meta.refRegular, org:meta.lbl, orgTip:meta.tip, basis:meta.basis, cmUrl:meta.cmUrl });
       if(!wasCached){
         var d0 = prices[cfg.conds[0]];
         msvFeedPush(
           '<span class="msv-feed-name">'+(j.card.num?'#'+esc(j.card.num)+' ':'')+esc(j.card.name||'')+' \u00b7 '+esc(j.variant)+'</span>'
-          + (d0 ? '<span class="msv-feed-pr">'+fmtEur(d0.p)+'</span>'+_msvBadge(d0, meta.basis) : '<span class="msv-badge miss">n.d.</span>'));
+          + (d0 ? '<span class="msv-feed-pr">'+fmtEur(d0.p)+'</span>'+_msvBadge(d0, meta.basis, meta.refRegular) : '<span class="msv-badge miss">n.d.</span>'));
       }
     }
 
@@ -4210,7 +4242,7 @@ function _msvFinish(ms, cfg, rows, wasCancelled){
   document.getElementById('msvCsvBtn').style.display = '';
   document.getElementById('msvBackBtn').style.display = '';
 
-  var totals = {}, counts = { listing:0, api:0, stima:0, miss:0 };
+  var totals = {}, counts = { listing:0, api:0, stima:0, rif:0, miss:0 };
   var thead = document.getElementById('msvThead');
   var tbody = document.getElementById('msvTbody');
 
@@ -4223,19 +4255,23 @@ function _msvFinish(ms, cfg, rows, wasCancelled){
   function orgCell(r){
     return r.org ? '<span class="msv-org" title="'+esc(r.orgTip||'')+'">'+esc(r.org)+'</span>' : '\u2014';
   }
-  function bump(src){ counts[src === 'listing' ? 'listing' : src === 'api' ? 'api' : 'stima']++; }
+  // riga 'riferimento regular' → bucket dedicato; altrimenti listing/api/stima.
+  function bump(src, refReg){
+    if(refReg){ counts.rif++; return; }
+    counts[src === 'listing' ? 'listing' : src === 'api' ? 'api' : 'stima']++;
+  }
 
   if(cfg.mode === 'owned'){
     var tot = 0;
     var html = '';
     rows.forEach(function(r){
       var line = r.unit != null ? r.unit * r.qty : null;
-      if(line != null){ tot += line; bump(r.src); }
+      if(line != null){ tot += line; bump(r.src, r.refReg); }
       else counts.miss++;
       html += '<tr><td class="num">'+esc(r.num)+'</td><td>'+nameCell(r)+'</td><td style="font-size:10.5px;color:var(--text-muted)">'+esc(r.variant)+'</td>'
         + '<td class="num">'+orgCell(r)+'</td>'
         + '<td class="num">'+esc(r.cond)+'</td><td class="num" style="text-align:center">'+r.qty+'</td>'
-        + '<td class="pr">'+ (r.unit!=null ? fmtEur(r.unit) + _msvBadge(r, r.basis) : '<span class="msv-badge miss">n.d.</span>') +'</td>'
+        + '<td class="pr">'+ (r.unit!=null ? fmtEur(r.unit) + _msvBadge(r, r.basis, r.refReg) : '<span class="msv-badge miss">n.d.</span>') +'</td>'
         + '<td class="pr">'+ (line!=null ? fmtEur(line) : '\u2014') +'</td></tr>';
     });
     totals.TOT = Math.round(tot*100)/100;
@@ -4248,16 +4284,18 @@ function _msvFinish(ms, cfg, rows, wasCancelled){
     rows.forEach(function(r){
       var tds = '';
       var best = null;                         // qualità migliore della riga: listing > api > stima
+      var anyPrice = false;
       cfg.conds.forEach(function(c){
         var d = r.prices[c];
         if(d){
-          sums[c] += d.p;
+          sums[c] += d.p; anyPrice = true;
           var rank = d.src === 'listing' ? 0 : d.src === 'api' ? 1 : 2;
           if(best == null || rank < best) best = rank;
         }
-        tds += '<td class="pr">'+(d ? fmtEur(d.p) + _msvBadge(d, r.basis) : '<span class="msv-badge miss">n.d.</span>')+'</td>';
+        tds += '<td class="pr">'+(d ? fmtEur(d.p) + _msvBadge(d, r.basis, r.refReg) : '<span class="msv-badge miss">n.d.</span>')+'</td>';
       });
       if(best == null) counts.miss++;
+      else if(r.refReg) counts.rif++;
       else counts[best === 0 ? 'listing' : best === 1 ? 'api' : 'stima']++;
       html2 += '<tr><td class="num">'+esc(r.num)+'</td><td>'+nameCell(r)+'</td><td style="font-size:10.5px;color:var(--text-muted)">'+esc(r.variant)+'</td>'
         + '<td class="num">'+orgCell(r)+'</td>'+tds+'</tr>';
@@ -4270,7 +4308,7 @@ function _msvFinish(ms, cfg, rows, wasCancelled){
 
   // riepilogo + barra qualità dati
   var sum = document.getElementById('msvSum');
-  var quoted = counts.listing + counts.api + counts.stima;
+  var quoted = counts.listing + counts.api + counts.stima + counts.rif;
   var allN = quoted + counts.miss || 1;
   var cells = '';
   Object.keys(totals).forEach(function(k){
@@ -4280,10 +4318,11 @@ function _msvFinish(ms, cfg, rows, wasCancelled){
         +  '<div class="msv-qbar">'
         +    (counts.listing ? '<i class="ql" style="width:'+(counts.listing/allN*100)+'%" title="'+counts.listing+' da listing reali"></i>' : '')
         +    (counts.api ? '<i class="qa" style="width:'+(counts.api/allN*100)+'%" title="'+counts.api+' da riferimento API"></i>' : '')
+        +    (counts.rif ? '<i class="qr" style="width:'+(counts.rif/allN*100)+'%" title="'+counts.rif+' da riferimento regular (variante non quotabile via API)"></i>' : '')
         +    (counts.stima ? '<i class="qs" style="width:'+(counts.stima/allN*100)+'%" title="'+counts.stima+' stime"></i>' : '')
         +    (counts.miss ? '<i class="qm" style="width:'+(counts.miss/allN*100)+'%" title="'+counts.miss+' n.d."></i>' : '')
         +  '</div>'
-        +  '<div class="msv-sum-sub">'+counts.listing+' listing \u00b7 '+counts.api+' API \u00b7 '+counts.stima+' stime \u00b7 '+counts.miss+' n.d.'+(_msv.unquotable?(' \u00b7 '+_msv.unquotable+' escluse'):'')+'</div></div>';
+        +  '<div class="msv-sum-sub">'+counts.listing+' listing \u00b7 '+counts.api+' API \u00b7 '+(counts.rif?(counts.rif+' rif \u00b7 '):'')+counts.stima+' stime \u00b7 '+counts.miss+' n.d.'+(_msv.unquotable?(' \u00b7 '+_msv.unquotable+' escluse'):'')+'</div></div>';
   if(wasCancelled) cells += '<div class="msv-sum-cell"><div class="msv-sum-val" style="color:#cf8e44">\u26a0</div><div class="msv-sum-lbl">Interrotta</div><div class="msv-sum-sub">risultati parziali</div></div>';
   sum.innerHTML = cells;
 
@@ -4291,6 +4330,7 @@ function _msvFinish(ms, cfg, rows, wasCancelled){
   document.getElementById('msvLegend').innerHTML =
     '<span class="dot" style="background:#3fb950"></span><b>listing</b> = prezzi reali dei venditori sulla pagina CM (Hunter o scraping precedente nel DB) \u00b7 '
     + '<span class="dot" style="background:#58a6ff"></span><b>API</b> = riferimento dell\u2019API ufficiale CM (min NM venditori IT, o media 7/30gg se assente) \u2014 <b>pu\u00f2 differire dai listing in pagina</b> \u00b7 '
+    + '<span class="dot" style="background:#a78bfa"></span><b>rif</b> = prezzo del prodotto <b>regular/unlimited</b>: la variante esatta (Reverse Holo / 1\u00aa Edizione) non \u00e8 quotabile via API \u2014 usa <b>Hunter</b> per il prezzo reale della variante \u00b7 '
     + '<span class="dot" style="background:#cf8e44"></span><b>stima</b> = scala condizioni da un dato vicino. '
     + 'La colonna <b>Origine</b> dice da dove arriva il dato e quanto \u00e8 vecchio; clicca il nome carta per aprire la pagina CM e verificare.';
 
@@ -4306,17 +4346,23 @@ function _msvFinish(ms, cfg, rows, wasCancelled){
       at: new Date().toISOString(), mode: cfg.mode, scope: cfg.scope,
       conds: cfg.conds.slice(), lang: ms.lang || 'ITA', source: cfg.source,
       totals: totals, rows: rows.length,
-      listing: counts.listing, api: counts.api, stima: counts.stima, missing: counts.miss,
+      listing: counts.listing, api: counts.api, stima: counts.stima, rif: counts.rif, missing: counts.miss,
       unquotable: _msv.unquotable || 0, partial: !!wasCancelled
     };
     msSave(msData).catch(function(e){ console.warn('[msv] salvataggio valutazione fallito:', e && e.message); });
   }catch(e){}
 }
 // Badge fonte prezzo. d = output di msvDerive (o riga owned con .src/.via/.fromApi),
-// basis = refBasis CMAPI della risposta (per etichettare il riferimento API).
-function _msvBadge(d, basis){
+// basis = refBasis CMAPI della risposta (per etichettare il riferimento API),
+// refReg = la riga viene dal prodotto regular/unlimited (variante non quotabile via API).
+function _msvBadge(d, basis, refReg){
   if(!d || !d.src) return '';
   var via = d.via || d.from || null;
+  // 'rif' ha priorità visiva: il numero è del prodotto regular, non della variante.
+  if(refReg){
+    var rb = MSV_BASIS_LBL[basis] || 'riferimento';
+    return '<span class="msv-badge rif" title="Prezzo del prodotto REGULAR/unlimited ('+esc(rb)+') \u2014 la variante esatta (es. Reverse Holo / 1\u00aa Edizione) non \u00e8 quotabile via API. Usa Hunter per il prezzo reale della variante.">rif. regular</span>';
+  }
   if(d.src === 'listing'){
     return '<span class="msv-badge reale" title="Prezzo da listing reali Cardmarket'+(via?(' \u2014 listing di condizione migliore ('+esc(via)+') pi\u00f9 economico della stima: \u00e8 il costo vero di acquisizione'):'')+'">'+(via?('listing '+esc(via)):'listing')+'</span>';
   }
@@ -4360,7 +4406,7 @@ window.msvExportCSV = function(){
     rows.forEach(function(r){
       out.push([r.num, q(r.name), q(r.variant), r.cond, r.qty,
         r.unit!=null?r.unit.toFixed(2):'', r.unit!=null?(r.unit*r.qty).toFixed(2):'',
-        r.src ? (r.src + (r.via?(' '+r.via):'')) : 'n.d.', q(r.org||''), q(r.cmUrl||'')].join(','));
+        r.refReg ? 'rif. regular' : (r.src ? (r.src + (r.via?(' '+r.via):'')) : 'n.d.'), q(r.org||''), q(r.cmUrl||'')].join(','));
     });
   } else {
     var head = ['#','Carta','Variante'];
@@ -4371,7 +4417,7 @@ window.msvExportCSV = function(){
       var line = [r.num, q(r.name), q(r.variant)];
       cfg.conds.forEach(function(c){
         var d = r.prices[c];
-        line.push(d ? d.p.toFixed(2) : '', d ? (d.src + ((d.via||d.from)?(' '+(d.via||d.from)):'')) : 'n.d.');
+        line.push(d ? d.p.toFixed(2) : '', d ? (r.refReg ? 'rif. regular' : (d.src + ((d.via||d.from)?(' '+(d.via||d.from)):''))) : 'n.d.');
       });
       line.push(q(r.org||''), q(r.cmUrl||''));
       out.push(line.join(','));
