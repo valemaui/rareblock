@@ -12590,7 +12590,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-28-cm-banner-ux-img-fix';
+var RB_BUILD = '2026-06-28-cm-cond-filter'
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -14639,6 +14639,20 @@ function showAddVerifyFeedback(prefix, listingsOrPrices, applied, cond, lang, so
   var isCmapi = (source === 'cmapi');
   // Backward compat: il chiamante puo' passare sia listings (oggetti) sia prezzi (numeri)
   var hasObjects = listingsOrPrices && listingsOrPrices.length && typeof listingsOrPrices[0] === 'object';
+  // ── #2: coerenza con la CONDIZIONE selezionata ──────────────────────────
+  // CardMarket con minCondition include anche le condizioni MIGLIORI (es. EX →
+  // mostra pure NM/Mint, spesso più economici). Per non confondere (un €87.90
+  // "NM" che appare scegliendo EX e che tra gli EX non si trova), in CM-live
+  // filtriamo i listing del banner alla condizione ESATTA scelta. Se non ce ne
+  // sono di quella condizione, si ricade sul pool completo.
+  if(!isCmapi && hasObjects && cond){
+    var _condFull = { MT:'Mint', NM:'Near Mint', EX:'Excellent', GD:'Good', LP:'Light Played', PL:'Played', PO:'Poor' };
+    var _wantCond = _condFull[(''+cond).toUpperCase()] || null;
+    if(_wantCond){
+      var _exactCond = (listingsOrPrices||[]).filter(function(l){ return l && l.condition === _wantCond; });
+      if(_exactCond.length) listingsOrPrices = _exactCond;
+    }
+  }
   // Dedup prezzi (round 2 decimals) preservando ordine. Quando dedup, prendiamo
   // i flag has_photo / is_professional da QUALSIASI listing dello stesso prezzo
   // che li abbia (cosi' l'utente vede l'evidenziazione anche se solo 1 dei
@@ -15281,7 +15295,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.52';
+const APP_VERSION='6.53';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
