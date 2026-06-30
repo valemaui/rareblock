@@ -12590,7 +12590,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-28-cm-proflt-diag';
+var RB_BUILD = '2026-06-28-cm-proflt-memstate';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -14733,8 +14733,13 @@ function showAddVerifyFeedback(prefix, listingsOrPrices, applied, cond, lang, so
     }
     // Filtro "solo venditori professionali" (omino su Cardmarket): stato per
     // banner, persistito in localStorage. Ha senso solo sui dati scrapati.
-    var proOnly = false;
-    try{ proOnly = localStorage.getItem('rb_cm_pro_only') === '1'; }catch(e){}
+    // Stato del filtro pro: TENUTO IN MEMORIA (window._rbCmProOnly). localStorage
+    // qui è inaffidabile (se la quota è piena setItem fallisce in silenzio e il
+    // toggle non avrebbe mai effetto). Seed una-tantum da localStorage se c'è.
+    if(typeof window._rbCmProOnly === 'undefined'){
+      try{ window._rbCmProOnly = localStorage.getItem('rb_cm_pro_only') === '1'; }catch(e){ window._rbCmProOnly = false; }
+    }
+    var proOnly = !!window._rbCmProOnly;
     // proCount sui listing GREZZI (non sul dedup): quanti annunci sono di un pro.
     var proCount = hasObjects ? (listingsOrPrices||[]).filter(function(l){ return l && l.is_professional; }).length : 0;
     // Filtro "solo pro": NON basta deduplicare e tenere i prezzi con flag pro
@@ -14970,9 +14975,12 @@ window.rbMaybeAppendHunterNote = rbMaybeAppendHunterNote;
 function rbToggleCmProOnly(prefix){
   var nv = '?';
   try{
-    var cur = localStorage.getItem('rb_cm_pro_only') === '1';
-    nv = cur ? '0' : '1';
-    localStorage.setItem('rb_cm_pro_only', nv);
+    if(typeof window._rbCmProOnly === 'undefined'){
+      try{ window._rbCmProOnly = localStorage.getItem('rb_cm_pro_only') === '1'; }catch(e){ window._rbCmProOnly = false; }
+    }
+    window._rbCmProOnly = !window._rbCmProOnly;       // SORGENTE DI VERITÀ: in memoria
+    nv = window._rbCmProOnly ? '1' : '0';
+    try{ localStorage.setItem('rb_cm_pro_only', nv); }catch(e){}   // persistenza best-effort
   }catch(e){}
   try{
     var st = _cmStash && _cmStash[prefix];
@@ -15308,7 +15316,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.54';
+const APP_VERSION='6.55';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
