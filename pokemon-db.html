@@ -11304,6 +11304,10 @@ async function prevSearch(){
     onSingleResult: function(card){
       prevCard = card;
       showPrevQuickAdd(card);
+      // La riga "Trovata: ..." è ridondante (la carta è già nel pannello sotto):
+      // la togliamo per recuperare spazio verticale ed evitare lo scroll.
+      var _pst = document.getElementById('pst');
+      if(_pst){ _pst.textContent=''; _pst.className='prev-status'; }
     },
     onMultipleResults: function(cards){
       showPrevResults(cards);
@@ -11375,8 +11379,19 @@ function showPrevQuickAdd(c){
   const nmPrice=c.cardmarket?.prices?.avg30||null;
   // Popolo info header
   const img=document.getElementById('prevPreviewImg');
-  if(smSrc){ img.src=smSrc; img.style.display='block'; }
-  else { img.removeAttribute('src'); img.style.display='none'; }
+  if(img){
+    img.referrerPolicy = 'no-referrer';   // alcune CDN bloccano l'hotlink senza questo
+    img.onerror = function(){
+      // 1° errore: ritenta con la versione large; 2° errore: placeholder pulito
+      if(!img.dataset.triedLarge && lgSrc && lgSrc !== img.src){
+        img.dataset.triedLarge = '1'; img.src = lgSrc; return;
+      }
+      img.onerror = null; img.removeAttribute('src'); img.style.display='none';
+      try{ console.warn('[RB] immagine carta non caricabile:', smSrc, '|', lgSrc); }catch(e){}
+    };
+    if(smSrc){ delete img.dataset.triedLarge; img.src=smSrc; img.style.display='block'; }
+    else { img.removeAttribute('src'); img.style.display='none'; }
+  }
   document.getElementById('pqName').textContent = c.name || '—';
   document.getElementById('pqNum').textContent = c.number ? '#'+c.number : '';
   const setName = c.set?.name || '';
@@ -12575,7 +12590,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-28-cm-autoverify-proflt-fix';
+var RB_BUILD = '2026-06-28-cm-banner-ux-img-fix';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -14643,7 +14658,7 @@ function showAddVerifyFeedback(prefix, listingsOrPrices, applied, cond, lang, so
       if(pro && !seen[k].is_professional) seen[k].is_professional = true;
     }
   });
-  var topUnique = unique.slice(0, 6);
+  var topUnique = unique.slice(0, 5);
 
   // ── Rete di sicurezza: rileva anomalie sul ladder per-condizione ──
   // Solo se abbiamo listing con condizione (oggetti): li aggreghiamo e passiamo
@@ -14721,7 +14736,7 @@ function showAddVerifyFeedback(prefix, listingsOrPrices, applied, cond, lang, so
         if(!_seenP[pk]){ _seenP[pk] = { price:pk, has_photo:!!item.has_photo, is_professional:true }; _proUnique.push(_seenP[pk]); }
         else if(item.has_photo) _seenP[pk].has_photo = true;
       });
-      chipPool = _proUnique.slice(0, 6);
+      chipPool = _proUnique.slice(0, 5);
     }
     chipsHtml += chipPool.map(function(u){
       var isApplied = (u.price === appliedRounded) && !smartChip;
@@ -15266,7 +15281,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.51';
+const APP_VERSION='6.52';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
