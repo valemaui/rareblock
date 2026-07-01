@@ -11374,22 +11374,31 @@ function showPrevQuickAdd(c){
   const results=document.getElementById('prevResults');
   if(results) results.style.display='none';
   setTimeout(()=>qa.scrollIntoView({behavior:'smooth',block:'nearest'}),50);
-  const smSrc=c.images?.small||'';
-  const lgSrc=c.images?.large||c.images?.small||'';
+  // Foto anteprima: preferiamo la TCG/API. rbIndexMerge sovrascrive images.small
+  // con la foto "proprietaria" dell'indice (r.image_url), che però a volte è
+  // l'icona CardMarket generica: qui usiamo la TCG conservata (_tcg_small) e
+  // teniamo quella dell'indice solo come ultima spiaggia.
+  const smSrc=(c.images&&(c.images._tcg_small||c.images.small))||'';
+  const lgSrc=(c.images&&(c.images._tcg_large||c.images.large||c.images._tcg_small||c.images.small))||'';
+  const cmSrc=(c.images&&c.images.small&&c.images.small!==smSrc)?c.images.small:'';
   const nmPrice=c.cardmarket?.prices?.avg30||null;
   // Popolo info header
   const img=document.getElementById('prevPreviewImg');
   if(img){
     img.referrerPolicy = 'no-referrer';   // alcune CDN bloccano l'hotlink senza questo
     img.onerror = function(){
-      // 1° errore: ritenta con la versione large; 2° errore: placeholder pulito
+      // catena di fallback: TCG large → (eventuale) foto indice CM → nascondi
       if(!img.dataset.triedLarge && lgSrc && lgSrc !== img.src){
         img.dataset.triedLarge = '1'; img.src = lgSrc; return;
       }
+      if(!img.dataset.triedCm && cmSrc && cmSrc !== img.src){
+        img.dataset.triedCm = '1'; img.src = cmSrc; return;
+      }
       img.onerror = null; img.removeAttribute('src'); img.style.display='none';
-      try{ console.warn('[RB] immagine carta non caricabile:', smSrc, '|', lgSrc); }catch(e){}
+      try{ console.warn('[RB] immagine carta non caricabile:', smSrc, '|', lgSrc, '|', cmSrc); }catch(e){}
     };
-    if(smSrc){ delete img.dataset.triedLarge; img.src=smSrc; img.style.display='block'; }
+    if(smSrc){ delete img.dataset.triedLarge; delete img.dataset.triedCm; img.src=smSrc; img.style.display='block'; }
+    else if(cmSrc){ delete img.dataset.triedLarge; delete img.dataset.triedCm; img.src=cmSrc; img.style.display='block'; }
     else { img.removeAttribute('src'); img.style.display='none'; }
   }
   document.getElementById('pqName').textContent = c.name || '—';
@@ -12590,7 +12599,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-06-30-msv-rif-regular';
+var RB_BUILD = '2026-06-30-prev-img-tcg-first';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -15316,7 +15325,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.57';
+const APP_VERSION='6.58';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
