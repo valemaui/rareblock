@@ -176,6 +176,21 @@ body{display:flex;flex-direction:column}
 .ms-cond-pop-meta{font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:3px}
 .ms-cond-pop-var{display:inline-block;margin-top:5px;padding:2px 8px;border:1px solid rgba(201,169,110,.3);background:rgba(201,169,110,.08);color:var(--accent);border-radius:3px;font-size:10px;font-family:var(--mono);font-weight:600;letter-spacing:.4px}
 .ms-cond-pop-rows{display:flex;flex-direction:column;gap:4px}
+/* Riga valore di riferimento (NM) nell'header del popover + prezzo per-condizione
+   nella colonna centrale di ogni riga. Fonti coerenti con la valutazione masterset. */
+.ms-cond-pop-val{display:none;align-items:center;gap:7px;margin-top:7px;font-family:var(--mono);flex-wrap:wrap}
+.ms-cond-val-lbl{color:var(--text-subtle);text-transform:uppercase;letter-spacing:.5px;font-size:9px}
+.ms-cond-val-eur{color:var(--accent);font-weight:700;font-size:13px}
+.ms-cond-val-load{color:var(--text-subtle);font-style:italic;font-size:10px}
+.ms-cond-val-cml{color:var(--text-muted);text-decoration:none;font-weight:700}
+.ms-cond-val-cml:hover{color:var(--accent)}
+.ms-cond-price{text-align:right;font-family:var(--mono);font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ms-cond-price-eur{font-weight:600;color:var(--text)}
+.ms-cond-price-eur.stima{color:var(--text-muted);font-weight:500}
+.ms-cond-price-eur.api{color:var(--blue,#58a6ff)}
+.ms-cond-price-eur.listing{color:var(--success,#3fb950)}
+.ms-cond-price-eur.rif{color:#b57edc}
+.ms-cond-price-na{color:var(--text-subtle)}
 .ms-cond-row{display:grid;grid-template-columns:62px 1fr auto;align-items:center;gap:10px;padding:5px 4px;border-radius:var(--r)}
 .ms-cond-row:hover{background:var(--surface2)}
 .ms-cond-row.active{background:rgba(201,169,110,.06)}
@@ -685,6 +700,7 @@ body{display:flex;flex-direction:column}
         <div class="ms-cond-pop-name" id="msCondPopName"></div>
         <div class="ms-cond-pop-meta" id="msCondPopMeta"></div>
         <div class="ms-cond-pop-var" id="msCondPopVar"></div>
+        <div class="ms-cond-pop-val" id="msCondPopVal"></div>
       </div>
     </div>
     <div class="ms-cond-pop-rows" id="msCondPopRows"></div>
@@ -2043,6 +2059,83 @@ window.msStep = function(msId, cardId, v, delta){
 // ─── popover condizioni ───
 var msCondCtx = null; // {msId, cardId, v}
 
+// ── Prezzo/valore per condizione nel popover (anteprima carta) ────────────
+// Riusa il motore prezzi della valutazione masterset (rbGetConditionPrices via
+// bridge parent) in modalità SICURA: force:false → solo CMAPI + cache/DB, mai
+// scrape live (la policy click-only lo blocca comunque, non essendo qui in
+// rbCmUserAction). Condition-aware: ogni riga MS_CONDITIONS mostra il prezzo
+// derivato dal ladder con badge origine coerente (listing/API/stima/rif).
+// Fallback "riferimento regular" per varianti fuori canone CMAPI, identico
+// alla valutazione, così non si resta su 'n.d.' per Reverse Holo/1ª ed./lingue.
+var _msCondPriceSeq = 0;
+async function _msCondPopLoadPrices(ms, card, v){
+  var valEl = document.getElementById('msCondPopVal');
+  var getCP = (typeof rbParentFn === 'function') ? rbParentFn('rbGetConditionPrices') : null;
+  if(!getCP){                                   // standalone: nessun motore prezzi
+    if(valEl) valEl.style.display = 'none';
+    return;
+  }
+  var myTok = ++_msCondPriceSeq;
+  if(valEl){ valEl.style.display = 'flex'; valEl.innerHTML = '<span class="ms-cond-val-load">valuto…</span>'; }
+
+  var pOpts = null;
+  try{ pOpts = msvPricingOpts(ms, card, v); }catch(e){ pOpts = null; }
+  if(!pOpts){ if(valEl) valEl.style.display = 'none'; return; }
+
+  var res = null;
+  try{ res = await getCP(pOpts, { force:false }); }catch(e){ res = null; }
+  // Fuori canone CMAPI + vuoto → ripiego sul prezzo del prodotto regular (rif.).
+  try{
+    if((!res || !res.ok || !((res.conditions||[]).length)) &&
+       typeof _msvCmapiCanon === 'function' && !_msvCmapiCanon(pOpts)){
+      var canonOpts = Object.assign({}, pOpts, { variant:'Normal', first_edition:false, canonicalHolo:false });
+      var rr = await getCP(canonOpts, { force:false });
+      if(rr && rr.ok && (rr.conditions||[]).length) res = Object.assign({}, rr, { _refRegular:true });
+    }
+  }catch(e){}
+
+  // Guardia anti-race: l'utente potrebbe aver aperto un'altra carta nel frattempo.
+  if(myTok !== _msCondPriceSeq) return;
+  if(!msCondCtx || msCondCtx.cardId !== card.id || msCondCtx.v !== v) return;
+
+  var meta  = msvResMeta(res);
+  var conds = (res && res.conditions) || [];
+
+  // Header: valore di riferimento (NM, o prima condizione utile) + badge + link CM.
+  if(valEl){
+    var dNm = msvDerive(conds, 'NM');
+    if(!dNm){ for(var i=0; i<MS_CONDITIONS.length && !dNm; i++) dNm = msvDerive(conds, MS_CONDITIONS[i].id); }
+    if(dNm){
+      var linkOpen = meta.cmUrl
+        ? '<a class="ms-cond-val-cml" href="'+esc(meta.cmUrl)+'" target="_blank" rel="noopener" title="Apri la pagina Cardmarket usata per questo prezzo">\u2197</a>'
+        : '';
+      valEl.style.display = 'flex';
+      valEl.innerHTML = '<span class="ms-cond-val-lbl">Valore</span>'
+        + '<span class="ms-cond-val-eur">'+fmtEur(dNm.p)+'</span>'
+        + _msvBadge(dNm, meta.basis, meta.refRegular) + linkOpen;
+    } else {
+      valEl.style.display = 'flex';
+      valEl.innerHTML = '<span class="ms-cond-val-lbl">Valore</span><span class="msv-badge miss">n.d.</span>';
+    }
+  }
+
+  // Prezzo per ogni condizione nella colonna centrale della riga.
+  MS_CONDITIONS.forEach(function(cnd){
+    var cell = document.querySelector('#msCondPopRows .ms-cond-price[data-cond="'+cnd.id+'"]');
+    if(!cell) return;
+    var d = msvDerive(conds, cnd.id);
+    if(d){
+      var tip = d.src === 'listing' ? 'listing reali Cardmarket'
+              : d.src === 'api'     ? 'riferimento API ufficiale Cardmarket'
+              :                       'stima dalla scala condizioni';
+      if(meta.refRegular) tip = 'prezzo prodotto regular (riferimento) — variante non quotabile via API';
+      cell.innerHTML = '<span class="ms-cond-price-eur '+(d.src||'')+(meta.refRegular?' rif':'')+'" title="'+esc(tip)+'">'+fmtEur(d.p)+'</span>';
+    } else {
+      cell.innerHTML = '<span class="ms-cond-price-na" title="Nessun dato prezzo per questa condizione">\u2014</span>';
+    }
+  });
+}
+
 window.msCondPopOpen = function(msId, cardId, v){
   var ms = msData.find(function(m){return m.id===msId;});
   if(!ms) return;
@@ -2055,6 +2148,8 @@ window.msCondPopOpen = function(msId, cardId, v){
   var img = document.getElementById('msCondPopImg');
   if(card.img){ img.src=card.img; img.style.display='block'; } else { img.style.display='none'; }
   msCondPopRender();
+  // Anteprima prezzo/valore per condizione (best-effort, non blocca l'apertura).
+  try{ _msCondPopLoadPrices(ms, card, v); }catch(e){}
   document.getElementById('msCondPopBg').classList.add('show');
 };
 
@@ -2080,7 +2175,7 @@ function msCondPopRender(){
     row.className = 'ms-cond-row'+(n>0?' active':'');
     row.innerHTML =
       '<div class="ms-cond-lbl"><span class="ms-cond-code">'+cnd.id+'</span><span class="ms-cond-name">'+cnd.label+'</span></div>'+
-      '<div></div>'+
+      '<div class="ms-cond-price" data-cond="'+cnd.id+'"></div>'+
       '<div class="ms-step" style="margin:0">'+
         '<button data-d="-1">&#8722;</button>'+
         '<div class="ms-step-v'+(n>0?' on':'')+'">'+n+'</div>'+
