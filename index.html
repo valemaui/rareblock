@@ -216,6 +216,8 @@
 
     .hero-title {
       font-family: var(--serif);
+      font-optical-sizing: none;
+      font-variation-settings: 'opsz' 44;
       font-size: clamp(48px, 7vw, 92px);
       font-weight: 300;
       line-height: 1.08;
@@ -1039,7 +1041,7 @@
       Il tuo capitale<br>in <em>asset rari.</em>
     </h1>
     <p class="hero-sub">
-      RareBlock è la prima piattaforma italiana dedicata agli investimenti su prodotti Pokémon. Asset fisici certificati, custodia professionale, accesso anche frazionato.
+      Il primo operatore italiano dedicato agli asset Pokémon da collezione. Selezione rigorosa, custodia professionale, accesso intero o frazionato.
     </p>
     <div class="hero-actions">
       <a href="#accesso" class="btn-primary">Richiedi l'accesso</a>
@@ -1093,7 +1095,7 @@
       </figure>
       <div>
         <p class="record-eyebrow">I — Il precedente · Febbraio 2026</p>
-        <div class="record-figure-num">$16,49M</div>
+        <div class="record-figure-num" id="recordNum" data-from="5.27" data-to="16.49">$16,49M</div>
         <div class="record-figure-sub">≈ €15,2 M — Pikachu Illustrator, PSA 10 Gem Mint</div>
         <p class="record-lead">
           Il 16 febbraio 2026, da Goldin Auctions, la Pikachu Illustrator del 1998 è diventata la trading card più costosa mai aggiudicata all'asta. Una singola carta, unico esemplare al mondo nella massima classificazione PSA 10. È l'apice di una classe d'asset che da nicchia per appassionati è diventata un mercato strutturato, con case d'asta dedicate e indici di prezzo affidabili.
@@ -1480,6 +1482,35 @@
     (function(){
       var em = document.getElementById('wlEmail');
       if(em){ em.addEventListener('keydown', function(ev){ if(ev.key === 'Enter'){ ev.preventDefault(); wlSubmit(); } }); }
+    })();
+
+    // ── Count-up del record: da $5,27M (2021) a $16,49M, come un rilancio finale ──
+    (function(){
+      var el = document.getElementById('recordNum');
+      if(!el) return;
+      if(window.matchMedia('(prefers-reduced-motion: reduce)').matches) return; // resta il valore statico
+      var from = parseFloat(el.getAttribute('data-from')) || 0;
+      var to   = parseFloat(el.getAttribute('data-to')) || 0;
+      function fmt(v){ return '$' + v.toFixed(2).replace('.', ',') + 'M'; }
+      var done = false;
+      var obs = new IntersectionObserver(function(entries){
+        entries.forEach(function(en){
+          if(!en.isIntersecting || done) return;
+          done = true;
+          obs.unobserve(el);
+          var t0 = null, dur = 2000;
+          function step(ts){
+            if(t0 === null) t0 = ts;
+            var p = Math.min((ts - t0) / dur, 1);
+            var e = 1 - Math.pow(1 - p, 3); // ease-out cubic: rallenta sul martello
+            el.textContent = fmt(from + (to - from) * e);
+            if(p < 1){ requestAnimationFrame(step); }
+            else { el.textContent = '$16,49M'; }
+          }
+          requestAnimationFrame(step);
+        });
+      }, { threshold: 0.5 });
+      obs.observe(el);
     })();
 
     // ── Tilt leggero sulla Illustrator (solo desktop, no reduced-motion) ──
