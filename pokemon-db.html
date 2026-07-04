@@ -9078,10 +9078,10 @@ async function _verifyPriceColEditCore(){
       var cs = condShort[l.condition] || l.condition || '?';
       return cs+' <b>\u20ac'+l.price.toFixed(2)+'</b>';
     });
-    if(res.source==='cmapi'){ log.log('CMAPI \u00b7 IT \u20ac'+((res.cmapi&&res.cmapi.lnm_it)!=null?res.cmapi.lnm_it:'?')+' \u00b7 30g \u20ac'+((res.cmapi&&res.cmapi.avg_30d)!=null?res.cmapi.avg_30d:'?')+' \u00b7 7g \u20ac'+((res.cmapi&&res.cmapi.avg_7d)!=null?res.cmapi.avg_7d:'?'), 'data'); } else { log.log('CM listing: '+logParts.join(' \u00b7 '), 'data'); }
+    if(res.source==='cmapi'){ log.log('CMAPI \u00b7 IT \u20ac'+((res.cmapi&&res.cmapi.lnm_it)!=null?res.cmapi.lnm_it:'?')+' \u00b7 30g \u20ac'+((res.cmapi&&res.cmapi.avg_30d)!=null?res.cmapi.avg_30d:'?')+' \u00b7 7g \u20ac'+((res.cmapi&&res.cmapi.avg_7d)!=null?res.cmapi.avg_7d:'?'), 'data'); } else if(res.listings && res.listings.length){ log.log('CM listing: '+logParts.join(' \u00b7 '), 'data'); } else if(res.smart && res.smart.label){ log.log(res.smart.label, 'data'); }
     if(res.smart && res.smart.outlierRemoved > 0)
       log.log('<span class="rb-i rb-i-warn"></span> '+res.smart.outlierRemoved+' outlier rimossi', 'warn');
-    log.log('<span class="rb-i rb-i-check"></span> Prezzo ('+(res.source==='cmapi'?((res.smart&&res.smart.label)||'CMAPI'):'mediana top-3')+'): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
+    log.log('<span class="rb-i rb-i-check"></span> Prezzo ('+((res.smart&&res.smart.label)?res.smart.label:'mediana top-3')+'): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
     if(res.smart && res.smart.condEstimated){ log.log('<span class="rb-i rb-i-warn"></span> Stima da NM \u00d7 scala condizione \u00b7 NM \u20ac'+(res.smart.nmPrice!=null?res.smart.nmPrice.toFixed(2):'?')+'. CMAPI non espone il ladder per-condizione: per il prezzo reale usa userscript/estensione su IP residenziale.', 'warn'); }
 
     _saveCmStash('colEdit', {
@@ -11214,10 +11214,10 @@ async function _verifyPriceEditCore(opts){
         var cs = condShort[l.condition] || l.condition || '?';
         return cs+' <b>\u20ac'+l.price.toFixed(2)+'</b>';
       });
-      if(res.source==='cmapi'){ log.log('CMAPI \u00b7 IT \u20ac'+((res.cmapi&&res.cmapi.lnm_it)!=null?res.cmapi.lnm_it:'?')+' \u00b7 30g \u20ac'+((res.cmapi&&res.cmapi.avg_30d)!=null?res.cmapi.avg_30d:'?')+' \u00b7 7g \u20ac'+((res.cmapi&&res.cmapi.avg_7d)!=null?res.cmapi.avg_7d:'?'), 'data'); } else { log.log('CM listing: '+logParts.join(' \u00b7 '), 'data'); }
+      if(res.source==='cmapi'){ log.log('CMAPI \u00b7 IT \u20ac'+((res.cmapi&&res.cmapi.lnm_it)!=null?res.cmapi.lnm_it:'?')+' \u00b7 30g \u20ac'+((res.cmapi&&res.cmapi.avg_30d)!=null?res.cmapi.avg_30d:'?')+' \u00b7 7g \u20ac'+((res.cmapi&&res.cmapi.avg_7d)!=null?res.cmapi.avg_7d:'?'), 'data'); } else if(res.listings && res.listings.length){ log.log('CM listing: '+logParts.join(' \u00b7 '), 'data'); } else if(res.smart && res.smart.label){ log.log(res.smart.label, 'data'); }
       if(res.smart && res.smart.outlierRemoved > 0)
         log.log('<span class="rb-i rb-i-warn"></span> '+res.smart.outlierRemoved+' outlier rimossi', 'warn');
-      log.log('<span class="rb-i rb-i-check"></span> Prezzo ('+(res.source==='cmapi'?((res.smart&&res.smart.label)||'CMAPI'):'mediana top-3')+'): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
+      log.log('<span class="rb-i rb-i-check"></span> Prezzo ('+((res.smart&&res.smart.label)?res.smart.label:'mediana top-3')+'): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
       if(res.smart && res.smart.condEstimated){ log.log('<span class="rb-i rb-i-warn"></span> Stima da NM \u00d7 scala condizione \u00b7 NM \u20ac'+(res.smart.nmPrice!=null?res.smart.nmPrice.toFixed(2):'?')+'. CMAPI non espone il ladder per-condizione: per il prezzo reale usa userscript/estensione su IP residenziale.', 'warn'); }
     }
 
@@ -12606,7 +12606,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-07-04-cm-slug-delta-prime';
+var RB_BUILD = '2026-07-04-cmlink-valuta-idxfallback';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -13075,7 +13075,7 @@ function replayCmLog(key){
       var cs = condShort[l.condition] || l.condition || '?';
       return cs+' <b>\u20ac'+l.price.toFixed(2)+'</b>';
     });
-    if(res.source==='cmapi'){ log.log('CMAPI \u00b7 IT \u20ac'+((res.cmapi&&res.cmapi.lnm_it)!=null?res.cmapi.lnm_it:'?')+' \u00b7 30g \u20ac'+((res.cmapi&&res.cmapi.avg_30d)!=null?res.cmapi.avg_30d:'?')+' \u00b7 7g \u20ac'+((res.cmapi&&res.cmapi.avg_7d)!=null?res.cmapi.avg_7d:'?'), 'data'); } else { log.log('CM listing: '+logParts.join(' \u00b7 '), 'data'); }
+    if(s.source==='cmapi'){ log.log('CMAPI \u00b7 riferimento API ufficiale Cardmarket', 'data'); } else { log.log('CM listing: '+logParts.join(' \u00b7 '), 'data'); }
     if(s.smart && s.smart.outlierRemoved > 0)
       log.log('<span class="rb-i rb-i-warn"></span> '+s.smart.outlierRemoved+' outlier rimossi', 'warn');
     if(s.finalPrice != null)
@@ -13795,6 +13795,59 @@ async function fetchCmPriceLive(opts){
         };
       }
     }
+    // ── 2B: ULTIMISSIMA SPIAGGIA — prezzo NM salvato nell'indice RareBlock ──
+    //    Qui arriviamo quando CMAPI non ha risolto la carta (miss/errore/quota)
+    //    E la cascata listing è fallita (silent-mode policy, o datacenter
+    //    bloccato senza Hunter). Ma rb_card_index può avere un NM verificato
+    //    da sessioni precedenti (scrape reale o CMAPI): meglio quel numero,
+    //    etichettato con fonte ed età, che un errore secco nel preventivo.
+    //    Stesso criterio del 2A: condizione derivata via COND_FACTOR (stima),
+    //    variante non canonica marcata "non confermata". Fail-safe totale:
+    //    campo assente/errore RPC → si prosegue col return ok:false esistente.
+    try{
+      if(typeof rbIndexGet === 'function' && typeof rbProductKey === 'function' && typeof COND_FACTOR === 'object'){
+        var _ixFactor = COND_FACTOR[(cond || 'NM').toString().toUpperCase()];
+        if(_ixFactor !== undefined && _ixFactor > 0){
+          var _ixKey = rbProductKey({ setId:setId, setName:setName, number:number, name:name });
+          var _ixRow = null;
+          if(_ixKey){
+            var _ixRows = await rbIndexGet([_ixKey]);
+            _ixRow = (_ixRows && _ixRows[_ixKey]) || null;
+          }
+          var _ixNmRaw = _ixRow ? (_ixRow.price_nm_weighted != null ? _ixRow.price_nm_weighted : _ixRow.price_nm) : null;
+          if(_ixNmRaw != null && +_ixNmRaw > 0){
+            var _ixNm = Math.round((+_ixNmRaw) * 100) / 100;
+            var _ixPrice = Math.round(_ixNm * _ixFactor * 100) / 100;
+            var _ixVarMismatch = (variant && variant !== 'Normal') || first1st;
+            var _ixAge = null;
+            try{
+              var _ixTs = _ixRow.price_updated_at || _ixRow.updated_at || null;
+              if(_ixTs) _ixAge = Math.max(0, Math.round((Date.now() - new Date(_ixTs).getTime()) / 86400000));
+            }catch(eAge){}
+            var _ixLabel = 'indice RareBlock \u00b7 NM salvato'
+              + (_ixAge != null ? (' \u00b7 ' + _ixAge + 'g fa') : '')
+              + (_ixFactor === 1 ? '' : (' \u00d7 ' + cond + ' (stima)'))
+              + (_ixVarMismatch ? ' \u00b7 \u26a0 variante non confermata' : '')
+              + ' \u00b7 dato live: serve Hunter';
+            var _ixUrl = (_ixRow.cm_url && typeof _isAuthoritativeCMUrl === 'function' && _isAuthoritativeCMUrl(_ixRow.cm_url))
+              ? (typeof cmAppendParams === 'function'
+                  ? cmAppendParams(_ixRow.cm_url.split('?')[0], cond, lang, variant, first1st)
+                  : _ixRow.cm_url)
+              : (cmUrl || null);
+            attempts.push({ url:'(rb_card_index)', kind:'IDX-PRICE', count:1,
+              error:'cascata CM+CMAPI fallita \u2192 NM salvato nell\u2019indice: \u20ac' + _ixNm.toFixed(2)
+                  + (_ixAge != null ? (' (' + _ixAge + 'g)') : '') });
+            return {
+              ok:true, price:_ixPrice, listings:[],
+              smart:{ price:_ixPrice, source:'rbindex', label:_ixLabel,
+                      nmPrice:_ixNm, condEstimated:(_ixFactor !== 1), condFactor:_ixFactor,
+                      variantUnconfirmed:_ixVarMismatch, needsHunter:true, ageDays:_ixAge },
+              isDirect:false, cmUrl:_ixUrl, source:'rbindex', attempts:attempts
+            };
+          }
+        }
+      }
+    }catch(eIdxFb){}
     var _hr = (typeof _rbHunterReason !== 'undefined' && _rbHunterReason) ? _rbHunterReason : 'sconosciuto';
     var finalErr = primaryBlocked
       ? ('Hunter non ha letto la pagina \u2192 ' + _hr + '. (Cos\u00ec CM \u00e8 stato letto dal datacenter \u2192 403 Cloudflare \u2192 prezzo da trend, non dai listing reali.)')
@@ -14564,10 +14617,10 @@ async function _verifyPriceAddCore(prefix, opts){
         var cs = condShort[l.condition] || l.condition || '?';
         return cs+' <b>\u20ac'+l.price.toFixed(2)+'</b>';
       });
-      if(res.source==='cmapi'){ log.log('CMAPI \u00b7 IT \u20ac'+((res.cmapi&&res.cmapi.lnm_it)!=null?res.cmapi.lnm_it:'?')+' \u00b7 30g \u20ac'+((res.cmapi&&res.cmapi.avg_30d)!=null?res.cmapi.avg_30d:'?')+' \u00b7 7g \u20ac'+((res.cmapi&&res.cmapi.avg_7d)!=null?res.cmapi.avg_7d:'?'), 'data'); } else { log.log('CM listing: '+logParts.join(' \u00b7 '), 'data'); }
+      if(res.source==='cmapi'){ log.log('CMAPI \u00b7 IT \u20ac'+((res.cmapi&&res.cmapi.lnm_it)!=null?res.cmapi.lnm_it:'?')+' \u00b7 30g \u20ac'+((res.cmapi&&res.cmapi.avg_30d)!=null?res.cmapi.avg_30d:'?')+' \u00b7 7g \u20ac'+((res.cmapi&&res.cmapi.avg_7d)!=null?res.cmapi.avg_7d:'?'), 'data'); } else if(listings && listings.length){ log.log('CM listing: '+logParts.join(' \u00b7 '), 'data'); } else if(res.smart && res.smart.label){ log.log(res.smart.label, 'data'); }
       if(res.smart && res.smart.outlierRemoved > 0)
         log.log('<span class="rb-i rb-i-warn"></span> '+res.smart.outlierRemoved+' outlier rimossi', 'warn');
-      log.log('<span class="rb-i rb-i-check"></span> Prezzo ('+(res.source==='cmapi'?((res.smart&&res.smart.label)||'CMAPI'):'mediana top-3')+'): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
+      log.log('<span class="rb-i rb-i-check"></span> Prezzo ('+((res.smart&&res.smart.label)?res.smart.label:'mediana top-3')+'): <b>\u20ac'+res.price.toFixed(2)+'</b>', 'ok');
     }
 
     // ── Fallback salto CardMarket (l'app non puo' verificare la pagina CM:
@@ -14603,7 +14656,7 @@ async function _verifyPriceAddCore(prefix, opts){
       const priceEl = document.getElementById('qmPriceVal');
       if(priceEl){ priceEl.textContent = '\u20ac'+bestPrice.toFixed(2); priceEl.style.color='var(--success)'; }
       const factEl = document.getElementById('qmPriceFactor');
-      if(factEl){ factEl.textContent = (res.source==='cmapi' ? ((res.smart&&res.smart.label||'CMAPI')+' \u00b7 '+lang) : ('CM live \u00b7 '+cond+' \u00b7 '+lang+' \u00b7 mediana top-3')); }
+      if(factEl){ factEl.textContent = ((res.smart&&res.smart.label) ? (res.smart.label+' \u00b7 '+lang) : ('CM live \u00b7 '+cond+' \u00b7 '+lang+' \u00b7 mediana top-3')); }
       const rowEl = document.getElementById('qmPriceRow');
       if(rowEl) rowEl.style.display='flex';
     } else if(prefix==='s'){
@@ -14653,6 +14706,9 @@ function showAddVerifyFeedback(prefix, listingsOrPrices, applied, cond, lang, so
   // pagina Cardmarket). Solo lo scrape reale porta listing con foto/pro, quindi
   // chip-foto, marcatore pro e filtro pro hanno senso SOLO fuori da CMAPI.
   var isCmapi = (source === 'cmapi');
+  // 'rbindex' = NM salvato in rb_card_index (fallback quando CMAPI e scrape
+  // falliscono): nessun listing, solo il prezzo di riferimento etichettato.
+  var isIndex = (source === 'rbindex');
   // Backward compat: il chiamante puo' passare sia listings (oggetti) sia prezzi (numeri)
   var hasObjects = listingsOrPrices && listingsOrPrices.length && typeof listingsOrPrices[0] === 'object';
   // ── #2: coerenza con la CONDIZIONE selezionata ──────────────────────────
@@ -14788,6 +14844,8 @@ function showAddVerifyFeedback(prefix, listingsOrPrices, applied, cond, lang, so
     // nessuna lettura della pagina). Solo lo scrape reale e' "CM live".
     var srcLabel = isCmapi
       ? 'CMAPI \u00b7 NM \u00b7 ' + lang + ' <span class="pq-cm-srctag" title="Prezzo di riferimento da API Cardmarket (RapidAPI) — nessuna pagina letta">API</span>'
+      : isIndex
+      ? 'Indice RareBlock \u00b7 NM salvato \u00b7 ' + lang + ' <span class="pq-cm-srctag" title="NM registrato nell\u2019indice RareBlock da una rilevazione precedente (CMAPI o listing reali) — n\u00e9 API n\u00e9 pagina lette adesso">DB</span>'
       : 'CM live \u00b7 ' + cond + ' \u00b7 ' + lang;
     // Toggle solo-pro: visibile solo se ci sono dati scrapati con almeno un pro
     var proToggle = (!isCmapi && proCount > 0)
@@ -14806,6 +14864,8 @@ function showAddVerifyFeedback(prefix, listingsOrPrices, applied, cond, lang, so
       +'<div class="pq-cm-footer">'
         +(isCmapi
             ? 'Prezzo NM di riferimento \u00b7 clicca per applicarlo \u00b7 apri \u2197 o premi \u20ac per i listing reali'
+            : isIndex
+            ? 'NM salvato nell\u2019indice (rilevazione precedente) \u00b7 clicca per applicarlo \u00b7 premi \u20ac con Hunter attiva per il dato live'
             : 'Clicca un prezzo per applicarlo'
               +(smartChip!=null?' \u00b7 \u2605 mediana smart top-3':'')
               +(hasPhotoCount>0?' \u00b7 verde pieno = con foto del venditore':'')
@@ -14826,7 +14886,7 @@ function showAddVerifyFeedback(prefix, listingsOrPrices, applied, cond, lang, so
     const form = document.getElementById(prefix==='q'?'quickAddForm':prefix==='s'?'selAddForm':'mform');
     if(form) form.appendChild(el);
   }
-  el.innerHTML = '<span style="font-size:10px;font-weight:600;color:var(--success);text-transform:uppercase;letter-spacing:.5px">'+(isCmapi?('CMAPI \u00b7 NM \u00b7 '+lang):('CM live \u00b7 '+cond+' \u00b7 '+lang))+'</span>'
+  el.innerHTML = '<span style="font-size:10px;font-weight:600;color:var(--success);text-transform:uppercase;letter-spacing:.5px">'+(isCmapi?('CMAPI \u00b7 NM \u00b7 '+lang):isIndex?('Indice RareBlock \u00b7 NM salvato \u00b7 '+lang):('CM live \u00b7 '+cond+' \u00b7 '+lang))+'</span>'
     + topUnique.map(function(u){
         var p = u.price;
         var pro = u.is_professional ? '\u2302\u00a0' : '';
@@ -15332,7 +15392,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.60';
+const APP_VERSION='6.61';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -17005,7 +17065,7 @@ function scReset(){
 
 <!-- TAB MASTERSET -->
 <div class="tab" id="tab-ms" style="display:none;flex-direction:column;overflow:hidden">
-  <iframe id="msFrame" src="frames/masterset.html?v=20260702-condpop-prezzi"
+  <iframe id="msFrame" src="frames/masterset.html?v=20260704-cmlink-valuta"
           title="Masterset"
           style="flex:1;width:100%;border:0;background:var(--bg);display:block"></iframe>
 </div>

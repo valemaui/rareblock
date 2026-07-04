@@ -175,6 +175,8 @@ body{display:flex;flex-direction:column}
 .ms-cond-pop-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ms-cond-pop-meta{font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:3px}
 .ms-cond-pop-var{display:inline-block;margin-top:5px;padding:2px 8px;border:1px solid rgba(201,169,110,.3);background:rgba(201,169,110,.08);color:var(--accent);border-radius:3px;font-size:10px;font-family:var(--mono);font-weight:600;letter-spacing:.4px}
+.ms-cond-pop-cm{display:none;margin-top:5px;margin-left:6px;padding:2px 8px;border:1px solid rgba(201,168,76,.45);background:rgba(201,168,76,.10);color:var(--gold,#c9a84c);border-radius:3px;font-size:10px;font-family:var(--mono);font-weight:700;letter-spacing:.4px;text-decoration:none;cursor:pointer}
+.ms-cond-pop-cm:hover{background:rgba(201,168,76,.22)}
 .ms-cond-pop-rows{display:flex;flex-direction:column;gap:4px}
 /* Riga valore di riferimento (NM) nell'header del popover + prezzo per-condizione
    nella colonna centrale di ogni riga. Fonti coerenti con la valutazione masterset. */
@@ -700,6 +702,7 @@ body{display:flex;flex-direction:column}
         <div class="ms-cond-pop-name" id="msCondPopName"></div>
         <div class="ms-cond-pop-meta" id="msCondPopMeta"></div>
         <div class="ms-cond-pop-var" id="msCondPopVar"></div>
+        <a class="ms-cond-pop-cm" id="msCondPopCm" href="#" target="_blank" rel="noopener" style="display:none">Cardmarket &#8599;</a>
         <div class="ms-cond-pop-val" id="msCondPopVal"></div>
       </div>
     </div>
@@ -2136,6 +2139,52 @@ async function _msCondPopLoadPrices(ms, card, v){
   });
 }
 
+// ── Link Cardmarket SEMPRE disponibile nel popover (anteprima carta) ──────
+// Costruito subito con la cascata URL del parent (rbCmSafeHref/buildCMDirectUrl:
+// slug diretto → browse set → ricerca) così anche SENZA dati prezzo si può
+// saltare su CM per (1) controllare variazioni di valore e (2) acquistare la
+// carta se manca dal masterset. Upgrade asincrono best-effort all'URL prodotto
+// VERIFICATO dell'indice RareBlock (rb_card_index): pagina esatta al posto
+// dello slug indovinato. Filtri lingua/variante/1ª-ed. applicati all'URL.
+var _msCondCmSeq = 0;
+function _msCondPopSetCmLink(ms, card, v){
+  var a = document.getElementById('msCondPopCm');
+  if(!a) return;
+  var myTok = ++_msCondCmSeq;
+  a.style.display = 'none';
+  a.removeAttribute('href');
+  a.title = 'Apri questa carta su Cardmarket: controlla il valore o acquistala se manca';
+  var pOpts = null;
+  try{ pOpts = msvPricingOpts(ms, card, v); }catch(e){ pOpts = null; }
+  if(!pOpts) return;
+  var build = (typeof rbParentFn === 'function')
+    ? (rbParentFn('rbCmSafeHref') || rbParentFn('buildCMDirectUrl'))
+    : null;
+  if(build){
+    try{
+      var href = build(pOpts.name, pOpts.setId, pOpts.number, 'NM', pOpts.language,
+                       pOpts.variant, pOpts.first_edition, pOpts.setName, pOpts.rarity, null);
+      if(href && href !== '#'){ a.href = href; a.style.display = 'inline-block'; }
+    }catch(e){}
+  }
+  // Upgrade asincrono: URL prodotto verificato dall'indice (fail-safe totale).
+  var idxUrl  = (typeof rbParentFn === 'function') ? rbParentFn('rbIndexCmUrl')  : null;
+  var appendP = (typeof rbParentFn === 'function') ? rbParentFn('cmAppendParams') : null;
+  if(idxUrl){
+    try{
+      Promise.resolve(idxUrl(pOpts)).then(function(u){
+        if(!u) return;
+        if(myTok !== _msCondCmSeq) return;      // nel frattempo è stata aperta un'altra carta
+        var full = u;
+        try{ if(appendP) full = appendP(u, 'NM', pOpts.language, pOpts.variant, pOpts.first_edition) || u; }catch(e){}
+        a.href = full;
+        a.style.display = 'inline-block';
+        a.title = 'Pagina prodotto verificata (indice RareBlock) \u2014 controlla il valore o acquista la carta';
+      }).catch(function(){});
+    }catch(e){}
+  }
+}
+
 window.msCondPopOpen = function(msId, cardId, v){
   var ms = msData.find(function(m){return m.id===msId;});
   if(!ms) return;
@@ -2148,7 +2197,9 @@ window.msCondPopOpen = function(msId, cardId, v){
   var img = document.getElementById('msCondPopImg');
   if(card.img){ img.src=card.img; img.style.display='block'; } else { img.style.display='none'; }
   msCondPopRender();
-  // Anteprima prezzo/valore per condizione (best-effort, non blocca l'apertura).
+  // Link Cardmarket sempre presente (valore/acquisto) + anteprima prezzo per
+  // condizione (entrambi best-effort, non bloccano l'apertura).
+  try{ _msCondPopSetCmLink(ms, card, v); }catch(e){}
   try{ _msCondPopLoadPrices(ms, card, v); }catch(e){}
   document.getElementById('msCondPopBg').classList.add('show');
 };
@@ -4131,7 +4182,9 @@ window.msvRefreshInfo = function(){
     var k = msvCardKey(msvPricingOpts(ms, j.card, j.variant)) || ('rnd'+fetches+Math.random());
     if(!seen[k]){ seen[k] = 1; fetches++; }
   });
-  var perCard = _msv.source === 'hunter' ? 7.2 : (document.getElementById('msvForce').checked ? 2.6 : 1.3);
+  // API: motore parallelo (4 worker, niente delay anti-bot) → ~0.4–0.6s/fetch
+  // effettivi. Hunter: sequenziale con delay anti-bot 3.5–8s → ~7.2s/fetch.
+  var perCard = _msv.source === 'hunter' ? 7.2 : (document.getElementById('msvForce').checked ? 0.6 : 0.45);
   var mins = Math.max(1, Math.round(fetches * perCard / 60));
   var langOk = MSV_API_LANGS.test((ms.lang||'ITA'));
   var html = 'Stampe da quotare: <b>' + n + '</b> (' + fetches + ' fetch dopo dedup)'
@@ -4226,13 +4279,135 @@ function _msvFmtEta(sec){
   return m + 'm ' + (s<10?'0':'') + s + 's';
 }
 
-async function _msvWork(ms, cfg, getCP){
+// ── Derivazione righe da un risultato prezzi (condivisa API/Hunter) ──────
+// Trasforma (job, res) nelle righe risultato + push nel feed live quando il
+// fetch è nuovo (non cache). Ritorna l'array righe per quel job.
+function _msvJobRows(ms, cfg, j, res, pushFeed){
+  var conds = (res && res.conditions) || [];
+  var meta = msvResMeta(res);
+  var out = [];
+  if(cfg.mode === 'owned'){
+    Object.keys(j.owned).forEach(function(cShort){
+      var d = msvDerive(conds, cShort);
+      out.push({ num:j.card.num, name:j.card.name, variant:j.variant, cond:cShort,
+                 qty:j.owned[cShort], unit:d?d.p:null, src:d?d.src:null, via:(d&&(d.via||d.from))||null,
+                 fromApi:!!(d&&d.fromApi), refReg:meta.refRegular, org:meta.lbl, orgTip:meta.tip, basis:meta.basis, cmUrl:meta.cmUrl });
+      if(pushFeed) msvFeedPush(
+        '<span class="msv-feed-name">'+(j.card.num?'#'+esc(j.card.num)+' ':'')+esc(j.card.name||'')+' \u00b7 '+esc(cShort)+'</span>'
+        + (d ? '<span class="msv-feed-pr">'+fmtEur(d.p)+'</span>'+_msvBadge(d, meta.basis, meta.refRegular) : '<span class="msv-badge miss">n.d.</span>'));
+    });
+  } else {
+    var prices = {};
+    cfg.conds.forEach(function(cShort){ prices[cShort] = msvDerive(conds, cShort); });
+    out.push({ num:j.card.num, name:j.card.name, variant:j.variant, prices:prices,
+               refReg:meta.refRegular, org:meta.lbl, orgTip:meta.tip, basis:meta.basis, cmUrl:meta.cmUrl });
+    if(pushFeed){
+      var d0 = prices[cfg.conds[0]];
+      msvFeedPush(
+        '<span class="msv-feed-name">'+(j.card.num?'#'+esc(j.card.num)+' ':'')+esc(j.card.name||'')+' \u00b7 '+esc(j.variant)+'</span>'
+        + (d0 ? '<span class="msv-feed-pr">'+fmtEur(d0.p)+'</span>'+_msvBadge(d0, meta.basis, meta.refRegular) : '<span class="msv-badge miss">n.d.</span>'));
+    }
+  }
+  return out;
+}
+
+// ── Fetch API-mode con cache di PROMISE condivisa ────────────────────────
+// cache: card_key → Promise<res>. Due proprietà chiave:
+//  1. job concorrenti sulla stessa carta condividono UN solo fetch;
+//  2. il fallback 'rif' (prodotto regular per varianti fuori canone CMAPI)
+//     viene cacheato sotto la CHIAVE CANONICA → la riga Normal della stessa
+//     carta lo riusa (e viceversa): niente doppio giro CMAPI+DB per carta.
+function _msvApiFetch(getCP, pOpts, cfg, key, cache){
+  if(key && cache[key] !== undefined) return { p: cache[key], cached: true };
+  var p = (async function(){
+    if(cfg.force) msvBustCache(key);
+    var res = null;
+    try{ res = await getCP(pOpts, { force:false }); }
+    catch(e){ res = { ok:false, error:(e&&e.message)||'errore', conditions:[] }; }
+    // Fallback "riferimento regular" per varianti fuori canone CMAPI (vedi
+    // note nel motore sequenziale Hunter): condiviso via cache canonica.
+    if((!res || !res.ok || !(res.conditions||[]).length) && !_msvCmapiCanon(pOpts)){
+      try{
+        var canonOpts = Object.assign({}, pOpts, { variant:'Normal', first_edition:false, canonicalHolo:false });
+        var ck = msvCardKey(canonOpts);
+        var rrP;
+        if(ck && cache[ck] !== undefined){ rrP = cache[ck]; }
+        else{
+          rrP = (async function(){
+            try{ return await getCP(canonOpts, { force:false }); }catch(e){ return null; }
+          })();
+          if(ck) cache[ck] = rrP;
+        }
+        var rr = await rrP;
+        if(rr && rr.ok && (rr.conditions||[]).length) res = Object.assign({}, rr, { _refRegular:true });
+      }catch(eRR){}
+    }
+    return res || null;
+  })();
+  if(key) cache[key] = p;
+  return { p: p, cached: false };
+}
+
+// ── Motore API PARALLELO (pool di worker) ────────────────────────────────
+// In modalità API non c'è scraping (solo CMAPI via edge function + DB/cache):
+// il delay anti-bot sequenziale era inutile e rendeva la valutazione lenta.
+// Pool di MSV_API_CONCURRENCY worker + stagger di lancio breve: da minuti a
+// decine di secondi su un masterset intero. Ordine righe preservato per job.
+var MSV_API_CONCURRENCY = 4;
+async function _msvWorkApi(ms, cfg, getCP){
   var bar = document.getElementById('msvBar');
   var cnt = document.getElementById('msvCount');
   var eta = document.getElementById('msvEta');
   var now = document.getElementById('msvNow');
-  var hunter = cfg.source === 'hunter';
-  var delayMin = hunter ? 3500 : 650, delayMax = hunter ? 8000 : 1300;
+  try{ document.getElementById('msvFeed').innerHTML = ''; }catch(e){}
+
+  var jobs = _msv.jobs, total = jobs.length;
+  var cache = {};                         // card_key → Promise<res>
+  var rowsByJob = new Array(total);
+  var done = 0, nextIdx = 0;
+
+  async function worker(){
+    while(true){
+      if(_msv.cancel) return;
+      var i = nextIdx++;
+      if(i >= total) return;
+      var j = jobs[i];
+      var pOpts = msvPricingOpts(ms, j.card, j.variant);
+      var key = msvCardKey(pOpts) || ('nk_'+i);
+      var f = _msvApiFetch(getCP, pOpts, cfg, key, cache);
+      if(!f.cached){
+        now.textContent = (j.card.num ? '#'+j.card.num+' ' : '') + (j.card.name||'') + ' \u00b7 ' + j.variant;
+        await _msvSleep(120);             // stagger di lancio (gentile con CMAPI)
+      }
+      var res = null;
+      try{ res = await f.p; }catch(e){ res = null; }
+      rowsByJob[i] = _msvJobRows(ms, cfg, j, res, !f.cached);
+      done++;
+      bar.style.width = (done/total*100).toFixed(1) + '%';
+      cnt.textContent = done + ' / ' + total;
+      var elapsed = (Date.now()-_msv.t0)/1000;
+      eta.textContent = 'ETA ~' + _msvFmtEta(elapsed/done*(total-done));
+    }
+  }
+  var ws = [];
+  for(var w = 0; w < MSV_API_CONCURRENCY; w++) ws.push(worker());
+  await Promise.all(ws);
+
+  var rows = [];
+  rowsByJob.forEach(function(r){ if(r) rows = rows.concat(r); });
+  _msv.rows = rows;
+  _msvFinish(ms, cfg, rows, _msv.cancel);
+}
+
+async function _msvWork(ms, cfg, getCP){
+  // Modalità API → motore parallelo dedicato. Il loop sequenziale sotto resta
+  // SOLO per Hunter (scrape su IP residenziale: delay anti-bot obbligatori).
+  if(cfg.source !== 'hunter') return _msvWorkApi(ms, cfg, getCP);
+  var bar = document.getElementById('msvBar');
+  var cnt = document.getElementById('msvCount');
+  var eta = document.getElementById('msvEta');
+  var now = document.getElementById('msvNow');
+  var delayMin = 3500, delayMax = 8000;
   try{ document.getElementById('msvFeed').innerHTML = ''; }catch(e){}
 
   // dedup: i job che condividono il card_key usano lo stesso ladder
@@ -4251,84 +4426,35 @@ async function _msvWork(ms, cfg, getCP){
     var wasCached = (res !== undefined);
     if(!wasCached){
       try{
-        if(hunter){
-          pOpts.extLadder = true;                    // ladder reale via _vpServerSideCMScrape (ext-first)
-          // minCondition = peggiore condizione richiesta → la pagina CM include
-          // tutte le condizioni da quotare (NM-only filtrerebbe via EX/GD/...).
-          pOpts.condition = cfg.conds[cfg.conds.length-1] || 'NM';
-          res = await getCP(pOpts, { force:true });
-          // Scrape KO → ripiego API/cache per non lasciare la riga vuota
-          if(!res || !res.ok || !(res.conditions||[]).length){
-            try{ var fb = await getCP(msvPricingOpts(ms, j.card, j.variant), { force:false });
-                 if(fb && fb.ok && (fb.conditions||[]).length) res = fb; }catch(e2){}
-          }
-        } else {
-          if(cfg.force) msvBustCache(key);           // bypass cache: NIENTE flags.force
-          // (force:true salterebbe la fast-lane CMAPI di rbGetConditionPrices e
-          //  finirebbe sul live scrape → bloccato dalla policy in modalità API).
-          res = await getCP(pOpts, { force:false });
-          // ── FALLBACK "riferimento regular" ──────────────────────────────
-          // CMAPI prezza solo il prodotto regular/unlimited IT-EN-JP. Per
-          // Reverse Holo / 1ª Edizione / lingue fuori canone la fast-lane
-          // viene saltata nel parent, il DB è quasi sempre vuoto e il live è
-          // bloccato dalla policy click-only in modalità API → la riga restava
-          // 'n.d.'. Era la causa del "quasi tutto n.d." su un master set.
-          // Soluzione onesta: ripiego sul prezzo del prodotto REGULAR (che
-          // CMAPI sa quotare) e marchio le righe come 'rif' (riferimento
-          // regular). Non è il prezzo esatto della variante — per quello c'è
-          // Hunter — ma è un numero tracciabile invece del vuoto.
-          if((!res || !res.ok || !(res.conditions||[]).length) && !_msvCmapiCanon(pOpts)){
-            try{
-              var canonOpts = Object.assign({}, pOpts, { variant:'Normal', first_edition:false, canonicalHolo:false });
-              var rr = await getCP(canonOpts, { force:false });
-              if(rr && rr.ok && (rr.conditions||[]).length){
-                res = Object.assign({}, rr, { _refRegular:true });
-              }
-            }catch(eRR){}
-          }
+        pOpts.extLadder = true;                    // ladder reale via _vpServerSideCMScrape (ext-first)
+        // minCondition = peggiore condizione richiesta → la pagina CM include
+        // tutte le condizioni da quotare (NM-only filtrerebbe via EX/GD/...).
+        pOpts.condition = cfg.conds[cfg.conds.length-1] || 'NM';
+        res = await getCP(pOpts, { force:true });
+        // Scrape KO → ripiego API/cache per non lasciare la riga vuota
+        if(!res || !res.ok || !(res.conditions||[]).length){
+          try{ var fb = await getCP(msvPricingOpts(ms, j.card, j.variant), { force:false });
+               if(fb && fb.ok && (fb.conditions||[]).length) res = fb; }catch(e2){}
         }
       }catch(e){ res = { ok:false, error:(e&&e.message)||'errore', conditions:[] }; }
       fetchCache[key] = res || null;
     }
 
-    // deriva prezzi per le condizioni richieste
-    var conds = (res && res.conditions) || [];
-    var meta = msvResMeta(res);
-    if(cfg.mode === 'owned'){
-      Object.keys(j.owned).forEach(function(cShort){
-        var d = msvDerive(conds, cShort);
-        rows.push({ num:j.card.num, name:j.card.name, variant:j.variant, cond:cShort,
-                    qty:j.owned[cShort], unit:d?d.p:null, src:d?d.src:null, via:(d&&(d.via||d.from))||null,
-                    fromApi:!!(d&&d.fromApi), refReg:meta.refRegular, org:meta.lbl, orgTip:meta.tip, basis:meta.basis, cmUrl:meta.cmUrl });
-        if(!wasCached) msvFeedPush(
-          '<span class="msv-feed-name">'+(j.card.num?'#'+esc(j.card.num)+' ':'')+esc(j.card.name||'')+' \u00b7 '+esc(cShort)+'</span>'
-          + (d ? '<span class="msv-feed-pr">'+fmtEur(d.p)+'</span>'+_msvBadge(d, meta.basis, meta.refRegular) : '<span class="msv-badge miss">n.d.</span>'));
-      });
-    } else {
-      var prices = {};
-      cfg.conds.forEach(function(cShort){ prices[cShort] = msvDerive(conds, cShort); });
-      rows.push({ num:j.card.num, name:j.card.name, variant:j.variant, prices:prices,
-                  refReg:meta.refRegular, org:meta.lbl, orgTip:meta.tip, basis:meta.basis, cmUrl:meta.cmUrl });
-      if(!wasCached){
-        var d0 = prices[cfg.conds[0]];
-        msvFeedPush(
-          '<span class="msv-feed-name">'+(j.card.num?'#'+esc(j.card.num)+' ':'')+esc(j.card.name||'')+' \u00b7 '+esc(j.variant)+'</span>'
-          + (d0 ? '<span class="msv-feed-pr">'+fmtEur(d0.p)+'</span>'+_msvBadge(d0, meta.basis, meta.refRegular) : '<span class="msv-badge miss">n.d.</span>'));
-      }
-    }
+    rows = rows.concat(_msvJobRows(ms, cfg, j, res, !wasCached));
 
     var done = i+1;
     bar.style.width = (done/total*100).toFixed(1) + '%';
     cnt.textContent = done + ' / ' + total;
     var elapsed = (Date.now()-_msv.t0)/1000;
     eta.textContent = 'ETA ~' + _msvFmtEta(elapsed/done*(total-done));
-    // delay anti-bot/anti-flood solo dopo un fetch vero (non su cache-hit)
+    // delay anti-bot solo dopo un fetch vero (non su cache-hit)
     if(i < total-1 && !_msv.cancel && !wasCached) await _msvSleep(_msvRnd(delayMin, delayMax));
   }
 
   _msv.rows = rows;
   _msvFinish(ms, cfg, rows, _msv.cancel);
 }
+
 
 // ── Risultati ───────────────────────────────────────────────────────────
 function _msvFinish(ms, cfg, rows, wasCancelled){
