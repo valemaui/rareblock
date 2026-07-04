@@ -11572,6 +11572,10 @@ const CM_SET_SLUG={
 
 function buildCardmarketSlug(name){
   return name
+    // δ (delta species): CM espande il simbolo in "Delta-Species" nello slug.
+    // Verificato 2026-07-04: Latias-Delta-Species-DS8, Latios-Delta-Species-DS9,
+    // Latias-Delta-Species-HP21, Latias-ex-Delta-Species-DF95.
+    .replace(/δ/g,' Delta Species ')
     .replace(/♀/g,'F').replace(/♂/g,'M')
     .replace(/[àáâãä]/g,'a').replace(/[èéêëẽ]/g,'e')
     .replace(/[ìíîï]/g,'i').replace(/[òóôõöø]/g,'o')
@@ -11686,13 +11690,16 @@ function _cmPrimaryVersionFor(setId, variant, rarity, name){
   }
 
   // ── HGSS (hgss1-hgss4, col1) ──
-  // CM usa V1 per Prime e Legend (rarità premium HGSS), V2 per Rare non-holo.
-  //   Gengar Prime → /HeartGold-SoulSilver/Gengar-V1-HS94
-  //   Rare (non-holo) → V2  |  Common/Uncommon → no-V
+  // V1 = holo standard (verificato: Houndoom-V1-UD5), V2 = Rare non-holo.
+  // Prime = prodotto UNICO al suo numero → no-V (verificato 2026-07-04:
+  // Houndoom Prime = /Undaunted/Houndoom-UD82, NON V1 — il vecchio commento
+  // "Gengar-V1-HS94" era errato, Gengar Prime sta in Triumphant non in HS).
+  // Legend → V1 lasciato invariato: NON verificato su CM, da confermare.
   if(setId === 'hgss1' || setId === 'hgss2' || setId === 'hgss3' || setId === 'hgss4'
      || setId === 'col1'){
+    if(r.indexOf('prime') >= 0) return '';   // Prime: prodotto unico, no-V
     if(v === 'holo' || v === 'reverse holo') return 'V1';
-    if(r.indexOf('rare holo') >= 0 || r.indexOf('prime') >= 0 || r.indexOf('legend') >= 0) return 'V1';
+    if(r.indexOf('rare holo') >= 0 || r.indexOf('legend') >= 0) return 'V1';
     if(r === 'rare' || (r.indexOf('rare') >= 0 && r.indexOf('holo') < 0)) return 'V2';
     return '';  // Common/Uncommon
   }
@@ -11725,7 +11732,7 @@ const CM_SET_ABBREV={
   // WotC Base — verificati
   'base1':'BS','base2':'JU','base3':'FO','base4':'B2','base5':'TR','base6':'LC',
   'gym1':'GH','gym2':'GC',
-  'neo1':'NG','neo2':'ND','neo3':'NR','neo4':'NDE',
+  'neo1':'NG','neo2':'NDI','neo3':'NR','neo4':'NDE',
   'si1':'SI',
   // E-Card — verificati. Aquapolis e Skyridge usano pattern V1/V2/no-V
   // imprevedibile (dipende dalla carta specifica). Expedition usa EX (non EXP)
@@ -12599,7 +12606,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-07-02-mscondpop-prezzi';
+var RB_BUILD = '2026-07-04-cm-slug-delta-prime';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -15325,7 +15332,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.59';
+const APP_VERSION='6.60';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
