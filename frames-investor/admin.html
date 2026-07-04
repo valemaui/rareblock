@@ -785,6 +785,7 @@ body{display:flex;flex-direction:column}
       <button class="admin-side-btn" onclick="adminSection('transfers')"><span class="rb-i rb-i-swap"></span> Trasferimenti</button>
       <button class="admin-side-btn" onclick="adminSection('memorandum')"><span class="rb-i rb-i-list"></span> Memorandum</button>
       <button class="admin-side-btn" onclick="adminSection('referral')"><span class="rb-i rb-i-user" style="color:var(--gold)"></span> Inviti / Referral</button>
+      <button class="admin-side-btn" onclick="adminSection('admissions')"><span class="rb-i rb-i-list"></span> Ammissioni <span id="adminSideAdmCount" class="admin-side-badge" style="display:none">0</span></button>
       <button class="admin-side-btn" onclick="adminSection('drop')"><span class="rb-i rb-i-clock"></span> Drop Countdown</button>
       <button class="admin-side-btn" onclick="adminSection('submissions')"><span class="rb-i rb-i-package"></span> Richieste</button>
       <button class="admin-side-btn" onclick="adminSection('users')"><span class="rb-i rb-i-user"></span> Utenti</button>
@@ -1455,6 +1456,71 @@ body{display:flex;flex-direction:column}
             <tbody id="refLogTbody"></tbody>
           </table>
           <div class="empty-state" id="refLogEmpty" style="display:none;padding:32px"><div class="icon"><span class="rb-i rb-i-list"></span></div><h3>Nessuna attivita registrata</h3></div>
+        </div>
+      </div>
+
+      <!-- REGISTRO D'AMMISSIONE inv_admission_requests -->
+      <div class="admin-section" id="admin-admissions">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div>
+            <div style="font-size:15px;font-weight:600">Registro d'ammissione</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Richieste dalla landing (RPC request_admission) — lista d'attesa per le finestre a numero chiuso</div>
+          </div>
+          <button class="btn" onclick="admAdmLoad()" style="font-size:12px">Aggiorna</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:12px 0 16px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-family:var(--mono)">In attesa</div>
+            <div style="font-size:1.4rem;font-weight:300;color:var(--gold,#c9a84c);margin-top:2px" id="admAdmStatWaiting">—</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-family:var(--mono)">Contattate</div>
+            <div style="font-size:1.4rem;font-weight:300;color:var(--accent);margin-top:2px" id="admAdmStatContacted">—</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-family:var(--mono)">Approvate</div>
+            <div style="font-size:1.4rem;font-weight:300;margin-top:2px" id="admAdmStatApproved">—</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-family:var(--mono)">Ultimi 7gg</div>
+            <div style="font-size:1.4rem;font-weight:300;margin-top:2px" id="admAdmStat7d">—</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <input type="text" id="admAdmSearch" oninput="admAdmRender()" placeholder="Cerca email…" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);min-width:200px;font-size:13px;outline:none">
+          <select id="admAdmFilterStatus" onchange="admAdmRender()" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);font-size:13px;outline:none">
+            <option value="">Tutti gli stati</option>
+            <option value="waiting" selected>In attesa</option>
+            <option value="contacted">Contattate</option>
+            <option value="approved">Approvate</option>
+            <option value="rejected">Rifiutate</option>
+          </select>
+          <select id="admAdmFilterBand" onchange="admAdmRender()" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);font-size:13px;outline:none">
+            <option value="">Tutte le fasce</option>
+            <option value="gt100k">Oltre 100k €</option>
+            <option value="25k-100k">25k – 100k €</option>
+            <option value="5k-25k">5k – 25k €</option>
+            <option value="lt5k">Fino a 5k €</option>
+            <option value="none">Non indicata</option>
+          </select>
+        </div>
+
+        <div style="overflow-x:auto">
+          <table class="table" style="width:100%">
+            <thead><tr>
+              <th style="text-align:left">Email</th>
+              <th style="text-align:left">Fascia</th>
+              <th style="text-align:left">Stato</th>
+              <th style="text-align:left">Richiesta il</th>
+              <th style="text-align:left">Lingua</th>
+              <th style="text-align:left">Note</th>
+              <th style="text-align:right">Azioni</th>
+            </tr></thead>
+            <tbody id="admAdmTbody"></tbody>
+          </table>
+          <div class="empty-state" id="admAdmEmpty" style="display:none;padding:32px"><div class="icon"><span class="rb-i rb-i-list"></span></div><h3>Nessuna richiesta</h3></div>
         </div>
       </div>
 
@@ -2970,6 +3036,7 @@ function adminSection(s){
   if(s==='transfers')   adminLoadTransfers();
   if(s==='memorandum')  memoLoadAll();
   if(s==='referral')    refLoadAll();
+  if(s==='admissions')  admAdmLoad();
   if(s==='drop')        dropAdminLoad();
   if(s==='submissions') submLoadAll();
   if(s==='users')       adminLoadUsers();
@@ -6473,8 +6540,136 @@ function _waitParentReady(cb){
   }
   check();
 }
+// ═══════════════════════════════════════════════════════════
+//  Admin: Registro d'ammissione (inv_admission_requests, migr. 072/073)
+var _admAdmRows = [];
+
+async function admAdmLoad(){
+  var tbody = document.getElementById('admAdmTbody');
+  if(tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px">Caricamento…</td></tr>';
+  try{
+    var rows = await supa('GET','inv_admission_requests?select=*&order=created_at.desc&limit=500');
+    _admAdmRows = Array.isArray(rows) ? rows : [];
+    admAdmRender();
+    admAdmUpdateSidebarBadge();
+  }catch(e){
+    if(tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--danger);padding:20px">Errore caricamento: '+esc(e.message||e)+'</td></tr>';
+  }
+}
+
+function admAdmBandLabel(b){
+  if(b === 'lt5k') return '≤ 5k €';
+  if(b === '5k-25k') return '5–25k €';
+  if(b === '25k-100k') return '25–100k €';
+  if(b === 'gt100k') return '> 100k €';
+  return '—';
+}
+
+function admAdmStatusChip(s){
+  var map = {
+    waiting:   ['In attesa',  'var(--gold,#c9a84c)'],
+    contacted: ['Contattata', 'var(--accent)'],
+    approved:  ['Approvata',  'var(--success,#5cb85c)'],
+    rejected:  ['Rifiutata',  'var(--danger,#d9534f)']
+  };
+  var m = map[s] || [s, 'var(--text-muted)'];
+  return '<span style="display:inline-block;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;padding:2px 8px;border-radius:10px;border:1px solid '+m[1]+';color:'+m[1]+'">'+esc(m[0])+'</span>';
+}
+
+function admAdmRender(){
+  var q      = (document.getElementById('admAdmSearch').value || '').trim().toLowerCase();
+  var fSt    = document.getElementById('admAdmFilterStatus').value;
+  var fBand  = document.getElementById('admAdmFilterBand').value;
+  var tbody  = document.getElementById('admAdmTbody');
+  var empty  = document.getElementById('admAdmEmpty');
+  if(!tbody) return;
+
+  var now = Date.now();
+  var stW = 0, stC = 0, stA = 0, st7 = 0;
+  _admAdmRows.forEach(function(r){
+    if(r.status === 'waiting') stW++;
+    if(r.status === 'contacted') stC++;
+    if(r.status === 'approved') stA++;
+    if(now - new Date(r.created_at).getTime() < 7*86400000) st7++;
+  });
+  document.getElementById('admAdmStatWaiting').textContent   = stW;
+  document.getElementById('admAdmStatContacted').textContent = stC;
+  document.getElementById('admAdmStatApproved').textContent  = stA;
+  document.getElementById('admAdmStat7d').textContent        = st7;
+
+  var rows = _admAdmRows.filter(function(r){
+    if(fSt && r.status !== fSt) return false;
+    if(fBand === 'none' && r.capital_band) return false;
+    if(fBand && fBand !== 'none' && r.capital_band !== fBand) return false;
+    if(q && (r.email||'').toLowerCase().indexOf(q) === -1) return false;
+    return true;
+  });
+
+  if(!rows.length){
+    tbody.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  tbody.innerHTML = rows.map(function(r){
+    var d = new Date(r.created_at);
+    var when = d.toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'numeric'}) + ' · ' + d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+    var acts = '';
+    if(r.status === 'waiting'){
+      acts = '<button class="btn sm" onclick="admAdmSetStatus(\''+r.id+'\',\'contacted\')">Contattata</button> '
+           + '<button class="btn sm primary" onclick="admAdmSetStatus(\''+r.id+'\',\'approved\')">Approva</button> '
+           + '<button class="btn sm" onclick="admAdmSetStatus(\''+r.id+'\',\'rejected\')">Rifiuta</button>';
+    } else if(r.status === 'contacted'){
+      acts = '<button class="btn sm primary" onclick="admAdmSetStatus(\''+r.id+'\',\'approved\')">Approva</button> '
+           + '<button class="btn sm" onclick="admAdmSetStatus(\''+r.id+'\',\'rejected\')">Rifiuta</button>';
+    } else {
+      acts = '<button class="btn sm" onclick="admAdmSetStatus(\''+r.id+'\',\'waiting\')">Riporta in attesa</button>';
+    }
+    acts += ' <button class="btn sm icon-btn" onclick="admAdmEditNote(\''+r.id+'\')" title="Note"><span class="rb-i rb-i-file"></span></button>';
+    return '<tr>'
+      + '<td style="font-family:var(--mono);font-size:12.5px">'+esc(r.email)+'</td>'
+      + '<td style="font-size:12.5px">'+admAdmBandLabel(r.capital_band)+'</td>'
+      + '<td>'+admAdmStatusChip(r.status)+'</td>'
+      + '<td style="font-size:12px;color:var(--text-muted)">'+esc(when)+'</td>'
+      + '<td style="font-size:12px;color:var(--text-muted)">'+esc(r.language||'—')+'</td>'
+      + '<td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(r.notes||'')+'">'+esc(r.notes||'—')+'</td>'
+      + '<td style="text-align:right;white-space:nowrap">'+acts+'</td>'
+      + '</tr>';
+  }).join('');
+}
+
+async function admAdmSetStatus(id, st){
+  try{
+    await supa('PATCH','inv_admission_requests?id=eq.'+encodeURIComponent(id), { status: st, updated_at: new Date().toISOString() });
+    admAdmLoad();
+  }catch(e){ alert('Errore aggiornamento stato: ' + (e.message||e)); }
+}
+
+async function admAdmEditNote(id){
+  var row = _admAdmRows.find(function(r){ return r.id === id; });
+  var cur = row && row.notes ? row.notes : '';
+  var v = prompt('Note interne per ' + (row ? row.email : id) + ':', cur);
+  if(v === null) return;
+  try{
+    await supa('PATCH','inv_admission_requests?id=eq.'+encodeURIComponent(id), { notes: v.trim() || null, updated_at: new Date().toISOString() });
+    admAdmLoad();
+  }catch(e){ alert('Errore salvataggio note: ' + (e.message||e)); }
+}
+
+function admAdmUpdateSidebarBadge(){
+  var b = document.getElementById('adminSideAdmCount');
+  if(!b) return;
+  supa('GET','inv_admission_requests?select=id&status=eq.waiting&limit=1000').then(function(r){
+    var n = Array.isArray(r) ? r.length : 0;
+    if(n > 0){ b.textContent = n; b.style.display = ''; }
+    else b.style.display = 'none';
+  }).catch(function(){ b.style.display = 'none'; });
+}
+
 document.addEventListener("DOMContentLoaded", function(){
   _waitParentReady(function(){
+    admAdmUpdateSidebarBadge();
     // adminLoad seleziona la sezione corrente in base al state interno
     if(typeof adminLoad === 'function'){
       try{ adminLoad(); }catch(e){ console.error("[admin frame]", e); }
