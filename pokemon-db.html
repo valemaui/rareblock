@@ -11657,7 +11657,17 @@ function _cmPrimaryVersionFor(setId, variant, rarity, name){
   // (buildCMDirectUrlVariants) prova V1/V2 SOLO se il no-V non ha listing.
   if(setId === 'base5') return '';
 
-  // ── WotC non-Base (Jungle, Fossil, Legendary Coll, Gym H&C) ──
+  // ── Legendary Collection (base6): prodotti distinti per NUMERO, no-V ──
+  // Verificato su CM (2026-07-05, Dark Slowbro #8): /Legendary-Collection/
+  // Dark-Slowbro-LC8 è il prodotto corretto; -V1-LC8 atterra su un prodotto
+  // SBAGLIATO. Come Team Rocket: ogni stampa ha il suo NUMERO nel set, quindi
+  // CM non ha bisogno del prefisso V. La Reverse Holo LC è la STESSA pagina
+  // isReverseHolo=Y (LC è il primo set con reverse: CM la modella come i set
+  // moderni, attributo e non prodotto). Il cascade V1/V2 resta disponibile
+  // come fallback SOLO se il no-V non ha listing (CM_AMBIGUOUS_VERSION_SETS).
+  if(setId === 'base6') return '';
+
+  // ── WotC non-Base (Jungle, Fossil, Gym H&C) ──
   // Verificato empiricamente su CM (2026-05-15):
   //   Gengar #5 Fossil Rare Holo  \u2192 /Fossil/Gengar-V1-FO5  (256 listings, trend \u20ac157)
   //   Gengar #20 Fossil Rare      \u2192 /Fossil/Gengar-V2-FO20 (391 listings, trend \u20ac33)
@@ -11669,7 +11679,7 @@ function _cmPrimaryVersionFor(setId, variant, rarity, name){
   //   Rare Holo / Rare Holo LV.X / Rare Holo ex   \u2192 V1
   //   Rare (no holo) / Rare Secret / Rare Shining \u2192 V2
   //   Common / Uncommon                            \u2192 no-V
-  if(setId === 'base2' || setId === 'base3' || setId === 'base6'
+  if(setId === 'base2' || setId === 'base3'
      || setId === 'gym1' || setId === 'gym2'){
     if(v === 'holo' || v === 'reverse holo') return 'V1';
     if(r.indexOf('rare holo') >= 0) return 'V1';
@@ -12606,7 +12616,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-07-04-cmlink-valuta-idxfallback';
+var RB_BUILD = '2026-07-05-lc-slug-nov';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -13093,6 +13103,26 @@ window.replayCmLog = replayCmLog;
    ══════════════════════════════════════════════════════════════════════ */
 var _VP_CMURL_MEM_KEY = 'rb_cmurl_mem';
 var _VP_CMURL_MEM_MAX = 800;
+
+// ── Bonifica one-time (v6.61): URL Legendary Collection con prefisso V1/V2 ──
+// Fino alla v6.61 il primary per base6 era V1 sui Rare Holo: la memoria locale
+// può contenere slug -V1-LC*/-V2-LC* "che funzionavano" ma puntano al prodotto
+// SBAGLIATO (verificato: Dark-Slowbro-LC8 corretto, -V1-LC8 no). Li rimuoviamo
+// una volta sola: alla prossima lookup si ricostruisce lo slug no-V corretto.
+// Marker in localStorage per non ripetere la scansione a ogni load.
+function _vpPurgeLcVersionedUrls(){
+  try{
+    if(localStorage.getItem('rb_cmurl_lcfix_661') === '1') return;
+    var mem = JSON.parse(localStorage.getItem(_VP_CMURL_MEM_KEY) || '{}');
+    var dirty = false;
+    Object.keys(mem).forEach(function(k){
+      if(/\/Legendary-Collection\/[^\/?#]+-V[12]-LC/i.test(mem[k] || '')){ delete mem[k]; dirty = true; }
+    });
+    if(dirty) localStorage.setItem(_VP_CMURL_MEM_KEY, JSON.stringify(mem));
+    localStorage.setItem('rb_cmurl_lcfix_661', '1');
+  }catch(e){}
+}
+_vpPurgeLcVersionedUrls();
 
 function _vpCmUrlMemKey(name, setId, setName, number){
   var s = ((setId || setName || '') + '').toLowerCase().trim();
@@ -15392,7 +15422,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.61';
+const APP_VERSION='6.62';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
