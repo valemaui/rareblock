@@ -12616,7 +12616,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-07-06-census-wotc-autodrain';
+var RB_BUILD = '2026-07-06-census-hunter-timeout-fix';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -12948,7 +12948,8 @@ async function _vpServerSideCMScrape(cmUrl){
     //    passaggi manuali. smooth-endpoint inietta l'HTML in cache e il parser
     //    listings lavora come sempre (logica di parsing in UN solo posto).
     var _extPage = await _vpExtFetchCmHtml(cmUrl);
-    if(!_extPage){ try{ console.warn('[RB-HUNTER] pagina NON letta via estensione \u2192', _rbHunterReason || 'motivo sconosciuto', '\u2014 URL:', cmUrl); }catch(e){} }
+    var _hreason = _extPage ? null : (_rbHunterReason || 'motivo sconosciuto');
+    if(!_extPage){ try{ console.warn('[RB-HUNTER] pagina NON letta via estensione \u2192', _hreason, '\u2014 URL:', cmUrl); }catch(e){} }
 
     var controller = new AbortController();
     var timer = setTimeout(function(){ controller.abort(); }, _extPage ? 20000 : 10000);
@@ -12975,7 +12976,7 @@ async function _vpServerSideCMScrape(cmUrl){
         });
       }
       if(!res.ok) return {listings:[], error:'HTTP '+res.status,
-                          blocked:(res.status===403||res.status===429||res.status===503)};
+                          blocked:(res.status===403||res.status===429||res.status===503), hreason:_hreason};
     }
     var data = await res.json();
     // "blocked" = pagina NON leggibile (403 Cloudflare / WAF / challenge / rate
@@ -12992,10 +12993,10 @@ async function _vpServerSideCMScrape(cmUrl){
     if(_extPage) _blocked = false;
     if(data.error) return {listings:[], error:data.error, debug:data.debug,
                            wrong_product:data.wrong_product===true, no_results:data.no_results===true, blocked:_blocked, status:_st,
-                           viaExt:!!_extPage, image:(_extPage&&_extPage.image)||null};
+                           viaExt:!!_extPage, hreason:_hreason, image:(_extPage&&_extPage.image)||null};
     return {listings: data.listings || [], error: null, debug: data.debug,
             wrong_product:data.wrong_product===true, no_results:data.no_results===true, blocked:false, status:_st||200,
-            viaExt:!!_extPage, image:(_extPage&&_extPage.image)||null};
+            viaExt:!!_extPage, hreason:_hreason, image:(_extPage&&_extPage.image)||null};
   }catch(e){
     // Timeout / errore di rete: pagina non letta → trattata come "blocked" così
     // non innesca la sostituzione di slug (che porterebbe a un prodotto diverso).
@@ -15427,7 +15428,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.65';
+const APP_VERSION='6.66';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -18609,7 +18610,11 @@ window.rbExtFetch = (function(){
   var _capsKnown = [];
   var _readyPromise = null;
   var DETECT_TIMEOUT_MS = 800;
-  var FETCH_TIMEOUT_MS = 30000;
+  // 75s: deve coprire il percorso PEGGIORE dell'estensione — fetch SW 403 →
+  // tab nascosta (waitForTabComplete fino a 45s) + poll challenge (fino a 20s).
+  // Col vecchio 30s il bridge mollava PRIMA che la tab risolvesse il challenge
+  // → ogni pagina prodotto risultava falsamente "bloccata" (censimento base2).
+  var FETCH_TIMEOUT_MS = 75000;
 
   // Listener permanente: cattura eventuali rb-extension-ready spontanei
   window.addEventListener('message', function(ev){
@@ -22484,11 +22489,12 @@ async function rbCmResolveProductUrl(card, cond, lang, variant, first1st){
   candidates = candidates.slice(0, 3);
   var idxOpts = { name:name, setId:setId, setName:setName, number:number, rarity:rarity };
   var outcome = { blocked:0, wrong:0, empty:0, error:0 };
+  var lastHreason = null;
   for(var i=0; i<candidates.length; i++){
     try{
       var srv = await _vpServerSideCMScrape(candidates[i]);
       if(!srv){ outcome.error++; continue; }
-      if(srv.blocked){ outcome.blocked++; continue; }
+      if(srv.blocked){ outcome.blocked++; lastHreason=srv.hreason||srv.error||lastHreason; continue; }
       if(srv.wrong_product){ outcome.wrong++; continue; }
       if(srv.listings && srv.listings.length){
         // Verificato: persisti per tutti (URL + ladder + foto) e naviga esatto
@@ -22511,7 +22517,7 @@ async function rbCmResolveProductUrl(card, cond, lang, variant, first1st){
                  : 'variants-none';
   var su = (typeof buildCMSearchUrl === 'function')
     ? buildCMSearchUrl(name, setId, number, cond, lang, variant, first1st, setName) : null;
-  return { url: su || primary, verified: false, reason: failReason, outcome: outcome };
+  return { url: su || primary, verified: false, reason: failReason, outcome: outcome, hreason: lastHreason };
 }
 window.rbCmResolveProductUrl = rbCmResolveProductUrl;
 
@@ -22696,13 +22702,13 @@ async function _rbCensusHarvestOne(card, lang){
     // esatto dal resolver (no-direct / ext-not-ready / variants-blocked /
     // variants-wrong / variants-empty / variants-error) così il log dice
     // perché, invece del generico "search-only".
-    return { ok:false, reason:(res.reason || 'search-only'), url:url, opts:opts };
+    return { ok:false, reason:(res.reason || 'search-only'), url:url, opts:opts, hreason:res.hreason||null };
   }
   // 2) Scrape via Hunter
   var srv=null;
   try{ srv=await _vpServerSideCMScrape(url); }catch(e){}
   if(!srv) return { ok:false, reason:'no-response', url:url, opts:opts };
-  if(srv.blocked) return { ok:false, reason:'blocked', url:url, opts:opts };
+  if(srv.blocked) return { ok:false, reason:'blocked', url:url, opts:opts, hreason:srv.hreason||null, err:srv.error||null };
   if(srv.wrong_product){ try{ rbIndexReportFailure(opts, url); }catch(e){} return { ok:false, reason:'wrong-product', url:url, opts:opts }; }
   var listings = srv.listings || [];
   // 3) Persisti ladder per-condizione + buckets (mig 089)
@@ -22835,6 +22841,7 @@ async function rbCensusRunSet(setId, opts){
   RB_CENSUS.running=true; RB_CENSUS.abort=false;
   var s={ok:0,empty:0,wrong:0,blocked:0,other:0}; chips(s);
   var t0=Date.now();
+  var consecBlocked=0, CONSEC_BLOCK_LIMIT=6;
   for(var i=0;i<cards.length;i++){
     if(RB_CENSUS.abort) break;
     var c=cards[i];
@@ -22842,12 +22849,23 @@ async function rbCensusRunSet(setId, opts){
     var r=null;
     try{ r=await ((typeof rbCmUserAction==='function') ? rbCmUserAction(function(){ return _rbCensusHarvestOne(c, lang); }) : _rbCensusHarvestOne(c, lang)); }catch(e){ r={ok:false, reason:'error'}; }
     var nm=(c.name||'?')+' #'+((c.number||'')+'');
-    if(r&&r.ok){ s.ok++; log('\u2713 '+nm+' \u2014 '+r.n+' listing, '+r.conds+' condizioni', 'ok'); }
-    else if(r&&r.reason==='wrong-product'){ s.wrong++; log('\u2716 '+nm+' \u2014 prodotto sbagliato (segnalato)', 'wr'); }
-    else if(r&&(r.reason==='blocked'||r.reason==='variants-blocked'||r.reason==='variants-error')){ s.blocked++; log('\u26d4 '+nm+' \u2014 bloccata da Cardmarket (Hunter respinta \u2014 sblocca una scheda CM)', 'bl'); }
-    else if(r&&(r.reason==='no-response'||(r.ok&&r.n===0))){ s.empty++; log('\u25f7 '+nm+' \u2014 nessun listing', 'em'); }
-    else { s.other++; log('\u2026 '+nm+' \u2014 non risolta ('+((r&&r.reason)||'?')+')', 'em'); }
+    if(r&&r.ok){ consecBlocked=0; s.ok++; log('\u2713 '+nm+' \u2014 '+r.n+' listing, '+r.conds+' condizioni', 'ok'); }
+    else if(r&&r.reason==='wrong-product'){ consecBlocked=0; s.wrong++; log('\u2716 '+nm+' \u2014 prodotto sbagliato (segnalato)', 'wr'); }
+    else if(r&&(r.reason==='blocked'||r.reason==='variants-blocked'||r.reason==='variants-error')){
+      consecBlocked++; s.blocked++;
+      var why=(r.hreason||r.err||'').toString().slice(0,110);
+      log('\u26d4 '+nm+' \u2014 non letta'+(why?(': '+why):' (blocco Cardmarket)'), 'bl');
+    }
+    else if(r&&(r.reason==='no-response'||(r.ok&&r.n===0))){ consecBlocked=0; s.empty++; log('\u25f7 '+nm+' \u2014 nessun listing', 'em'); }
+    else { consecBlocked=0; s.other++; log('\u2026 '+nm+' \u2014 non risolta ('+((r&&r.reason)||'?')+')', 'em'); }
     chips(s); prog(i+1, cards.length, t0);
+    if(consecBlocked>=CONSEC_BLOCK_LIMIT){
+      log('\u26d4 '+CONSEC_BLOCK_LIMIT+' blocchi consecutivi \u2014 censimento fermato automaticamente per non insistere su Cardmarket.', 'bl');
+      log('\u2192 Motivo ultimo blocco: '+((r&&(r.hreason||r.err))||'sconosciuto'), 'em');
+      log('\u2192 Verifica: estensione Hunter attiva, una scheda cardmarket.com aperta e sbloccata, poi rilancia. Le carte gi\u00e0 censite non si perdono.', 'em');
+      RB_CENSUS.abort=true;
+      break;
+    }
     if(i<cards.length-1 && !RB_CENSUS.abort) await _rbCensusSleep(delayMs + Math.floor(Math.random()*300));
   }
   RB_CENSUS.running=false;
@@ -22953,7 +22971,7 @@ async function _rbCensusRefreshOne(row, lang){
   var srv=null;
   try{ srv=await _vpServerSideCMScrape(aligned); }catch(e){}
   if(!srv) return { ok:false, reason:'no-response' };
-  if(srv.blocked) return { ok:false, reason:'blocked' };
+  if(srv.blocked) return { ok:false, reason:'blocked', hreason:srv.hreason||null, err:srv.error||null };
   if(srv.wrong_product){ try{ rbIndexReportFailure(opts, aligned); }catch(e){} return { ok:false, reason:'wrong-product' }; }
   var listings=srv.listings||[];
   try{ if(listings.length && typeof _rbPersistConditionPrices==='function'){ _rbPersistConditionPrices({ name:opts.name, set_id:opts.setId, number:opts.number, language:lang, variant:'Normal', first_edition:false }, listings, aligned); } }catch(e){}
