@@ -769,6 +769,11 @@ body{display:flex;flex-direction:column}
         </div>
       </div>
     </div>
+    <div id="msGearLangSection" style="border-top:1px solid var(--border);padding-top:11px;margin-top:4px">
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);margin-bottom:7px">Lingua del masterset</div>
+      <div class="ms-lang-row" id="msGearLangRow" style="margin-bottom:6px"></div>
+      <div class="ms-track-hint">Le carte, i numeri e le quantità restano invariati: cambiano solo l'etichetta e la lingua usata per i prezzi CardMarket. Dopo il cambio ri-esegui <b>&euro; Valuta</b> per aggiornare i prezzi nella nuova lingua.</div>
+    </div>
     <div class="ms-gear-add-section" id="msGearAddSection">
       <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted)">Aggiungi variante al masterset</div>
       <div class="ms-gear-add-row">
@@ -3266,6 +3271,21 @@ window.msGearOpen = function(){
     fedCb.checked = !!ms.firstEdition;
     fedRow.classList.toggle('on', !!ms.firstEdition);
   }
+  // Sezione lingua: pulsanti con la lingua corrente evidenziata
+  var langWrap = document.getElementById('msGearLangRow');
+  if(langWrap){
+    var MS_LANGS = ['ITA','ENG','JPN','DEU','FRA','ESP','KOR','POR'];
+    var curLang = String(ms.lang || 'ITA');
+    langWrap.innerHTML = '';
+    MS_LANGS.forEach(function(lg){
+      var d = document.createElement('div');
+      d.className = 'ms-lang' + (curLang === lg ? ' on' : '');
+      d.textContent = lg;
+      d.setAttribute('data-lang', lg);
+      d.addEventListener('click', (function(code){ return function(){ msGearSetLang(code); }; })(lg));
+      langWrap.appendChild(d);
+    });
+  }
   // Sezione "Aggiungi variante": mostra solo le varianti non già tracciate
   var addSec = document.getElementById('msGearAddSection');
   var addSel = document.getElementById('msGearAddSel');
@@ -3336,7 +3356,48 @@ window.msGearToggle1Ed = async function(){
   }
 };
 
-// ─── Dropdown strumenti (···) ───
+// ─── Gear: cambia lingua del masterset (post-creazione) ───
+// La lista carte NON dipende dalla lingua (viene scaricata per set.id, uguale
+// in ogni lingua): cambiare lingua è quindi sicuro per i dati inseriti. Impatta
+// solo l'etichetta e la lingua usata per i lookup prezzi CardMarket (CMAPI/CM).
+// I prezzi già salvati per la vecchia lingua restano nel DB — l'utente ri-esegue
+// "€ Valuta" per popolare la nuova lingua.
+window.msGearSetLang = async function(newLang){
+  var ms=msData.find(function(m){return m.id===msActive;});
+  if(!ms) return;
+  var prev = ms.lang || 'ITA';
+  if(newLang === prev) return;
+  var toJP = (newLang === 'JPN' || prev === 'JPN');
+  var msg = 'Cambiare la lingua del masterset da ' + prev + ' a ' + newLang + '?\n\n'
+    + '• Le carte, i numeri e le quantità restano invariati.\n'
+    + '• Cambia l\'etichetta e la lingua usata per i prezzi CardMarket.\n'
+    + '• I prezzi già mostrati potrebbero riferirsi alla lingua precedente:\n'
+    + '  ri-esegui "€ Valuta" per aggiornarli nella nuova lingua.';
+  if(toJP){
+    msg += '\n\nNota JPN: la lista carte NON viene re-importata. Se ti serve il '
+         + 'set giapponese vero e proprio (numerazione/immagini JP), crea un '
+         + 'nuovo masterset scegliendo JPN in fase di creazione.';
+  }
+  if(!confirm(msg)) return;
+  ms.lang = newLang;
+  try{
+    await msSave(msData);
+    // Aggiorna la topbar del masterset aperto
+    var topTitleEl = document.getElementById('msTopTitle');
+    if(topTitleEl) topTitleEl.innerHTML = esc(ms.setName)+' \u00b7 '+esc(ms.lang)+(ms.firstEdition?' <span class="ms-1ed-pill">1\u00aa Ed.</span>':'');
+    // Aggiorna l'header della vista censimento se aperta
+    var loadNameEl = document.getElementById('msLoadMsName');
+    if(loadNameEl) loadNameEl.textContent = (ms.label?ms.label:ms.setName)+' \u00b7 '+ms.lang;
+    // Aggiorna il badge lingua nella sidebar
+    msRenderList();
+    // Ridisegna il pannello con la nuova lingua evidenziata
+    msGearOpen();
+    msToast('Lingua cambiata in '+newLang+' \u2014 ricordati di ri-valutare i prezzi', 'ok');
+  }catch(e){
+    ms.lang = prev; // rollback
+    alert('Errore salvataggio: '+e.message);
+  }
+};
 window.msToolsMenuToggle=function(ev){
   ev.stopPropagation();
   var m=document.getElementById('msToolsMenu');
