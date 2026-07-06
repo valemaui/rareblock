@@ -12616,7 +12616,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-07-06-ms-lang-edit';
+var RB_BUILD = '2026-07-06-census-wotc-autodrain';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -15346,6 +15346,11 @@ async function appStart(){
       showAccessDenied('no_collector');
       return;
     }
+    // Censimento: drenaggio automatico opt-in (solo admin, mig. 093).
+    // 25s di ritardo: lascia completare il boot e l'aggancio dell'estensione Hunter.
+    if(prof && prof.role==='admin'){
+      setTimeout(function(){ try{ if(typeof rbCensusAutoDrainBoot==='function') rbCensusAutoDrainBoot(); }catch(e){} }, 25000);
+    }
   }catch(e){ console.warn('[appStart] profile error:',e.message); }
 
   setTimeout(checkApiStatus, 800);
@@ -15422,7 +15427,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.64';
+const APP_VERSION='6.65';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -22724,12 +22729,12 @@ async function rbCensusRunSet(setId, opts){
   setId = (setId||'').trim().toLowerCase();
   var lang = opts.lang || 'ITA';
   var delayMs = +opts.delayMs || 1500;
-  if(RB_CENSUS.running){ alert('Censimento già in corso.'); return; }
-  if(!setId){ alert('Set id mancante.'); return; }
+  if(RB_CENSUS.running){ if(!opts.quietGuards) alert('Censimento già in corso.'); return { done:false, reason:'busy' }; }
+  if(!setId){ if(!opts.quietGuards) alert('Set id mancante.'); return { done:false, reason:'no-setid' }; }
 
   // Hunter OBBLIGATORIO: dati reali per-condizione, nessun fallback CMAPI
   var ready=false; try{ ready=!!(window.rbExtFetch && await window.rbExtFetch.isReady()); }catch(e){}
-  if(!ready){ alert('Estensione Hunter non attiva: serve l\u2019IP residenziale per leggere i prezzi reali da Cardmarket. Attivala e riprova.'); return; }
+  if(!ready){ if(!opts.quietGuards) alert('Estensione Hunter non attiva: serve l\u2019IP residenziale per leggere i prezzi reali da Cardmarket. Attivala e riprova.'); return { done:false, reason:'no-hunter' }; }
 
   _rbCensusInjectStyles();
   var ov = opts.ov;
@@ -22738,7 +22743,7 @@ async function rbCensusRunSet(setId, opts){
   if(!card){ card=document.createElement('div'); card.className='rbcc-card rbadm'; ov.appendChild(card); }
   else { card.classList.add('rbadm'); }
   card.innerHTML =
-    '<div class="rbadm-head"><div><h3>Censimento set</h3><div class="sub">'+esc(setId)+' \u00b7 lettura completa Mint\u2192Poor via Hunter</div></div><button class="rbadm-x" id="rbcs-x2">\u00d7</button></div>'
+    '<div class="rbadm-head"><div><h3>Censimento set</h3><div class="sub">'+esc(setId)+(opts.tag?(' \u00b7 '+esc(opts.tag)):'')+' \u00b7 lettura completa Mint\u2192Poor via Hunter</div></div><button class="rbadm-x" id="rbcs-x2">\u00d7</button></div>'
    +'<div class="rbcs-cur" id="rbcs-cur"><div class="rbcs-img" style="width:42px;height:58px"></div><div><div class="nm" id="rbcs-cur-nm">\u2014</div><div class="st" id="rbcs-cur-st">Preparazione\u2026</div></div></div>'
    +'<div class="rbcs-prog"><div class="rbcs-bar" id="rbcs-bar"></div></div>'
    +'<div class="rbcs-meta"><span id="rbcs-count">0 / 0</span><span id="rbcs-eta"></span></div>'
@@ -22780,7 +22785,7 @@ async function rbCensusRunSet(setId, opts){
   // Elenco carte
   $('rbcs-cur-st').textContent='Recupero elenco carte del set\u2026';
   var cards=await _rbCensusFetchSetCards(setId);
-  if(!cards.length){ $('rbcs-cur-nm').textContent='Set "'+setId+'" non trovato'; $('rbcs-cur-st').textContent='Controlla l\u2019ID set (TCG API).'; enableClose(); return; }
+  if(!cards.length){ $('rbcs-cur-nm').textContent='Set "'+setId+'" non trovato'; $('rbcs-cur-st').textContent='Controlla l\u2019ID set (TCG API).'; enableClose(); return { done:false, reason:'no-cards' }; }
   log(cards.length+' carte trovate nel set '+setId+'.', 'em');
 
   // Pre-flight Cloudflare: una lettura di prova via Hunter. Se CM ci sfida
@@ -22800,7 +22805,7 @@ async function rbCensusRunSet(setId, opts){
     $('rbcs-cur-st').textContent=_pfExtMsg;
     log('\u26d4 Pre-flight fallito: ' + _pfExtMsg, 'bl');
     log('\u2192 Assicurati che l\u2019estensione RareBlock Hunter sia attiva e che la pagina sia ricaricata.', 'em');
-    enableClose(); return;
+    enableClose(); return { done:false, reason:'no-hunter' };
   }
   log('\u2139 Hunter pronta \u2014 test connessione CM in corso\u2026', 'em');
   var _pf=null;
@@ -22823,7 +22828,7 @@ async function rbCensusRunSet(setId, opts){
     } else {
       log('\u2192 Apri e sblocca una scheda cardmarket.com nello stesso browser, poi riprova.', 'em');
     }
-    enableClose(); return;
+    enableClose(); return { done:false, reason:'preflight' };
   }
   log('\u2713 Accesso CM via Hunter ok \u2014 avvio censimento.', 'ok');
 
@@ -22850,8 +22855,38 @@ async function rbCensusRunSet(setId, opts){
   $('rbcs-cur-st').textContent=s.ok+' carte censite su '+cards.length+' \u2014 indice e prezzi aggiornati.';
   log('\u2500\u2500 fine: '+s.ok+' ok \u00b7 '+s.empty+' vuote \u00b7 '+s.wrong+' sbagliate \u00b7 '+s.blocked+' bloccate \u00b7 '+s.other+' altre', 'em');
   enableClose();
+  return { done:true, ok:s.ok, total:cards.length, aborted:!!RB_CENSUS.abort };
 }
 window.rbCensusRunSet = rbCensusRunSet;
+
+/* ── Coda multi-set: censisce una lista di set in sequenza riusando lo
+   stesso overlay. Si ferma su abort utente o su fallimenti fatali
+   (Hunter assente / pre-flight CM); salta i set non trovati. ── */
+var RB_WOTC_SETS=['base1','base2','base3','base4','base5','base6','gym1','gym2','neo1','neo2','neo3','neo4','si1'];
+
+async function rbCensusRunSetQueue(setIds, opts){
+  opts = opts || {};
+  setIds = (setIds||[]).slice();
+  if(!setIds.length) return;
+  if(RB_CENSUS.running){ alert('Censimento gi\u00e0 in corso.'); return; }
+  var okTot=0, doneSets=0;
+  for(var i=0;i<setIds.length;i++){
+    var r=null;
+    try{
+      r=await rbCensusRunSet(setIds[i], {
+        lang:opts.lang, delayMs:opts.delayMs, ov:opts.ov,
+        tag:'set '+(i+1)+' di '+setIds.length,
+        quietGuards:(i>0)
+      });
+    }catch(e){ console.warn('[RB-CENSUS] queue set failed', setIds[i], e); r={ done:false, reason:'error' }; }
+    if(r&&r.done){ doneSets++; okTot+=(+r.ok||0); }
+    if(RB_CENSUS.abort) break;
+    if(r&&!r.done&&(r.reason==='busy'||r.reason==='no-hunter'||r.reason==='preflight')) break;
+    if(i<setIds.length-1) await _rbCensusSleep(3000);
+  }
+  console.info('[RB-CENSUS] coda completata: '+doneSets+'/'+setIds.length+' set, '+okTot+' carte censite');
+}
+window.rbCensusRunSetQueue = rbCensusRunSetQueue;
 
 /* Launcher: overlay con input set id (datalist dei set diretti) + opzioni. */
 function rbCensusOpenLauncher(presetSetId){
@@ -22874,6 +22909,7 @@ function rbCensusOpenLauncher(presetSetId){
     +'</div>'
     +'<div class="rbadm-actions">'
       +'<button class="rbadm-btn" id="rbcs-back">\u2039 Scheduler</button>'
+      +'<button class="rbadm-btn" id="rbcs-wotc" title="Censisce in sequenza tutti i 13 set WotC: Base\u2192Neo Destiny + Southern Islands (~1.200 carte)">WotC completo \u00b7 13 set</button>'
       +'<button class="rbadm-btn primary" id="rbcs-go">Avvia censimento</button>'
     +'</div>'
     +'</div>';
@@ -22888,6 +22924,12 @@ function rbCensusOpenLauncher(presetSetId){
     var lang=document.getElementById('rbcs-lang').value;
     var delay=+document.getElementById('rbcs-delay').value||1500;
     rbCensusRunSet(setId, { lang:lang, delayMs:delay, ov:ov });
+  };
+  document.getElementById('rbcs-wotc').onclick=function(){
+    var lang=document.getElementById('rbcs-lang').value;
+    var delay=+document.getElementById('rbcs-delay').value||1500;
+    if(!confirm('Censimento completo WotC: 13 set, ~1.200 carte.\nCon ritmo '+(delay/1000)+'s serve indicativamente 1,5\u20132,5 ore con il browser aperto.\nPuoi interrompere in qualsiasi momento. Avviare?')) return;
+    rbCensusRunSetQueue(RB_WOTC_SETS, { lang:lang, delayMs:delay, ov:ov });
   };
   (async function(){
     var ready=false; try{ ready=!!(window.rbExtFetch && await window.rbExtFetch.isReady()); }catch(e){}
@@ -22983,6 +23025,38 @@ async function rbCensusDrainDue(opts){
   if(typeof opts.onDone==='function'){ try{ opts.onDone(); }catch(e){} }
 }
 window.rbCensusDrainDue = rbCensusDrainDue;
+
+/* ── Drenaggio automatico all'avvio (opt-in, mig. 093) ──
+   Condizioni: profilo admin, config.enabled && config.auto_drain, carte
+   scadute > 0, Hunter pronta, nessun censimento in corso. Il gate admin
+   effettivo \u00e8 la RPC stessa (settings_get \u00e8 admin-only): per i non-admin
+   fallisce in silenzio. Widget non modale in basso a destra. */
+var _rbCensusAutoBootDone=false;
+async function rbCensusAutoDrainBoot(){
+  if(_rbCensusAutoBootDone) return;
+  _rbCensusAutoBootDone=true;
+  try{
+    if(typeof isAdminUser==='function' && !isAdminUser()) return;
+    var st=null;
+    try{ st=await supa('POST','rpc/cm_census_settings_get',{}); }catch(e){ return; }
+    var cfg=(st&&st.config)||{};
+    if(!cfg.enabled || !cfg.auto_drain) return;
+    if(!(+st.due_now>0)) return;
+    if(RB_CENSUS.running) return;
+    var ready=false; try{ ready=!!(window.rbExtFetch && await window.rbExtFetch.isReady()); }catch(e){}
+    if(!ready){ console.info('[RB-CENSUS] auto-drain saltato: Hunter non pronta'); return; }
+    _rbCensusInjectStyles();
+    var host=document.getElementById('rbcc-auto');
+    if(!host){
+      host=document.createElement('div'); host.id='rbcc-auto';
+      host.style.cssText='position:fixed;right:18px;bottom:18px;z-index:9990;width:min(360px,92vw);background:#12161d;border:1px solid rgba(201,168,76,.35);border-radius:14px;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,.55)';
+      document.body.appendChild(host);
+    }
+    console.info('[RB-CENSUS] auto-drain: '+st.due_now+' carte scadute, avvio');
+    rbCensusDrainDue({ host:host, onDone:function(){ setTimeout(function(){ try{ var h=document.getElementById('rbcc-auto'); if(h) h.remove(); }catch(e){} }, 60000); } });
+  }catch(e){ console.warn('[RB-CENSUS] auto-drain boot error', e); }
+}
+window.rbCensusAutoDrainBoot = rbCensusAutoDrainBoot;
 
 /* Etichetta giorno relativa al cursore (fascia di oggi). 0=oggi, 1=domani,
    poi giorno-settimana + numero (es. "gio 18"). Il cron avanza di 1 fascia/dì. */
@@ -23124,11 +23198,12 @@ async function rbCensusOpenPanel(){
        +'<div class="rbadm-sec-h">Rotazione settimanale</div>'
        +'<div class="rbadm-ctrl">'
          +'<label class="rbadm-tog"><input type="checkbox" id="rbadm-en"'+(on?' checked':'')+'><span class="track"></span>Schedulazione</label>'
+         +'<label class="rbadm-tog" title="All\u2019apertura dell\u2019app (admin, Hunter attiva) le carte scadute vengono drenate da sole, senza click"><input type="checkbox" id="rbadm-auto"'+(cfg.auto_drain?' checked':'')+'><span class="track"></span>Drenaggio auto</label>'
          +'<select class="rbadm-sel" id="rbadm-hour" title="Ora UTC in cui il cron marca scadute le carte della fascia del giorno">'+hours+'</select>'
          +'<button class="rbadm-save" id="rbadm-save">Salva</button>'
        +'</div>'
        +'<div class="rbadm-week" id="rbadm-week">'+week+'</div>'
-       +'<div class="rbadm-note">Il catalogo (<b>'+total+'</b> carte con URL verificato) viene rinfrescato su 7 fasce, una al giorno. Il cron marca scadute le carte della fascia odierna; il drenaggio legge i prezzi reali via Hunter quando questo pannello \u00e8 aperto.</div>'
+       +'<div class="rbadm-note">Il catalogo (<b>'+total+'</b> carte con URL verificato) viene rinfrescato su 7 fasce, una al giorno. Il cron marca scadute le carte della fascia odierna; il drenaggio legge i prezzi reali via Hunter. Con <b>Drenaggio auto</b> parte da solo all\u2019apertura dell\u2019app (admin con Hunter attiva); altrimenti usa \u201cEsegui ora\u201d.</div>'
      +'</div>'
      +'<div class="rbadm-sec">'
        +'<div class="rbadm-sec-h" id="rbadm-cov-h">Copertura per set</div>'
@@ -23145,8 +23220,9 @@ async function rbCensusOpenPanel(){
     document.getElementById('rbadm-save').onclick=function(){
       var en=document.getElementById('rbadm-en').checked;
       var hr=+document.getElementById('rbadm-hour').value;
+      var au=document.getElementById('rbadm-auto').checked;
       var btn=this; btn.textContent='Salvo\u2026'; btn.disabled=true;
-      supa('POST','rpc/cm_census_settings_set',{ p_enabled:en, p_hour:hr })
+      supa('POST','rpc/cm_census_settings_set',{ p_enabled:en, p_hour:hr, p_auto_drain:au })
         .then(function(){ btn.textContent='Salvato \u2713'; setTimeout(function(){ load().then(function(d){ if(d) paint(d); }); }, 600); })
         .catch(function(){ btn.textContent='Errore'; btn.disabled=false; setTimeout(function(){ btn.textContent='Salva'; }, 1600); });
     };
