@@ -121,12 +121,19 @@ body{display:flex;flex-direction:column}
 .ms-step button:hover{background:var(--surface3);color:var(--text)}
 .ms-step-v{width:28px;text-align:center;font-family:var(--mono);font-size:12px;font-weight:500;background:var(--surface);color:var(--text);line-height:26px;flex-shrink:0}
 .ms-step-v.on{color:var(--accent)}
-.ms-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:2000;align-items:flex-start;justify-content:center;padding-top:60px}
+.ms-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:2000;align-items:center;justify-content:center;padding:16px}
 .ms-modal-bg.show{display:flex}
-.ms-modal{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;width:520px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;gap:12px}
+.ms-modal{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;width:520px;max-width:95vw;max-height:calc(100vh - 32px);display:flex;flex-direction:column;gap:10px;overflow:hidden}
 .ms-modal h3{font-size:14px;font-weight:600;flex-shrink:0}
+/* Corpo scrollabile del modal creazione: header (titolo+tab) e footer restano
+   fissi, tutto il resto scorre — così su schermi bassi nulla esce dal viewport. */
+.ms-modal-body{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:12px;margin:0 -8px;padding:0 8px;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.ms-modal-body::-webkit-scrollbar{width:8px}
+.ms-modal-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.ms-modal-body::-webkit-scrollbar-thumb:hover{background:var(--border-focus)}
+.ms-modal-body::-webkit-scrollbar-track{background:transparent}
 .ms-set-search{display:flex;gap:8px;flex-shrink:0}
-.ms-set-list{flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r);min-height:140px}
+.ms-set-list{overflow-y:auto;border:1px solid var(--border);border-radius:var(--r);min-height:110px;max-height:200px;flex-shrink:0}
 .ms-set-row{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;transition:background .1s}
 .ms-set-row:last-child{border:none}
 .ms-set-row:hover{background:var(--surface2)}
@@ -144,7 +151,7 @@ body{display:flex;flex-direction:column}
 .ms-lang-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
 .ms-lang{padding:4px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text-muted);transition:all .1s}
 .ms-lang.on{background:rgba(201,169,110,.1);border-color:rgba(201,169,110,.4);color:var(--accent);font-weight:600}
-.ms-modal-foot{display:flex;gap:8px;justify-content:flex-end;flex-shrink:0}
+.ms-modal-foot{display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;padding-top:10px;border-top:1px solid var(--border);margin-top:2px}
 .ms-stats{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
 .ms-stat{padding:8px 16px;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:1px}
 .ms-stat-val{font-size:16px;font-weight:600;font-family:var(--mono)}
@@ -206,7 +213,8 @@ body{display:flex;flex-direction:column}
 /* toggle Mostra anche celle non applicabili */
 .btn-icon#msShowAllVarBtn.on{background:var(--accent-softer);border-color:var(--accent);color:var(--accent)}
 /* checkbox condizioni nel modal */
-.ms-track-row{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);cursor:pointer;user-select:none;margin-bottom:10px}
+.ms-track-row{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);cursor:pointer;user-select:none;margin-bottom:8px}
+.ms-track-row input{margin-top:2px;flex-shrink:0}
 .ms-track-row:hover{border-color:var(--border-focus)}
 .ms-track-row.on{border-color:rgba(201,169,110,.4);background:rgba(201,169,110,.06)}
 .ms-track-row input{accent-color:var(--accent);width:14px;height:14px;cursor:pointer}
@@ -594,6 +602,8 @@ body{display:flex;flex-direction:column}
       <div class="ms-create-tab" id="msTabBtnPoke" onclick="msSwitchCreateMode('pokemon')">&#9889; Per Pokémon</div>
     </div>
 
+    <div class="ms-modal-body" id="msModalBody">
+
     <div class="ms-create-pane on" id="msPaneSet">
       <div class="ms-set-search">
         <input type="text" id="msSetQ" placeholder="Cerca espansione..." style="flex:1;font-size:13px" oninput="msSearchSets(this.value)"/>
@@ -682,10 +692,13 @@ body{display:flex;flex-direction:column}
         </div>
       </div>
     </div>
-      <div id="msCreateProg" style="display:none;padding:10px 2px 2px">
-        <div id="msCreateProgTxt" style="font-size:11px;color:var(--text-subtle);margin-bottom:6px">Caricamento carte...</div>
-        <div class="ms-progress-bar" style="border-radius:3px;height:5px"><div class="ms-progress-fill" id="msCreateProgFill" style="width:0%"></div></div>
-      </div>
+    </div><!-- /ms-modal-body -->
+
+    <div id="msCreateProg" style="display:none;padding:4px 2px 0;flex-shrink:0">
+      <div id="msCreateProgTxt" style="font-size:11px;color:var(--text-subtle);margin-bottom:6px">Caricamento carte...</div>
+      <div class="ms-progress-bar" style="border-radius:3px;height:5px"><div class="ms-progress-fill" id="msCreateProgFill" style="width:0%"></div></div>
+    </div>
+
     <div class="ms-modal-foot">
       <button class="btn" onclick="msCloseModal()">Annulla</button>
       <button class="btn btn-primary" id="msCreateBtn" disabled onclick="msCreateMasterset()">Crea Masterset</button>
@@ -3134,15 +3147,95 @@ function msFetchSetCards(setId,page,acc,done,fail,prog){
       }
     }catch(e){
       var msg = e && e.message ? e.message : String(e);
-      if(n < 3){
+      // Un 4xx upstream e' PERMANENTE (il set non esiste piu' su pokemontcg.io —
+      // dopo la migrazione a Scrydex alcuni set minori come Southern Islands
+      // rispondono 404): ritentare la stessa URL e' inutile → vai subito al
+      // fallback TCGdex. I retry restano solo per errori transitori (5xx/rete).
+      var permanent = /upstream 4\d\d/.test(msg);
+      if(!permanent && n < 3){
         console.warn('[msFetchSetCards] tentativo '+n+' fallito ('+msg+') — retry tra '+(n*1000)+'ms');
         setTimeout(function(){ attempt(n+1); }, n*1000);
+      } else if(page === 1 && !acc.length){
+        // Nessuna carta ancora accumulata → prova la fonte alternativa.
+        console.warn('[msFetchSetCards] TCG API ko ('+msg+') — fallback TCGdex per set '+setId);
+        if(typeof prog === 'function'){ try{ prog(0, 0); }catch(_){} }
+        _msFetchSetCardsTcgdex(setId, done, function(fbErr){
+          fail(msg+' · fallback TCGdex: '+fbErr+' (set='+setId+')');
+        }, prog);
       } else {
-        fail(msg+' (3 tentativi falliti · set='+setId+' · pagina='+page+')');
+        fail(msg+(permanent?'':' (3 tentativi falliti)')+' · set='+setId+' · pagina='+page);
       }
     }
   }
   attempt(1);
+}
+
+// Fallback: carica le carte di un set da TCGdex (api.tcgdex.net, CORS aperto,
+// nessun proxy necessario). Usato quando pokemontcg.io risponde 404 per il set
+// (post-migrazione Scrydex) o e' irraggiungibile. I brief TCGdex vengono
+// normalizzati nella forma pokemontcg.io minima usata da msCreateMasterset
+// (id, name, number, rarity, images.small/large). Gli id set TCGdex coincidono
+// quasi sempre con quelli pokemontcg.io (base1, jungle, si1...); se non
+// coincidono, seconda chance cercando il set per nome.
+function _msFetchSetCardsTcgdex(setId, done, fail, prog){
+  var base = 'https://api.tcgdex.net/v2/en';
+  function shapeCards(setFull){
+    var list = Array.isArray(setFull && setFull.cards) ? setFull.cards : [];
+    var setName = (setFull && setFull.name) || (msSetSel && msSetSel.name) || '';
+    var shaped = list.map(function(b){
+      return {
+        id: b.id,
+        name: b.name || '',
+        number: (b.localId != null ? String(b.localId) : ''),
+        rarity: '',
+        set: { id: setId, name: setName, series: '' },
+        images: {
+          small: b.image ? b.image + '/low.webp'  : '',
+          large: b.image ? b.image + '/high.webp' : ''
+        },
+        _source: 'tcgdex'
+      };
+    });
+    // Ordina per numero (numerico dove possibile, poi alfabetico)
+    shaped.sort(function(a, c){
+      var na = parseInt(a.number, 10), nc = parseInt(c.number, 10);
+      if(isFinite(na) && isFinite(nc) && na !== nc) return na - nc;
+      return String(a.number).localeCompare(String(c.number));
+    });
+    return shaped;
+  }
+  function getJson(url){
+    return fetch(url, { headers: { 'Accept': 'application/json' } }).then(function(r){
+      if(!r.ok) throw new Error('TCGdex HTTP ' + r.status);
+      return r.json();
+    });
+  }
+  getJson(base + '/sets/' + encodeURIComponent(setId))
+    .catch(function(){
+      // Id diverso su TCGdex → cerca per nome set (match esatto preferito)
+      var name = (msSetSel && msSetSel.name) || '';
+      if(!name) throw new Error('set id "' + setId + '" non trovato');
+      return getJson(base + '/sets?name=' + encodeURIComponent(name)).then(function(list){
+        if(!Array.isArray(list) || !list.length) throw new Error('set "' + name + '" non trovato');
+        var lower = name.toLowerCase();
+        var hit = null;
+        for(var i = 0; i < list.length; i++){
+          if((list[i].name || '').toLowerCase() === lower){ hit = list[i]; break; }
+        }
+        if(!hit) hit = list[0];
+        return getJson(base + '/sets/' + encodeURIComponent(hit.id));
+      });
+    })
+    .then(function(setFull){
+      var shaped = shapeCards(setFull);
+      if(!shaped.length) throw new Error('nessuna carta nel set');
+      if(typeof prog === 'function'){ try{ prog(shaped.length, shaped.length); }catch(_){} }
+      console.info('[msFetchSetCardsTcgdex] recuperate ' + shaped.length + ' carte da TCGdex per ' + setId);
+      done(shaped);
+    })
+    .catch(function(e){
+      fail(e && e.message ? e.message : String(e));
+    });
 }
 
 /* ══════════════ #2 — ROTELLA: mostra/nascondi colonne varianti ══════════════ */
