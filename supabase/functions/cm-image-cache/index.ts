@@ -54,6 +54,21 @@ function extFromContentType(ct: string): string {
   return 'jpg';
 }
 
+// Riconosce il formato immagine dai magic bytes (verità sui contenuti quando
+// il content-type HTTP è assente o rotto). Ritorna il MIME o null.
+function sniffImageType(b: Uint8Array): string | null {
+  if (b.length < 12) return null;
+  if (b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'image/jpeg';
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) return 'image/png';
+  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) return 'image/gif';
+  if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+      b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp';
+  // ISO-BMFF (AVIF/HEIC): "ftyp" a offset 4 + brand avif/avis
+  if (b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70 &&
+      b[8] === 0x61 && b[9] === 0x76 && b[10] === 0x69) return 'image/avif';
+  return null;
+}
+
 function sanitizeKey(k: string): string {
   return k.toLowerCase().replace(/[^a-z0-9._|-]+/g, '_').replace(/\|/g, '__').slice(0, 180);
 }
@@ -128,12 +143,23 @@ Deno.serve(async (req) => {
       clearTimeout(t);
       if (!res.ok) return json({ ok: false, error: 'fetch immagine HTTP ' + res.status, blocked: res.status === 403 }, 200);
       const ct = res.headers.get('content-type') || '';
-      if (!ct.startsWith('image/')) return json({ ok: false, error: 'content-type non immagine: ' + ct }, 200);
       const buf = new Uint8Array(await res.arrayBuffer());
       if (buf.byteLength > MAX_BYTES) return json({ ok: false, error: 'immagine troppo grande' }, 200);
       if (buf.byteLength < 800) return json({ ok: false, error: 'immagine sospettosamente piccola (placeholder?)' }, 200);
+      // Content-type dichiarato inaffidabile? L'S3 di Cardmarket a volte
+      // risponde con il letterale "multerS3.AUTO_CONTENT_TYPE" (config rotta
+      // lato loro) pur servendo un JPEG valido. La verità sono i bytes:
+      // se i magic bytes sono di un formato immagine noto, accettiamo e
+      // deriviamo il content-type reale da lì.
+      const sniffed = sniffImageType(buf);
+      if (ct.startsWith('image/')) {
+        contentType = ct.split(';')[0];
+      } else if (sniffed) {
+        contentType = sniffed;
+      } else {
+        return json({ ok: false, error: 'content-type non immagine: ' + ct }, 200);
+      }
       bytes = buf;
-      contentType = ct.split(';')[0];
       sourceUrl = imageUrl;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
