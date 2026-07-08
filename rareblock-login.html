@@ -771,6 +771,7 @@ window.authDoLogin = async function(){
       user:          data.user
     };
     rbSaveSession(session);
+    try{ var _tr=JSON.parse(localStorage.getItem('__rb_trace')||'[]'); _tr.push({t:new Date().toISOString().slice(11,23),pg:'login:authDoLogin OK',remember:(typeof _rbRememberMe!=='undefined')?_rbRememberMe:null,savedLocal:!!localStorage.getItem('rb_auth_session'),savedSess:!!sessionStorage.getItem('rb_auth_session'),ret:(new URLSearchParams(location.search)).get('return')}); localStorage.setItem('__rb_trace',JSON.stringify(_tr.slice(-25))); }catch(e){}
     authDiag('Accesso riuscito!',true);
     authHide();
     // Se c'è un return URL, redirect lì invece di avviare il Collector
@@ -2038,6 +2039,7 @@ window.rbAuthInit = function(){
   authDiag('controllo sessione...',false);
 
   var session = rbLoadSession();
+  try{ var _tr=JSON.parse(localStorage.getItem('__rb_trace')||'[]'); var _n=Math.floor(Date.now()/1000); _tr.push({t:new Date().toISOString().slice(11,23),pg:'login:rbAuthInit',q:(location.search||'').slice(0,40),sess: session?{email:session.user&&session.user.email,left:session.expires_at?(session.expires_at-_n):null,ref:!!session.refresh_token}:null}); localStorage.setItem('__rb_trace',JSON.stringify(_tr.slice(-25))); }catch(e){}
 
   // Verifica se la sessione è ancora valida (non scaduta)
   if(session && session.access_token){

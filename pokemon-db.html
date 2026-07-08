@@ -18628,6 +18628,12 @@ var _rbAuthInitDone = false;
 // dopo l'accesso.
 function rbRedirectToLogin(){
   try{
+    var _tr = JSON.parse(localStorage.getItem('__rb_trace')||'[]');
+    _tr.push({ t:new Date().toISOString().slice(11,23), pg:'app:REDIRECT->login',
+      from:(location.pathname||'')+(location.search||''), stack:(new Error().stack||'').split('\n').slice(1,4).join(' | ').slice(0,200) });
+    localStorage.setItem('__rb_trace', JSON.stringify(_tr.slice(-25)));
+  }catch(e){}
+  try{
     var here = location.pathname + location.search + location.hash;
     location.replace('rareblock-login.html?return=' + encodeURIComponent(here));
   }catch(e){ location.replace('rareblock-login.html'); }
@@ -18635,6 +18641,16 @@ function rbRedirectToLogin(){
 
 // Gate: sessione valida -> avvia l'app; altrimenti -> pagina di login.
 window.rbAuthInit = function(){
+  // [DIAG-BOUNCE temporaneo] traccia decisioni auth in localStorage condiviso
+  try{
+    var _tr = JSON.parse(localStorage.getItem('__rb_trace')||'[]');
+    var _s0 = (function(){ try{ return JSON.parse(localStorage.getItem('rb_auth_session')||sessionStorage.getItem('rb_auth_session')||'null'); }catch(e){ return 'parse-err'; } })();
+    var _now = Math.floor(Date.now()/1000);
+    _tr.push({ t:new Date().toISOString().slice(11,23), pg:'app:rbAuthInit', done:_rbAuthInitDone,
+      hash:(location.hash||'').slice(0,30), q:(location.search||'').slice(0,40),
+      sess: _s0 ? { email:_s0.user&&_s0.user.email, left: _s0.expires_at?(_s0.expires_at-_now):null, ref:!!_s0.refresh_token } : null });
+    localStorage.setItem('__rb_trace', JSON.stringify(_tr.slice(-25)));
+  }catch(e){}
   if(_rbAuthInitDone){ return; }
   _rbAuthInitDone = true;
 
