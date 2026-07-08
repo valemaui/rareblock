@@ -5987,6 +5987,11 @@ window.rbSearchCards = async function(name, number, setId, lang){
           });
         });
       }
+    } else if(setId && (!name || String(name).trim().length < 2) && typeof rbIndexSetCards === 'function'){
+      // Browse-by-set: set selezionato SENZA nome (sfoglia il set). Per i set
+      // solo-indice (assenti dalla TCG API) è l'unico modo di elencare le carte:
+      // pokemontcg.io non conosce vs1 & co. e tornerebbe vuoto.
+      _idxP = rbIndexSetCards(setId).catch(function(){ return []; });
     }
   }catch(e){ _idxP = null; }
 
@@ -6398,6 +6403,67 @@ window.rbCardSearch = {
 };
 
 // ────────────────────────────────────────────────────────────────────────
+// Set solo-indice → set-picker. Le carte CENSITE da Cardmarket possono vivere
+// in set ASSENTI dalla TCG API (set giapponesi TCGdex come VS1 "Pokémon Card
+// VS", o set sintetici). Il set-picker è seedato solo dai set pokemontcg.io,
+// quindi quei set non erano selezionabili: filtrando per "Pokémon Card VS" il
+// picker rispondeva "Set non riconosciuto" e la ricerca si bloccava a zero
+// risultati, pur essendo la carta nell'indice. Qui carichiamo i set distinti
+// dell'indice e li FONDIAMO in msSetsAll (solo quelli non già presenti),
+// rendendoli selezionabili in tutti i picker (Preventivi/Collezione/Analizza).
+//
+// Fonte: RPC rb_index_sets() se disponibile (efficiente); fallback lettura
+// diretta rb_card_index via RLS (authenticated SELECT) con dedup client-side.
+// Fail-safe totale: qualunque errore → msSetsAll invariato.
+// ────────────────────────────────────────────────────────────────────────
+window._rbIndexSetsMerged = false;
+async function rbLoadIndexSets(){
+  try{
+    if(typeof supa !== 'function') return [];
+    var sets = [];
+    // 1) RPC leggera (post-migration 094)
+    try{
+      var rpc = await supa('POST','rpc/rb_index_sets', {});
+      if(Array.isArray(rpc)){
+        rpc.forEach(function(r){ if(r && r.set_id) sets.push({ id:r.set_id, name:r.set_name || r.set_id }); });
+      }
+    }catch(e){ /* RPC assente → fallback sotto */ }
+    // 2) Fallback: lettura diretta + dedup (funziona da subito, senza migration)
+    if(!sets.length){
+      try{
+        var rows = await supa('GET','rb_card_index?select=set_id,set_name&set_id=not.is.null&cm_url=not.is.null');
+        var seen = {};
+        (rows || []).forEach(function(r){
+          var id = (r.set_id || '').trim(); var lo = id.toLowerCase();
+          if(!id || lo==='rbidx' || lo==='cmcustom' || seen[lo]) return;
+          seen[lo] = 1; sets.push({ id:id, name:r.set_name || id });
+        });
+      }catch(e){ return []; }
+    }
+    if(!sets.length) return [];
+    // Merge in msSetsAll: solo i set NON già presenti (per id, case-insensitive)
+    if(!Array.isArray(window.msSetsAll)) window.msSetsAll = [];
+    var haveId = {};
+    window.msSetsAll.forEach(function(s){ if(s && s.id) haveId[String(s.id).toLowerCase()] = 1; });
+    var added = 0;
+    sets.forEach(function(s){
+      var lo = String(s.id).toLowerCase();
+      if(haveId[lo]) return;
+      haveId[lo] = 1;
+      window.msSetsAll.push({
+        id: s.id, name: s.name, series: 'Indice RareBlock',
+        releaseDate: '', ptcgoCode: '', _rbIndex: true
+      });
+      added++;
+    });
+    window._rbIndexSetsMerged = true;
+    if(added){ try{ console.log('[setpicker] set solo-indice aggiunti:', added, '('+sets.map(function(s){return s.id;}).join(',')+')'); }catch(e){} }
+    return sets;
+  }catch(e){ try{ console.warn('[rbLoadIndexSets] fallito:', e && e.message); }catch(_){} return []; }
+}
+window.rbLoadIndexSets = rbLoadIndexSets;
+
+// ────────────────────────────────────────────────────────────────────────
 // Auto-mount dei setpicker del Collector (q-setpicker, pq-setpicker,
 // emReplaceQ-setpicker). Era nell'IIFE di Autentica fino a F5; ora che
 // Autentica vive in iframe, lo facciamo qui nel parent. msSetsAll viene
@@ -6447,9 +6513,15 @@ window.rbCardSearch = {
     });
     // Background: aggiorna msSetsAll dalla TCG API per avere TUTTI i ~177 set
     // anziche' i 112 della lista statica. scLoadAllSets gestisce sia
-    // scState.allSets che msSetsAll (vedi modulo Scan).
+    // scState.allSets che msSetsAll (vedi modulo Scan). Al termine rifonde i
+    // set solo-indice (scLoadAllSets sovrascrive msSetsAll).
     if(typeof scLoadAllSets === 'function'){
       try{ scLoadAllSets(); }catch(e){ console.warn('[setpicker] scLoadAllSets failed:', e); }
+    }
+    // Set solo-indice (censiti fuori dalla TCG API) → subito selezionabili.
+    // Idempotente: rieseguito dopo l'upgrade API (vedi scLoadAllSets).
+    if(typeof rbLoadIndexSets === 'function'){
+      try{ rbLoadIndexSets(); }catch(e){ console.warn('[setpicker] rbLoadIndexSets failed:', e); }
     }
   }
   // Mount al DOM ready (i container <div id="...-setpicker"> devono esserci).
@@ -15760,6 +15832,11 @@ async function scLoadAllSets(){
             return (b.releaseDate||'').localeCompare(a.releaseDate||'');
           });
           console.log('[setpicker] msSetsAll upgraded from TCG API:', window.msSetsAll.length, 'sets');
+          // L'upgrade ha SOVRASCRITTO msSetsAll → rifondi i set solo-indice,
+          // altrimenti "Pokémon Card VS" & co. tornano non selezionabili.
+          if(typeof rbLoadIndexSets === 'function'){
+            try{ rbLoadIndexSets(); }catch(e){ console.warn('[setpicker] rbLoadIndexSets (post-upgrade) failed:', e); }
+          }
         }catch(e){ console.warn('[setpicker] msSetsAll upgrade failed:', e); }
       }
     })
@@ -22289,6 +22366,28 @@ async function rbIndexSearch(name, number){
   }catch(e){ return []; }
 }
 window.rbIndexSearch = rbIndexSearch;
+
+/* Elenca le carte dell'indice per un dato set (browse-by-set). Necessario per
+   i set solo-indice: selezionando il set senza digitare un nome, la TCG API
+   non li conosce e tornerebbe vuoto. Lettura diretta via RLS, ordinata per
+   numero. Fail-safe: errore → []. */
+async function rbIndexSetCards(setId){
+  try{
+    if(!setId || typeof supa !== 'function') return [];
+    var sid = String(setId).trim();
+    var rows = await supa('GET','rb_card_index?select=*&set_id=eq.'+encodeURIComponent(sid)+'&cm_url=not.is.null&limit=500');
+    (rows || []).forEach(function(r){ if(r && r.product_key) _rbIdxCacheSet(r.product_key, r); });
+    // Ordina per numero (numerico quando possibile)
+    (rows || []).sort(function(a,b){
+      var na=parseInt(String(a.number||'').replace(/\D/g,''),10)||0;
+      var nb=parseInt(String(b.number||'').replace(/\D/g,''),10)||0;
+      if(na!==nb) return na-nb;
+      return String(a.number||'').localeCompare(String(b.number||''));
+    });
+    return rows || [];
+  }catch(e){ return []; }
+}
+window.rbIndexSetCards = rbIndexSetCards;
 
 /* Riga indice → card in forma TCG API (per carte assenti dalla TCG API). */
 function rbIndexToTcgShape(row){
