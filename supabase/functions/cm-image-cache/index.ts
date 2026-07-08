@@ -181,12 +181,17 @@ Deno.serve(async (req) => {
   });
   if (up.error) return json({ ok: false, error: 'upload storage: ' + up.error.message }, 500);
 
-  const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/card-images/${path}`;
+  const nowIso = new Date().toISOString();
+  // Cache-bust: il path storage è stabile (upsert sovrascrive lo stesso file),
+  // ma CDN e browser cachano l'oggetto per 7gg. Senza un URL diverso, una
+  // ri-cattura (es. correzione di una foto sbagliata) continuerebbe a mostrare
+  // la vecchia immagine. Un parametro di versione forza il refetch mantenendo
+  // lo stesso oggetto sottostante.
+  const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/card-images/${path}?v=${Date.parse(nowIso) || Date.now()}`;
 
   // Aggiorna l'indice se la riga esiste; se non esiste ancora (immagine
   // arrivata prima dell'upsert del client) la crea minimale: il client
   // completerà i metadati con rb_index_upsert.
-  const nowIso = new Date().toISOString();
   const updRes = await svc.from('rb_card_index')
     .update({ image_url: publicUrl, image_source_url: sourceUrl, image_captured_at: nowIso, updated_at: nowIso })
     .eq('product_key', productKey)
