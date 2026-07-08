@@ -11504,6 +11504,20 @@ function showPrevQuickAdd(c){
     if(img) addZoom(img,lgSrc,true);
   }
   updatePrevPrice();
+  // Ladder reale per-condizione per le carte CENSITE (assenti dalla TCG API):
+  // il loro cardmarket.prices contiene solo l'NM, quindi calcPrice stimerebbe
+  // le altre condizioni con moltiplicatori. Qui carichiamo il ladder scrapato
+  // (media 3 minimi per condizione) e lo agganciamo alla carta → updatePrevPrice
+  // userà i prezzi REALI. Async, non blocca il rendering.
+  if((c._source==='rbindex' || c._rbIdx) && typeof rbIndexLoadLadder==='function'){
+    var _cForLadder = c;
+    rbIndexLoadLadder(c.set && c.set.id, c.number).then(function(ladder){
+      if(ladder && prevCard === _cForLadder){
+        prevCard._rbLadder = ladder;
+        try{ updatePrevPrice(); }catch(e){}
+      }
+    });
+  }
   // Auto-verify CM al cambio carta: parte una verify silent dopo 600ms cos\u00ec
   // l'utente vede il banner CM live popolato senza dover cliccare \u20ac.
   // Delay maggiore di 400ms (debounce normale) per non bloccare il rendering
@@ -11537,6 +11551,15 @@ function _scheduleAutoVerify(prefix, delayMs){
         return verifyPriceEdit({silent: true});
       }
       if(prefix === 'p' && !prevCard) return;
+      // Carta censita con ladder reale già caricato per la selezione corrente
+      // (Normal, no 1ª ed): abbiamo il prezzo scrapato, nessuno scrape utile →
+      // evitiamo il tentativo (fallirebbe: JP/censite fuori da CMAPI) e il ⚠.
+      if(prefix === 'p' && prevCard && prevCard._rbLadder){
+        var _pc = (document.getElementById('pCond')||{}).value;
+        var _pv = (document.getElementById('pVar')||{}).value;
+        var _p1 = (document.getElementById('p1st')||{}).checked;
+        if(_pv==='Normal' && !_p1 && prevCard._rbLadder[_pc]!=null) return;
+      }
       return verifyPriceAdd(prefix, {silent: true});
     };
     try{
@@ -11559,6 +11582,21 @@ window._pqToggle1st = _pqToggle1st;
 
 function updatePrevPrice(){
   if(!prevCard)return;
+  var _cond = document.getElementById('pCond').value;
+  var _var  = document.getElementById('pVar').value;
+  var _1st  = document.getElementById('p1st').checked;
+  // Carta CENSITA con ladder reale scrapato: per Normal senza 1ª ed usa il
+  // prezzo REALE per-condizione (media 3 minimi) invece della stima calcPrice.
+  // Per Reverse/Holo/1ª ed il ladder Normal non si applica → si ricade sulla
+  // stima (e l'auto-verify potrà correggere con uno scrape mirato).
+  if(prevCard._rbLadder && _var==='Normal' && !_1st && prevCard._rbLadder[_cond]!=null){
+    var _rp = prevCard._rbLadder[_cond];
+    var _pdEl = document.getElementById('prevPriceDisplay');
+    if(_pdEl){ _pdEl.textContent = '\u20ac'+(+_rp).toFixed(2); _pdEl.style.color=''; }
+    var _pi = document.getElementById('pCmPrice');
+    if(_pi && !_pi.dataset.manual){ _pi.value = (+_rp).toFixed(2); }
+    return;
+  }
   const p=calcPrice(prevCard.cardmarket?.prices,document.getElementById('pCond').value,document.getElementById('pVar').value,document.getElementById('p1st').checked);
   const priceInput=document.getElementById('pCmPrice');
   if(p){
@@ -12281,7 +12319,13 @@ function _rbCmCensusInjectStyles(){
 function _rbBmSrc(){
   function m(p){var a=document.getElementsByTagName('meta'),i;for(i=0;i<a.length;i++){if(a[i].getAttribute('property')==p||a[i].getAttribute('name')==p)return a[i].content||'';}return '';}
   var img=m('og:image')||m('twitter:image');
-  try{ var gi=[].slice.call(document.images||[]).filter(function(im){return im&&im.src&&/product-images|\/Cards\/|\/items\//i.test(im.src)&&(im.naturalWidth||0)>120;}).sort(function(a,b){return (b.naturalWidth||0)-(a.naturalWidth||0);}); if(gi.length) img=gi[0].src; }catch(e){}
+  // og:image è l'immagine CANONICA del prodotto assegnata da CardMarket (il
+  // fronte della carta in vendita). Lo slideshow può contenere scansioni utente
+  // o altre slide (anche di prodotti diversi): NON sovrascrivere l'og:image con
+  // la slide DOM più grande. Il fallback DOM serve SOLO se og:image manca.
+  if(!img){
+    try{ var gi=[].slice.call(document.images||[]).filter(function(im){return im&&im.src&&/product-images|\/Cards\/|\/items\//i.test(im.src)&&(im.naturalWidth||0)>120;}).sort(function(a,b){return (b.naturalWidth||0)-(a.naturalWidth||0);}); if(gi.length) img=gi[0].src; }catch(e){}
+  }
   var lk=document.querySelector('link[rel=canonical]');
   var c=(lk&&lk.href)||location.href;
   var t=(m('og:title')||document.title||'').replace(/ *\|.*/,'').trim();
@@ -22388,6 +22432,53 @@ async function rbIndexSetCards(setId){
   }catch(e){ return []; }
 }
 window.rbIndexSetCards = rbIndexSetCards;
+
+/* Ladder reale per-condizione di una carta censita (media dei 3 minimi per
+   condizione), letto da cm_price_by_condition. LANGUAGE-AGNOSTIC di proposito:
+   per le carte censite (spesso giapponesi vintage) CardMarket ha UN SOLO
+   prodotto, quindi il ladder è lo stesso a prescindere dalla lingua scelta nel
+   form. Prende la variante Normal, non-foil, la più fresca. Ritorna una mappa
+   codice-condizione app → prezzo: { MINT, NM, EX, GD, LP, PL, PO }.
+   Fail-safe: errore → null. */
+var RB_CM_COND_TO_APP = {
+  'Mint':'MINT', 'Near Mint':'NM', 'Excellent':'EX', 'Good':'GD',
+  'Light Played':'LP', 'Played':'PL', 'Poor':'PO'
+};
+async function rbIndexLoadLadder(setId, number){
+  try{
+    if(!setId || !number || typeof supa !== 'function') return null;
+    var prefix = String(setId).toLowerCase().trim() + '|' + String(number).toLowerCase().trim().split('/')[0] + '|';
+    // like.prefix* → tutte le lingue dello stesso prodotto (Normal|0 filtrato sotto)
+    var rows = await supa('GET','cm_price_by_condition'
+      + '?card_key=like.' + encodeURIComponent(prefix) + '*'
+      + '&is_foil=eq.false'
+      + '&select=card_key,condition,low1,low2,low3,avg,n_listings,captured_at,is_foil');
+    if(!Array.isArray(rows) || !rows.length) return null;
+    // Preferisci le righe variante Normal, 1ª ed = 0 (card_key = set|num|LANG|Normal|0)
+    var normal = rows.filter(function(r){
+      var parts = String(r.card_key||'').split('|');
+      return (parts[3]||'').toLowerCase()==='normal' && (parts[4]||'0')==='0';
+    });
+    var use = normal.length ? normal : rows;
+    // Per condizione tieni la cattura più fresca (se più lingue/righe)
+    var best = {};
+    use.forEach(function(r){
+      var app = RB_CM_COND_TO_APP[r.condition]; if(!app) return;
+      var prev = best[app];
+      if(!prev || (r.captured_at||'') > (prev.captured_at||'')) best[app] = r;
+    });
+    var ladder = {};
+    Object.keys(best).forEach(function(app){
+      var r = best[app];
+      var mins = [r.low1, r.low2, r.low3].filter(function(v){ return v != null && +v > 0; }).map(Number);
+      // "media dei 3 minimi": media dei minimi disponibili (1..3)
+      if(mins.length){ ladder[app] = Math.round((mins.reduce(function(a,b){return a+b;},0)/mins.length)*100)/100; }
+      else if(r.avg != null){ ladder[app] = +r.avg; }
+    });
+    return Object.keys(ladder).length ? ladder : null;
+  }catch(e){ try{ console.warn('[rbIndexLoadLadder] fallito:', e && e.message); }catch(_){} return null; }
+}
+window.rbIndexLoadLadder = rbIndexLoadLadder;
 
 /* Riga indice → card in forma TCG API (per carte assenti dalla TCG API). */
 function rbIndexToTcgShape(row){
