@@ -270,6 +270,70 @@ body{display:flex;flex-direction:column}
 .ms-vpill.has{border-color:rgba(63,185,80,.5);color:var(--success);background:rgba(63,185,80,.08)}
 .ms-vpill.miss{border-color:rgba(248,81,73,.35);color:var(--danger);background:rgba(248,81,73,.06)}
 
+/* ══ Vista ALBUM (raccoglitore a tasche protettive) ══════════════════ */
+.ms-alb-bg{display:none;position:fixed;inset:0;z-index:2180;background:radial-gradient(130% 120% at 50% 0%,#12161d 0%,#0b0e13 55%,#07090c 100%);flex-direction:column}
+.ms-alb-bg.show{display:flex}
+.ms-alb-bar{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);background:rgba(13,17,23,.72);backdrop-filter:blur(10px);flex-wrap:wrap;flex-shrink:0}
+.ms-alb-title{font-family:var(--serif);font-size:16px;color:var(--text);font-weight:500;letter-spacing:.2px;display:flex;align-items:baseline;gap:9px;min-width:0}
+.ms-alb-title span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:38vw}
+.ms-alb-title small{font-family:var(--mono);font-size:10.5px;color:var(--text-subtle);letter-spacing:.5px;flex-shrink:0}
+.ms-alb-spacer{flex:1}
+.ms-alb-seg{display:inline-flex;border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.ms-alb-seg button{border:none;background:var(--surface2);color:var(--text-muted);cursor:pointer;padding:6px 11px;font-size:11px;font-family:var(--mono);letter-spacing:.4px;transition:background .1s,color .1s}
+.ms-alb-seg button+button{border-left:1px solid var(--border)}
+.ms-alb-seg button:hover{background:var(--surface3);color:var(--text)}
+.ms-alb-seg button.on{background:rgba(201,169,110,.14);color:var(--accent)}
+.ms-alb-toggle{display:inline-flex;align-items:center;gap:7px;font-size:11px;color:var(--text-muted);cursor:pointer;user-select:none;padding:5px 10px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);transition:border-color .1s,color .1s}
+.ms-alb-toggle:hover{border-color:var(--border-focus);color:var(--text)}
+.ms-alb-toggle.on{border-color:rgba(201,169,110,.4);color:var(--accent);background:rgba(201,169,110,.06)}
+.ms-alb-toggle .dot{width:9px;height:9px;border-radius:50%;background:var(--text-subtle);transition:background .1s}
+.ms-alb-toggle.on .dot{background:var(--accent)}
+.ms-alb-corner{display:inline-flex;align-items:center;gap:5px}
+.ms-alb-corner select{background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);border-radius:var(--r);font-size:11px;font-family:var(--mono);padding:5px 7px;cursor:pointer}
+.ms-alb-ico{width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:16px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ms-alb-ico:hover{border-color:var(--border-focus)}
+.ms-alb-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:20px 66px;position:relative;overflow:hidden}
+.ms-alb-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:1px solid var(--border);background:rgba(13,17,23,.82);color:var(--text);font-size:23px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:5;transition:background .12s,border-color .12s,opacity .12s}
+.ms-alb-nav:hover{background:var(--surface2);border-color:var(--accent)}
+.ms-alb-nav.disabled{opacity:.22;pointer-events:none}
+.ms-alb-nav.prev{left:16px}
+.ms-alb-nav.next{right:16px}
+.ms-alb-foot{display:flex;align-items:center;justify-content:center;gap:14px;padding:9px 16px;border-top:1px solid var(--border);background:rgba(13,17,23,.72);flex-shrink:0}
+.ms-alb-pos{font-family:var(--mono);font-size:11px;color:var(--text-muted);letter-spacing:.5px}
+.ms-alb-pos b{color:var(--accent)}
+.ms-alb-hint{font-family:var(--mono);font-size:10px;color:var(--text-subtle)}
+/* pagina raccoglitore */
+.ms-alb-page{position:relative;background:linear-gradient(155deg,#1b212b 0%,#141922 60%,#0f141b 100%);border:1px solid rgba(201,169,110,.22);border-radius:14px;padding:26px 26px 26px 44px;box-shadow:0 24px 70px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.02),inset 0 1px 0 rgba(255,255,255,.05);max-width:min(94vw,1160px);max-height:100%;overflow:auto}
+.ms-alb-page::before{content:"";position:absolute;left:17px;top:24px;bottom:24px;width:12px;background-image:radial-gradient(circle at 6px 6px,rgba(0,0,0,.78) 0 5px,transparent 6px);background-size:12px 62px;background-repeat:repeat-y;opacity:.85;pointer-events:none}
+.ms-alb-grid{display:grid;gap:16px}
+/* tasca protettiva */
+.ms-alb-pocket{position:relative;aspect-ratio:.715;border-radius:7px;background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(0,0,0,.32));box-shadow:inset 0 1px 2px rgba(255,255,255,.08),inset 0 -8px 18px rgba(0,0,0,.5),0 3px 8px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.07);overflow:hidden;cursor:pointer;transition:transform .12s,box-shadow .12s}
+.ms-alb-pocket:hover{transform:translateY(-2px);box-shadow:inset 0 1px 2px rgba(255,255,255,.1),inset 0 -8px 18px rgba(0,0,0,.5),0 9px 22px rgba(0,0,0,.58)}
+.ms-alb-pocket::before{content:"";position:absolute;left:14%;right:14%;top:5px;height:4px;border-radius:3px;background:linear-gradient(180deg,rgba(255,255,255,.15),rgba(255,255,255,0));z-index:3;pointer-events:none}
+.ms-alb-pocket::after{content:"";position:absolute;inset:0;background:linear-gradient(115deg,rgba(255,255,255,.14) 0%,rgba(255,255,255,.03) 22%,rgba(255,255,255,0) 44%,rgba(255,255,255,0) 100%);z-index:4;pointer-events:none;mix-blend-mode:screen}
+.ms-alb-pocket img{position:absolute;inset:4px;width:calc(100% - 8px);height:calc(100% - 8px);object-fit:contain;border-radius:4px;display:block;z-index:1}
+.ms-alb-pocket.empty{cursor:default}
+.ms-alb-pocket.empty img{filter:grayscale(1) brightness(.4) contrast(.85);opacity:.2}
+.ms-alb-ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--text-subtle);z-index:2}
+.ms-alb-ph .n{font-family:var(--mono);font-size:11px;opacity:.75}
+.ms-alb-ph .q{font-size:19px;opacity:.45}
+/* bollino condizione sovrastampato */
+.ms-alb-cond{position:absolute;z-index:6;min-width:20px;height:20px;padding:0 5px;border-radius:11px;font-family:var(--mono);font-size:10px;font-weight:800;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.55);border:1px solid rgba(0,0,0,.3)}
+.ms-alb-cond.tl{top:7px;left:7px}
+.ms-alb-cond.tr{top:7px;right:7px}
+.ms-alb-cond.bl{bottom:7px;left:7px}
+.ms-alb-cond.br{bottom:7px;right:7px}
+.ms-alb-qty{position:absolute;z-index:6;font-family:var(--mono);font-size:9px;font-weight:700;color:var(--text);background:rgba(0,0,0,.62);border:1px solid var(--border);border-radius:8px;padding:1px 5px;bottom:7px}
+.ms-alb-qty.qr{right:7px}
+.ms-alb-qty.ql{left:7px}
+.ms-alb-empty-msg{color:var(--text-subtle);font-size:13px;text-align:center;padding:60px}
+/* zoom singola carta */
+.ms-alb-zoom{display:none;position:fixed;inset:0;z-index:2195;background:rgba(3,5,8,.9);align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:32px;cursor:zoom-out}
+.ms-alb-zoom.show{display:flex}
+.ms-alb-zoom img{max-width:min(90vw,520px);max-height:76vh;object-fit:contain;border-radius:10px;box-shadow:0 24px 70px rgba(0,0,0,.72)}
+.ms-alb-zoom .cap{font-family:var(--mono);font-size:12px;color:var(--text-muted);text-align:center;line-height:1.5}
+.ms-alb-zoom .cap b{color:var(--accent);font-weight:700}
+
 /* — Popover impostazioni colonne (rotella) — */
 .ms-gear-pop-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2150;align-items:center;justify-content:center;padding:20px}
 .ms-gear-pop-bg.show{display:flex}
@@ -560,6 +624,7 @@ body{display:flex;flex-direction:column}
           <div class="ms-view-toggle">
             <button id="msViewListBtn" class="on" onclick="msSetView('list')" title="Vista tabella">&#9776;</button>
             <button id="msViewGridBtn" onclick="msSetView('grid')" title="Vista griglia (visuale)">&#9638;</button>
+            <button id="msViewAlbumBtn" onclick="msOpenAlbum()" title="Vista album (raccoglitore a tasche)">&#128214;</button>
           </div>
           <input type="text" placeholder="Cerca carta..." id="msCardSearch" oninput="msRenderTable()" style="max-width:160px;font-size:12px"/>
           <select id="msFilterRar" onchange="msRenderTable()" style="max-width:130px;font-size:12px"><option value="">Tutte le rarita</option></select>
@@ -2019,6 +2084,203 @@ function msRenderGrid(ms, cards){
   });
   grid.appendChild(frag);
 }
+
+/* ══ Vista ALBUM: raccoglitore a tasche protettive ══════════════════ */
+// Pattern selezionabili: N colonne × M righe → dimensione pagina.
+var MS_ALB_PATTERNS = { '3x3':{cols:3,size:9}, '3x4':{cols:3,size:12}, '4x4':{cols:4,size:16} };
+// Config persistita in localStorage (no PII): pattern, bollino condizione, angolo.
+var msAlbumCfg = { pattern:'3x3', badge:true, corner:'tr' };
+var msAlbumPage = 0;
+var _msAlbCfgLoaded = false;
+var _msAlbWheelBound = false;
+var _msAlbWheelTs = 0;
+
+function _msAlbLoadCfg(){
+  if(_msAlbCfgLoaded) return;
+  _msAlbCfgLoaded = true;
+  try{
+    var raw = localStorage.getItem('rb_ms_album_cfg');
+    if(raw){
+      var c = JSON.parse(raw);
+      if(c && MS_ALB_PATTERNS[c.pattern]) msAlbumCfg.pattern = c.pattern;
+      if(c && typeof c.badge==='boolean') msAlbumCfg.badge = c.badge;
+      if(c && ['tl','tr','bl','br'].indexOf(c.corner)>=0) msAlbumCfg.corner = c.corner;
+    }
+  }catch(e){}
+}
+function _msAlbSaveCfg(){
+  try{ localStorage.setItem('rb_ms_album_cfg', JSON.stringify(msAlbumCfg)); }catch(e){}
+}
+
+// Migliore condizione posseduta su tutte le varianti (verde NM → rosso PO).
+// Ritorna {id,code,qty} oppure null se la carta non è posseduta.
+function msBestCond(card){
+  if(!card||!card.qty) return null;
+  for(var i=0;i<MS_CONDITIONS.length;i++){
+    var cid = MS_CONDITIONS[i].id;
+    var tot = 0;
+    for(var v in card.qty) tot += qtyForCond(card, v, cid);
+    if(tot>0) return { id:cid, code:cid, qty:tot };
+  }
+  return null;
+}
+// Testo scuro/chiaro in base alla luminanza del colore, per leggibilità del bollino.
+function _msAlbTextOn(hex){
+  try{
+    var h = (''+hex).replace('#','');
+    if(h.length===3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    var r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16);
+    var lum = (0.299*r + 0.587*g + 0.114*b);
+    return lum > 150 ? '#0d1117' : '#ffffff';
+  }catch(e){ return '#0d1117'; }
+}
+
+window.msOpenAlbum = function(){
+  var ms = msData.find(function(m){return m.id===msActive;});
+  if(!ms){ alert('Apri prima un masterset.'); return; }
+  _msAlbLoadCfg();
+  msAlbumPage = 0;
+  var bg = document.getElementById('msAlbumBg');
+  if(!bg) return;
+  if(!_msAlbWheelBound){
+    var stage = document.getElementById('msAlbStage');
+    if(stage){ stage.addEventListener('wheel', _msAlbWheel, {passive:false}); _msAlbWheelBound = true; }
+  }
+  _msAlbSyncControls();
+  bg.classList.add('show');
+  document.addEventListener('keydown', _msAlbKey);
+  msAlbumRender();
+};
+window.msCloseAlbum = function(){
+  var bg = document.getElementById('msAlbumBg');
+  if(bg) bg.classList.remove('show');
+  msAlbumZoomClose();
+  document.removeEventListener('keydown', _msAlbKey);
+};
+function _msAlbSyncControls(){
+  var seg = document.getElementById('msAlbSeg');
+  if(seg){ Array.prototype.forEach.call(seg.querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-p')===msAlbumCfg.pattern); }); }
+  var tgl = document.getElementById('msAlbBadgeTgl');
+  if(tgl) tgl.classList.toggle('on', !!msAlbumCfg.badge);
+  var cw = document.getElementById('msAlbCornerWrap');
+  if(cw) cw.style.display = msAlbumCfg.badge ? '' : 'none';
+  var cs = document.getElementById('msAlbCorner');
+  if(cs) cs.value = msAlbumCfg.corner;
+}
+window.msAlbumSetPattern = function(p){
+  if(!MS_ALB_PATTERNS[p]) return;
+  msAlbumCfg.pattern = p; msAlbumPage = 0; _msAlbSaveCfg(); _msAlbSyncControls(); msAlbumRender();
+};
+window.msAlbumToggleBadge = function(){
+  msAlbumCfg.badge = !msAlbumCfg.badge; _msAlbSaveCfg(); _msAlbSyncControls(); msAlbumRender();
+};
+window.msAlbumSetCorner = function(c){
+  if(['tl','tr','bl','br'].indexOf(c)<0) return;
+  msAlbumCfg.corner = c; _msAlbSaveCfg(); msAlbumRender();
+};
+window.msAlbumNav = function(delta){
+  var ms = msData.find(function(m){return m.id===msActive;});
+  if(!ms) return;
+  var cards = msFilteredCards(ms);
+  var size = MS_ALB_PATTERNS[msAlbumCfg.pattern].size;
+  var pages = Math.max(1, Math.ceil(cards.length/size));
+  var nxt = msAlbumPage + delta;
+  if(nxt<0 || nxt>=pages) return;
+  msAlbumPage = nxt; msAlbumRender();
+};
+function _msAlbKey(e){
+  var zoomOpen = document.getElementById('msAlbZoom') && document.getElementById('msAlbZoom').classList.contains('show');
+  if(e.key==='Escape'){ if(zoomOpen) msAlbumZoomClose(); else msCloseAlbum(); return; }
+  if(zoomOpen) return;
+  if(e.key==='ArrowRight'||e.key===' '){ e.preventDefault(); msAlbumNav(1); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); msAlbumNav(-1); }
+}
+function _msAlbWheel(e){
+  e.preventDefault();
+  var now = Date.now();
+  if(now - _msAlbWheelTs < 220) return;   // debounce sfogliata
+  _msAlbWheelTs = now;
+  msAlbumNav(e.deltaY>0 ? 1 : -1);
+}
+
+window.msAlbumRender = function(){
+  var ms = msData.find(function(m){return m.id===msActive;});
+  if(!ms) return;
+  var grid = document.getElementById('msAlbGrid');
+  var page = document.getElementById('msAlbPage');
+  if(!grid) return;
+  var cards = msFilteredCards(ms);
+  var conf = MS_ALB_PATTERNS[msAlbumCfg.pattern];
+  var size = conf.size;
+  var pages = Math.max(1, Math.ceil(cards.length/size));
+  if(msAlbumPage>=pages) msAlbumPage = pages-1;
+  if(msAlbumPage<0) msAlbumPage = 0;
+  var tEl=document.getElementById('msAlbTitle'); if(tEl) tEl.textContent = ms.setName || ms.label || 'Album';
+  var sEl=document.getElementById('msAlbSub'); if(sEl) sEl.textContent = (ms.label && ms.setName ? ms.label+' · ' : '') + cards.length+' carte';
+  grid.style.gridTemplateColumns = 'repeat('+conf.cols+',minmax(74px,120px))';
+  grid.innerHTML='';
+  if(!cards.length){
+    grid.innerHTML='<div class="ms-alb-empty-msg" style="grid-column:1/-1">Nessuna carta corrisponde ai filtri attivi.</div>';
+  } else {
+    var start = msAlbumPage*size;
+    var slice = cards.slice(start, start+size);
+    var frag = document.createDocumentFragment();
+    slice.forEach(function(card){
+      var best  = msBestCond(card);
+      var owned = !!best;
+      var pk = document.createElement('div');
+      pk.className='ms-alb-pocket'+(owned?'':' empty');
+      var html='';
+      if(card.img||card.imgLg) html+='<img src="'+esc(card.img||card.imgLg)+'" loading="lazy" alt="">';
+      if(!owned) html+='<div class="ms-alb-ph"><span class="q">&#9671;</span><span class="n">#'+esc(card.num||'')+'</span></div>';
+      if(msAlbumCfg.badge && best){
+        var col = MS_COND_COLORS[best.id] || '#c9a84c';
+        html+='<span class="ms-alb-cond '+msAlbumCfg.corner+'" style="background:'+col+';color:'+_msAlbTextOn(col)+'">'+esc(best.code)+'</span>';
+      }
+      if(owned){
+        var totAll = qtyTotalAll(card);
+        if(totAll>1){
+          var qside = (msAlbumCfg.corner==='bl') ? 'qr' : 'ql';
+          html+='<span class="ms-alb-qty '+qside+'">&times;'+totAll+'</span>';
+        }
+      }
+      pk.innerHTML=html;
+      pk.addEventListener('click',(function(cid){ return function(){ msAlbumZoomOpen(cid); }; })(card.id));
+      frag.appendChild(pk);
+    });
+    grid.appendChild(frag);
+  }
+  if(page) page.scrollTop = 0;
+  var prev=document.getElementById('msAlbPrev'), next=document.getElementById('msAlbNext');
+  if(prev) prev.classList.toggle('disabled', msAlbumPage<=0);
+  if(next) next.classList.toggle('disabled', msAlbumPage>=pages-1);
+  var posEl=document.getElementById('msAlbPos'); if(posEl) posEl.innerHTML='Pagina <b>'+(msAlbumPage+1)+'</b> / '+pages;
+  var cnt=document.getElementById('msAlbCount');
+  if(cnt){ var ownTot=cards.filter(function(c){return qtyAnyOwned(c);}).length; cnt.textContent = ownTot+'/'+cards.length+' possedute'; }
+};
+
+// Zoom singola carta dentro l'album (click su una tasca piena).
+window.msAlbumZoomOpen = function(cardId){
+  var ms = msData.find(function(m){return m.id===msActive;});
+  if(!ms) return;
+  var card = ms.cards.find(function(c){return c.id===cardId;});
+  if(!card || !(card.img||card.imgLg)) return;
+  var z=document.getElementById('msAlbZoom'), img=document.getElementById('msAlbZoomImg'), cap=document.getElementById('msAlbZoomCap');
+  if(!z||!img||!cap) return;
+  img.src = card.imgLg||card.img;
+  var best = msBestCond(card);
+  var condTxt;
+  if(best){
+    var lbl = (MS_CONDITIONS.find(function(x){return x.id===best.id;})||{}).label||'';
+    condTxt = '<b>'+esc(best.code)+'</b> · '+esc(lbl)+' · &times;'+qtyTotalAll(card);
+  } else { condTxt = 'Non posseduta'; }
+  cap.innerHTML = esc(card.name||'')+' · #'+esc(card.num||'')+'<br>'+condTxt;
+  z.classList.add('show');
+};
+window.msAlbumZoomClose = function(){
+  var z=document.getElementById('msAlbZoom');
+  if(z) z.classList.remove('show');
+};
 
 function msUpdateStats(ms){
   var all   = ms.cards;
@@ -4818,5 +5080,42 @@ document.addEventListener("DOMContentLoaded", function(){
   }
 });
 </script>
+<!-- ── VISTA ALBUM (raccoglitore a tasche) ─────────────────────────── -->
+<div class="ms-alb-bg" id="msAlbumBg">
+  <div class="ms-alb-bar">
+    <div class="ms-alb-title"><span id="msAlbTitle">Album</span><small id="msAlbSub"></small></div>
+    <div class="ms-alb-spacer"></div>
+    <div class="ms-alb-seg" id="msAlbSeg">
+      <button data-p="3x3" onclick="msAlbumSetPattern('3x3')">3&times;3</button>
+      <button data-p="3x4" onclick="msAlbumSetPattern('3x4')">3&times;4</button>
+      <button data-p="4x4" onclick="msAlbumSetPattern('4x4')">4&times;4</button>
+    </div>
+    <div class="ms-alb-toggle" id="msAlbBadgeTgl" onclick="msAlbumToggleBadge()" title="Sovrastampa il bollino colorato della condizione sulle carte"><span class="dot"></span> Condizione</div>
+    <div class="ms-alb-corner" id="msAlbCornerWrap" title="Angolo del bollino condizione">
+      <select id="msAlbCorner" onchange="msAlbumSetCorner(this.value)">
+        <option value="tr">&#8599; Alto dx</option>
+        <option value="tl">&#8598; Alto sx</option>
+        <option value="br">&#8600; Basso dx</option>
+        <option value="bl">&#8601; Basso sx</option>
+      </select>
+    </div>
+    <div class="ms-alb-ico" onclick="msCloseAlbum()" title="Chiudi (Esc)">&times;</div>
+  </div>
+  <div class="ms-alb-stage" id="msAlbStage">
+    <div class="ms-alb-nav prev" id="msAlbPrev" onclick="msAlbumNav(-1)" title="Pagina precedente">&#8249;</div>
+    <div class="ms-alb-page" id="msAlbPage"><div class="ms-alb-grid" id="msAlbGrid"></div></div>
+    <div class="ms-alb-nav next" id="msAlbNext" onclick="msAlbumNav(1)" title="Pagina successiva">&#8250;</div>
+  </div>
+  <div class="ms-alb-foot">
+    <div class="ms-alb-hint">Rotellina / frecce &larr; &rarr; per sfogliare</div>
+    <div class="ms-alb-pos" id="msAlbPos">Pagina <b>1</b> / 1</div>
+    <div class="ms-alb-hint" id="msAlbCount"></div>
+  </div>
+</div>
+<div class="ms-alb-zoom" id="msAlbZoom" onclick="msAlbumZoomClose()">
+  <img id="msAlbZoomImg" src="" alt="">
+  <div class="cap" id="msAlbZoomCap"></div>
+</div>
+
 </body>
 </html>
