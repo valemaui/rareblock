@@ -317,8 +317,10 @@ body{display:flex;flex-direction:column}
 .ms-alb-ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--text-subtle);z-index:2}
 .ms-alb-ph .n{font-family:var(--mono);font-size:11px;opacity:.75}
 .ms-alb-ph .q{font-size:19px;opacity:.45}
-/* bollino condizione sovrastampato */
-.ms-alb-cond{position:absolute;z-index:6;min-width:20px;height:20px;padding:0 5px;border-radius:11px;font-family:var(--mono);font-size:10px;font-weight:800;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.55);border:1px solid rgba(0,0,0,.3)}
+/* bollino condizione sovrastampato — chip metallico embossed */
+.ms-alb-cond{position:absolute;z-index:6;min-width:23px;height:20px;padding:0 6px;border-radius:5px;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.7px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.14);box-shadow:0 1px 3px rgba(0,0,0,.55),0 0 0 .5px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.55),inset 0 -2px 3px rgba(0,0,0,.22);text-shadow:0 1px 1px rgba(0,0,0,.28)}
+.ms-alb-cond::after{content:"";position:absolute;left:2px;right:2px;top:1px;height:42%;border-radius:4px 4px 6px 6px;background:linear-gradient(180deg,rgba(255,255,255,.4),rgba(255,255,255,0));pointer-events:none}
+.ms-alb-cond span{position:relative;z-index:1}
 .ms-alb-cond.tl{top:7px;left:7px}
 .ms-alb-cond.tr{top:7px;right:7px}
 .ms-alb-cond.bl{bottom:7px;left:7px}
@@ -2087,7 +2089,7 @@ function msRenderGrid(ms, cards){
 
 /* ══ Vista ALBUM: raccoglitore a tasche protettive ══════════════════ */
 // Pattern selezionabili: N colonne × M righe → dimensione pagina.
-var MS_ALB_PATTERNS = { '3x3':{cols:3,size:9}, '3x4':{cols:3,size:12}, '4x4':{cols:4,size:16} };
+var MS_ALB_PATTERNS = { '3x3':{cols:3,rows:3,size:9}, '4x3':{cols:4,rows:3,size:12}, '4x4':{cols:4,rows:4,size:16} };
 // Config persistita in localStorage (no PII): pattern, bollino condizione, angolo.
 var msAlbumCfg = { pattern:'3x3', badge:true, corner:'tr' };
 var msAlbumPage = 0;
@@ -2134,6 +2136,33 @@ function _msAlbTextOn(hex){
     return lum > 150 ? '#0d1117' : '#ffffff';
   }catch(e){ return '#0d1117'; }
 }
+// Schiarisce (pct>0) o scurisce (pct<0) un colore hex → gradiente metallico del bollino.
+function _msAlbShade(hex, pct){
+  try{
+    var h=(''+hex).replace('#','');
+    if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    var r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16);
+    function adj(c){ return pct<0 ? Math.round(c*(100+pct)/100) : Math.round(c+(255-c)*pct/100); }
+    function hx(c){ c=Math.max(0,Math.min(255,c)); return ('0'+c.toString(16)).slice(-2); }
+    return '#'+hx(adj(r))+hx(adj(g))+hx(adj(b));
+  }catch(e){ return hex; }
+}
+// Larghezza tasca calcolata per riempire lo stage in altezza (carte più grandi
+// quando ci sono meno righe, es. 3×3), mantenendo l'aspect ratio uniforme.
+function _msAlbColWidth(conf){
+  var stage=document.getElementById('msAlbStage');
+  if(!stage) return 120;
+  var sw=stage.clientWidth||1200, sh=stage.clientHeight||700;
+  var gap=16;
+  var padX=132, padY=40;          // padding stage (66×2 / 20×2, spazio frecce)
+  var pagePadX=44+26, pagePadY=26+26, bord=2;
+  var availW=sw - padX - pagePadX - bord;
+  var availH=sh - padY - pagePadY - bord - 4;   // -4 margine anti-scroll
+  var byH=((availH-(conf.rows-1)*gap)/conf.rows)*0.715;
+  var byW=(availW-(conf.cols-1)*gap)/conf.cols;
+  var w=Math.min(byH, byW);
+  return Math.max(64, Math.min(250, Math.floor(w)));
+}
 
 window.msOpenAlbum = function(){
   var ms = msData.find(function(m){return m.id===msActive;});
@@ -2145,6 +2174,7 @@ window.msOpenAlbum = function(){
   if(!_msAlbWheelBound){
     var stage = document.getElementById('msAlbStage');
     if(stage){ stage.addEventListener('wheel', _msAlbWheel, {passive:false}); _msAlbWheelBound = true; }
+    window.addEventListener('resize', _msAlbResize);
   }
   _msAlbSyncControls();
   bg.classList.add('show');
@@ -2202,6 +2232,13 @@ function _msAlbWheel(e){
   _msAlbWheelTs = now;
   msAlbumNav(e.deltaY>0 ? 1 : -1);
 }
+var _msAlbResizeTmr = 0;
+function _msAlbResize(){
+  var bg=document.getElementById('msAlbumBg');
+  if(!bg || !bg.classList.contains('show')) return;
+  clearTimeout(_msAlbResizeTmr);
+  _msAlbResizeTmr = setTimeout(msAlbumRender, 120);
+}
 
 window.msAlbumRender = function(){
   var ms = msData.find(function(m){return m.id===msActive;});
@@ -2217,7 +2254,7 @@ window.msAlbumRender = function(){
   if(msAlbumPage<0) msAlbumPage = 0;
   var tEl=document.getElementById('msAlbTitle'); if(tEl) tEl.textContent = ms.setName || ms.label || 'Album';
   var sEl=document.getElementById('msAlbSub'); if(sEl) sEl.textContent = (ms.label && ms.setName ? ms.label+' · ' : '') + cards.length+' carte';
-  grid.style.gridTemplateColumns = 'repeat('+conf.cols+',minmax(74px,120px))';
+  grid.style.gridTemplateColumns = 'repeat('+conf.cols+','+_msAlbColWidth(conf)+'px)';
   grid.innerHTML='';
   if(!cards.length){
     grid.innerHTML='<div class="ms-alb-empty-msg" style="grid-column:1/-1">Nessuna carta corrisponde ai filtri attivi.</div>';
@@ -2235,7 +2272,8 @@ window.msAlbumRender = function(){
       if(!owned) html+='<div class="ms-alb-ph"><span class="q">&#9671;</span><span class="n">#'+esc(card.num||'')+'</span></div>';
       if(msAlbumCfg.badge && best){
         var col = MS_COND_COLORS[best.id] || '#c9a84c';
-        html+='<span class="ms-alb-cond '+msAlbumCfg.corner+'" style="background:'+col+';color:'+_msAlbTextOn(col)+'">'+esc(best.code)+'</span>';
+        var lite=_msAlbShade(col,26), dark=_msAlbShade(col,-18);
+        html+='<span class="ms-alb-cond '+msAlbumCfg.corner+'" style="background:linear-gradient(150deg,'+lite+' 0%,'+col+' 52%,'+dark+' 100%);color:'+_msAlbTextOn(col)+'"><span>'+esc(best.code)+'</span></span>';
       }
       if(owned){
         var totAll = qtyTotalAll(card);
@@ -5087,7 +5125,7 @@ document.addEventListener("DOMContentLoaded", function(){
     <div class="ms-alb-spacer"></div>
     <div class="ms-alb-seg" id="msAlbSeg">
       <button data-p="3x3" onclick="msAlbumSetPattern('3x3')">3&times;3</button>
-      <button data-p="3x4" onclick="msAlbumSetPattern('3x4')">3&times;4</button>
+      <button data-p="4x3" onclick="msAlbumSetPattern('4x3')">4&times;3</button>
       <button data-p="4x4" onclick="msAlbumSetPattern('4x4')">4&times;4</button>
     </div>
     <div class="ms-alb-toggle" id="msAlbBadgeTgl" onclick="msAlbumToggleBadge()" title="Sovrastampa il bollino colorato della condizione sulle carte"><span class="dot"></span> Condizione</div>
