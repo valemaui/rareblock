@@ -3759,6 +3759,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
               <div class="form-actions">
                 <button class="btn" onclick="cancelQuick()">Annulla</button>
                 <button class="btn" onclick="openCardmarketAdd()" title="Apri su Cardmarket">↗ CM</button>
+                <button class="btn" onclick="rbReportCorruptCmAdd()" title="Segnala link Cardmarket sbagliato / correggilo">⚠</button>
                 <button class="btn-verify replay-disabled" id="qReplayBtn" onclick="replayCmLog('q')" title="Riapri ultimo log verifica (nessuno disponibile)">↻</button>
                 <button class="btn btn-primary" id="qAddBtn" onclick="addQuickCard()">Aggiungi alla collezione</button>
               </div>
@@ -3809,6 +3810,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
               <div class="form-actions">
                 <button class="btn" onclick="cancelSel()">Annulla</button>
                 <button class="btn" onclick="openCardmarketAdd()" title="Apri su Cardmarket">↗ CM</button>
+                <button class="btn" onclick="rbReportCorruptCmAdd()" title="Segnala link Cardmarket sbagliato / correggilo">⚠</button>
                 <button class="btn-verify replay-disabled" id="sReplayBtn" onclick="replayCmLog('s')" title="Riapri ultimo log verifica (nessuno disponibile)">↻</button>
                 <button class="btn btn-primary" id="sAddBtn" onclick="addSelCard()">Aggiungi alla collezione</button>
               </div>
@@ -4180,6 +4182,7 @@ tr.price-verify-row td{background:rgba(201,169,110,.04)!important;border-bottom:
                         <button class="btn-verify" id="pVerifyBtn" onclick="verifyPriceAdd('p')" title="Verifica prezzo live su Cardmarket">€</button>
                         <button class="btn-verify replay-disabled" id="pReplayBtn" onclick="replayCmLog('p')" title="Riapri ultimo log verifica (nessuno disponibile)">↻</button>
                         <button class="btn" onclick="openCardmarket()" title="Apri su Cardmarket">↗</button>
+                        <button class="btn" onclick="rbReportCorruptCmPrev()" title="Segnala link Cardmarket sbagliato / correggilo">⚠</button>
                       </div>
                     </div>
                     <button class="pq-add-btn" onclick="addToPrev()">Add</button>
@@ -22159,6 +22162,125 @@ function rbIndexReportFailure(opts, failedUrl){
   }catch(e){}
 }
 window.rbIndexReportFailure = rbIndexReportFailure;
+
+/* ── "Report link corrotto" → override AUTORITATIVO (umano = verità) ───
+   Il flusso automatico (slug euristico + self-repair CM) può atterrare su
+   un prodotto valido ma sbagliato. Qui l'utente incolla l'URL CORRETTO:
+   lo salviamo in rb_card_index con method='manual' (confidence 99), che
+   nell'upsert (mig. 088) VINCE su ogni euristica e NON viene ri-sovrascritto
+   da scritture automatiche (v_conf<99). Segnaliamo anche il vecchio URL come
+   fallito (anti-poisoning) e ripuliamo cache locale + stash del verify.
+   card = oggetto carta (name/set/number/rarity/supertype)
+   stashKey = 'p'|'q'|'s' per svuotare _cmStash del contesto (opz.) */
+function rbReportCorruptCm(card, cond, lang, variant, first1st, stashKey){
+  try{
+    if(!card){ if(typeof showToast==='function') showToast('Nessuna carta selezionata', 2400); return; }
+    if(typeof _rbCmCensusInjectStyles==='function') _rbCmCensusInjectStyles();
+
+    var setId  = (card.set && card.set.id) || card.set_id || card.setId || null;
+    var setName= (card.set && card.set.name) || card.set_name || card.setName || '';
+    var number = card.number || card.card_number || '';
+    var supertype = card.supertype || card.super_type || '';
+    var rarity = card.rarity || '';
+    var _e = (typeof esc==='function') ? esc : function(x){ return (x==null?'':String(x)); };
+
+    // URL attualmente prodotto dal flusso (quello "sbagliato" da marcare failed)
+    var currentUrl = '';
+    try{
+      var stash = (typeof _cmStash!=='undefined' && stashKey) ? _cmStash[stashKey] : null;
+      if(stash && stash.cmUrl) currentUrl = stash.cmUrl.split('?')[0];
+      else if(typeof rbCmSafeHref==='function'){
+        currentUrl = (rbCmSafeHref(card.name, setId, number, cond||'NM', lang||'ITA',
+          variant||'Normal', !!first1st, setName, rarity,
+          (typeof cmAuthoritativeUrl==='function'?cmAuthoritativeUrl(card):null), supertype)||'').split('?')[0];
+      }
+    }catch(e){}
+
+    var ov=document.createElement('div'); ov.className='rbcc-ov';
+    ov.innerHTML =
+      '<div class="rbcc-card">'
+     +'<div class="rbcc-h"><h3>Segnala link Cardmarket sbagliato</h3><button class="rbcc-x" id="rbrc-x">\u00d7</button></div>'
+     +'<div class="rbcc-hint">Il link generato per <b>'+_e(card.name||'')+(number?(' \u00b7 '+_e(number)):'')
+       +'</b>'+(setName?(' ('+_e(setName)+')'):'')+' porta a un prodotto sbagliato. '
+       +'Apri Cardmarket, trova la <b>pagina prodotto corretta</b> e incolla qui il suo URL: '
+       +'lo salvo come verit\u00e0 verificata (batte ogni euristica e non verr\u00e0 pi\u00f9 ricalcolato).</div>'
+     +(currentUrl?('<div class="rbcc-hint" style="opacity:.75;font-family:var(--mono,monospace);font-size:11px;word-break:break-all;margin-top:-2px">Attuale (errato): '+_e(currentUrl)+'</div>'):'')
+     +'<div class="rbcc-row"><input class="rbcc-in" id="rbrc-url" placeholder="https://www.cardmarket.com/it/Pokemon/Products/Singles/Set/Carta-XX000" '
+       +'value="'+(currentUrl?_e(currentUrl):'')+'"/></div>'
+     +'<div id="rbrc-err" class="rbcc-hint" style="color:var(--danger,#e5534b);display:none"></div>'
+     +'<div class="rbcc-row" style="justify-content:space-between;margin-top:2px">'
+       +'<button class="rbcc-btn" id="rbrc-open" style="background:none;border-color:var(--border,#2a2620);color:var(--text-muted,#999)">\ud83c\udf0d Apri su Cardmarket</button>'
+       +'<button class="rbcc-btn" id="rbrc-save">Salva correzione</button>'
+     +'</div>'
+     +'</div>';
+    document.body.appendChild(ov);
+    function close(){ try{ ov.remove(); }catch(e){} document.removeEventListener('keydown',onKey); }
+    function onKey(e){ if(e.key==='Escape') close(); }
+    document.addEventListener('keydown',onKey);
+    ov.addEventListener('click',function(e){ if(e.target===ov) close(); });
+    var urlIn=ov.querySelector('#rbrc-url'), errEl=ov.querySelector('#rbrc-err');
+    ov.querySelector('#rbrc-x').onclick=close;
+    ov.querySelector('#rbrc-open').onclick=function(){
+      var u=(urlIn.value||'').trim() || currentUrl;
+      if(u) window.open(u,'_blank','noopener');
+    };
+    function showErr(m){ errEl.textContent=m; errEl.style.display='block'; }
+    try{ urlIn.focus(); urlIn.select(); }catch(e){}
+
+    ov.querySelector('#rbrc-save').onclick=function(){
+      var raw=(urlIn.value||'').trim();
+      if(!raw){ showErr('Incolla l\u2019URL della pagina prodotto Cardmarket.'); return; }
+      var clean=raw.split('#')[0];
+      // Deve essere una pagina PRODOTTO CM autoritativa (no pagina set/ricerca)
+      var ok = (typeof _isAuthoritativeCMUrl==='function')
+        ? _isAuthoritativeCMUrl(clean)
+        : (/cardmarket\.com/i.test(clean) && /\/Products\/Singles\/[^\/?#]+\/[^\/?#]+/i.test(clean));
+      if(!ok){ showErr('Non sembra una pagina PRODOTTO Cardmarket (serve \u2026/Products/Singles/Set/Carta). Le pagine di ricerca o del set non sono valide.'); return; }
+      var base=clean.split('?')[0];
+
+      var cardOpts={ name:card.name, setId:setId, set_id:setId, number:number,
+                     setName:setName, set_name:setName, rarity:rarity };
+      try{
+        // 1) Marca il vecchio URL come fallito (se diverso) → anti-poisoning
+        if(currentUrl && currentUrl!==base && typeof rbIndexReportFailure==='function'){
+          rbIndexReportFailure(cardOpts, currentUrl);
+        }
+        // 2) Scrive la correzione autoritativa (confidence 99, immune al downgrade)
+        if(typeof rbIndexRemember==='function'){
+          rbIndexRemember(cardOpts, base, 'manual', {});
+        }
+        // 3) Svuota lo stash del verify per il contesto (altrimenti riapre il vecchio)
+        try{ if(typeof _cmStash!=='undefined' && stashKey && _cmStash[stashKey]) _cmStash[stashKey]=null; }catch(e){}
+      }catch(e){}
+
+      if(typeof showToast==='function') showToast('Correzione salvata \u2713 \u00b7 il link corretto sar\u00e0 usato d\u2019ora in poi', 3200);
+      close();
+    };
+  }catch(e){ try{ if(typeof showToast==='function') showToast('Errore apertura report', 2400); console.warn('[RB-RC]', e&&e.message); }catch(_){} }
+}
+window.rbReportCorruptCm = rbReportCorruptCm;
+
+/* Wrapper: stesso contesto (carta + dropdown) dei bottoni "↗ CM" esistenti. */
+function rbReportCorruptCmAdd(){
+  var c=(typeof quickCard!=='undefined'&&quickCard)||(typeof selCard!=='undefined'&&selCard)||null;
+  if(!c){ if(typeof showToast==='function') showToast('Nessuna carta selezionata', 2400); return; }
+  var prefix=(typeof quickCard!=='undefined'&&quickCard)?'q':'s';
+  var g=function(id){ return document.getElementById(id); };
+  rbReportCorruptCm(c,
+    (g(prefix+'Cond')||{}).value||'NM', (g(prefix+'Lang')||{}).value||'ITA',
+    (g(prefix+'Var')||{}).value||'Normal', (g(prefix+'1st')||{}).checked||false, prefix);
+}
+window.rbReportCorruptCmAdd = rbReportCorruptCmAdd;
+
+function rbReportCorruptCmPrev(){
+  var c=(typeof prevCard!=='undefined')?prevCard:null;
+  if(!c){ if(typeof showToast==='function') showToast('Nessuna carta selezionata', 2400); return; }
+  var g=function(id){ return document.getElementById(id); };
+  rbReportCorruptCm(c,
+    (g('pCond')||{}).value||'NM', (g('pLang')||{}).value||'ITA',
+    (g('pVar')||{}).value||'Normal', (g('p1st')||{}).checked||false, 'p');
+}
+window.rbReportCorruptCmPrev = rbReportCorruptCmPrev;
 
 /* ── Cattura foto carta → edge function cm-image-cache ───────────────── */
 /* Fire-and-forget, throttling 30gg per chiave (marker localStorage). */
