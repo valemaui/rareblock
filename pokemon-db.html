@@ -12295,10 +12295,12 @@ window.openCmFallbackSearch = openCmFallbackSearch;
 // ══════════════════════════════════════════════════════════════════════
 async function _rbCmMetaFetch(url, providedHtml){
   var bearer = (window._rbSession && window._rbSession.access_token) || SUPA_KEY;
-  var ctrl = new AbortController(); var t = setTimeout(function(){ctrl.abort();}, 20000);
   // Bypass Cloudflare: se non ho già l'HTML e l'estensione Hunter è attiva,
   // scarico la pagina lato browser (IP residenziale) e la passo come
   // provided_html → il server estrae i metadati dalla pagina fornita.
+  // NB: PRIMA del timer di abort — il giro challenge di Hunter (fetch SW 403
+  // → tab nascosta) può richiedere fino a ~65s; il vecchio timer partiva qui
+  // e abortiva la chiamata server ancora prima di farla ("Preleva" morto).
   if(!providedHtml){
     try{
       var ext = window.rbExtFetch;
@@ -12308,6 +12310,8 @@ async function _rbCmMetaFetch(url, providedHtml){
       }
     }catch(e){}
   }
+  // Timer SOLO sulla chiamata al server (parse metadati): 20s bastano.
+  var ctrl = new AbortController(); var t = setTimeout(function(){ctrl.abort();}, 20000);
   function mkBody(){
     var b={source:'cardmarket', mode:'meta', url:url, debug:true};
     if(providedHtml){ b.urls=[url]; b.provided_html=[providedHtml]; }
@@ -12403,7 +12407,7 @@ function rbOpenCmCensus(prefill, target){
   ov.querySelector('#rbcc-open').onclick=function(){ var u=urlIn.value.trim(); if(u) window.open(u,'_blank','noopener'); };
 
   async function doFetch(u){
-    bodyEl.innerHTML='<div class="rbcc-hint">Prelevo i dati\u2026</div>';
+    bodyEl.innerHTML='<div class="rbcc-hint">Prelevo i dati da Cardmarket\u2026 la prima lettura pu\u00f2 richiedere fino a un minuto (verifica anti-bot).</div>';
     var d= await _rbCmMetaFetch(u);
     if(d && d.ok && d.meta){ renderPreview(d.meta); return; }
     if(d && d.need_pick && d.products && d.products.length){ renderCandidates(d.products); return; }
@@ -12767,7 +12771,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-07-06-census-hunter-timeout-fix';
+var RB_BUILD = '2026-07-07-cm-census-meta-timer-fix';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -15579,7 +15583,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.66';
+const APP_VERSION='6.67';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
