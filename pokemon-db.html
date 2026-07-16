@@ -12302,13 +12302,19 @@ async function _rbCmMetaFetch(url, providedHtml){
   // → tab nascosta) può richiedere fino a ~65s; il vecchio timer partiva qui
   // e abortiva la chiamata server ancora prima di farla ("Preleva" morto).
   if(!providedHtml){
+    var _metaWhy='ext-assente';
     try{
       var ext = window.rbExtFetch;
-      if(typeof ext==='function' && await ext.isReady()){
-        var f = await ext(url).catch(function(){return null;});
-        if(f && f.ok && f.html && f.html.length>500) providedHtml = f.html;
+      if(typeof ext==='function'){
+        if(await ext.isReady()){
+          var f = await ext(url).catch(function(e){ _metaWhy='eccezione bridge: '+((e&&e.message)||e); return null; });
+          if(f && f.ok && f.html && f.html.length>500){ providedHtml = f.html; _metaWhy=null; }
+          else if(f){ _metaWhy = f.error ? ('bridge: '+f.error) : ('status '+(f.status||'?')+' \u00b7 '+((f.html&&f.html.length)||0)+' char \u00b7 '+(f.source||'?')); }
+          else if(_metaWhy==='ext-assente'){ _metaWhy='nessuna risposta dal bridge'; }
+        } else { _metaWhy='Hunter non pronta (nessuna tab agganciata)'; }
       }
-    }catch(e){}
+    }catch(e){ _metaWhy='eccezione: '+((e&&e.message)||e); }
+    if(_metaWhy){ try{ console.warn('[RB-CM-META] Hunter non ha consegnato la pagina \u2192', _metaWhy, '\u2014 URL:', url); }catch(e){} }
   }
   // Timer SOLO sulla chiamata al server (parse metadati): 20s bastano.
   var ctrl = new AbortController(); var t = setTimeout(function(){ctrl.abort();}, 20000);
@@ -12323,8 +12329,10 @@ async function _rbCmMetaFetch(url, providedHtml){
     if(res.status===401 && bearer!==SUPA_KEY){
       res = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPA_KEY},body:mkBody()});
     }
-    return await res.json();
-  }catch(e){ clearTimeout(t); return {ok:false, error:(e&&e.name==='AbortError')?'timeout (la pagina CM non risponde o è protetta da Cloudflare)':(e&&e.message||String(e)), blocked:true}; }
+    var _mj = await res.json();
+    if(_mj && typeof _mj==='object' && typeof _metaWhy!=='undefined' && _metaWhy && !providedHtml) _mj.hunter_why = _metaWhy;
+    return _mj;
+  }catch(e){ clearTimeout(t); return {ok:false, error:(e&&e.name==='AbortError')?'timeout (la pagina CM non risponde o è protetta da Cloudflare)':(e&&e.message||String(e)), blocked:true, hunter_why:(typeof _metaWhy!=='undefined'&&!providedHtml)?_metaWhy:null}; }
 }
 
 function _rbCmCensusInjectStyles(){
@@ -12421,12 +12429,13 @@ function rbOpenCmCensus(prefill, target){
     var mnum=ss.match(/\s(\d+[a-z]?)$/i); if(mnum){ preNum=mnum[1]; preName=ss.replace(/\s\d+[a-z]?$/i,'').trim(); }
     if(pm && !preNum){ var sx=pm[2].match(/[A-Z]{1,4}(\d+[a-z]?)$/i)||pm[2].match(/(\d+[a-z]?)$/i); if(sx) preNum=sx[1]; }
     var reason = (d&&d.blocked) ? 'Cardmarket ha bloccato la lettura automatica.' : (d&&d.no_results)?'Nessun prodotto trovato automaticamente.':'Estrazione automatica non riuscita.';
+    var detail = (d&&d.hunter_why) ? (' [Hunter: '+d.hunter_why+' \u00b7 v'+(typeof APP_VERSION!=='undefined'?APP_VERSION:'?')+']') : '';
     renderPreview({
       name: preName||'', number: preNum||'',
       set_name: pm?decodeURIComponent(pm[1]).replace(/-/g,' '):'',
       rarity:'', image:'',
       cm_url: (pm? u.split('?')[0] : ''),
-      _notice: reason+' Completa i campi mancanti e l\u2019immagine (o usa il bookmarklet qui sotto).'
+      _notice: reason+detail+' Completa i campi mancanti e l\u2019immagine (o usa il bookmarklet qui sotto).'
     });
     var det=ov.querySelector('#rbcc-manual'); if(det) det.open=true;
   }
@@ -12771,7 +12780,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-07-07-cm-census-meta-timer-fix';
+var RB_BUILD = '2026-07-07-cm-meta-diagnostics';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -15583,7 +15592,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.67';
+const APP_VERSION='6.68';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
