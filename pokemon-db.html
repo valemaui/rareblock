@@ -5890,32 +5890,31 @@ async function fetchCards(name, number){
   const enName = itToEn(name);
   const nameToSearch = enName !== name ? enName : name;
 
-  // 2. Ricerca via Edge Function (cacheata)
+  // 2+3+4 IN PARALLELO (refactor v6.70 — prima erano sequenziali: fino a 3
+  // roundtrip da 3-10s in fila = ricerca "lentissima" nei preventivi).
+  // Ora: proxy cacheato per nome E (se c'è il numero) query precisa
+  // nome+numero partono INSIEME → il tempo totale è quello della singola
+  // chiamata più lenta, non la somma. La query per nome via _fetchTCGDirect
+  // resta fallback solo se il proxy per nome torna vuoto (stesso upstream:
+  // farla sempre in parallelo raddoppierebbe il carico senza guadagno).
   let results = [];
-  try {
-    results = await _fetchRaw(nameToSearch);
-  } catch(e) {
-    // Edge Function non disponibile → vai diretto
-  }
-
-  // 3. Se Edge Function non trova o non disponibile → TCG API diretta
-  if(!results.length){
-    try {
-      results = await _fetchTCGDirect('name:"'+nameToSearch.replace(/"/g,'')+'"');
-    } catch(e) {}
-  }
-
-  // 4. Se ho un numero di carta, prova ricerca combinata nome+numero (molto precisa)
-  if(number && (!results.length || results.length > 5)){
-    try {
-      const byNum = await _fetchTCGDirect('name:"'+nameToSearch.replace(/"/g,'')+'" number:'+number);
-      if(byNum.length > 0){
-        // Merge: metti quelli col numero corretto in cima
-        const ids = new Set(byNum.map(c=>c.id));
-        const rest = results.filter(c=>!ids.has(c.id));
-        results = byNum.concat(rest);
-      }
-    } catch(e) {}
+  {
+    const pName  = _fetchRaw(nameToSearch).catch(()=>[]);
+    const pByNum = number
+      ? _fetchTCGDirect('name:"'+nameToSearch.replace(/"/g,'')+'" number:'+number).catch(()=>[])
+      : Promise.resolve([]);
+    const [rName, rByNum] = await Promise.all([pName, pByNum]);
+    results = rName || [];
+    // Fallback TCG diretta per nome SOLO se il proxy non ha trovato nulla
+    if(!results.length){
+      try { results = await _fetchTCGDirect('name:"'+nameToSearch.replace(/"/g,'')+'"'); } catch(e) {}
+    }
+    // Merge risultati numerati in cima (query molto precisa)
+    if(rByNum && rByNum.length){
+      const ids = new Set(rByNum.map(c=>c.id));
+      const rest = results.filter(c=>!ids.has(c.id));
+      results = rByNum.concat(rest);
+    }
   }
 
   // 5. Fuzzy fallback se ancora vuoto
@@ -15598,7 +15597,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.69';
+const APP_VERSION='6.70';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -22824,8 +22823,32 @@ window.rbCmSafeHref = rbCmSafeHref;
 
 /* Risolve l'URL prodotto ESATTO per la navigazione. Ritorna {url, verified}.
    Cascata: autoritativo → indice DB → (set stabile: diretto) → verifica via
-   estensione su primario + varianti V1/V2 (persistita) → ricerca set. */
-async function rbCmResolveProductUrl(card, cond, lang, variant, first1st){
+   estensione su primario + varianti V1/V2 (persistita) → ricerca set.
+
+   mode (opzionale, v6.70):
+   • 'full' (default) — cascata completa, INCLUSA la verifica via estensione
+     (fino a 3 candidati × 75s di bridge): giusta per il censimento/harvest
+     dove la latenza non conta, DEVASTANTE per la navigazione utente.
+   • 'fast' — percorso di NAVIGAZIONE: ogni step ha un budget temporale
+     (indice ≤ RB_CM_NAV_IDX_MS, CMAPI ≤ budget residuo), la verifica via
+     estensione è SALTATA. Se il set è ambiguo e non verificato → ricerca nel
+     set (atterraggio garantito, carta in lista) con reason 'ambiguous-fast':
+     il chiamante può lanciare la verifica in BACKGROUND (persistita in
+     rb_card_index) così il prossimo click atterra esatto e istantaneo. */
+var RB_CM_NAV_BUDGET_MS = 4000;   // budget totale risoluzione prima di navigare
+var RB_CM_NAV_IDX_MS    = 1500;   // budget del solo lookup indice DB
+
+function _rbRaceMs(promise, ms, fallbackValue){
+  return Promise.race([
+    promise,
+    new Promise(function(r){ setTimeout(function(){ r(fallbackValue); }, ms); })
+  ]);
+}
+
+async function rbCmResolveProductUrl(card, cond, lang, variant, first1st, mode){
+  var fast = (mode === 'fast');
+  var _t0  = Date.now();
+  function _budgetLeft(){ return Math.max(0, RB_CM_NAV_BUDGET_MS - (Date.now() - _t0)); }
   var name    = card.name || '';
   var setId   = (card.set && card.set.id) || card.set_id || card.setId || null;
   var setName = (card.set && card.set.name) || card.set_name || card.setName || '';
@@ -22839,9 +22862,12 @@ async function rbCmResolveProductUrl(card, cond, lang, variant, first1st){
   // 1) Autoritativo (TCG API / record salvato)
   var auth = (typeof cmAuthoritativeUrl === 'function') ? cmAuthoritativeUrl(card) : null;
   if(auth) return { url: align(auth), verified: true, reason: 'authoritative' };
-  // 2) Indice DB (cross-device)
+  // 2) Indice DB (cross-device). In fast mode: budget RB_CM_NAV_IDX_MS —
+  //    la query prosegue comunque in background e scalda la cache locale.
   try{
-    var idxUrl = await rbIndexCmUrl({ setId:setId, setName:setName, number:number, name:name });
+    var _idxProm = rbIndexCmUrl({ setId:setId, setName:setName, number:number, name:name });
+    var idxUrl = fast ? await _rbRaceMs(_idxProm.catch(function(){ return null; }), RB_CM_NAV_IDX_MS, null)
+                      : await _idxProm;
     if(idxUrl) return { url: align(idxUrl), verified: true, reason: 'index' };
   }catch(e){}
   // 2b) CMAPI: link prodotto CANONICO (cmLink ufficiale) — niente slug indovinato,
@@ -22849,8 +22875,26 @@ async function rbCmResolveProductUrl(card, cond, lang, variant, first1st){
   //     (rbCmSafeHref) lo trova in cache e atterra dritto.
   try{
     if(typeof rbCmapiResolve === 'function'){
-      var cr = await rbCmapiResolve({ name:name, setId:setId, setName:setName, number:number,
+      var _cmapiProm = rbCmapiResolve({ name:name, setId:setId, setName:setName, number:number,
         language:lang, variant:variant, first_edition:first1st });
+      // fast: CMAPI ha timeout interni da 15s×2 — inaccettabili per la
+      // navigazione. Race col budget residuo; la promise prosegue comunque e
+      // se risolve tardi persisterà l'URL nell'indice per il prossimo click.
+      var cr = fast ? await _rbRaceMs(_cmapiProm.catch(function(){ return null; }), _budgetLeft(), null)
+                    : await _cmapiProm;
+      if(fast){
+        // Anche se arriva OLTRE il budget, l'URL canonico va persistito:
+        // il prossimo click lo trova nell'indice e atterra esatto e istantaneo.
+        _cmapiProm.then(function(cr2){
+          try{
+            if(cr2 && cr2.cmLink && typeof _isAuthoritativeCMUrl === 'function' &&
+               _isAuthoritativeCMUrl(cr2.cmLink) && typeof rbIndexRemember === 'function'){
+              rbIndexRemember({ name:name, setId:setId, setName:setName, number:number, rarity:rarity },
+                              cr2.cmLink, 'cmapi_link', { cmProductId: cr2.cardmarketId || cr2.cmapiId || null });
+            }
+          }catch(e){}
+        }).catch(function(){});
+      }
       if(cr && cr.cmLink && typeof _isAuthoritativeCMUrl === 'function' && _isAuthoritativeCMUrl(cr.cmLink)){
         try{ if(typeof rbIndexRemember === 'function'){
           rbIndexRemember({ name:name, setId:setId, setName:setName, number:number, rarity:rarity },
@@ -22872,6 +22916,15 @@ async function rbCmResolveProductUrl(card, cond, lang, variant, first1st){
   // (Trainer/Energy nei set a dualità-per-omonimia): lo slug diretto è
   // affidabile → nessuna verifica estensione, nessun ripiego su ricerca.
   if(!ambiguous) return { url: primary, verified: false, reason: 'direct-stable' };
+  // 4-fast) NAVIGAZIONE: mai la cascata estensione qui (3 candidati × 75s di
+  // bridge era la causa della tab "Risolvo…" ferma minuti). Ricerca nel set:
+  // atterraggio garantito, carta in lista. bgVerify:true segnala al chiamante
+  // di lanciare la verifica in background (persistita → prossimo click esatto).
+  if(fast){
+    var suf = (typeof buildCMSearchUrl === 'function')
+      ? buildCMSearchUrl(name, setId, number, cond, lang, variant, first1st, setName) : null;
+    return { url: suf || primary, verified: false, reason: 'ambiguous-fast', bgVerify: true };
+  }
   // 4) Set ambiguo: verifica VERA via estensione (primario + max 2 varianti).
   //    Tracciamo l'esito di OGNI candidato per diagnosticare il fallback: se
   //    tutto va in ricerca vogliamo sapere se è Hunter spenta, pagine vuote in
@@ -22923,33 +22976,121 @@ async function rbCmResolveProductUrl(card, cond, lang, variant, first1st){
 }
 window.rbCmResolveProductUrl = rbCmResolveProductUrl;
 
-/* Apre Cardmarket sulla pagina GIUSTA: tab subito (gesto utente) con stato
-   di risoluzione brand-styled, poi naviga sull'URL risolto. */
+/* ── CHOKEPOINT allineamento finale (v6.70) ──────────────────────────────
+   OGNI URL cardmarket.com che sta per essere navigato passa da qui:
+   forza /it/ e riscrive language/minCondition/isFirstEd/isReverseHolo dalle
+   dropdown LIVE, qualunque ramo del resolver l'abbia prodotto. Chiude per
+   costruzione la classe di bug "apre la pagina inglese / non passa la
+   condizione": prima l'allineamento era per-ramo e bastava un ramo dimenticato
+   (o un cm_url /en/ salvato in DB) per far filtrare un URL nudo. */
+function _rbCmAlignFinal(url, cond, lang, variant, first1st){
+  try{
+    if(!url || url.indexOf('cardmarket.com') < 0) return url;
+    var a = (typeof cmAppendParams === 'function') ? cmAppendParams(url, cond, lang, variant, first1st) : null;
+    return a || url;
+  }catch(e){ return url; }
+}
+window._rbCmAlignFinal = _rbCmAlignFinal;
+
+/* ── Verifica in BACKGROUND post-navigazione (v6.70) ─────────────────────
+   Quando il fast-path atterra sulla ricerca (set ambiguo non verificato),
+   la cascata estensione parte QUI, dopo che l'utente è già sulla pagina:
+   stesso carico di prima (era il vecchio percorso sincrono) ma non blocca
+   più nessuno. L'esito è persistito in rb_card_index → prossimo click
+   esatto e istantaneo. Guardie anti-hammering (memoria: incidente 429):
+   • dedup in-flight per product_key (click ripetuti non accodano scrape)
+   • cooldown 10 min per key (verifiche fallite non si ripetono a raffica)
+   • parte SOLO da un click ↗ CM (è la continuazione dell'azione esplicita
+     dell'utente → avvolta in rbCmUserAction, coerente con la policy). */
+var _rbCmBgVerify = { inflight: {}, lastRun: {} };
+var RB_CM_BGVERIFY_COOLDOWN_MS = 10 * 60 * 1000;
+
+function _rbCmBackgroundVerify(card, cond, lang, variant, first1st){
+  var key = null;
+  try{ key = (typeof rbProductKey === 'function') ? rbProductKey(card) : null; }catch(e){}
+  if(!key) key = (card.name||'') + '|' + (card.number||'');
+  var now = Date.now();
+  if(_rbCmBgVerify.inflight[key]) return;
+  if(_rbCmBgVerify.lastRun[key] && (now - _rbCmBgVerify.lastRun[key]) < RB_CM_BGVERIFY_COOLDOWN_MS) return;
+  _rbCmBgVerify.inflight[key] = true;
+  _rbCmBgVerify.lastRun[key]  = now;
+  var _cleanup = function(){ delete _rbCmBgVerify.inflight[key]; };
+  var _run = function(){ return rbCmResolveProductUrl(card, cond, lang, variant, first1st, 'full'); };
+  (typeof rbCmUserAction === 'function' ? rbCmUserAction(_run) : _run())
+    .then(function(r){
+      try{ console.info('[CM-bgVerify]', key, '\u2192', r && r.reason, r && r.verified ? '(verificato+persistito)' : ''); }catch(e){}
+      _cleanup();
+    })
+    .catch(function(){ _cleanup(); });
+  // Safety-net: sblocca comunque dopo 5 min (bridge worst-case ~3×75s + margine)
+  setTimeout(_cleanup, 5*60*1000);
+}
+window._rbCmBackgroundVerify = _rbCmBackgroundVerify;
+
+/* Apre Cardmarket sulla pagina GIUSTA — riscritto v6.70.
+   PRINCIPIO: l'utente NON aspetta mai più di RB_CM_NAV_BUDGET_MS (~4s).
+   1. safeUrl SINCRONO subito (rbCmSafeHref: atterraggio garantito, mai errore)
+   2. tab aperta col gesto utente; la splash ha un SELF-TIMER: se l'opener
+      muore/si blocca, la tab si auto-naviga da sola su safeUrl (mai più
+      "ferma minuti")
+   3. risoluzione in modalità 'fast' (indice≤1.5s, CMAPI≤budget, MAI estensione)
+      in race col budget → si naviga sul vincitore, allineato dal chokepoint
+   4. se il fast-path è atterrato su ricerca per set ambiguo → verifica full
+      in background, persistita: il prossimo click atterra esatto. */
 function rbOpenCmResolved(card, cond, lang, variant, first1st){
   if(!card) return;
+  // 1) URL sicuro SINCRONO: c'è SEMPRE, prima ancora di aprire la tab
+  var safeUrl;
+  try{
+    safeUrl = rbCmSafeHref(card.name, (card.set&&card.set.id)||card.set_id||null, card.number,
+                cond, lang, variant, first1st, (card.set&&card.set.name)||card.set_name||'',
+                card.rarity||'', (typeof cmAuthoritativeUrl==='function'?cmAuthoritativeUrl(card):null),
+                card.supertype||'');
+  }catch(e){
+    safeUrl = 'https://www.cardmarket.com/it/Pokemon/Products/Search?searchString='
+            + encodeURIComponent((card.name||'')+' '+(card.number||''));
+  }
+  safeUrl = _rbCmAlignFinal(safeUrl, cond, lang, variant, first1st);
+
+  // 2) Tab subito (gesto utente) con splash + self-timer di sicurezza
   var w = null;
   try{ w = window.open('', '_blank'); }catch(e){ w = null; }
   if(w){
     try{
+      var _fuseMs = RB_CM_NAV_BUDGET_MS + 2500;
       w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>RareBlock \u00b7 Cardmarket</title></head>'
         + '<body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;'
         + 'background:#0d1117;color:#c9a84c;font-family:Georgia,serif">'
         + '<div style="text-align:center"><div style="font-size:22px;letter-spacing:.06em">Rare<b>Block</b></div>'
-        + '<div style="margin-top:14px;font-size:13px;color:#8a857a;font-family:monospace">Risolvo la pagina prodotto su Cardmarket\u2026</div>'
-        + '</div></body></html>');
+        + '<div style="margin-top:14px;font-size:13px;color:#8a857a;font-family:monospace">'
+        + (card.name ? String(card.name).replace(/[<>&]/g,'') + ' \u00b7 ' : '')
+        + 'apro Cardmarket\u2026</div>'
+        + '<div style="margin-top:18px"><a href="' + safeUrl.replace(/"/g,'&quot;') + '" '
+        + 'style="color:#58a6ff;font-size:12px;font-family:monospace;text-decoration:none">apri subito \u2192</a></div>'
+        + '</div>'
+        // SELF-TIMER: garanzia assoluta contro la tab congelata. Se entro il
+        // budget+margine nessuno ha navigato questa tab, si naviga da sola.
+        + '<script>setTimeout(function(){try{location.replace(' + JSON.stringify(safeUrl) + ');}catch(e){}},' + _fuseMs + ');<\/script>'
+        + '</body></html>');
     }catch(e){}
   }
-  // Click "↗ CM": azione esplicita → la verifica via estensione è consentita
-  var _resolve = function(){ return rbCmResolveProductUrl(card, cond, lang, variant, first1st); };
-  (typeof rbCmUserAction === 'function' ? rbCmUserAction(_resolve) : _resolve()).then(function(r){
-    if(w && !w.closed){ try{ w.location.href = r.url; return; }catch(e){} }
-    try{ window.open(r.url, '_blank'); }catch(e){}
-  }).catch(function(){
-    var fb = rbCmSafeHref(card.name, (card.set&&card.set.id)||card.set_id||null, card.number,
-                          cond, lang, variant, first1st, (card.set&&card.set.name)||card.set_name||'', card.rarity||'', null);
-    if(w && !w.closed){ try{ w.location.href = fb; return; }catch(e){} }
-    try{ window.open(fb, '_blank'); }catch(e){}
-  });
+
+  function _navigate(url){
+    var u = _rbCmAlignFinal(url || safeUrl, cond, lang, variant, first1st);
+    if(w && !w.closed){ try{ w.location.href = u; return; }catch(e){} }
+    try{ window.open(u, '_blank'); }catch(e){}
+  }
+
+  // 3) Risoluzione FAST in race col budget. Il click è l'azione esplicita.
+  var _resolve = function(){ return rbCmResolveProductUrl(card, cond, lang, variant, first1st, 'fast'); };
+  var _resP = (typeof rbCmUserAction === 'function' ? rbCmUserAction(_resolve) : _resolve());
+  _rbRaceMs(_resP.catch(function(){ return null; }), RB_CM_NAV_BUDGET_MS, null)
+    .then(function(r){
+      _navigate(r && r.url ? r.url : safeUrl);
+      // 4) Atterraggio su ricerca per ambiguità → verifica full in background
+      if(r && r.bgVerify){ try{ _rbCmBackgroundVerify(card, cond, lang, variant, first1st); }catch(e){} }
+    })
+    .catch(function(){ _navigate(safeUrl); });
 }
 window.rbOpenCmResolved = rbOpenCmResolved;
 
