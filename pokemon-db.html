@@ -12583,10 +12583,15 @@ function openCardmarketAdd(){
   // pi\u00f9 affidabile del calcolo deterministico, soprattutto per carte con
   // pattern V1/V2 imprevedibile).
   const stash = _cmStash && _cmStash[prefix];
-  if(stash && stash.cmUrl){
+  // Stash usato SOLO se è un URL prodotto cardmarket.com autoritativo: gli
+  // stash storici possono contenere redirect tcggo (scartano i filtri nel
+  // rimbalzo → pagina inglese senza condizione). Altrimenti → resolver fast.
+  if(stash && stash.cmUrl && typeof _isAuthoritativeCMUrl==='function' && _isAuthoritativeCMUrl(stash.cmUrl)){
     // Lo stash è l'URL del verify (costruito a NM): riallinealo alla dropdown
     // condizione/lingua/variante/1ªed. LIVE, altrimenti apre sempre NM.
-    window.open(cmAppendParams(stash.cmUrl, cond, lang, variant, first1st) || stash.cmUrl, '_blank');
+    var _uA = (typeof _rbCmAlignFinal==='function') ? _rbCmAlignFinal(stash.cmUrl, cond, lang, variant, first1st)
+                                                    : cmAppendParams(stash.cmUrl, cond, lang, variant, first1st);
+    window.open(_uA || stash.cmUrl, '_blank');
     return;
   }
   // Risoluzione VERA prima di navigare: indice DB → verifica via estensione
@@ -12601,12 +12606,16 @@ function openCardmarket(){
   const cond=document.getElementById('pCond').value||'NM';
   const variant=document.getElementById('pVar').value||'Normal';
   const is1st=document.getElementById('p1st').checked;
-  // Riusa l'URL del verify riuscito se disponibile
+  // Riusa l'URL del verify riuscito SOLO se è cardmarket.com autoritativo:
+  // gli stash CMAPI possono contenere redirect tcggo che scartano i filtri
+  // nel rimbalzo (→ pagina inglese, niente condizione). Altrimenti resolver.
   const stash = _cmStash && _cmStash['p'];
-  if(stash && stash.cmUrl){
+  if(stash && stash.cmUrl && typeof _isAuthoritativeCMUrl==='function' && _isAuthoritativeCMUrl(stash.cmUrl)){
     // Riallinea lo stash (URL verify, costruito a NM) alla condizione/lingua/
     // variante/1ªed. LIVE, altrimenti apre sempre NM.
-    window.open(cmAppendParams(stash.cmUrl, cond, lang, variant, is1st) || stash.cmUrl, '_blank');
+    var _uP = (typeof _rbCmAlignFinal==='function') ? _rbCmAlignFinal(stash.cmUrl, cond, lang, variant, is1st)
+                                                    : cmAppendParams(stash.cmUrl, cond, lang, variant, is1st);
+    window.open(_uP || stash.cmUrl, '_blank');
     return;
   }
   if(typeof rbOpenCmResolved === 'function'){ rbOpenCmResolved(prevCard, cond, lang, variant, is1st); return; }
@@ -13736,7 +13745,14 @@ async function fetchCmPriceLive(opts){
                   avg30:_m.avg_30d, avg7:_m.avg_7d, label:_cmaLabel,
                   nmPrice:_cmaNm, condEstimated:!_cmaIsNm, condFactor:_cmaCondFactor,
                   global_basis:!_cmaItaCoherent },
-          isDirect:isDirect, cmUrl:(_m.cmLink || cmUrl || _m.tcggoUrl), source:'cmapi', cmapi:_m, attempts:attempts
+          // cmUrl per stash/navigazione: SOLO cardmarket.com autoritativo.
+          // _m.cmLink/tcggoUrl sono redirect tcggo.com/external/cm/{id}: nel
+          // rimbalzo tcggo SCARTA i query param (lingua/condizione/1ªed) e
+          // atterra sulla pagina inglese di default — era la causa del
+          // "↗ apre la pagina inglese senza filtri" (v6.71).
+          isDirect:isDirect,
+          cmUrl:((typeof _isAuthoritativeCMUrl==='function' && _isAuthoritativeCMUrl(_m.cmLink)) ? _m.cmLink : null) || cmUrl || null,
+          source:'cmapi', cmapi:_m, attempts:attempts
         };
         if(_cmaItaCoherent) return _cmaResult;
         _cmaStash = _cmaResult;   // fallthrough allo scrape dei listing reali
@@ -15597,7 +15613,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.70';
+const APP_VERSION='6.71';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 
@@ -21566,7 +21582,7 @@ function _rbPcNormalizeCmapi(cardKey, opts, m){
     ok: true, source: 'cmapi', cardKey: cardKey,
     cardName: (opts && opts.name) || m.name || null,
     fresh: true, ageDays: 0, capturedAt: new Date().toISOString(),
-    cmUrl: (m && (m.cmLink || m.tcggoUrl)) || null,
+    cmUrl: (m && typeof _isAuthoritativeCMUrl==='function' && _isAuthoritativeCMUrl(m.cmLink)) ? m.cmLink : null,   // MAI tcggo (redirect che scarta i filtri)
     cmapi: m,                 // blocco ricco: refPrice/refBasis, IT/DE/FR, trend, graded, tcg
     conditions: conds         // NM sintetica da CMAPI (o [] se refPrice assente)
   };
