@@ -12330,7 +12330,10 @@ async function _rbCmMetaFetch(url, providedHtml){
       res = await fetch(SUPA_URL+'/functions/v1/smooth-endpoint', {method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPA_KEY},body:mkBody()});
     }
     var _mj = await res.json();
-    if(_mj && typeof _mj==='object' && typeof _metaWhy!=='undefined' && _metaWhy && !providedHtml) _mj.hunter_why = _metaWhy;
+    if(_mj && typeof _mj==='object'){
+      if(typeof _metaWhy!=='undefined' && _metaWhy && !providedHtml) _mj.hunter_why = _metaWhy;
+      else if(providedHtml) _mj.hunter_ok_len = providedHtml.length;
+    }
     return _mj;
   }catch(e){ clearTimeout(t); return {ok:false, error:(e&&e.name==='AbortError')?'timeout (la pagina CM non risponde o è protetta da Cloudflare)':(e&&e.message||String(e)), blocked:true, hunter_why:(typeof _metaWhy!=='undefined'&&!providedHtml)?_metaWhy:null}; }
 }
@@ -12429,7 +12432,10 @@ function rbOpenCmCensus(prefill, target){
     var mnum=ss.match(/\s(\d+[a-z]?)$/i); if(mnum){ preNum=mnum[1]; preName=ss.replace(/\s\d+[a-z]?$/i,'').trim(); }
     if(pm && !preNum){ var sx=pm[2].match(/[A-Z]{1,4}(\d+[a-z]?)$/i)||pm[2].match(/(\d+[a-z]?)$/i); if(sx) preNum=sx[1]; }
     var reason = (d&&d.blocked) ? 'Cardmarket ha bloccato la lettura automatica.' : (d&&d.no_results)?'Nessun prodotto trovato automaticamente.':'Estrazione automatica non riuscita.';
-    var detail = (d&&d.hunter_why) ? (' [Hunter: '+d.hunter_why+' \u00b7 v'+(typeof APP_VERSION!=='undefined'?APP_VERSION:'?')+']') : '';
+    var _hd = (d&&d.hunter_why) ? ('Hunter: '+d.hunter_why)
+            : (d&&d.hunter_ok_len) ? ('Hunter OK, HTML consegnato ('+d.hunter_ok_len+' char) ma il server lo ha perso'+((d.cache_available===false)?' \u2014 CACHE SERVER SPENTA':'')+', status '+(d.status||'?'))
+            : 'Hunter non interpellata';
+    var detail = ' [v'+(typeof APP_VERSION!=='undefined'?APP_VERSION:'?')+' \u00b7 '+_hd+']';
     renderPreview({
       name: preName||'', number: preNum||'',
       set_name: pm?decodeURIComponent(pm[1]).replace(/-/g,' '):'',
@@ -12780,7 +12786,7 @@ function _finishAlignOverlay(stats, cancelled){
 // Build marker: usato dal cmLogger e altri overlay per indicare a colpo
 // d'occhio quale versione del codice sta girando lato client. Bump manualmente
 // quando si fa una fix critica che dipende da una nuova logica nel browser.
-var RB_BUILD = '2026-07-07-cm-meta-diagnostics';
+var RB_BUILD = '2026-07-07-cm-meta-full-diagnostics';
 window.RB_BUILD = RB_BUILD;
 
 function cmLogger(label){
@@ -15592,7 +15598,7 @@ window.addEventListener('offline', () => {
 // LED aggiornato direttamente in fetchCards
 
 // ── AUTO UPDATE ──
-const APP_VERSION='6.68';
+const APP_VERSION='6.69';
 const STORAGE_BASE='https://www.rareblock.eu';
 const APP_URL=STORAGE_BASE+'/pokemon-db.html';
 

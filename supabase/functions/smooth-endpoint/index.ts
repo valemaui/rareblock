@@ -612,10 +612,12 @@ async function handleCardmarketMeta(url: string, debug = false): Promise<Respons
   const { html, ok, status } = await fetchWithRetry(url);
   if (!ok || !html) {
     return json({ error: `CM HTTP ${status}`, ok: false, status,
-                  blocked: status === 403 || status === 429 || status === 503 });
+                  blocked: status === 403 || status === 429 || status === 503,
+                  cache_available: CACHE_AVAILABLE });
   }
   if (/Just a moment|cf-browser-verification/i.test(html)) {
-    return json({ error: 'Cloudflare challenge attivo', ok: false, status: 403, blocked: true });
+    return json({ error: 'Cloudflare challenge attivo', ok: false, status: 403, blocked: true,
+                  cache_available: CACHE_AVAILABLE });
   }
   if (isCMWrongProductPage(html)) {
     return json({ error: 'prodotto sbagliato (slug non valido)', ok: false, wrong_product: true });
