@@ -134,6 +134,37 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);f
   .mon-side{flex-direction:row;width:100%;align-items:center;justify-content:space-between}
   .mon-reasons{text-align:left;max-width:none}
 }
+
+/* ═══ SCADENZE ASTE ═══ */
+.scad-item{border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;background:var(--surface2);display:flex;flex-direction:column;gap:3px;position:relative}
+.scad-top{display:flex;align-items:center;gap:7px;justify-content:space-between}
+.scad-title{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.scad-title a{color:inherit;text-decoration:none}
+.scad-title a:hover{color:var(--accent)}
+.scad-plat{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;padding:1px 6px;border-radius:9px;border:1px solid var(--border);color:var(--text-muted);flex-shrink:0}
+.scad-meta{display:flex;align-items:baseline;gap:8px;font-family:var(--mono);font-size:10.5px;color:var(--text-muted)}
+.scad-cd{font-size:13px;font-weight:600;color:var(--text)}
+.scad-cd.warn{color:var(--warning)}
+.scad-cd.hot{color:var(--danger);animation:scadPulse 1s ease-in-out infinite}
+.scad-cd.done{color:var(--text-muted);font-weight:400}
+@keyframes scadPulse{0%,100%{opacity:1}50%{opacity:.45}}
+.scad-x{position:absolute;top:5px;right:6px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:2px 4px;line-height:1;display:none}
+.scad-item:hover .scad-x{display:block}
+.scad-x:hover{color:var(--danger)}
+.scad-push{font-family:var(--mono);font-size:9.5px;padding:2px 8px;border-radius:11px;border:1px solid var(--border);cursor:pointer;background:var(--surface2);color:var(--text-muted);margin-left:auto;transition:.12s}
+.scad-push.on{color:var(--success);border-color:rgba(63,185,80,.4)}
+.scad-push:hover{border-color:var(--accent)}
+.scad-preview{font-family:var(--mono);font-size:10px;margin-top:3px;min-height:13px}
+.scad-preview.ok{color:var(--success)}
+.scad-preview.err{color:var(--danger)}
+.scad-cm-pick{margin-top:5px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);max-height:150px;overflow-y:auto;display:none}
+.scad-cm-pick.open{display:block}
+.scad-cm-row{padding:6px 9px;font-size:11px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:8px}
+.scad-cm-row:last-child{border-bottom:none}
+.scad-cm-row:hover{background:rgba(88,166,255,.08)}
+.scad-cm-row .p{font-family:var(--mono);color:var(--gold,#c9a84c);flex-shrink:0}
+.scad-cm-row .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 </style>
 </head>
 <body>
@@ -149,6 +180,65 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);f
 
   <!-- ── SIDEBAR ── -->
   <div class="mon-sidebar">
+    <div class="mon-sb-block" id="scadBlock">
+      <h3><span class="rb-i rb-i-clock"></span> Scadenze aste <button class="scad-push" id="scadPushBtn" title="Notifiche push su questo dispositivo">🔕 push off</button></h3>
+      <div class="mon-list" id="scadListEl"><div style="font-size:11px;color:var(--text-muted)">Caricamento…</div></div>
+      <button class="mon-btn full" id="scadNewBtn" style="margin-top:10px"><span class="rb-i rb-i-bell"></span> Nuova scadenza</button>
+
+      <div id="scadForm" style="display:none;margin-top:12px;padding-top:12px;border-top:1px dashed var(--border)">
+        <div class="mon-field">
+          <label>Piattaforma</label>
+          <select id="scadPlat">
+            <option value="catawiki">Catawiki</option>
+            <option value="ebay">eBay</option>
+            <option value="vinted">Vinted</option>
+            <option value="cardmarket">CardMarket</option>
+            <option value="subito">Subito</option>
+            <option value="altro">Altro</option>
+          </select>
+        </div>
+        <div class="mon-field">
+          <label>Fine asta — tempo rimanente o data/ora</label>
+          <input type="text" id="scadWhen" placeholder='es. "2 g 5 h"'/>
+          <div class="scad-preview" id="scadWhenPrev"></div>
+        </div>
+        <div class="mon-field">
+          <label>Carta / oggetto</label>
+          <input type="text" id="scadTitle" placeholder="es. Charizard Base Set Unlimited PSA 8"/>
+          <div class="scad-cm-pick" id="scadCmPick"></div>
+        </div>
+        <div class="mon-field">
+          <label>Link inserzione (opzionale)</label>
+          <input type="text" id="scadUrl" placeholder="https://…"/>
+          <div class="hint">Il tap sulla notifica apre questo link.</div>
+        </div>
+        <div class="mon-row2">
+          <div class="mon-field">
+            <label>Valutazione €</label>
+            <input type="number" id="scadVal" step="0.01" min="0" placeholder="—"/>
+          </div>
+          <div class="mon-field">
+            <label>&nbsp;</label>
+            <button class="mon-btn full" id="scadCmBtn" title="Cerca il prezzo NM nell'indice CardMarket">€ CM</button>
+          </div>
+          <div class="mon-field">
+            <label>Avviso</label>
+            <select id="scadMins">
+              <option value="5" selected>−5 min</option>
+              <option value="10">−10 min</option>
+              <option value="15">−15 min</option>
+              <option value="30">−30 min</option>
+              <option value="60">−1 ora</option>
+            </select>
+          </div>
+        </div>
+        <div class="mon-btn-row">
+          <button class="mon-btn primary" id="scadSaveBtn" style="flex:1"><span class="rb-i rb-i-save"></span> Salva</button>
+          <button class="mon-btn" id="scadCancelBtn">Annulla</button>
+        </div>
+      </div>
+    </div>
+
     <div class="mon-sb-block">
       <h3><span class="rb-i rb-i-list"></span> I miei monitor</h3>
       <div class="mon-list" id="monListEl"><div style="font-size:11px;color:var(--text-muted)">Caricamento…</div></div>
@@ -1122,8 +1212,351 @@ function monWire(){
   document.getElementById('monTbTitle').title='Clicca per modificare i filtri di questo monitor';
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SCADENZE ASTE — alert push a −N min dalla fine (tabella rb_auction_alerts)
+//  Il cron server-side (auction-alert, ogni minuto) invia la Web Push:
+//  il browser può essere chiuso. Qui: CRUD + countdown + subscribe push.
+// ═══════════════════════════════════════════════════════════════════════
+
+// Stessa VAPID pubblica di radar.html (keypair unico lato server)
+var SCAD_VAPID_PUB = 'BJKDU6qAY3A5ZUm6Msxxj0lA1XRvK4AsfWgnGVA7-eXZ2ySpl0wgOY9Ekg21HtJTtyXgn9i2PYZPHkz3dkmP1_E';
+var SCAD_STATE = { alerts: [], timer: null, swReg: null, cmResults: [] };
+var SCAD_PLAT_HINT = {
+  catawiki:   'es. "2 g 5 h" oppure "20/07 21:45"',
+  ebay:       'es. "1g 3h rimanenti" oppure "21:45"',
+  vinted:     'es. "45m" oppure "22/07 18:00"',
+  cardmarket: 'es. "3h 15m" oppure "21:00"',
+  subito:     'es. "21:45" oppure "22/07 18:00"',
+  altro:      'es. "2g 4h", "21:45", "22/07 18:00"'
+};
+var SCAD_PLAT_LABEL = { catawiki:'Catawiki', ebay:'eBay', vinted:'Vinted', cardmarket:'CardMarket', subito:'Subito', altro:'Altro' };
+
+// ── Parser tempo: relativo ("2g 5h 30m") o assoluto ("21:45", "20/07 21:45") ──
+function scadParseWhen(raw){
+  if(!raw) return null;
+  var s = String(raw).trim().toLowerCase();
+  // Rumore tipico delle piattaforme
+  s = s.replace(/rimanent\w*|termina\w*|resta\w*|circa|ends?\s+in|left|\bfra\b|\btra\b|\balle\b|\bil\b/g,' ')
+       .replace(/\s+/g,' ').trim();
+  if(!s) return null;
+  var now = new Date();
+  var m;
+
+  // 1) "gg/mm hh:mm" oppure "gg/mm/aaaa hh:mm" (anche - o .)
+  m = s.match(/(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?\s+(\d{1,2})[:.](\d{2})/);
+  if(m){
+    var yy = m[3] ? parseInt(m[3],10) : now.getFullYear();
+    if(yy < 100) yy += 2000;
+    var d = new Date(yy, parseInt(m[2],10)-1, parseInt(m[1],10), parseInt(m[4],10), parseInt(m[5],10), 0);
+    // senza anno esplicito e già passata da >1h → anno prossimo (cavallo di fine anno)
+    if(!m[3] && d.getTime() < now.getTime() - 3600000) d.setFullYear(yy+1);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // 2) solo "hh:mm" → oggi; se già passato → domani
+  m = s.match(/^(\d{1,2})[:.](\d{2})$/);
+  if(m){
+    var d2 = new Date(now.getFullYear(), now.getMonth(), now.getDate(), parseInt(m[1],10), parseInt(m[2],10), 0);
+    if(d2.getTime() <= now.getTime()) d2.setDate(d2.getDate()+1);
+    return d2;
+  }
+
+  // 3) relativo: "2g 5h 30m", "1d 2h", "45 min", "2 giorni 4 ore"
+  var toks = s.match(/(\d+)\s*(giorni|giorno|gg|g\b|d\b|days?|ore|ora|h\b|minuti|minuto|min\b|m\b|secondi|sec\b|s\b)/g);
+  if(toks && toks.length){
+    var ms = 0;
+    for(var i=0;i<toks.length;i++){
+      var t = toks[i].match(/(\d+)\s*([a-z]+)/);
+      if(!t) continue;
+      var n = parseInt(t[1],10), u = t[2];
+      if(/^(giorni|giorno|gg|g|d|day|days)$/.test(u)) ms += n*86400000;
+      else if(/^(ore|ora|h)$/.test(u))                ms += n*3600000;
+      else if(/^(minuti|minuto|min|m)$/.test(u))      ms += n*60000;
+      else if(/^(secondi|sec|s)$/.test(u))            ms += n*1000;
+    }
+    if(ms > 0) return new Date(now.getTime()+ms);
+  }
+  return null;
+}
+
+function scadFmtDate(d){
+  return d.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit'}) + ' ' +
+         d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+}
+function scadFmtLeft(ms){
+  if(ms <= 0) return 'finita';
+  var t = Math.floor(ms/1000);
+  var g = Math.floor(t/86400), h = Math.floor((t%86400)/3600), mi = Math.floor((t%3600)/60), se = t%60;
+  if(g > 0)  return g+'g '+h+'h';
+  if(h > 0)  return h+'h '+String(mi).padStart(2,'0')+'m';
+  if(mi >= 5) return mi+'m';
+  return mi+'m '+String(se).padStart(2,'0')+'s';
+}
+
+// ── CRUD ────────────────────────────────────────────────────────────────
+async function scadLoad(){
+  var uid = (typeof getCurrentUserId==='function')?getCurrentUserId():null;
+  if(!uid){ SCAD_STATE.alerts=[]; scadRender(); return; }
+  try{
+    var since = new Date(Date.now()-6*3600000).toISOString(); // mostra anche le finite da <6h
+    var r = await monRest('rb_auction_alerts?user_id=eq.'+uid+'&dismissed=eq.false&end_at=gte.'+encodeURIComponent(since)+'&order=end_at.asc&limit=40');
+    if(r.ok) SCAD_STATE.alerts = await r.json();
+  }catch(e){ console.warn('[Scadenze] load', e); }
+  scadRender();
+}
+
+async function scadSave(){
+  var when = scadParseWhen(document.getElementById('scadWhen').value);
+  var title = document.getElementById('scadTitle').value.trim();
+  var btn = document.getElementById('scadSaveBtn');
+  if(!when){ scadWhenPreview(); return; }
+  if(!title){ document.getElementById('scadTitle').focus(); return; }
+  var valRaw = document.getElementById('scadVal').value;
+  var payload = {
+    platform: document.getElementById('scadPlat').value,
+    title: title,
+    source_url: document.getElementById('scadUrl').value.trim() || null,
+    end_at: when.toISOString(),
+    notify_minutes: parseInt(document.getElementById('scadMins').value,10) || 5,
+    valuation_eur: valRaw !== '' ? parseFloat(valRaw) : null,
+    valuation_source: document.getElementById('scadVal').dataset.src === 'cardmarket' ? 'cardmarket' : 'manual',
+    user_id: (typeof getCurrentUserId==='function')?getCurrentUserId():null
+  };
+  if(!payload.user_id){ alert('Sessione scaduta: rifai login.'); return; }
+  btn.disabled = true;
+  try{
+    var r = await monRest('rb_auction_alerts', {method:'POST', body:payload});
+    if(!r.ok){ var t = await r.text(); alert('Errore salvataggio: '+t.slice(0,140)); return; }
+    scadCloseForm();
+    await scadLoad();
+  } finally { btn.disabled = false; }
+}
+
+async function scadDelete(id){
+  try{
+    await monRest('rb_auction_alerts?id=eq.'+id, {method:'PATCH', body:{dismissed:true}, prefer:'return=minimal'});
+  }catch(e){}
+  SCAD_STATE.alerts = SCAD_STATE.alerts.filter(function(a){ return a.id !== id; });
+  scadRender();
+}
+
+// ── Valutazione da indice CardMarket (rb_index_search) ──────────────────
+async function scadCmLookup(){
+  var q = document.getElementById('scadTitle').value.trim();
+  var pick = document.getElementById('scadCmPick');
+  if(q.length < 2){ pick.classList.remove('open'); return; }
+  var btn = document.getElementById('scadCmBtn');
+  btn.disabled = true;
+  try{
+    var r = await fetch(window.SUPA_URL+'/rest/v1/rpc/rb_index_search', {
+      method:'POST',
+      headers: (typeof getHDR==='function')?getHDR():{'apikey':window.SUPA_KEY,'Content-Type':'application/json'},
+      body: JSON.stringify({ p_name: q, p_limit: 8 })
+    });
+    var rows = r.ok ? await r.json() : [];
+    SCAD_STATE.cmResults = (rows||[]).filter(function(c){ return c.price_nm_weighted != null || c.price_nm != null; });
+    if(!SCAD_STATE.cmResults.length){
+      pick.innerHTML = '<div class="scad-cm-row" style="cursor:default;color:var(--text-muted)">Nessun prezzo nell\'indice — inserisci a mano</div>';
+      pick.classList.add('open');
+      setTimeout(function(){ pick.classList.remove('open'); }, 3500);
+      return;
+    }
+    var html = '';
+    for(var i=0;i<SCAD_STATE.cmResults.length;i++){
+      var c = SCAD_STATE.cmResults[i];
+      var pr = c.price_nm_weighted != null ? c.price_nm_weighted : c.price_nm;
+      html += '<div class="scad-cm-row" data-i="'+i+'">'
+            +   '<span class="n">'+esc(c.name)+(c.number?' · '+esc(c.number):'')+(c.set_name?' — '+esc(c.set_name):'')+'</span>'
+            +   '<span class="p">€'+Number(pr).toFixed(2)+'</span>'
+            + '</div>';
+    }
+    pick.innerHTML = html;
+    pick.classList.add('open');
+  }catch(e){
+    console.warn('[Scadenze] CM lookup', e);
+  } finally { btn.disabled = false; }
+}
+
+function scadPickCm(i){
+  var c = SCAD_STATE.cmResults[i];
+  if(!c) return;
+  var pr = c.price_nm_weighted != null ? c.price_nm_weighted : c.price_nm;
+  var el = document.getElementById('scadVal');
+  el.value = Number(pr).toFixed(2);
+  el.dataset.src = 'cardmarket';
+  document.getElementById('scadCmPick').classList.remove('open');
+}
+
+// ── Render + countdown ──────────────────────────────────────────────────
+function scadRender(){
+  var host = document.getElementById('scadListEl');
+  if(!host) return;
+  if(!SCAD_STATE.alerts.length){
+    host.innerHTML = '<div style="font-size:11px;color:var(--text-muted)">Nessuna scadenza attiva.<br/>Carica un\'asta e riceverai la push a −5 min.</div>';
+    return;
+  }
+  var html = '';
+  for(var i=0;i<SCAD_STATE.alerts.length;i++){
+    var a = SCAD_STATE.alerts[i];
+    var end = new Date(a.end_at);
+    var val = a.valuation_eur != null
+      ? '€'+Number(a.valuation_eur).toLocaleString('it-IT',{maximumFractionDigits:2})+(a.valuation_source==='cardmarket'?'\u2009CM':'')
+      : '';
+    var t = a.source_url
+      ? '<a href="'+esc(a.source_url)+'" target="_blank" rel="noopener">'+esc(a.title)+'</a>'
+      : esc(a.title);
+    html += '<div class="scad-item" data-id="'+a.id+'">'
+          +   '<button class="scad-x" data-del="'+a.id+'" title="Rimuovi">✕</button>'
+          +   '<div class="scad-top"><span class="scad-title">'+t+'</span>'
+          +   '<span class="scad-plat">'+(SCAD_PLAT_LABEL[a.platform]||a.platform)+'</span></div>'
+          +   '<div class="scad-meta"><span class="scad-cd" data-cd="'+a.id+'">—</span>'
+          +   '<span>fine '+scadFmtDate(end)+'</span>'
+          +   (val?'<span style="color:var(--gold,#c9a84c)">'+val+'</span>':'')
+          +   (a.notified_at?'<span title="'+esc(a.notify_result||'')+'">🔔</span>':'')
+          +   '</div>'
+          + '</div>';
+  }
+  host.innerHTML = html;
+  scadTick();
+}
+
+function scadTick(){
+  var now = Date.now();
+  for(var i=0;i<SCAD_STATE.alerts.length;i++){
+    var a = SCAD_STATE.alerts[i];
+    var el = document.querySelector('[data-cd="'+a.id+'"]');
+    if(!el) continue;
+    var left = Date.parse(a.end_at) - now;
+    el.textContent = scadFmtLeft(left);
+    var mins = (a.notify_minutes||5)*60000;
+    el.className = 'scad-cd ' + (left<=0 ? 'done' : left<=mins ? 'hot' : left<=3600000 ? 'warn' : '');
+  }
+}
+
+// ── Web Push subscribe (stesso keypair/tabella di radar) ────────────────
+async function scadEnablePush(){
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)){
+    alert('Web Push non supportato su questo browser.\nSu iPhone: aggiungi rareblock.eu alla schermata Home (Condividi → Aggiungi a Home) e riapri da lì.');
+    return;
+  }
+  try{
+    var perm = await Notification.requestPermission();
+    if(perm !== 'granted'){ scadUpdatePushUi(); return; }
+    if(!SCAD_STATE.swReg){
+      SCAD_STATE.swReg = await navigator.serviceWorker.register('/sw.js', { scope:'/' });
+      if(SCAD_STATE.swReg.installing) await new Promise(function(res){
+        SCAD_STATE.swReg.installing.addEventListener('statechange', function(){ if(this.state==='activated') res(); });
+      });
+    }
+    var sub = await SCAD_STATE.swReg.pushManager.getSubscription();
+    if(!sub){
+      sub = await SCAD_STATE.swReg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: scadB64uToUint8(SCAD_VAPID_PUB)
+      });
+    }
+    var uid = (typeof getCurrentUserId==='function')?getCurrentUserId():null;
+    if(uid){
+      var j = sub.toJSON();
+      await fetch(window.SUPA_URL+'/rest/v1/hunt_push_subscriptions?on_conflict=user_id,endpoint', {
+        method:'POST',
+        headers: Object.assign({}, (typeof getHDR==='function')?getHDR():{}, {
+          'Prefer':'resolution=merge-duplicates,return=minimal','Content-Type':'application/json'
+        }),
+        body: JSON.stringify({ user_id: uid, endpoint: sub.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth,
+          user_agent: navigator.userAgent.slice(0,200), last_seen: new Date().toISOString(), failure_count: 0 })
+      });
+    }
+    scadUpdatePushUi();
+  }catch(e){
+    console.warn('[Scadenze] push', e);
+    alert('Errore attivazione push: '+(e.message||e));
+  }
+}
+
+async function scadUpdatePushUi(){
+  var btn = document.getElementById('scadPushBtn');
+  if(!btn) return;
+  var on = false;
+  try{
+    if(('serviceWorker' in navigator) && Notification.permission === 'granted'){
+      var reg = await navigator.serviceWorker.getRegistration('/');
+      if(reg){ SCAD_STATE.swReg = reg; on = !!(await reg.pushManager.getSubscription()); }
+    }
+  }catch(e){}
+  btn.textContent = on ? '🔔 push on' : '🔕 push off';
+  btn.classList.toggle('on', on);
+}
+
+function scadB64uToUint8(b64u){
+  var pad = '='.repeat((4 - b64u.length % 4) % 4);
+  var b64 = (b64u + pad).replace(/-/g,'+').replace(/_/g,'/');
+  var raw = atob(b64);
+  var arr = new Uint8Array(raw.length);
+  for(var i=0;i<raw.length;i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
+// ── Form + wiring ───────────────────────────────────────────────────────
+function scadOpenForm(){
+  document.getElementById('scadForm').style.display='block';
+  document.getElementById('scadNewBtn').style.display='none';
+  scadWhenHint();
+  document.getElementById('scadWhen').focus();
+}
+function scadCloseForm(){
+  document.getElementById('scadForm').style.display='none';
+  document.getElementById('scadNewBtn').style.display='';
+  ['scadWhen','scadTitle','scadUrl','scadVal'].forEach(function(id){ document.getElementById(id).value=''; });
+  document.getElementById('scadVal').dataset.src='';
+  document.getElementById('scadWhenPrev').textContent='';
+  document.getElementById('scadCmPick').classList.remove('open');
+}
+function scadWhenHint(){
+  var p = document.getElementById('scadPlat').value;
+  document.getElementById('scadWhen').placeholder = SCAD_PLAT_HINT[p] || SCAD_PLAT_HINT.altro;
+}
+function scadWhenPreview(){
+  var el = document.getElementById('scadWhenPrev');
+  var raw = document.getElementById('scadWhen').value;
+  if(!raw.trim()){ el.textContent=''; el.className='scad-preview'; return; }
+  var d = scadParseWhen(raw);
+  if(d){ el.textContent = '→ fine: '+scadFmtDate(d)+' ('+scadFmtLeft(d.getTime()-Date.now())+')'; el.className='scad-preview ok'; }
+  else { el.textContent = 'Formato non riconosciuto'; el.className='scad-preview err'; }
+}
+
+function scadInit(){
+  var nb = document.getElementById('scadNewBtn');
+  if(!nb) return; // blocco assente
+  nb.addEventListener('click', scadOpenForm);
+  document.getElementById('scadCancelBtn').addEventListener('click', scadCloseForm);
+  document.getElementById('scadSaveBtn').addEventListener('click', scadSave);
+  document.getElementById('scadCmBtn').addEventListener('click', scadCmLookup);
+  document.getElementById('scadPushBtn').addEventListener('click', scadEnablePush);
+  document.getElementById('scadPlat').addEventListener('change', scadWhenHint);
+  document.getElementById('scadWhen').addEventListener('input', scadWhenPreview);
+  document.getElementById('scadVal').addEventListener('input', function(){ this.dataset.src='manual'; });
+  document.getElementById('scadCmPick').addEventListener('click', function(e){
+    var row = e.target.closest('.scad-cm-row');
+    if(row && row.dataset.i != null) scadPickCm(parseInt(row.dataset.i,10));
+  });
+  document.getElementById('scadListEl').addEventListener('click', function(e){
+    var del = e.target.closest('[data-del]');
+    if(del){ e.preventDefault(); scadDelete(del.getAttribute('data-del')); }
+  });
+  scadLoad();
+  scadUpdatePushUi();
+  if(SCAD_STATE.timer) clearInterval(SCAD_STATE.timer);
+  SCAD_STATE.timer = setInterval(scadTick, 1000);
+  // refresh periodico dal DB (nuove notifiche marcate / device multipli)
+  setInterval(scadLoad, 120000);
+}
+
+
 async function monInit(){
   monWire();
+  scadInit();
   monExtPing().then(monUpdateExtStatus);
   await monLoadMonitors();
   monRenderList();

@@ -7,7 +7,7 @@
 //
 //  Aggiorna la versione per forzare update del SW lato client:
 // ═══════════════════════════════════════════════════════════════════════
-const SW_VERSION = '1';
+const SW_VERSION = '2';
 
 self.addEventListener('install', (event) => {
   // Attiva immediatamente la nuova versione
@@ -36,7 +36,7 @@ self.addEventListener('push', (event) => {
     image: data.image || undefined,
     tag: data.tag || ('rb-' + Date.now()),
     renotify: !!data.renotify,
-    requireInteraction: data.threshold === '10m' || data.threshold === '1h',
+    requireInteraction: data.requireInteraction === true || data.threshold === '10m' || data.threshold === '1h',
     vibrate: [200, 100, 200],
     data: {
       url: data.url || '/',
